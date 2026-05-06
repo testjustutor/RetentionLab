@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🗄️ Database Admin</title>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg,#667eea,#764ba2);
+  padding:20px;
+}
+
+.container {
+  max-width:1400px;
+  margin:auto;
+  background:white;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 20px 40px rgba(0,0,0,0.1);
+}
+
+.header {
+  background: linear-gradient(135deg,#667eea,#764ba2);
+  color:white;
+  padding:20px;
+  text-align:center;
+}
+
+.controls {
+  padding:15px;
+  background:#f8f9fa;
+}
+
+select, button {
+  padding:8px 12px;
+  margin-right:8px;
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+
+button {
+  background:#667eea;
+  color:white;
+  cursor:pointer;
+  border:none;
+}
+
+button:hover { background:#5a67d8; }
+
+button.danger { background:#dc3545; }
+button.refresh { background:#28a745; }
+
+.stats {
+  display:grid;
+  grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;
+  padding:15px;
+  background:#eef5ff;
+}
+
+.stat-card {
+  background:white;
+  padding:15px;
+  border-radius:8px;
+  text-align:center;
+}
+
+.stat-number {
+  font-size:20px;
+  font-weight:bold;
+  color:#667eea;
+}
+
+.table-container {
+  padding:20px;
+  max-height:70vh;
+  overflow:auto;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+
+th {
+  background:#f1f3f4;
+  position:sticky;
+  top:0;
+  padding:10px;
+}
+
+td {
+  padding:10px;
+  border-bottom:1px solid #eee;
+  max-width:200px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+tr:hover { background:#f9f9ff; }
+
+.loading {
+  text-align:center;
+  padding:30px;
+}
+
+.spinner {
+  border:3px solid #eee;
+  border-top:3px solid #667eea;
+  border-radius:50%;
+  width:30px;
+  height:30px;
+  animation:spin 1s linear infinite;
+  margin:auto;
+}
+
+@keyframes spin {
+  100% { transform:rotate(360deg); }
+}
+
+.error {
+  background:#f8d7da;
+  padding:10px;
+  margin:10px;
+}
+
+.empty {
+  text-align:center;
+  padding:30px;
+  color:#999;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h2>🗄️ Database Admin</h2>
+    <p>Live DB Viewer</p>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <select id="tableSelect"></select>
+    <button onclick="loadTables()">Load</button>
+    <button class="refresh" onclick="refreshData()">Refresh</button>
+    <button class="danger" onclick="clearTable()">Clear</button>
+    <button onclick="exportCSV()">Export</button>
+    <button onclick="executeQuery()">SQL</button>
+    <span id="lastUpdated"></span>
+  </div>
+
+  <div class="table-container">
+    <div id="loading" class="loading" style="display:none">
+      <div class="spinner"></div>
+      Loading...
+    </div>
+
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="data"></div>
+  </div>
+
+</div>
+
+<script>
+
+let currentTable = "";
+
+// INIT
+window.onload = () => {
+  loadTables();
+  loadStats();
+};
+
+// ================= TABLES =================
+
+async function loadTables() {
+  showLoading();
+
+  try {
+    const res = await fetch('/api/db/tables');
+    const data = await res.json();
+
+    const select = document.getElementById('tableSelect');
+    select.innerHTML = '<option value="">Select table</option>';
+
+    data.data.tables.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = t.name;
+      select.appendChild(opt);
+    });
+
+  } catch (e) {
+    showError(e.message);
+  }
+
+  hideLoading();
+}
+
+async function loadTableData(table) {
+  showLoading();
+
+  try {
+    const res = await fetch(`/api/db/table/${table}`);
+    const data = await res.json();
+
+    if (data.status !== 'success') throw new Error(data.message);
+
+    renderTable(data.data);
+    currentTable = table;
+
+    updateLastUpdated();
+
+  } catch (e) {
+    showError(e.message);
+  }
+
+  hideLoading();
+}
+
+function renderTable(table) {
+  const el = document.getElementById('data');
+
+  if (!table.rows.length) {
+    el.innerHTML = '<div class="empty">No data</div>';
+    return;
+  }
+
+  let html = `<h3>${table.name} (${table.rows.length} rows)</h3>`;
+  html += `<table><thead><tr>`;
+
+  table.columns.forEach(c => {
+    html += `<th>${c.name}<br><small>${c.type}</small></th>`;
+  });
+
+  html += `<th>Actions</th></tr></thead><tbody>`;
+
+  table.rows.forEach(row => {
+    html += "<tr>";
+
+    table.columns.forEach(c => {
+      html += `<td>${truncate(row[c.name])}</td>`;
+    });
+
+    const id = row.id || row.rowid;
+    html += `<td><button onclick="deleteRow('${table.name}',${id})">🗑️</button></td>`;
+
+    html += "</tr>";
+  });
+
+  html += "</tbody></table>";
+  el.innerHTML = html;
+}
+
+// ================= ACTIONS =================
+
+async function deleteRow(table,id) {
+  if (!confirm('Delete row?')) return;
+
+  await fetch(`/api/db/row/${table}/${id}`, { method:'DELETE' });
+  loadTableData(table);
+}
+
+async function clearTable() {
+  if (!currentTable) return;
+  if (!confirm('Clear table?')) return;
+
+  await fetch(`/api/db/clear/${currentTable}`, { method:'POST' });
+  loadTableData(currentTable);
+}
+
+async function exportCSV() {
+  if (!currentTable) return;
+
+  const res = await fetch(`/api/db/export/${currentTable}`);
+  const blob = await res.blob();
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = currentTable + ".csv";
+  a.click();
+}
+
+function refreshData() {
+  if (!currentTable) return;
+  loadTableData(currentTable);
+}
+
+// ================= STATS =================
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/db/stats');
+    const data = await res.json();
+
+    const el = document.getElementById('stats');
+
+    el.innerHTML = data.data.tables.map(t => `
+      <div class="stat-card">
+        <div class="stat-number">${t.count}</div>
+        <div>${t.name}</div>
+      </div>
+    `).join('');
+
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ================= QUERY =================
+
+async function executeQuery() {
+  const sql = prompt('Enter SQL query');
+  if (!sql) return;
+
+  const res = await fetch('/api/db/query', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sql})
+  });
+
+  const data = await res.json();
+  alert(JSON.stringify(data,null,2));
+}
+
+// ================= HELPERS =================
+
+function truncate(str,len=80){
+  str = String(str || '');
+  return str.length > len ? str.slice(0,len)+'...' : str;
+}
+
+function showLoading(){
+  document.getElementById('loading').style.display='block';
+  document.getElementById('data').style.display='none';
+}
+
+function hideLoading(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('data').style.display='block';
+}
+
+function showError(msg){
+  const el = document.getElementById('error');
+  el.innerText = msg;
+  el.style.display='block';
+}
+
+function updateLastUpdated(){
+  document.getElementById('lastUpdated').innerText =
+    'Updated: ' + new Date().toLocaleString();
+}
+
+// ================= EVENTS =================
+
+document.getElementById('tableSelect').addEventListener('change', e => {
+  if (e.target.value) loadTableData(e.target.value);
+});
+
+</script>
+
+</body>
+</html>

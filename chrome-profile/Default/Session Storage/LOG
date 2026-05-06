@@ -1,0 +1,18 @@
+2026/05/05-12:44:52.630 260 Reusing MANIFEST C:\xampp\htdocs\video-conference-boat\Zoom-transcript\chrome-profile\Default\Session Storage/MANIFEST-000001
+2026/05/05-12:44:52.632 260 Recovering log #26
+2026/05/05-12:44:52.640 260 Reusing old log C:\xampp\htdocs\video-conference-boat\Zoom-transcript\chrome-profile\Default\Session Storage/000026.log 
+2026/05/05-12:46:55.489 4df0 Level-0 table #30: started
+2026/05/05-12:46:55.517 4df0 Level-0 table #30: 276408 bytes OK
+2026/05/05-12:46:55.520 4df0 Delete type=0 #26
+2026/05/05-12:46:55.522 4df0 Compacting 4@0 + 1@1 files
+2026/05/05-12:46:55.555 4df0 Generated table #31@0: 139 keys, 558181 bytes
+2026/05/05-12:46:55.555 4df0 Compacted 4@0 + 1@1 files => 558181 bytes
+2026/05/05-12:46:55.556 4df0 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/05/05-12:46:55.558 4df0 Delete type=2 #20
+2026/05/05-12:46:55.558 4df0 Delete type=2 #22
+2026/05/05-12:46:55.558 4df0 Delete type=2 #24
+2026/05/05-12:46:55.558 4df0 Delete type=2 #27
+2026/05/05-12:46:55.558 4df0 Delete type=2 #30
+2026/05/05-12:49:17.211 4df0 Level-0 table #33: started
+2026/05/05-12:49:17.231 4df0 Level-0 table #33: 138283 bytes OK
+2026/05/05-12:49:17.233 4df0 Delete type=0 #29

@@ -1,0 +1,111 @@
+# Zoom Transcript Bot - Production Ready 🚀
+
+## Quick Start
+
+### Option 1: Single Meeting (CLI)
+```bash
+1. cp .env.example .env
+2. Edit .env with your Zoom meeting details
+3. npm start                    # Runs node index.js
+```
+
+### Option 2: Multiple Meetings (Dashboard UI)
+```bash
+1. npm run dashboard           # Starts dashboard server on http://localhost:3001
+2. Open http://localhost:3001/dashboard.html
+3. Enter meeting details and click "Launch Bot"
+4. Monitor real-time bot status and logs from dashboard
+```
+
+## Available Commands
+
+```bash
+npm start                 # Run single meeting bot (uses .env)
+npm run dev              # Run with nodemon auto-reload
+npm run dashboard        # Start dashboard UI server (port 3001)
+npm run dev:dashboard    # Dashboard with auto-reload
+npm run db:init          # Initialize/reset database
+```
+
+## Features
+
+✅ **Auto-join** any Zoom meeting (link/ID/passcode)
+✅ **Live captions** with speaker names
+✅ **SQLite storage** (transcripts.db)
+✅ **JSON/TXT export** (storage/)
+✅ **Participant detection** (live logs)
+✅ **Auto-shutdown** when meeting ends
+✅ **Mute bot** (no audio/video)
+✅ **Full debug logs** (logs/combined.log)
+
+## Structure
+
+```
+database/     → SQLite setup
+models/       → DB models
+services/     → Bot logic (join, captions, monitor)
+utils/        → Logger, export
+storage/      → JSON/TXT exports
+logs/         → Debug logs
+```
+
+## Dashboard Features
+
+The **ZoomBot.ai Dashboard** provides a UI to manage multiple bot instances:
+
+- **Launch Bot** - Start new meeting transcription with meeting ID & passcode
+- **Live Status** - Monitor all active bots in real-time
+- **Storage Stats** - View transcript storage usage
+- **Logs** - Stream and filter logs by meeting
+- **Stop Bot** - Gracefully shutdown any running bot
+
+**Run dashboard:**
+```bash
+npm run dashboard          # Production
+npm run dev:dashboard     # Development with auto-reload
+```
+
+Open: `http://localhost:3001/dashboard.html`
+
+## API Reference
+
+### Bot Management
+```
+POST   /bot/start-bot                    # Start new bot
+GET    /bot/list                         # List active bots
+GET    /bot/status/:meetingId            # Get bot status
+DELETE /bot/stop-bot/:meetingId          # Stop bot
+```
+
+### Storage & Logs
+```
+GET    /storage/stats                    # Storage usage stats
+GET    /logs                             # List log files
+GET    /logs/:filename                   # Read specific log
+```
+
+All APIs require running `npm run dashboard`
+
+## Debug
+
+```
+tail -f logs/combined.log | grep "👥\|🔍\|✅"
+```
+
+**Live Output:**
+```
+[10:05:23] John Doe: Let's start
+[10:05:30] Sarah: Agreed
+👥 LIVE PARTICIPANTS: John, Sarah, Bot
+```
+
+## Troubleshooting
+
+**No captions:** Enable "Live Transcript" in Zoom
+**Bad names:** Check logs/participants selectors  
+**Export empty:** Captions off OR meeting ended early
+
+**Production:** `npm start` / PM2 / Docker ready
+
+🎉 Ready for any meeting!
+

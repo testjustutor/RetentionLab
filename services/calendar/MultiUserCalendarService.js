@@ -1,0 +1,203 @@
+const { google } = require('googleapis');
+const { logger } = require('../../utils/logger');
+const CalendarUsersModel = require('../../models/CalendarUsersModel');
+const path = require('path');
+const fs = require('fs/promises');
+
+class MultiUserCalendarService {
+  constructor() {
+    this.oauth2Client = null;
+    this.calendar = null;
+    this.currentEmail = null;
+  }
+
+  async initialize(email) {
+    let user = await CalendarUsersModel.getUser(email);
+
+    // if (!user) {
+    //   logger.info(`User not found, auto-registering: ${email}`);
+    //   await CalendarUsersModel.createOrUpdateUser(email, {
+    //     access_token: null,
+    //     refresh_token: null,
+    //     expiry_date: null
+    //   });
+    //   user = await CalendarUsersModel.getUser(email);
+    //   logger.info(`User registered: ${email}`);
+    // }
+
+    this.currentEmail = email;
+
+    // Create OAuth2 client - credentials from existing resolver logic or env
+    // Assume credentials.json in uploads/google-calendar-json/credentials_multi.json
+    const credentialsPath = path.join(__dirname, '../../uploads/google-calendar-json/credentials_multi.json');
+    const credentials = JSON.parse(await fs.readFile(credentialsPath, 'utf8'));
+
+    const { client_id, client_secret, redirect_uris } = credentials.installed || credentials.web || credentials;
+    if (!client_id || !client_secret) {
+      throw new Error('Missing client_id/client_secret in credentials_multi.json');
+    }
+
+    const config = credentials.installed || credentials.web || credentials;
+    const redirectUri = config.redirect_uris[0];
+
+    this.oauth2Client = new google.auth.OAuth2(
+      client_id,
+      client_secret,
+      redirectUri 
+      );
+
+    // Set tokens from DB
+    // Set credentials only if real tokens exist (skip for newly registered)
+    if (user && user.access_token) {
+      this.oauth2Client.setCredentials({
+        access_token: user.access_token,
+        refresh_token: user.refresh_token,
+        expiry_date: user.token_expiry,
+      });
+      this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+    } else {
+      logger.warn(`No valid tokens for ${email} - OAuth client ready for auth flow`);
+    }
+
+    this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+    logger.info(`MultiUserCalendarService initialized for ${email}`);
+  }
+
+  async ensureValidToken() {
+    if (!this.oauth2Client) {
+      throw new Error('Service not initialized');
+    }
+
+    const tokens = this.oauth2Client.credentials;
+    if (!tokens || !tokens.access_token || tokens.access_token === 'placeholder_registered') {
+      throw new Error('No valid access token. Complete Google OAuth authorization first.');
+    }
+
+    const now = Date.now();
+
+    if (tokens.expiry_date && tokens.expiry_date < now + 60000) { // Refresh 1min early
+      if (!tokens.refresh_token) {
+        throw new Error('Token expired and no refresh_token available');
+      }
+
+      logger.info(`Refreshing token for ${this.currentEmail}`);
+      try {
+        const { credentials } = await this.oauth2Client.refreshAccessToken();
+        await CalendarUsersModel.updateTokens(this.currentEmail, credentials);
+        this.oauth2Client.setCredentials(credentials);
+        logger.info(`Token refreshed successfully for ${this.currentEmail}`);
+      } catch (err) {
+        logger.error(`Token refresh failed for ${this.currentEmail}:`, err.message);
+        throw new Error('Token refresh failed. Re-authorize required.');
+      }
+    }
+  }
+
+  async getOAuth2Client() {
+    // Load credentials directly (no tokens/DB needed for auth URL)
+    const credentialsPath = path.join(__dirname, '../../uploads/google-calendar-json/credentials_multi.json');
+    
+    let credentials;
+    try {
+      const raw = await fs.readFile(credentialsPath, 'utf8');
+      credentials = JSON.parse(raw);
+    } catch (err) {
+      throw new Error(`credentials_multi.json missing or invalid: ${err.message}. Download from Google Console.`);
+    }
+
+    const config = credentials.installed || credentials.web || credentials;
+    const { client_id, client_secret, redirect_uris } = config;
+
+    if (!client_id || !client_secret || !redirect_uris?.[0]) {
+      throw new Error('Invalid credentials_multi.json: Missing client_id, client_secret, or redirect_uris[0]');
+    }
+
+    return new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+  }
+
+  async getAuthUrl() { 
+    if (!this.currentEmail) throw new Error("Service must be initialized with an email first.");
+
+    return this.oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: [
+      'https://www.googleapis.com/auth/calendar.readonly',
+      'https://www.googleapis.com/auth/calendar.events'
+      ],
+      state: this.currentEmail // This is CRITICAL. It passes the email to the callback.
+    });
+  }
+
+  async authorize(code) {
+    // 1. Exchange code for tokens
+    const { tokens } = await this.oauth2Client.getToken(code);
+    
+    // 2. Set them into the current client
+    this.oauth2Client.setCredentials(tokens);
+    this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    // 3. Store in Database (This satisfies the NOT NULL constraint)
+    await CalendarUsersModel.createOrUpdateUser(this.currentEmail, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date
+    });
+
+    return tokens;
+  }
+
+  async getEvents(options = {}) {
+    // No token check - return empty for unregistered, let route handle
+    if (!this.oauth2Client.credentials.access_token || this.oauth2Client.credentials.access_token === 'placeholder_registered') {
+      logger.info(`No tokens for ${this.currentEmail} - returning empty events`);
+      return [];
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await this.ensureValidToken();
+    const defaultOptions = {
+      calendarId: 'primary',
+      timeMin: today.toISOString(),
+      maxResults: 10,
+      singleEvents: true,
+      orderBy: 'startTime'
+    };
+    const params = { ...defaultOptions, ...options };
+    const response = await this.calendar.events.list(params);
+    return response.data.items || [];
+  }
+
+  async createEvent(eventData) {
+    await this.ensureValidToken();
+    const event = {
+      summary: eventData.summary,
+      description: eventData.description,
+      start: {
+        dateTime: eventData.start.dateTime,
+        timeZone: 'Asia/Kolkata', // Default, can be dynamic
+      },
+      end: {
+        dateTime: eventData.end.dateTime,
+        timeZone: 'Asia/Kolkata',
+      },
+      ...eventData
+    };
+    const response = await this.calendar.events.insert({
+      calendarId: 'primary',
+      resource: event,
+      sendUpdates: 'all'
+    });
+    logger.info(`Event created for ${this.currentEmail}: ${event.summary}`);
+    return response.data;
+  }
+
+  async getUserEmail() {
+    await this.ensureValidToken();
+    const response = await this.calendar.users.getProfile(); // Requires people scope? Use calendar freebusy or assume from DB
+    return this.currentEmail; // Simplified - email from DB
+  }
+}
+
+module.exports = MultiUserCalendarService;
+

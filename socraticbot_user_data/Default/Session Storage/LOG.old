@@ -1,0 +1,15 @@
+2026/04/01-18:03:57.987 3f34 Reusing MANIFEST C:\xampp\htdocs\video-conference-boat\Zoom-transcript\socraticbot_user_data\Default\Session Storage/MANIFEST-000001
+2026/04/01-18:03:57.992 3f34 Recovering log #14
+2026/04/01-18:03:57.996 3f34 Reusing old log C:\xampp\htdocs\video-conference-boat\Zoom-transcript\socraticbot_user_data\Default\Session Storage/000014.log 
+2026/04/01-18:04:58.023 2778 Level-0 table #18: started
+2026/04/01-18:04:58.041 2778 Level-0 table #18: 266051 bytes OK
+2026/04/01-18:04:58.044 2778 Delete type=0 #14
+2026/04/01-18:04:58.054 3f34 Compacting 4@0 + 1@1 files
+2026/04/01-18:04:58.104 3f34 Generated table #19@0: 35 keys, 1184881 bytes
+2026/04/01-18:04:58.104 3f34 Compacted 4@0 + 1@1 files => 1184881 bytes
+2026/04/01-18:04:58.107 3f34 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/04/01-18:04:58.109 3f34 Delete type=2 #7
+2026/04/01-18:04:58.109 3f34 Delete type=2 #9
+2026/04/01-18:04:58.109 3f34 Delete type=2 #12
+2026/04/01-18:04:58.109 3f34 Delete type=2 #15
+2026/04/01-18:04:58.110 3f34 Delete type=2 #18
