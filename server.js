@@ -142,7 +142,7 @@ function extractMeetingId(link, platform, description = '') {
 async function backgroundSyncAllUsers() {
   try {
     const users = await CalendarUsersModel.getAllUsers();
-    logger.info(`🔄 Global Sync: Checking meetings for ${users.length} authenticated users...`);
+    logger.info(`(ServerJS File): Global Sync: Checking meetings for ${users.length} authenticated users...`);
 
     for (const user of users) {
       try {
@@ -165,7 +165,7 @@ async function backgroundSyncAllUsers() {
             const platformType = detectPlatform(link);
             const { meetingId, passcode } = extractMeetingId(link, platformType, e.description);
             
-            logger.info(`🔄 meetingId : ${meetingId} and passcode : ${passcode} `);
+            logger.info(`(ServerJS File): meetingId : ${meetingId} and passcode : ${passcode} `);
             // Store & Match logic
             await MeetingModel.getMeetingByIdOrCreate({
               meetingId: meetingId || e.id,
@@ -182,13 +182,13 @@ async function backgroundSyncAllUsers() {
           }
         }
         await MeetingModel.deleteRemovedMeetings(user.email, activeEventIds);
-        logger.info(`Sync complete for ${user.email}. Cleanup performed.`);
+        logger.info(`(ServerJS File): Sync complete for ${user.email}. Cleanup performed.`);
       } catch (userErr) {
-        logger.error(`Failed to sync for ${user.email}: ${userErr.message}`);
+        logger.error(`(ServerJS File): Failed to sync for ${user.email}: ${userErr.message}`);
       }
     }
   } catch (err) {
-    logger.error('Global background sync error:', err);
+    logger.error('(ServerJS File): Global background sync error:', err);
   }
 }
 
@@ -226,7 +226,7 @@ app.get('/storage/stats', async (req, res) => {
       bytes: totalSize
     });
   } catch (err) {
-    logger.error('Storage stats error:', err);
+    logger.error('(ServerJS File): Storage stats error:', err);
     res.status(500).json({ total: '0 KB' });
   }
 });
@@ -245,7 +245,7 @@ app.get('/auth/google/callback', async (req, res) => {
     const dynamicBaseUrl = `${protocol}://${host}`;
 
     if (error) {
-      logger.error('Google OAuth error:', error);
+      logger.error('(ServerJS File): Google OAuth error:', error);
       return res.status(400).send(`<h2>OAuth Error: ${error}</h2><p><a href="${dynamicBaseUrl}/public/dashboard.html">Back</a></p>`);
     }
 
@@ -273,7 +273,7 @@ app.get('/auth/google/callback', async (req, res) => {
       res.status(500).send(`<h2>❌ Authorization Failed</h2><p>${result.message || 'Unknown error'}</p>`);
     }
   } catch (err) {
-    logger.error('Callback error:', err);
+    logger.error('(ServerJS File): Callback error:', err);
     res.status(500).send(`<h2>Server Error</h2><p>${err.message}</p>`);
   }
 });
@@ -295,7 +295,7 @@ app.get('/api/transcripts/:meetingId', async (req, res) => {
       }))
     });
   } catch (err) {
-    logger.error('API error:', err);
+    logger.error('(ServerJS File): API error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -314,7 +314,7 @@ setInterval(async () => {
   try {
     const queued = await MeetingModel.getQueuedMeetings();
     if (queued.length > 0) {
-        logger.info(`Polling found ${queued.length} queued meetings`);
+        logger.info(`(ServerJS File): Polling found ${queued.length} queued meetings`);
     }
     
     for (const meeting of queued) {
@@ -324,7 +324,7 @@ setInterval(async () => {
       if (startTime <= now) {
         // ✅ FIX: Check for the ID before launching
         if (!meeting.meeting_id || meeting.meeting_id === 'null') {
-          logger.warn(`Skipping meeting ${meeting.meeting_id}: No valid meeting_id found in DB.`);
+          logger.warn(`(ServerJS File): Skipping meeting ${meeting.meeting_id}: No valid meeting_id found in DB.`);
           
           continue; 
         }
@@ -333,7 +333,7 @@ setInterval(async () => {
       }
     }
   } catch (err) {
-    logger.error('Polling error:', err);
+    logger.error('(ServerJS File): Polling error:', err);
   }
 }, 10000);
 
@@ -341,7 +341,7 @@ setInterval(async () => {
 // SERVER STARTUP WITH INITIAL GLOBAL SYNC
 // -------------------------------------------------------------------------
 CalendarUsersModel.createTable()
-  .catch(err => logger.warn('Users table creation failed:', err))
+  .catch(err => logger.warn('(ServerJS File): Users table creation failed:', err))
   .then(() => initDB())
   .then(async () => {
     // 🚀 FIREFLIES LOGIC: Run Global Sync immediately on server start
@@ -353,12 +353,12 @@ CalendarUsersModel.createTable()
     // At the very bottom of server.js, replace the httpServer.listen block:
     httpServer.listen(PORT, () => {
       // This will log the actual port being used
-      logger.info(`🚀 Bot Server is LIVE on Port: ${PORT}`);
-      logger.info(`Auto-Sync (1min) and Polling (30s) are now ACTIVE.`);
+      logger.info(`(ServerJS File): Bot Server is LIVE on Port: ${PORT}`);
+      logger.info(`(ServerJS File): Auto-Sync (1min) and Polling (30s) are now ACTIVE.`);
     });
   })
   .catch(err => {
-    logger.error('Server start error:', err);
+    logger.error('(ServerJS File): Server start error:', err);
   });
 
 module.exports = { app, io };

@@ -54,30 +54,33 @@ class SocraticBot {
     
       const uniqueProfileDir = path.resolve(__dirname, '..', 'storage', 'chrome-profiles', `profile_${this.meetingId || this.sessionId}`);
 
-      // ✅ PASS IT TO THE BROWSER MANAGER
+      const { puppeteer: puppeteerSettings } = require('../settings');
+
+      // PASS IT TO THE BROWSER MANAGER
       this.browserManager = await new BrowserManager().init({
-        userDataDir: uniqueProfileDir
+        userDataDir: uniqueProfileDir,
+        protocolTimeout: puppeteerSettings.protocolTimeout
       });
 
       const joiner = this.createJoiner();
       this.joiner = joiner;
 
-      // 🚀 JOIN MEETING
+      // JOIN MEETING
       await joiner.joinMeeting();
 
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 🎙 START AUDIO RECORDING
-      logger.info('🎙️ Triggering FFmpeg recording...');
+      // START AUDIO RECORDING
+      logger.info('DefaultAdapter(SocraticBot): Triggering FFmpeg recording...');
       await this.audioRecorder.start();
 
-      // 🧠 PLATFORM FEATURES
+      // PLATFORM FEATURES
       await this.handlePlatformFeatures(joiner);
 
-      logger.info('READY: SocraticBot is now recording and transcribing.');
+      logger.info('DefaultAdapter(SocraticBot): READY: SocraticBot is now recording and transcribing.');
 
     } catch (err) {
-      logger.error('FATAL: Bot failed to start', err);
+      logger.error('DefaultAdapter(SocraticBot): FATAL: Bot failed to start', err);
       await this.stop();
       throw err;
     }
@@ -194,7 +197,7 @@ class SocraticBot {
   // -------------------------
   
   async stop() {
-    logger.info('Shutting down SocraticBot...');
+    logger.info('DefaultAdapter(SocraticBot): Shutting down SocraticBot...');
 
     if (this.captionMonitor) {
       this.captionMonitor.stopPolling();
@@ -212,7 +215,7 @@ class SocraticBot {
         const finalAudioPath = this.audioRecorder.audioPath;
 
         if (fs.existsSync(finalAudioPath)) {
-          logger.info(`Processing final transcription: ${finalAudioPath}`);
+          logger.info(`DefaultAdapter(SocraticBot): Processing final transcription: ${finalAudioPath}`);
           
           // 1. Save audio path to DB
           await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
@@ -227,7 +230,7 @@ class SocraticBot {
             const transcriptPath = path.join(__dirname, '../storage/transcript', session.transcript_file_name);
             
             if (fs.existsSync(transcriptPath)) {
-              logger.info(`Matching detected: Audio + Transcript (${session.transcript_file_name})`);
+              logger.info(`DefaultAdapter(SocraticBot): Matching detected: Audio + Transcript (${session.transcript_file_name})`);
               
               // 4. Read the labeled text (e.g. "[19:33:33] Yash: ...")
               const labeledText = fs.readFileSync(transcriptPath, 'utf8');
@@ -239,14 +242,14 @@ class SocraticBot {
               // 6. SAVE: Update the database with the final summary
               await MeetingModel.updateSummary(this.sessionId, summary);
               
-              logger.info('Final Combined Summary achieved successfully.');
+              logger.info('DefaultAdapter(SocraticBot): Final Combined Summary achieved successfully.');
             }
           }
         } else {
-          logger.warn(`Audio file not available, skipping transcription: ${finalAudioPath}`);
+          logger.warn(`DefaultAdapter(SocraticBot): Audio file not available, skipping transcription: ${finalAudioPath}`);
         }
       } catch (err) {
-        logger.error('Transcription/Matching failed during shutdown', err);
+        logger.error('DefaultAdapter(SocraticBot): Transcription/Matching failed during shutdown', err);
       }
     }
 
@@ -254,7 +257,7 @@ class SocraticBot {
       await this.browserManager.close();
     }
 
-    logger.info('SocraticBot stopped.');
+    logger.info('DefaultAdapter(SocraticBot): SocraticBot stopped.');
   }
 }
 

@@ -16,10 +16,10 @@ class CalendarUsersModel {
         )
       `, function(err) {
         if (err) {
-          logger.error('Error creating users table:', err);
+          logger.error('Model(CalenderUsersModel): Error creating users table:', err);
           reject(err);
         } else {
-          logger.info('Users table ready');
+          logger.info('Model(CalenderUsersModel): Users table ready');
           resolve(this.changes);
         }
       });
@@ -45,10 +45,10 @@ class CalendarUsersModel {
       stmt.run(email, access_token, refresh_token || null, expiry_date || Date.now() + 3600000, function(err) {
         stmt.finalize();
         if (err) {
-          logger.error('Error upserting user:', err);
+          logger.error('Model(CalenderUsersModel): Error upserting user:', err);
           reject(err);
         } else {
-          logger.info(`User upserted: ${email}`);
+          logger.info(`Model(CalenderUsersModel): User upserted: ${email}`);
           resolve({ id: this.lastID || null, email, changes: this.changes });
         }
       });
@@ -59,7 +59,7 @@ class CalendarUsersModel {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM users WHERE email = ? ORDER BY updated_at DESC LIMIT 1', [email], (err, row) => {
         if (err) {
-          logger.error('Error fetching user:', err);
+          logger.error('Model(CalenderUsersModel): Error fetching user:', err);
           reject(err);
         } else {
           resolve(row);
@@ -72,10 +72,10 @@ class CalendarUsersModel {
     return new Promise((resolve, reject) => {
       db.all('SELECT * FROM users ORDER BY email', (err, rows) => {
         if (err) {
-          logger.error('Error fetching users:', err);
+          logger.error('Model(CalenderUsersModel): Error fetching users:', err);
           reject(err);
         } else {
-          logger.info(`Fetched ${rows.length} users`);
+          logger.info(`Model(CalenderUsersModel): Fetched ${rows.length} users`);
           resolve(rows);
         }
       });
@@ -94,10 +94,10 @@ class CalendarUsersModel {
         WHERE email = ?
       `, [access_token, refresh_token || null, expiry_date, email], function(err) {
         if (err) {
-          logger.error('Error updating tokens:', err);
+          logger.error('Model(CalenderUsersModel): Error updating tokens:', err);
           reject(err);
         } else {
-          logger.info(`Tokens refreshed for ${email}, changes: ${this.changes}`);
+          logger.info(`Model(CalenderUsersModel): Tokens refreshed for ${email}, changes: ${this.changes}`);
           resolve({ changes: this.changes, email });
         }
       });
@@ -108,10 +108,10 @@ class CalendarUsersModel {
     return new Promise((resolve, reject) => {
       db.run('DELETE FROM users WHERE email = ?', [email], function(err) {
         if (err) {
-          logger.error('Error deleting user:', err);
+          logger.error('Model(CalenderUsersModel): Error deleting user:', err);
           reject(err);
         } else {
-          logger.info(`User deleted: ${email}, changes: ${this.changes}`);
+          logger.info(`Model(CalenderUsersModel): User deleted: ${email}, changes: ${this.changes}`);
           resolve({ changes: this.changes, email });
         }
       });

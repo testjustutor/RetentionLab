@@ -1,9 +1,3 @@
-/**
- * Meetings API Routes
- * Platform-agnostic meeting management endpoints
- * Supports: Zoom, Microsoft Teams, Google Meet
- */
-
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
@@ -11,9 +5,6 @@ const botManager = require('../services/shared/botManager');
 const TranscriptModel = require('../models/transcriptModel');
 const PlatformFactory = require('../services/platforms/platformFactory');
 
-/**
- * GET /api/meetings - List all active meetings
- */
 router.get('/', (req, res) => {
   try {
     const meetings = botManager.listInstances();
@@ -25,14 +16,11 @@ router.get('/', (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error listing meetings:', err);
+    logger.error('Route(meeting): Error listing meetings:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/meetings/:meetingId - Get meeting details
- */
 router.get('/:meetingId', async (req, res) => {
   try {
     const { meetingId } = req.params;
@@ -47,27 +35,15 @@ router.get('/:meetingId', async (req, res) => {
       data: session
     });
   } catch (err) {
-    logger.error('Error fetching meeting:', err);
+    logger.error('Route(meeting): Error fetching meeting:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * POST /api/meetings/join - Join a meeting with a bot
- * Body: {
- *   platform: 'zoom' | 'teams' | 'google-meet',
- *   meetingId: string,
- *   meetingUrl: string,
- *   passcode?: string,
- *   botName?: string,
- *   webhookUrl?: string
- * }
- */
 router.post('/join', async (req, res) => {
   try {
     const { platform, meetingId, meetingUrl, passcode, botName, webhookUrl } = req.body;
 
-    // Validate required fields
     if (!platform || !meetingId || !meetingUrl) {
       return res.status(400).json({
         status: 'error',
@@ -75,9 +51,8 @@ router.post('/join', async (req, res) => {
       });
     }
 
-    logger.info(`API: Attempting to join ${platform} meeting: ${meetingId}`);
+    logger.info(`Route(meeting): API: Attempting to join ${platform} meeting: ${meetingId}`);
 
-    // Use platform factory to create appropriate bot
     const result = await PlatformFactory.startBot({
       platform,
       meetingId,
@@ -104,14 +79,12 @@ router.post('/join', async (req, res) => {
       });
     }
   } catch (err) {
-    logger.error('Error joining meeting:', err);
+    logger.error('Route(meeting): Error joining meeting:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * POST /api/meetings/:meetingId/leave - Leave a meeting
- */
+
 router.post('/:meetingId/leave', async (req, res) => {
   try {
     const { meetingId } = req.params;
@@ -130,14 +103,11 @@ router.post('/:meetingId/leave', async (req, res) => {
       });
     }
   } catch (err) {
-    logger.error('Error leaving meeting:', err);
+    logger.error('Route(meeting): Error leaving meeting:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/meetings/:meetingId/status - Get meeting bot status
- */
 router.get('/:meetingId/status', (req, res) => {
   try {
     const { meetingId } = req.params;
@@ -158,7 +128,7 @@ router.get('/:meetingId/status', (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error getting meeting status:', err);
+    logger.error('Route(meeting): Error getting meeting status:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });

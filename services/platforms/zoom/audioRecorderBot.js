@@ -28,7 +28,7 @@ class ProfessionalMeetingBot {
         // Navigate to the meeting
         await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
 
-        logger.info("🚀 Bot joined meeting. Browser session is active.");
+        logger.info("ZoomAdapter(audioRecorderBot): Bot joined meeting. Browser session is active.");
         
         /**
          * NOTE: Removed the spawn('ffmpeg') block from here.
@@ -39,7 +39,7 @@ class ProfessionalMeetingBot {
 
     async transcribeAudio(filePath) {
         if (!fs.existsSync(filePath)) {
-            logger.error(`❌ File not found for transcription: ${filePath}`);
+            logger.error(`ZoomAdapter(audioRecorderBot): File not found for transcription: ${filePath}`);
             return null;
         }
 
@@ -50,7 +50,7 @@ class ProfessionalMeetingBot {
         // 2. Loop through each one
         for (const provider of providers) {
             try {
-                logger.info(`🔄 Attempting transcription with: ${provider.toUpperCase()}`);
+                logger.info(`ZoomAdapter(audioRecorderBot): Attempting zoom transcription with: ${provider.toUpperCase()}`);
                 
                 const formData = new FormData();
                 formData.append('file', fs.createReadStream(filePath));
@@ -82,19 +82,19 @@ class ProfessionalMeetingBot {
                 });
 
                 // If we reach here, it worked!
-                logger.info(`✅ ${provider.toUpperCase()} Success!`);
+                logger.info(`ZoomAdapter(audioRecorderBot): ${provider.toUpperCase()} Success!`);
                 return response.data.text;
 
             } catch (error) {
                 // 5. IMPORTANT: DO NOT THROW HERE
                 // We just log the error and let the 'for' loop continue to the next provider
                 const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-                logger.warn(`⚠️ ${provider.toUpperCase()} failed: ${errorMsg}. Continuing to next provider...`);
+                logger.warn(`ZoomAdapter(audioRecorderBot): ${provider.toUpperCase()} failed: ${errorMsg}. Continuing to next provider...`);
             }
         }
 
         // 6. Only reach here if EVERY provider in the list failed
-        logger.error("❌ ALL transcription providers failed. Saving audio for manual retry.");
+        logger.error("ZoomAdapter(audioRecorderBot): ALL transcription providers failed. Saving audio for manual retry.");
         return null; 
     }
 
@@ -103,7 +103,7 @@ class ProfessionalMeetingBot {
 
         for (const provider of providers) {
             try {
-                logger.info(`📝 Generating Summary with: ${provider.toUpperCase()}`);
+                logger.info(`ZoomAdapter(audioRecorderBot): Generating Summary with: ${provider.toUpperCase()}`);
                 
                 let apiUrl, apiKey, model;
                 if (provider === 'openai') {
@@ -134,7 +134,7 @@ class ProfessionalMeetingBot {
 
                 return response.data.choices[0].message.content;
             } catch (error) {
-                logger.warn(`⚠️ Summary failed with ${provider}, trying next...`);
+                logger.warn(`ZoomAdapter(audioRecorderBot): Summary failed with ${provider}, trying next...`);
             }
         }
         return "Summary generation failed across all providers.";

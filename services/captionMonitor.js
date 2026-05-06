@@ -49,13 +49,13 @@ class CaptionMonitor {
         `==========================================\n\n`;
 
       fs.writeFileSync(this.filePath, header);
-      logger.info(`📁 File Created: storage/transcript/${this.fileName}`);
+      logger.info(`DefaultAdapter(captionMonitor): File Created: storage/transcript/${this.fileName}`);
       if (this.sessionId) {
         TranscriptModel.saveTranscriptFile(this.sessionId, this.fileName)
-          .catch(err => logger.error(`Error saving transcript file metadata: ${err.message}`));
+          .catch(err => logger.error(`DefaultAdapter(captionMonitor): Error saving transcript file metadata: ${err.message}`));
       }
     } catch (err) {
-      logger.error(`Failed to initialize transcript file: ${err.message}`);
+      logger.error(`DefaultAdapter(captionMonitor): Failed to initialize transcript file: ${err.message}`);
     }
   }
 
@@ -91,7 +91,7 @@ class CaptionMonitor {
   async pollCaptions() {
     if (this.isShuttingDown) return;
     if (this.page.isClosed()) {
-      logger.info('🛑 Page closed detected during polling. Finalizing meeting.');
+      logger.info('DefaultAdapter(captionMonitor): Page closed detected during polling. Finalizing meeting.');
       await this.handleMeetingEnd();
       return;
     }
@@ -116,7 +116,7 @@ class CaptionMonitor {
               : true;
 
       if (hasEndPhrase || (this.platform === 'zoom' && !hasActiveMeetingPage)) {
-        logger.info('🛑 [SYSTEM] Meeting end detected from page state. Finalizing...');
+        logger.info('DefaultAdapter(captionMonitor): [SYSTEM] Meeting end detected from page state. Finalizing...');
         await this.handleMeetingEnd();
         return;
       }
@@ -136,7 +136,7 @@ class CaptionMonitor {
       }
     } catch (e) {
       if (!e.message.includes('Target closed')) {
-        logger.error(`Polling Error: ${e.message}`);
+        logger.error(`DefaultAdapter(captionMonitor): Polling Error: ${e.message}`);
       }
     }
   }
@@ -256,12 +256,12 @@ class CaptionMonitor {
         const timestamp = item.time || new Date().toLocaleTimeString();
         const logLine = `[${timestamp}] ${cleanName}: ${cleanText}`;
 
-        logger.info(`✨ ${logLine}`);
+        logger.info(`DefaultAdapter(captionMonitor): ${logLine}`);
 
         try {
           fs.appendFileSync(this.filePath, logLine + '\n');
         } catch (fileErr) {
-          logger.error(`File Append Error: ${fileErr.message}`);
+          logger.error(`DefaultAdapter(captionMonitor): File Append Error: ${fileErr.message}`);
         }
 
         try {
@@ -272,7 +272,7 @@ class CaptionMonitor {
             new Date().toISOString()
           );
         } catch (dbErr) {
-          logger.error(`Database Save Error: ${dbErr.message}`);
+          logger.error(`DefaultAdapter(captionMonitor): Database Save Error: ${dbErr.message}`);
         }
       }
     }
@@ -284,22 +284,22 @@ class CaptionMonitor {
     this.stopPolling();
     this.isMeetingActive = false;
 
-    logger.info("🎵 [AUDIO] Initiating Audio Creation/Processing...");
+    logger.info("DefaultAdapter(captionMonitor): [AUDIO] Initiating Audio Creation/Processing...");
 
     try {
         const footer = `\n==========================================\n` +
                        `TRANSCRIPT ENDED: ${new Date().toLocaleString()}\n` +
                        `==========================================`;
         fs.appendFileSync(this.filePath, footer);
-        logger.info(`✅ File Finalized: ${this.fileName}`);
+        logger.info(`DefaultAdapter(captionMonitor): File Finalized: ${this.fileName}`);
     } catch (err) {
-        logger.error(`Error finalizing file: ${err.message}`);
+        logger.error(`DefaultAdapter(captionMonitor):Error finalizing file: ${err.message}`);
     }
 
     if (this.sessionId) {
       TranscriptModel.updateSessionEnd(this.sessionId)
-        .then(() => logger.info(`🕒 Session end recorded for session ${this.sessionId}`))
-        .catch(err => logger.error(`Error recording session end: ${err.message}`));
+        .then(() => logger.info(`DefaultAdapter(captionMonitor): Session end recorded for session ${this.sessionId}`))
+        .catch(err => logger.error(`DefaultAdapter(captionMonitor): Error recording session end: ${err.message}`));
     }
 
     if (typeof this.onMeetingEnd === 'function') {
@@ -307,16 +307,16 @@ class CaptionMonitor {
         await this.onMeetingEnd();
         return;
       } catch (err) {
-        logger.error(`Meeting shutdown callback error: ${err.message}`);
+        logger.error(`DefaultAdapter(captionMonitor): Meeting shutdown callback error: ${err.message}`);
       }
     }
 
     try {
         const browser = this.page.browser();
         await browser.close();
-        logger.info("👋 Bot successfully left the ended meeting.");
+        logger.info("DefaultAdapter(captionMonitor): Bot successfully left the ended meeting.");
     } catch (e) {
-        logger.error(`Browser close error: ${e.message}`);
+        logger.error(`DefaultAdapter(captionMonitor): Browser close error: ${e.message}`);
     }
   }
 }

@@ -2,7 +2,7 @@ const path = require('path');
 const { logger } = require('../utils/logger');
 
 async function reactiveJoinFlow(page, botName, passcode) {
-  logger.info('🚀 Reactive Zoom Join Flow Started');
+  logger.info('DefaultAdapter(reactiveJoinFlow): Reactive Zoom Join Flow Started');
 
   const continueBtnSelector = 'button.preview-join-button, .zm-btn--primary';
   const joinBtnSelector = 'button.preview-join-button, #joinBtn, .btn-join';
@@ -12,7 +12,7 @@ async function reactiveJoinFlow(page, botName, passcode) {
 
     const browserJoinBtn = await page.$('a[href*="join"]');
     if (browserJoinBtn) {
-      logger.info("Join from Browser page → clicking");
+      logger.info("DefaultAdapter(reactiveJoinFlow): Join from Browser page → clicking");
       await browserJoinBtn.click();
       await new Promise(r => setTimeout(r, 3000));
     }
@@ -20,7 +20,7 @@ async function reactiveJoinFlow(page, botName, passcode) {
     let target = page;
     const frameHandle = await page.waitForSelector('#webclient, iframe[src*="zoom.us"]', { timeout: 2000 }).catch(() => null);
     if (frameHandle) {
-      logger.info("Zoom iframe detected");
+      logger.info("DefaultAdapter(reactiveJoinFlow): Zoom iframe detected");
       target = await frameHandle.contentFrame();
     }
 
@@ -37,29 +37,29 @@ async function reactiveJoinFlow(page, botName, passcode) {
     const pInputSelector = 'input#input-for-pwd, #inputpass, input[name="inputpasscode"]';
     try {
       await target.waitForSelector(pInputSelector, { timeout: 2000 });
-      logger.info("Passcode entry...");
+      logger.info("DefaultAdapter(reactiveJoinFlow): Passcode entry...");
       await target.type(pInputSelector, passcode, { delay: 50 });
     } catch (e) {
-      logger.info("No passcode field found, skipping");
+      logger.info("DefaultAdapter(reactiveJoinFlow): No passcode field found, skipping");
     }
 
     const nameSelector = 'input#input-for-name, .form-control';
     try {
       await target.waitForSelector(nameSelector, { timeout: 2000 });
-      logger.info(`Setting Bot Name: ${botName}`);
+      logger.info(`DefaultAdapter(reactiveJoinFlow): Setting Bot Name: ${botName}`);
       await target.click(nameSelector, { clickCount: 3 });
       await page.keyboard.press('Backspace');
       await target.type(nameSelector, botName, { delay: 50 });
     } catch (e) {
-      logger.info("Name field already set or ready");
+      logger.info("DefaultAdapter(reactiveJoinFlow): Name field already set or ready");
     }
 
     try {
       const continueBtn = await target.waitForSelector(continueBtnSelector, { timeout: 2000 });
       await continueBtn.click();
-      logger.info("Preview/Continue clicked");
+      logger.info("DefaultAdapter(reactiveJoinFlow): Preview/Continue clicked");
     } catch (e) {
-      logger.info("No preview step found");
+      logger.info("DefaultAdapter(reactiveJoinFlow): No preview step found");
     }
 
     try {
@@ -72,9 +72,9 @@ async function reactiveJoinFlow(page, botName, passcode) {
         }
       }, joinBtnSelector);
       await target.click(joinBtnSelector);
-      logger.info('✅ JOINED MEETING');
+      logger.info('DefaultAdapter(reactiveJoinFlow): JOINED MEETING');
     } catch (e) {
-      logger.error("Final Join button click failed");
+      logger.error("DefaultAdapter(reactiveJoinFlow): Final Join button click failed");
     }
 
     await new Promise(r => setTimeout(r, 5000));
@@ -83,18 +83,18 @@ async function reactiveJoinFlow(page, botName, passcode) {
   } catch (e) {
     const errorPath = path.join(__dirname, '..', 'debug_join_error.png');
     await page.screenshot({ path: errorPath, fullPage: true });
-    logger.error(`Join Flow Failed: ${e.message}. Screenshot saved to: ${errorPath}`);
+    logger.error(`DefaultAdapter(reactiveJoinFlow): Join Flow Failed: ${e.message}. Screenshot saved to: ${errorPath}`);
   }
 }
 
 async function enableCaptions(target) {
-  logger.info('⚙️  PROCESS: Enabling Captions...');
+  logger.info('DefaultAdapter(reactiveJoinFlow):  PROCESS: Enabling Captions...');
 
   try {
     const moreBtnSelector = '#moreButton button, [aria-label*="More meeting control"], button[aria-label*="More"], .more_button';
     await target.waitForSelector(moreBtnSelector, { timeout: 5000 });
     await target.click(moreBtnSelector);
-    logger.info('  ↳ LOG: Clicked "More" button');
+    logger.info('DefaultAdapter(reactiveJoinFlow): LOG: Clicked "More" button');
     await new Promise(r => setTimeout(r, 1200));
 
     const clickedLabel = await target.evaluate(() => {
@@ -126,9 +126,9 @@ async function enableCaptions(target) {
     });
 
     if (clickedLabel) {
-      logger.info(`  ↳ LOG: Captions menu item clicked (${clickedLabel})`);
+      logger.info(`DefaultAdapter(reactiveJoinFlow): LOG: Captions menu item clicked (${clickedLabel})`);
     } else {
-      logger.warn('⚠️  WARNING: Could not find any captions/live-transcript item.');
+      logger.warn('DefaultAdapter(reactiveJoinFlow): WARNING: Could not find any captions/live-transcript item.');
        }
 
     await new Promise(r => setTimeout(r, 1500));
@@ -148,13 +148,13 @@ async function enableCaptions(target) {
     });
 
     if (transcriptOpened) {
-      logger.info('✅ SUCCESS: Transcript interface appears active');
+      logger.info('DefaultAdapter(reactiveJoinFlow): SUCCESS: Transcript interface appears active');
     } else {
-      logger.warn('⚠️  NOTICE: Transcript panel not detected; continuing, but captions may require manual re-check');
+      logger.warn('DefaultAdapter(reactiveJoinFlow): NOTICE: Transcript panel not detected; continuing, but captions may require manual re-check');
     }
 
   } catch (err) {
-    logger.error('❌ FAILED: Caption enable process interrupted - ' + err.message);
+    logger.error('DefaultAdapter(reactiveJoinFlow): FAILED: Caption enable process interrupted - ' + err.message);
   }
 }
 

@@ -16,7 +16,7 @@ class MeetJoiner {
   }
 
   async joinMeeting() {
-    logger.info('STAGE 1: Navigating to Google Meet (Deep Scan Flow)...');
+    logger.info('GoogleMeetAdapter(meetJoiner): STAGE 1: Navigating to Google Meet (Deep Scan Flow)...');
 
     await this.page.goto(this.meetingUrl, {
       waitUntil: 'networkidle2'
@@ -28,7 +28,7 @@ class MeetJoiner {
     const confirmed = await this.waitForJoinConfirmation();
     if (!confirmed) {
       await this.page.screenshot({ path: 'meet_stuck.png' });
-      logger.error('❌ Google Meet join confirmation failed');
+      logger.error('GoogleMeetAdapter(meetJoiner): join confirmation failed');
       throw new Error('Google Meet join confirmation failed');
     }
   }
@@ -37,7 +37,7 @@ class MeetJoiner {
   // PRE JOIN CLEANUP
   // -----------------------------
   async handlePreJoinScreen() {
-    logger.info('🔍 Handling pre-join screen...');
+    logger.info('GoogleMeetAdapter(meetJoiner): Handling pre-join screen...');
 
     try {
       await this.page.evaluate(() => {
@@ -58,7 +58,7 @@ class MeetJoiner {
       await new Promise(r => setTimeout(r, 1500));
 
     } catch (e) {
-      logger.info('Pre-join cleanup skipped');
+      logger.info('GoogleMeetAdapter(meetJoiner): Pre-join cleanup skipped');
     }
   }
 
@@ -66,7 +66,7 @@ class MeetJoiner {
   // ENTER + JOIN
   // -----------------------------
   async enterMeeting() {
-    logger.info('🚀 Entering Meet session...');
+    logger.info('GoogleMeetAdapter(meetJoiner): Entering Meet session...');
 
     let joined = false;
 
@@ -100,7 +100,7 @@ class MeetJoiner {
 
       logger.info(`Attempt ${i + 1}: hasNameInput=${state.hasNameInput}, hasJoinBtn=${state.hasJoinBtn}, joinBtnText=${state.joinBtnText}`);
       if (state.allButtons.length > 0) {
-        logger.info(`Available buttons: ${state.allButtons.join(', ')}`);
+        logger.info(`GoogleMeetAdapter(meetJoiner): Available buttons: ${state.allButtons.join(', ')}`);
       }
 
       if (state.hasNameInput) {
@@ -117,7 +117,7 @@ class MeetJoiner {
           if (btn) btn.click();
         });
 
-        logger.info('✅ Join button clicked');
+        logger.info('GoogleMeetAdapter(meetJoiner): Join button clicked');
         joined = true;
       }
 
@@ -126,7 +126,7 @@ class MeetJoiner {
 
     if (!joined) {
       await this.page.screenshot({ path: 'meet_stuck.png' });
-      logger.error('❌ Meet join failed');
+      logger.error('GoogleMeetAdapter(meetJoiner): Meet join failed');
       throw new Error('Google Meet join failed');
     }
   }
@@ -135,7 +135,7 @@ class MeetJoiner {
   // WAIT JOIN CONFIRMATION
   // -----------------------------
   async waitForJoinConfirmation() {
-    logger.info('⏳ Waiting for Meet session to load...');
+    logger.info('GoogleMeetAdapter(meetJoiner): Waiting for Meet session to load...');
 
     for (let i = 0; i < 15; i++) {
       const ok = await this.page.evaluate(() => {
@@ -152,14 +152,14 @@ class MeetJoiner {
       });
 
       if (ok) {
-        logger.info('✅ Successfully joined Google Meet');
+        logger.info('GoogleMeetAdapter(meetJoiner): Successfully joined Google Meet');
         return true;
       }
 
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    logger.warn('⚠️ Could not confirm join state');
+    logger.warn('GoogleMeetAdapter(meetJoiner): Could not confirm join state');
     return false;
   }
 
@@ -167,7 +167,7 @@ class MeetJoiner {
   // CAPTIONS ENABLE
   // -----------------------------
   async enableCaptionsIfPossible() {
-    logger.info('🔍 Searching Meet captions button...');
+    logger.info('GoogleMeetAdapter(meetJoiner): Searching Meet captions button...');
 
     try {
       const result = await this.page.evaluate(async () => {
@@ -250,13 +250,13 @@ class MeetJoiner {
         return { status: 'CAPTIONS_NOT_FOUND', debug: debugInfo };
       });
 
-      logger.info(`📊 Captions result: ${result.status}`);
+      logger.info(`GoogleMeetAdapter(meetJoiner): Captions result: ${result.status}`);
       if (result.debug) {
-        logger.info(`🔍 Debug: ${JSON.stringify(result.debug)}`);
+        logger.info(`GoogleMeetAdapter(meetJoiner): Debug: ${JSON.stringify(result.debug)}`);
       }
 
     } catch (err) {
-      logger.warn('⚠️ Caption enable failed:', err.message);
+      logger.warn('GoogleMeetAdapter(meetJoiner): Caption enable failed:', err.message);
     }
   }
 
@@ -264,7 +264,7 @@ class MeetJoiner {
   // 🚀 FIXED TRANSCRIPT MONITOR (MAIN FIX)
   // -----------------------------
   async startTranscriptMonitor(captionMonitor) {
-    logger.info('🚀 Starting Meet transcript monitor...');
+    logger.info('GoogleMeetAdapter(meetJoiner): Starting Meet transcript monitor...');
 
     this.captionMonitor = captionMonitor;
 
@@ -343,12 +343,12 @@ class MeetJoiner {
               const key = `Participant:${line}`;
               if (!this.seenRows.has(key)) {
                 this.seenRows.add(key);
-                logger.info(`📝 CAPTION: ${line}`);
+                logger.info(`GoogleMeetAdapter(meetJoiner): CAPTION: ${line}`);
                 if (this.captionMonitor && this.captionMonitor.filePath) {
                   try {
                     fs.appendFileSync(this.captionMonitor.filePath, `[${new Date().toLocaleTimeString()}] Participant: ${line}\n`);
                   } catch (err) {
-                    logger.error('File append error:', err.message);
+                    logger.error('GoogleMeetAdapter(meetJoiner): File append error:', err.message);
                   }
                 }
               }
@@ -368,7 +368,7 @@ class MeetJoiner {
           return;
         }
 
-        logger.error('Meet caption error:', message || err);
+        logger.error('GoogleMeetAdapter(meetJoiner): caption error:', message || err);
       }
     }, 3000);
   }

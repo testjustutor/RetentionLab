@@ -11,7 +11,7 @@ class TeamsJoiner {
   // MAIN ENTRY
   // -----------------------------
   async joinMeeting() {
-      logger.info('STAGE 1: Navigating to Microsoft Teams...');
+      logger.info('TeamsAdapter: STAGE 1: Navigating to Microsoft Teams...');
 
       await this.page.goto(this.meetingUrl, {
         waitUntil: 'networkidle2'
@@ -22,7 +22,7 @@ class TeamsJoiner {
         // Target the exact data-tid from your HTML inspect
         const browserBtnSelector = 'button[data-tid="joinOnWeb"]';
         
-        logger.info('Waiting for "Continue on this browser" button...');
+        logger.info('TeamsAdapter: Waiting for "Continue on this browser" button...');
         await this.page.waitForSelector(browserBtnSelector, { timeout: 15000 });
         
         // Use evaluate to click to bypass any overlay issues
@@ -31,9 +31,9 @@ class TeamsJoiner {
           if (btn) btn.click();
         }, browserBtnSelector);
         
-        logger.info('✅ Clicked: Continue on this browser');
+        logger.info('TeamsAdapter: Clicked: Continue on this browser');
       } catch (e) {
-        logger.info('Launcher screen not detected or already bypassed');
+        logger.info('TeamsAdapter: Launcher screen not detected or already bypassed');
       }
       // ----------------------------
 
@@ -49,7 +49,7 @@ class TeamsJoiner {
   // HANDLE PRE-JOIN SCREEN
   // -----------------------------
   async handlePreJoin() {
-    logger.info('🔍 Handling Teams pre-join screen...');
+    logger.info('TeamsAdapter: Handling Teams pre-join screen...');
 
     try {
       // Fix for "waitForTimeout is not a function"
@@ -68,7 +68,7 @@ class TeamsJoiner {
         clickByText(/mic|audio|mute/i);
       });
     } catch (e) {
-      logger.error('Pre-join adjustments error: ' + e.message);
+      logger.error('TeamsAdapter: Pre-join adjustments error: ' + e.message);
     }
   }
 
@@ -76,7 +76,7 @@ class TeamsJoiner {
   // ENTER NAME + JOIN
   // -----------------------------
   async enterLobby() {
-    logger.info('🚀 Attempting to join Teams meeting...');
+    logger.info('TeamsAdapter: Attempting to join Teams meeting...');
 
     try {
       // 1. Wait for name input
@@ -84,7 +84,7 @@ class TeamsJoiner {
       await this.page.waitForSelector(nameInput, { timeout: 10000 });
       await this.page.type(nameInput, this.botName, { delay: 500 });
 
-      logger.info(`✅ Set bot name to: ${this.botName}`);
+      logger.info(`TeamsAdapter: Set bot name to: ${this.botName}`);
 
       // 3. Wait 2 seconds for the "Join now" button to become enabled
 
@@ -93,9 +93,9 @@ class TeamsJoiner {
       await this.page.waitForSelector(joinBtn, { timeout: 5000 });
       await this.page.click(joinBtn);
       
-      logger.info('✅ Clicked Join Now');
+      logger.info('TeamsAdapter: Clicked Join Now');
     } catch (e) {
-      logger.error('❌ Failed to join lobby: ' + e.message);
+      logger.error('TeamsAdapter: Failed to join lobby: ' + e.message);
     }
   }
 
@@ -107,7 +107,7 @@ class TeamsJoiner {
   // -----------------------------
   async waitForJoinConfirmation() {
     // Increase to 10 minutes (200 checks * 3s) because hosts can take time to admit
-    logger.info('⏳ Bot is in the lobby. Waiting for host to admit...');
+    logger.info('TeamsAdapter: Bot is in the lobby. Waiting for host to admit...');
 
     for (let i = 0; i < 200; i++) { 
       const sessionState = await this.page.evaluate(() => {
@@ -122,27 +122,27 @@ class TeamsJoiner {
       });
 
       if (sessionState.isAdmitted) {
-        logger.info('✅ SUCCESS: Host admitted the bot to the meeting');
+        logger.info('TeamsAdapter: SUCCESS: Host admitted the bot to the meeting');
         // Small delay to let the UI load before starting monitor
         await new Promise(r => setTimeout(r, 5000));
         return true;
       }
 
       if (i % 10 === 0) {
-        logger.info('...still waiting in lobby for host admission...');
+        logger.info('TeamsAdapter: ...still waiting in lobby for host admission...');
       }
 
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    logger.warn('⚠️ Admission timeout: Bot was never let into the meeting');
+    logger.warn('TeamsAdapter: Admission timeout: Bot was never let into the meeting');
   }
 
   // -----------------------------
   // UPDATED CAPTION MONITOR
   // -----------------------------
   async startTranscriptMonitor() {
-    logger.info('🚀 Admitted! Starting Teams transcript monitor...');
+    logger.info('TeamsAdapter: Admitted! Starting Teams transcript monitor...');
 
     // First, try to turn on captions if the host allows it
     await this.enableCaptionsIfPossible();
@@ -162,10 +162,10 @@ class TeamsJoiner {
         });
 
         if (captions && captions.trim().length > 0) {
-          logger.info(`📝 TEAMS CAPTION: ${captions.slice(-150)}`);
+          logger.info(`TeamsAdapter: TEAMS CAPTION: ${captions.slice(-150)}`);
         }
       } catch (e) {
-        logger.error('Teams caption monitor error:', e.message);
+        logger.error('TeamsAdapter: Teams caption monitor error:', e.message);
       }
     }, 4000);
   }
@@ -174,7 +174,7 @@ class TeamsJoiner {
   // OPTIONAL: TRY ENABLE CAPTIONS
   // -----------------------------
   async enableCaptionsIfPossible() {
-    logger.info('🔍 Attempting to enable Teams captions...');
+    logger.info('TeamsAdapter: Attempting to enable Teams captions...');
 
     try {
       await this.page.evaluate(() => {
@@ -189,7 +189,7 @@ class TeamsJoiner {
       });
 
     } catch (e) {
-      logger.warn('Teams captions not available or already enabled');
+      logger.warn('TeamsAdapter: captions not available or already enabled');
     }
   }
 }

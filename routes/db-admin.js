@@ -7,20 +7,13 @@ const { logger } = require('../utils/logger');
 const dbPath = path.resolve(__dirname, '..', 'transcripts.db');
 const db = new sqlite3.Database(dbPath);
 
-/**
- * ✅ Helper: Validate table/column names (VERY IMPORTANT)
- */
 function isValidIdentifier(name) {
   return /^[a-zA-Z0-9_]+$/.test(name);
 }
 
-/**
- * ✅ List all tables
- */
 router.get('/tables', (req, res) => {
   db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
     if (err) {
-      logger.error(err);
       return res.status(500).json({ status: 'error', message: err.message });
     }
 
@@ -34,9 +27,6 @@ router.get('/tables', (req, res) => {
   });
 });
 
-/**
- * ✅ Get table data
- */
 router.get('/table/:tableName', (req, res) => {
   const { tableName } = req.params;
 
@@ -71,9 +61,6 @@ router.get('/table/:tableName', (req, res) => {
   });
 });
 
-/**
- * ✅ Clear table
- */
 router.post('/clear/:tableName', (req, res) => {
   const { tableName } = req.params;
 
@@ -83,7 +70,6 @@ router.post('/clear/:tableName', (req, res) => {
 
   db.run(`DELETE FROM "${tableName}"`, function (err) {
     if (err) {
-      logger.error(err);
       return res.status(500).json({ status: 'error', message: err.message });
     }
 
@@ -94,9 +80,6 @@ router.post('/clear/:tableName', (req, res) => {
   });
 });
 
-/**
- * ✅ Execute SQL (SAFE MODE)
- */
 router.post('/query', (req, res) => {
   const { sql } = req.body;
 
@@ -106,7 +89,6 @@ router.post('/query', (req, res) => {
 
   const upper = sql.trim().toUpperCase();
 
-  // ❌ Block dangerous queries
   if (upper.startsWith('DROP') || upper.startsWith('ALTER')) {
     return res.status(403).json({
       status: 'error',
@@ -139,9 +121,6 @@ router.post('/query', (req, res) => {
   }
 });
 
-/**
- * ✅ Export CSV
- */
 router.get('/export/:tableName', (req, res) => {
   const { tableName } = req.params;
 
@@ -171,9 +150,6 @@ router.get('/export/:tableName', (req, res) => {
   });
 });
 
-/**
- * ✅ Delete row
- */
 router.delete('/row/:table/:id', (req, res) => {
   const { table, id } = req.params;
 
@@ -190,9 +166,6 @@ router.delete('/row/:table/:id', (req, res) => {
   });
 });
 
-/**
- * ✅ Insert row
- */
 router.post('/row/:table', (req, res) => {
   const { table } = req.params;
   const data = req.body;
@@ -218,9 +191,6 @@ router.post('/row/:table', (req, res) => {
   });
 });
 
-/**
- * ✅ Stats
- */
 router.get('/stats', (req, res) => {
   db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
     if (err) return res.status(500).json({ status: 'error', message: err.message });

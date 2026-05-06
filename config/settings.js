@@ -6,6 +6,7 @@ module.exports = {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     headless: false, // "new" or false - using false for compatibility with Google Meet UI detection
     defaultViewport: null,
+    protocolTimeout: 60000,
     userDataDir: process.env.CHROME_PROFILE_PATH || "./chrome-profile",
     args: [
       "--start-maximized",
