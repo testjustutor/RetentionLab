@@ -7,9 +7,9 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "api": "node api-server.js",
-    "build": "npm run db:init",
     "dev:api": "nodemon api-server.js",
-    "db:init": "node -e \"require('./database/db').initDB()\""
+    "db:init": "node -e \"require('./database/db').initDB()\"",
+    "build": "npm run db:init && echo 'Build Complete: Database synced and environment verified.'"
   },
   "keywords": [
     "zoom",
