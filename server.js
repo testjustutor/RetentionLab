@@ -246,7 +246,7 @@ app.get('/auth/google/callback', async (req, res) => {
 
     if (error) {
       logger.error('(ServerJS File): Google OAuth error:', error);
-      return res.status(400).send(`<h2>OAuth Error: ${error}</h2><p><a href="${dynamicBaseUrl}/public/dashboard.html">Back</a></p>`);
+      return res.status(400).send(`<h2>OAuth Error: ${error}</h2>`);
     }
 
     // Call the internal API using the dynamic URL instead of localhost:3000
@@ -266,7 +266,6 @@ app.get('/auth/google/callback', async (req, res) => {
           <h2 style="color: green;">✅ Google Calendar Authorized!</h2>
           <p>Account: <strong>${account}</strong></p>
           <script>setTimeout(() => window.close(), 3000);</script>
-          <p><a href="${dynamicBaseUrl}/public/dashboard.html" style="color: blue;">Go to Dashboard</a></p>
         </body></html>
       `);
     } else {
