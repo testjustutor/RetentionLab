@@ -54,12 +54,9 @@ class SocraticBot {
     
       const uniqueProfileDir = path.resolve(__dirname, '..', 'storage', 'chrome-profiles', `profile_${this.meetingId || this.sessionId}`);
 
-      const { puppeteer: puppeteerSettings } = require('../settings');
-
       // PASS IT TO THE BROWSER MANAGER
       this.browserManager = await new BrowserManager().init({
-        userDataDir: uniqueProfileDir,
-        protocolTimeout: puppeteerSettings.protocolTimeout
+        userDataDir: uniqueProfileDir
       });
 
       const joiner = this.createJoiner();

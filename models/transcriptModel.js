@@ -143,7 +143,7 @@ class TranscriptModel {
   static getSessionByMeetingId(meetingId) {
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT s.id, s.meeting_id, s.transcript_file_name, s.start_time, s.end_time, 
+        SELECT s.id, s.meeting_id, s.transcript_file_name, s.audio_file_name, s.start_time, s.end_time, 
                COUNT(t.id) as transcript_count
         FROM meeting_sessions s
         LEFT JOIN transcripts t ON s.id = t.meeting_session_id

@@ -39,25 +39,22 @@ class ProfessionalMeetingBot {
 
     async transcribeAudio(filePath) {
         if (!fs.existsSync(filePath)) {
-            logger.error(`GoogleMeetAdapter(audioRecorderBot): File not found for transcription: ${filePath}`);
+            logger.error(`Transcription failed: File not found at ${filePath}`);
             return null;
         }
 
-        // 1. Define your backup order
-        const priorityList = [settings.ai.provider, 'openai', 'groq'];
-        const providers = [...new Set(priorityList)].filter(p => p);
+        const providers = [...new Set([settings.ai.provider, 'openai', 'groq'])].filter(p => p);
 
-        // 2. Loop through each one
         for (const provider of providers) {
             try {
-                logger.info(`GoogleMeetAdapter(audioRecorderBot): Attempting transcription with: ${provider.toUpperCase()}`);
+                logger.info(`Attempting transcription with: ${provider.toUpperCase()}`);
 
                 const formData = new FormData();
+                // Use fs.createReadStream for large files to keep memory usage low
                 formData.append('file', fs.createReadStream(filePath));
 
                 let apiUrl, apiKey, modelName;
 
-                // 3. Setup the specific provider details
                 if (provider === 'openai') {
                     apiUrl = 'https://api.openai.com/v1/audio/transcriptions';
                     apiKey = settings.ai.openaiApiKey;
@@ -67,77 +64,101 @@ class ProfessionalMeetingBot {
                     apiKey = settings.ai.groqApiKey;
                     modelName = 'whisper-large-v3';
                 } else {
-                    continue; // Skip if unknown
+                    continue;
                 }
 
                 formData.append('model', modelName);
 
-                // 4. Try the request
                 const response = await axios.post(apiUrl, formData, {
                     headers: {
-                        ...formData.getHeaders(),
+                        ...formData.getHeaders(), // Ensure you are using the 'form-data' npm package
                         'Authorization': `Bearer ${apiKey}`
                     },
-                    timeout: 60000 // 1 minute timeout
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity,
+                    timeout: 90000 // Increased to 90s (Whisper can be slow for long meetings)
                 });
 
-                // If we reach here, it worked!
-                logger.info(`✅ ${provider.toUpperCase()} Success!`);
+                logger.info(`✅ ${provider.toUpperCase()} Transcription Success!`);
                 return response.data.text;
 
             } catch (error) {
-                // 5. IMPORTANT: DO NOT THROW HERE
-                // We just log the error and let the 'for' loop continue to the next provider
                 const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-                logger.warn(`GoogleMeetAdapter(audioRecorderBot): ${provider.toUpperCase()} failed: ${errorMsg}. Continuing to next provider...`);
+                logger.warn(`${provider.toUpperCase()} failed: ${errorMsg}. Trying next provider...`);
             }
         }
 
-        // 6. Only reach here if EVERY provider in the list failed
-        logger.error("GoogleMeetAdapter(audioRecorderBot): ALL transcription providers failed. Saving audio for manual retry.");
+        logger.error("CRITICAL: All transcription providers failed.");
         return null;
     }
 
     async generateSummary(audioText, labeledText) {
-        const providers = [...new Set([settings.ai.provider, 'groq', 'openai'])].filter(p => p);
+        // 1. Safety check from Version 1
+        if (!audioText || audioText.trim().length < 5) {
+            logger.warn('Summary skipped: Transcript too short.');
+            return 'Transcript too short for summary.';
+        }
 
-        for (const provider of providers) {
+        // 2. Define the provider queue (Priority first, then backups)
+        const primary = settings.ai.provider;
+        const fallbacks = ['openai', 'groq', 'gemini'].filter(p => p !== primary);
+        const providerQueue = [primary, ...fallbacks];
+
+        const systemPrompt = `
+            You are a professional meeting assistant. 
+            Rules:
+            1. Create concise meeting summary
+            2. List key discussion points
+            3. List action items
+            4. Use Labeled Captions to identify speaker names
+            5. Ignore separator/header/footer lines
+        `;
+
+        const userPrompt = `Audio Transcript: ${audioText}\n\nLabeled Captions: ${(labeledText || '').slice(0, 12000)}`;
+
+        // 3. Failover Loop
+        for (const provider of providerQueue) {
             try {
-                logger.info(`GoogleMeetAdapter(audioRecorderBot): Generating Summary of with: ${provider.toUpperCase()}`);
+                logger.info(`Generating Summary with: ${provider.toUpperCase()}`);
+                
+                let response;
+                let config = { timeout: 60000, headers: { 'Content-Type': 'application/json' } };
 
-                let apiUrl, apiKey, model;
                 if (provider === 'openai') {
-                    apiUrl = 'https://api.openai.com/v1/chat/completions';
-                    apiKey = settings.ai.openaiApiKey;
-                    model = 'gpt-4o'; // or gpt-3.5-turbo
-                } else {
-                    apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-                    apiKey = settings.ai.groqApiKey;
-                    model = 'llama3-8b-8192';
+                    config.headers.Authorization = `Bearer ${settings.ai.openaiApiKey}`;
+                    response = await axios.post('https://api.openai.com/v1/chat/completions', {
+                        model: 'gpt-4o-mini',
+                        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                        temperature: 0.3
+                    }, config);
+                } 
+                else if (provider === 'groq') {
+                    config.headers.Authorization = `Bearer ${settings.ai.groqApiKey}`;
+                    response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                        model: 'llama3-8b-8192',
+                        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                        temperature: 0.3
+                    }, config);
+                }
+                else if (provider === 'gemini') {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.ai.geminiModel}:generateContent?key=${settings.ai.geminiApiKey}`;
+                    response = await axios.post(url, {
+                        contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }]
+                    }, config);
                 }
 
-                const response = await axios.post(apiUrl, {
-                    model: model,
-                    messages: [
-                        {
-                            role: "system",
-                            content: "You are a professional meeting assistant. Use the provided high-quality audio transcript for facts and the labeled caption text to identify who said what."
-                        },
-                        {
-                            role: "user",
-                            content: `Audio Transcript: ${audioText}\n\nLabeled Captions: ${labeledText}`
-                        }
-                    ]
-                }, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` }
-                });
+                // Extract text based on provider format
+                const finalText = response?.data?.choices?.[0]?.message?.content || 
+                                 response?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-                return response.data.choices[0].message.content;
+                if (finalText) return finalText;
+
             } catch (error) {
-                logger.warn(`GoogleMeetAdapter(audioRecorderBot): Summary failed with ${provider}, trying next...`);
+                logger.warn(`Provider ${provider} failed: ${error.message}. Trying next...`);
             }
         }
-        return "Summary generation failed across all providers.";
+
+        return "Summary generation failed across all available providers.";
     }
 }
 

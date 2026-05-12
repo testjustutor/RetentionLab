@@ -175,8 +175,13 @@ class MeetJoiner {
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const normalize = (value) => (value || '').toLowerCase();
 
-        const getButtonText = (el) =>
-          `${normalize(el.getAttribute('aria-label'))} ${normalize(el.innerText)} ${normalize(el.getAttribute('data-tooltip'))}`;
+        const getButtonText = (el) => {
+          const aria = el.getAttribute('aria-label') || '';
+          const label = el.getAttribute('label') || '';
+          const tooltip = el.getAttribute('data-tooltip-id') || ''; // Match Google's specific ID
+          const inner = el.innerText || '';
+          return `${aria} ${label} ${tooltip} ${inner}`.toLowerCase();
+        };
 
         const findCaptionButton = () => {
           const directSelectors = [

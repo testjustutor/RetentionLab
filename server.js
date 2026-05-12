@@ -281,23 +281,26 @@ app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/db', require('./routes/db-admin'));
 
-app.get('/api/transcripts/:meetingId', async (req, res) => {
-  try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(req.params.meetingId);
-    res.json({
-      meetingId: req.params.meetingId,
-      count: transcripts.length,
-      transcripts: transcripts.map(t => ({
-        speaker: t.speaker,
-        text: t.text,
-        time: t.timestamp
-      }))
-    });
-  } catch (err) {
-    logger.error('(ServerJS File): API error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+app.use('/api/transcripts', require('./routes/transcripts'));
+app.use('/api/audit', require('./routes/audit'));
+
+// app.get('/api/transcripts/:meetingId', async (req, res) => {
+//   try {
+//     const transcripts = await TranscriptModel.getTranscriptsByMeeting(req.params.meetingId);
+//     res.json({
+//       meetingId: req.params.meetingId,
+//       count: transcripts.length,
+//       transcripts: transcripts.map(t => ({
+//         speaker: t.speaker,
+//         text: t.text,
+//         time: t.timestamp
+//       }))
+//     });
+//   } catch (err) {
+//     logger.error('(ServerJS File): API error:', err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 

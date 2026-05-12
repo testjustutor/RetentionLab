@@ -67,6 +67,8 @@ module.exports = {
 
   webhookUrl: process.env.WEBHOOK_URL,
 
+  HF_TOKEN: process.env.HUGGING_FACE_TOKEN,
+
   ai: {
     provider: "groq",
     geminiApiKey: process.env.GEMINI_API_KEY,
