@@ -67,7 +67,7 @@ module.exports = {
 
   webhookUrl: process.env.WEBHOOK_URL,
 
-  HF_TOKEN: process.env.HUGGING_FACE_TOKEN,
+  HF_TOKEN: process.env.HF_TOKEN,
 
   ai: {
     provider: "groq",

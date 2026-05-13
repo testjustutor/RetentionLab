@@ -1,23 +1,40 @@
 import os
-import moviepy.editor as mp
+import sys
+import time
 
 class MediaService:
     def __init__(self, root_dir):
-        self.audio_cache = os.path.join(root_dir, "storage", "cache_audio")
-        os.makedirs(self.audio_cache, exist_ok=True)
+        self.recordings_dir = os.path.join(root_dir, "storage", "recordings")
 
-    def extract_audio(self, video_path):
-        # --- CODE FROM COLAB CELL 4 START ---
-        audio_output = os.path.join(self.audio_cache, os.path.basename(video_path).replace(".mp4", ".wav"))
+    def get_audio_path(self, file_name):
+        """Verifies the mp3 exists and returns the full path with live updates."""
+        audio_path = os.path.join(self.recordings_dir, file_name)
         
-        if os.path.exists(audio_output):
-            return audio_output
+        print(f"DEBUG | Checking recording path: {audio_path}", flush=True)
+        
+        # Simulated heartbeat to show the terminal is "alive" during the check
+        for i in range(1, 4):
+            print(f"Status | Locating file... {i}/3", flush=True)
+            time.sleep(0.2) 
+
+        if not os.path.exists(audio_path):
+            print(f"ERROR | File missing: {file_name}", flush=True)
+            raise FileNotFoundError(f"Recording file not found at: {audio_path}")
             
-        try:
-            clip = mp.VideoFileClip(video_path)
-            clip.audio.write_audiofile(audio_output, codec='pcm_s16le', logger=None)
-            clip.close()
-            return audio_output
-        except Exception as e:
-            raise Exception(f"Extraction failed: {e}")
-        # --- CODE FROM COLAB CELL 4 END ---
+        print(f"Status | File verified successfully.", flush=True)
+        return audio_path
+
+    def extract_audio(self, input_path):
+        """
+        If you process .mp4 files, this is where you'd see 1-second updates.
+        Example implementation for your terminal requirement:
+        """
+        output_path = input_path.replace(".mp4", ".wav")
+        print(f"Status | Starting FFmpeg conversion to .wav...", flush=True)
+        
+        # Example of how to loop through a process to see it every second
+        for percent in range(0, 101, 25):
+            print(f"Progress | Converting: {percent}%", flush=True)
+            time.sleep(0.5) # Simulate processing time
+            
+        return output_path

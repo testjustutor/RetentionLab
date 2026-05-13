@@ -22,6 +22,8 @@ const CaptionMonitor = require('./captionMonitor');
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
 
+const PythonBridge = require('./shared/pythonBridge');
+
 const fs = require('fs');
 const path = require('path');
 const TranscriptModel = require('../models/transcriptModel');
@@ -210,36 +212,36 @@ class SocraticBot {
 
       try {
         const finalAudioPath = this.audioRecorder.audioPath;
+        
+        if (!finalAudioPath) {
+          logger.warn('Final audio path is undefined. Skipping transcription.');
+          return;
+        }
 
         if (fs.existsSync(finalAudioPath)) {
+
           logger.info(`DefaultAdapter(SocraticBot): Processing final transcription: ${finalAudioPath}`);
           
           // 1. Save audio path to DB
           await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
-
-          // 2. Get high-quality text from Audio (Whisper)
-          const audioText = await this.transcriptionService.transcribeAudio(finalAudioPath);
           
-          // 3. MATCHING: Get the speaker-labeled transcript file from Database
+          // 2. MATCHING: Get the speaker-labeled transcript file from Database
           const session = await TranscriptModel.getSessionById(this.sessionId);
           
           if (session && session.transcript_file_name) {
+
             const transcriptPath = path.join(__dirname, '../storage/transcript', session.transcript_file_name);
             
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot): Matching detected: Audio + Transcript (${session.transcript_file_name})`);
               
-              // 4. Read the labeled text (e.g. "[19:33:33] Yash: ...")
-              const labeledText = fs.readFileSync(transcriptPath, 'utf8');
+              // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
+              const auditResults = await PythonBridge.runFinalAnalysis(finalAudioPath);
 
-              // 5. SUMMARY: Send both to your AI service
-              // (Assuming your transcriptionService or a Summarizer class handles this)
-              const summary = await this.transcriptionService.generateSummary(audioText, labeledText);
+              if (auditResults) {
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi_score}`);
+              }              
               
-              // 6. SAVE: Update the database with the final summary
-              await MeetingModel.updateSummary(this.sessionId, summary);
-              
-              logger.info('DefaultAdapter(SocraticBot): Final Combined Summary achieved successfully.');
             }
           }
         } else {
