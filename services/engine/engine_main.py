@@ -22,7 +22,7 @@ def main():
 
     recording_path = os.path.join(project_root, "storage", "recordings", input_file)
     transcript_dir = os.path.join(project_root, "storage", "transcript")
-    audit_dir = os.path.join(project_root, "storage", "audit")
+    audit_dir = os.path.join(project_root, "storage", "audits")
 
     os.makedirs(transcript_dir, exist_ok=True)
     os.makedirs(audit_dir, exist_ok=True)

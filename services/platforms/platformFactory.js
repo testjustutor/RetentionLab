@@ -7,8 +7,6 @@ const { logger } = require('../../utils/logger');
 const ZoomAdapter = require('./zoom/ZoomAdapter');
 const TeamsAdapter = require('./teams/TeamsAdapter');
 const GoogleMeetAdapter = require('./google-meet/GoogleMeetAdapter');
-const WebexAdapter = require('./webex/WebexAdapter');
-const GoToMeetingAdapter = require('./goto-meeting/GoToMeetingAdapter');
 const botManager = require('../shared/botManager');
 
 class PlatformFactory {
@@ -30,14 +28,6 @@ class PlatformFactory {
 
       case 'google-meet':
         adapter = new GoogleMeetAdapter(config);
-        break;
-
-      case 'webex':
-        adapter = new WebexAdapter(config);
-        break;
-
-      case 'gotomeeting':
-        adapter = new GoToMeetingAdapter(config);
         break;
 
       default:
