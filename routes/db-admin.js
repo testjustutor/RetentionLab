@@ -4,7 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { logger } = require('../utils/logger');
 
-const dbPath = path.resolve(__dirname, '..', 'transcripts.db');
+const dbPath = path.resolve(__dirname, '..', 'retention_lab.db');
 const db = new sqlite3.Database(dbPath);
 
 function isValidIdentifier(name) {

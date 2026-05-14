@@ -283,6 +283,8 @@ app.use('/api/db', require('./routes/db-admin'));
 
 app.use('/api/transcripts', require('./routes/transcripts'));
 app.use('/api/audit', require('./routes/audit'));
+app.use('/api/assets', require('./routes/assets'));
+
 
 // app.get('/api/transcripts/:meetingId', async (req, res) => {
 //   try {

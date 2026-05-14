@@ -2,7 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 // 1. Define the DB Path
-const dbPath = path.resolve(__dirname, '..', 'transcripts.db');
+const dbPath = path.resolve(__dirname, '..', 'retention_lab.db');
 
 // 2. Create the Database instance immediately
 const db = new sqlite3.Database(dbPath);
@@ -80,8 +80,21 @@ const initDB = () => {
                     audio_path TEXT,
                     transcript_path TEXT,
                     audit_json_path TEXT,
-                    summary TEXT,
-                    oqi_score INTEGER,
+                    wav_audio_path TEXT,
+                    whisper_path TEXT,
+                    captions_raw_path TEXT,
+                    diarization_path TEXT,
+                    embeddings_path TEXT,
+                    llm_prompts_path TEXT,
+                    action_items_path TEXT,
+                    sentiment_analysis_path TEXT,
+                    talk_ratio_json_path TEXT,
+                    user_silence_duration_path TEXT,
+                    questions_asked_count_path TEXT,
+                    topic_clusters_path TEXT,
+                    summary_path TEXT,
+                    oqi_score REAL,
+                    evidence_quote TEXT,
                     processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `);

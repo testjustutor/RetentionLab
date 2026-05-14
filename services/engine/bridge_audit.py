@@ -7,9 +7,9 @@ def main():
     transcript_text = sys.argv[1] 
 
     try:
-        # IMPORTANT: ensure we use the project-root SQLite DB (the one used by Node: transcripts.db)
+        # IMPORTANT: ensure we use the project-root SQLite DB (the one used by Node: retention_lab.db)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-        DB_PATH = os.path.join(project_root, 'transcripts.db')
+        DB_PATH = os.path.join(project_root, 'retention_lab.db')
         audit_engine = AuditService(DB_PATH)
 
 

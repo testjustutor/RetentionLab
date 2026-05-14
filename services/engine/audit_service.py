@@ -111,9 +111,9 @@ class AuditService:
 # ==========================================
 if __name__ == "__main__":
     # Resolve the database path relative to this script's location
-    # Assumes transcripts.db is in the parent directory of this script
+    # Assumes retention_lab.db is in the parent directory of this script
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    DB_PATH = os.path.join(BASE_DIR, 'transcripts.db')
+    DB_PATH = os.path.join(BASE_DIR, 'retention_lab.db')
 
     try:
         # Read JSON data from Node.js (stdin)
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
         response = {
             "success": True,
-            "summary": narrative_summary,
+            "summary_path": narrative_summary,
             "oqi_score": audit_results["oqi_score"],
             "domain_scores": audit_results["domain_scores"],
             "processed_at": datetime.datetime.now().isoformat()

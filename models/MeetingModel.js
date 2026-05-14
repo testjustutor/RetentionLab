@@ -286,21 +286,6 @@ stmt.run(
     });
   }
 
-  // Add this to MeetingModel.js
-  static updateSummary(sessionId, summary) {
-    return new Promise((resolve, reject) => {
-      const sql = `UPDATE calendar_meetings SET summary = ? WHERE session_id = ?`;
-      db.run(sql, [summary, sessionId], function(err) {
-        if (err) {
-          logger.error('Model(MeetingModel): Error updating summary in DB:', err);
-          reject(err);
-        } else {
-          logger.info(`Model(MeetingModel): Summary updated in DB for session: ${sessionId}`);
-          resolve(this.changes);
-        }
-      });
-    });
-  }
 }
 
 module.exports = MeetingModel;
