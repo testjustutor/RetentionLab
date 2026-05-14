@@ -4,7 +4,7 @@ const puppeteer = require('puppeteer');
 module.exports = {
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    headless: false, // "new" or false - using false for compatibility with Google Meet UI detection
+    headless: "new", // "new" or false - using false for compatibility with Google Meet UI detection
     defaultViewport: null,
     protocolTimeout: 60000,
     userDataDir: process.env.CHROME_PROFILE_PATH || "./chrome-profile",
@@ -23,8 +23,8 @@ module.exports = {
     deviceName: "audio=CABLE Output (VB-Audio Virtual Cable)", // Virtual Cable Software
     // deviceName: "audio=Headset Microphone (Sennheiser SC60 for Lync)",  // when connected headphone 
     bitrate: "128k",
-    sampleRate: "44100",
-    channels: "2",
+    sampleRate: "16000",
+    channels: "1",
     format: "libmp3lame"
   },
 

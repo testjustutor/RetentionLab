@@ -51,7 +51,7 @@ class PlatformFactory {
   }
 
   static getSupportedPlatforms() {
-    return ['zoom', 'teams', 'google-meet', 'webex', 'gotomeeting'];
+    return ['zoom', 'teams', 'google-meet'];
   }
 
   static isPlatformSupported(platform) {

@@ -98,6 +98,8 @@ button.refresh { background: var(--success); color: #064e3b; }
 .table-container {
   padding: 0 20px 20px 20px;
   max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: all;
 }
 
 table {

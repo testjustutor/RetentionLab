@@ -21,8 +21,8 @@ def main():
     db_path = os.path.join(project_root, "transcripts.db")
 
     recording_path = os.path.join(project_root, "storage", "recordings", input_file)
-    transcript_dir = os.path.join(project_root, "storage", "transcript")
-    audit_dir = os.path.join(project_root, "storage", "audits")
+    transcript_dir = os.path.join(project_root, "storage", "cache_audio_transcripts")
+    audit_dir = os.path.join(project_root, "storage", "cache_audits")
 
     os.makedirs(transcript_dir, exist_ok=True)
     os.makedirs(audit_dir, exist_ok=True)

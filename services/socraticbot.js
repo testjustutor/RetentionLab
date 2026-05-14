@@ -220,7 +220,7 @@ class SocraticBot {
 
         if (fs.existsSync(finalAudioPath)) {
 
-          logger.info(`DefaultAdapter(SocraticBot): Processing final transcription: ${finalAudioPath}`);
+          logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
           // 1. Save audio path to DB
           await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
@@ -230,13 +230,17 @@ class SocraticBot {
           
           if (session && session.transcript_file_name) {
 
-            const transcriptPath = path.join(__dirname, '../storage/transcript', session.transcript_file_name);
+            const transcriptPath = path.join(__dirname, '../storage/transcripts', session.transcript_file_name);
             
             if (fs.existsSync(transcriptPath)) {
-              logger.info(`DefaultAdapter(SocraticBot): Matching detected: Audio + Transcript (${session.transcript_file_name})`);
+              logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
               // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
-              const auditResults = await PythonBridge.runFinalAnalysis(finalAudioPath);
+              // engine_main.py expects an input like REC_<id>.mp3 (relative to storage/recordings),
+              // but `finalAudioPath` is an absolute Windows path. Pass only the filename.
+              const finalAudioFileName = path.basename(finalAudioPath);
+              const auditResults = await PythonBridge.runFullAudioPipeline(finalAudioFileName);
+
 
               if (auditResults) {
                 logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi_score}`);

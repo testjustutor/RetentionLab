@@ -24,9 +24,9 @@ class CaptionMonitor {
                       now.getHours().toString().padStart(2, '0') + '-' + 
                       now.getMinutes().toString().padStart(2, '0');
 
-    this.dirPath = path.join(__dirname, '../storage/transcript');
+    this.dirPath = path.join(__dirname, '../storage/transcripts');
     
-    // We change "transcript" to "TRANS" or keep it, but match the rest of the structure
+    // We change "transcripts" to "TRANS" or keep it, but match the rest of the structure
     this.fileName = `TRANS_${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
     this.filePath = path.join(this.dirPath, this.fileName);
 
@@ -49,7 +49,7 @@ class CaptionMonitor {
         `==========================================\n\n`;
 
       fs.writeFileSync(this.filePath, header);
-      logger.info(`DefaultAdapter(captionMonitor): File Created: storage/transcript/${this.fileName}`);
+      logger.info(`DefaultAdapter(captionMonitor): File Created: storage/transcripts/${this.fileName}`);
       if (this.sessionId) {
         TranscriptModel.saveTranscriptFile(this.sessionId, this.fileName)
           .catch(err => logger.error(`DefaultAdapter(captionMonitor): Error saving transcript file metadata: ${err.message}`));
@@ -264,16 +264,16 @@ class CaptionMonitor {
           logger.error(`DefaultAdapter(captionMonitor): File Append Error: ${fileErr.message}`);
         }
 
-        try {
-          await TranscriptModel.createTranscript(
-            this.sessionId,
-            cleanName,
-            cleanText,
-            new Date().toISOString()
-          );
-        } catch (dbErr) {
-          logger.error(`DefaultAdapter(captionMonitor): Database Save Error: ${dbErr.message}`);
-        }
+        // try {
+        //   await TranscriptModel.createTranscript(
+        //     this.sessionId,
+        //     cleanName,
+        //     cleanText,
+        //     new Date().toISOString()
+        //   );
+        // } catch (dbErr) {
+        //   logger.error(`DefaultAdapter(captionMonitor): Database Save Error: ${dbErr.message}`);
+        // }
       }
     }
   }
