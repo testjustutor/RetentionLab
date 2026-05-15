@@ -16,104 +16,125 @@ async function startKeepAlive(page) {
 }
 
 async function monitorMeeting(page, meetingId) {
-  logger.info('🛡️ MONITOR: Stay-Alive loop started');
+  logger.info('GoogleMeetAdapter(monitor): MONITOR: Stay-Alive loop started');
 
   let loopCount = 0;
-  const endPhrases = [
-    "meeting has been ended",
-    "meeting has ended",
-    "the meeting has ended",
-    "host has ended",
-    "meeting is over",
-    "cannot continue",
-    "meeting has expired",
-    "you have been removed",
-    "removed by the host"
-  ];
 
   try {
     while (true) {
+      // 1. Page closed
       if (page.isClosed()) {
-        logger.info("📢 EXIT: Page closed → Exporting final transcript");
+        logger.info("GoogleMeetAdapter(monitor): EXIT: Page closed → Exporting final transcript");
         await exportMeetingTranscript(meetingId);
         break;
       }
 
       const url = page.url();
-      if (!url.includes('/wc/') && !url.includes('/j/')) {
-        logger.info("📢 EXIT: Redirected away from Zoom → Exporting");
+
+      // 2. Left Meet page
+      if (!url.includes('meet.google.com')) {
+        logger.info("GoogleMeetAdapter(monitor): EXIT: Navigated away from Meet → Exporting");
         await exportMeetingTranscript(meetingId);
         break;
       }
 
-      const frame = page.frames().find(f => f.url().includes("zoom.us"));
-      if (!frame) {
-        logger.info("📢 EXIT: Zoom iframe gone → Export");
-        await exportMeetingTranscript(meetingId);
-        break;
-      }
+      // 3. Detect meeting end / removal
+      const meetingEnded = await page.evaluate(() => {
+        const text = document.body.innerText.toLowerCase();
 
-      const pageText = await page.evaluate(() => document.body.innerText.toLowerCase());
-      if (pageText.includes('meeting ended by host') || pageText.includes('host ended')) {
-        logger.info("📢 HOST ENDED MEETING → Export now");
-        await exportMeetingTranscript(meetingId);
-        break;
-      }
-
-      const meetingEnded = await frame.evaluate((phrases) => {
-        const bodyText = document.body.innerText.toLowerCase();
-        return phrases.some(p => bodyText.includes(p));
-      }, endPhrases);
-
-      if (meetingEnded) {
-        logger.info("📢 EXIT: Meeting end text detected → Exporting final transcript");
-        await exportMeetingTranscript(meetingId);
-        break;
-      }
-
-      const participantCount = await frame.evaluate(() => {
-        const nodes = document.querySelectorAll('[class*="participant"],[class*="Participant"],[class*="username"],.username,.display_name');
-        return nodes.length;
+        return (
+          text.includes("you left the meeting") ||
+          text.includes("meeting ended") ||
+          text.includes("call ended") ||
+          text.includes("removed from the meeting") ||
+          text.includes("you've been removed") ||
+          text.includes("host ended the meeting")
+        );
       });
 
-      if (participantCount === 1) {
-        logger.info("📢 EXIT: Only bot left (1 total) → Exporting");
+      if (meetingEnded) {
+        logger.info("GoogleMeetAdapter(monitor): EXIT: Meeting end detected → Exporting");
         await exportMeetingTranscript(meetingId);
         break;
       }
-      logger.debug(`👥 Monitor: ${participantCount} participants active`);
 
-      const waitingRoom = await frame.evaluate(() => {
+      // 4. Waiting room detection
+      const waitingRoom = await page.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
-        return text.includes("please wait for the host") || text.includes("waiting for the host");
+        return (
+          text.includes("ask to join") ||
+          text.includes("waiting to be admitted") ||
+          text.includes("someone will let you in")
+        );
       });
 
       if (waitingRoom) {
-        logger.info("⏳ Waiting room detected");
+        logger.info("GoogleMeetAdapter(monitor): Waiting room / lobby detected");
       }
 
+      // 5. Participant detection (Improved)
+      const participantCount = await page.evaluate(() => {
+        // Method A: Check the "People" icon aria-label (Most reliable)
+        const peopleBtn = document.querySelector('button[aria-label*="People"], [data-tooltip*="Show everyone"], [aria-label*="Show everyone"]');
+        if (peopleBtn) {
+          const label = peopleBtn.getAttribute('aria-label') || peopleBtn.getAttribute('data-tooltip') || "";
+          const match = label.match(/\d+/); // Extracts numbers from "Show everyone (1)"
+          if (match) return parseInt(match[0]);
+        }
+
+        // Method B: Count video/avatar tiles
+        // Google Meet usually uses [data-item-id] for participant tiles
+        const tiles = document.querySelectorAll('[data-allocation-index]');
+        if (tiles.length > 0) return tiles.length;
+
+        return -1; 
+      });
+
+      // EXIT CONDITION: If count is 1 (just the bot) or if detection fails but 
+      // we see the "No one else is here" message.
+      const isAloneMessage = await page.evaluate(() => {
+        const bodyText = document.body.innerText;
+        return bodyText.includes("You're the only one here") || bodyText.includes("No one else is in the call");
+      });
+
+      if (participantCount === 1 || isAloneMessage) {
+        logger.info("GoogleMeetAdapter(monitor): EXIT: Bot is alone → Exporting and Closing.");
+        await exportMeetingTranscript(meetingId);
+        await page.close();
+        break; 
+      }
+
+      logger.debug(`GoogleMeetAdapter(monitor): Monitor: participants ≈ ${participantCount}`);
+
+      // 6. Sleep loop
       await new Promise(r => setTimeout(r, 10000));
+
       loopCount++;
       if (loopCount % 6 === 0) {
-        logger.info(`💓 MONITOR: Alive ${loopCount / 6}m`);
+        logger.info(`GoogleMeetAdapter(monitor): MONITOR: Alive ${loopCount / 6}m`);
       }
     }
+
   } catch (error) {
-    logger.error(`❌ MONITOR: ${error.message}`);
+    logger.error(`GoogleMeetAdapter(monitor): MONITOR ERROR: ${error.message}`);
   }
 
   if (keepAliveInterval) clearInterval(keepAliveInterval);
-  logger.info("🗄️ MEETING ENDED: Full transcript exported to storage/");
+
+  logger.info("GoogleMeetAdapter(monitor): MEETING ENDED: Full transcript exported to storage/");
 }
 
 async function exportMeetingTranscript(meetingId) {
   try {
     const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-    logger.info(`📊 EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
+
+    logger.info(`GoogleMeetAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
+
     const exports = await exportBoth(meetingId, 'storage');
-    logger.info(`📁 SAVED to storage/: ${exports.json}, ${exports.txt}`);
+
+    logger.info(`GoogleMeetAdapter(monitor): SAVED to storage/: ${exports.json}, ${exports.txt}`);
   } catch (err) {
-    logger.error('Export fail:', err);
+    logger.error('GoogleMeetAdapter(monitor): Export fail:', err);
   }
 }
 

@@ -7,6 +7,7 @@ const puppeteer = require('puppeteer');
 const { logger } = require('../../../utils/logger');
 const TranscriptModel = require('../../../models/transcriptModel');
 const botManager = require('../../shared/botManager');
+const { monitorMeeting } = require('./monitor');
 
 class GoogleMeetAdapter {
   constructor(config) {
@@ -37,7 +38,7 @@ class GoogleMeetAdapter {
         }
       }
 
-      logger.info(`GoogleMeetAdapter: Starting bot for meeting ${this.config.meetingId}`);
+      logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Starting bot for goole meet meeting ${this.config.meetingId}`);
 
       // Create session
       const session = await TranscriptModel.createSession(this.config.meetingId);
@@ -76,7 +77,7 @@ class GoogleMeetAdapter {
 
       // Start Google Meet joining process
       this.joinGoogleMeet().catch(err => {
-        logger.error(`GoogleMeetAdapter: Error joining meeting ${this.config.meetingId}:`, err);
+        logger.error(`GoogleMeetAdapter(GoogleMeetAdapter): Error joining meeting ${this.config.meetingId}:`, err);
         this.cleanup();
       });
 
@@ -89,7 +90,7 @@ class GoogleMeetAdapter {
         message: 'Google Meet bot started - joining meeting...'
       };
     } catch (err) {
-      logger.error('GoogleMeetAdapter: Error starting bot:', err);
+      logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error starting bot:', err);
       this.cleanup();
       return {
         success: false,
@@ -101,7 +102,7 @@ class GoogleMeetAdapter {
 
   async joinGoogleMeet() {
     try {
-      logger.info(`GoogleMeetAdapter: Navigating to ${this.config.meetingUrl}`);
+      logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Navigating to ${this.config.meetingUrl}`);
 
       // Navigate to Google Meet
       await this.page.goto(this.config.meetingUrl, { waitUntil: 'networkidle2' });
@@ -112,7 +113,7 @@ class GoogleMeetAdapter {
         await this.page.waitForSelector('[data-mdc-dialog-action="accept"]', { timeout: 10000 });
         await this.page.click('[data-mdc-dialog-action="accept"]');
       } catch (e) {
-        logger.info('GoogleMeetAdapter: No camera/microphone prompt');
+        logger.info('GoogleMeetAdapter(GoogleMeetAdapter): No camera/microphone prompt');
       }
 
       // Enter name if required
@@ -124,7 +125,7 @@ class GoogleMeetAdapter {
         await this.page.waitForSelector('[data-mdc-dialog-action="accept"]', { timeout: 5000 });
         await this.page.click('[data-mdc-dialog-action="accept"]');
       } catch (e) {
-        logger.info('GoogleMeetAdapter: No name input required');
+        logger.info('GoogleMeetAdapter(GoogleMeetAdapter): No name input required');
       }
 
       // Wait for meeting to load
@@ -136,20 +137,24 @@ class GoogleMeetAdapter {
         instance.status = 'running';
       }
 
-      logger.info(`GoogleMeetAdapter: Successfully joined Google Meet ${this.config.meetingId}`);
+      logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Successfully joined Google Meet ${this.config.meetingId}`);
 
       // Start transcript monitoring
       this.monitorTranscript();
 
+      monitorMeeting(this.page, this.config.meetingId).catch(err => {
+        logger.error("GoogleMeetAdapter(GoogleMeetAdapter): Monitor loop crashed:", err);
+      });
+
     } catch (err) {
-      logger.error('GoogleMeetAdapter: Error joining Google Meet:', err);
+      logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error joining Google Meet:', err);
       throw err;
     }
   }
 
   async monitorTranscript() {
     try {
-      logger.info(`GoogleMeetAdapter: Starting transcript monitoring for ${this.config.meetingId}`);
+      logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Starting transcript monitoring for ${this.config.meetingId}`);
 
       // Google Meet transcript monitoring logic
       // This is a simplified version - real implementation would need:
@@ -162,13 +167,13 @@ class GoogleMeetAdapter {
       // In practice, you'd listen for caption updates and save them
 
     } catch (err) {
-      logger.error('GoogleMeetAdapter: Error monitoring transcript:', err);
+      logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error monitoring transcript:', err);
     }
   }
 
   async stopBot() {
     try {
-      logger.info(`GoogleMeetAdapter: Stopping bot for meeting ${this.config.meetingId}`);
+      logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Stopping bot for meeting ${this.config.meetingId}`);
       this.cleanup();
 
       return {
@@ -177,7 +182,7 @@ class GoogleMeetAdapter {
         message: 'Google Meet bot stopped'
       };
     } catch (err) {
-      logger.error('GoogleMeetAdapter: Error stopping bot:', err);
+      logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error stopping bot:', err);
       return {
         success: false,
         error: err.message
@@ -207,7 +212,7 @@ class GoogleMeetAdapter {
       }
       botManager.instances.delete(this.config.meetingId);
     } catch (err) {
-      logger.error('GoogleMeetAdapter: Error during cleanup:', err);
+      logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error during cleanup:', err);
     }
   }
 }

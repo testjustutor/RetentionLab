@@ -37,7 +37,7 @@ class ZoomAdapter {
         }
       }
 
-      logger.info(`ZoomAdapter: Starting bot for meeting ${this.config.meetingId}`);
+      logger.info(`ZoomAdapter(ZoomAdapter): Starting bot for meeting ${this.config.meetingId}`);
 
       // Create session
       const session = await TranscriptModel.createSession(this.config.meetingId);
@@ -72,10 +72,10 @@ class ZoomAdapter {
 
       // Start bot asynchronously
       this.bot.run().then(() => {
-        logger.info(`ZoomAdapter: Bot finished for meeting ${this.config.meetingId}`);
+        logger.info(`ZoomAdapter(ZoomAdapter): Bot finished for meeting ${this.config.meetingId}`);
         botManager.instances.delete(this.config.meetingId);
       }).catch(err => {
-        logger.error(`ZoomAdapter: Bot error for meeting ${this.config.meetingId}:`, err);
+        logger.error(`ZoomAdapter(ZoomAdapter): Bot error for meeting ${this.config.meetingId}:`, err);
         botManager.instances.delete(this.config.meetingId);
       });
 
@@ -87,7 +87,7 @@ class ZoomAdapter {
         status: 'joining'
       };
     } catch (err) {
-      logger.error('ZoomAdapter: Error starting bot:', err);
+      logger.error('ZoomAdapter(ZoomAdapter): Error starting bot:', err);
       return {
         success: false,
         error: err.message,
@@ -100,14 +100,14 @@ class ZoomAdapter {
     try {
       if (this.bot) {
         await this.bot.stop();
-        logger.info(`ZoomAdapter: Bot stopped for meeting ${this.config.meetingId}`);
+        logger.info(`ZoomAdapter(ZoomAdapter): Bot stopped for meeting ${this.config.meetingId}`);
       }
       return {
         success: true,
         message: `Bot stopped for meeting ${this.config.meetingId}`
       };
     } catch (err) {
-      logger.error('ZoomAdapter: Error stopping bot:', err);
+      logger.error('ZoomAdapter(ZoomAdapter): Error stopping bot:', err);
       return {
         success: false,
         error: err.message

@@ -9,7 +9,7 @@ class ZoomJoiner {
   }
 
   async joinMeeting() {
-    logger.info('STAGE 1: Navigating to Zoom (Deep Scan Flow)...');
+    logger.info('ZoomAdapter(zoomJoiner): STAGE 1: Navigating to Zoom (Deep Scan Flow)...');
     await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
 
     let joined = false;
@@ -18,7 +18,7 @@ class ZoomJoiner {
     while (!joined && attempts < 5) {
       attempts++;
       const allFrames = this.page.frames();
-      logger.info(`--- Join Attempt ${attempts} | Detected ${allFrames.length} frames ---`);
+      logger.info(`ZoomAdapter(zoomJoiner): --- Join Attempt ${attempts} | Detected ${allFrames.length} frames ---`);
 
       for (let i = 0; i < allFrames.length; i++) {
         const frame = allFrames[i];
@@ -49,24 +49,16 @@ class ZoomJoiner {
             };
           }, this.botName, this.passcode);
 
-          logger.info(`  Frame[${i}] URL: ${url.substring(0, 50)}...`);
-          logger.info(`    - Content: "${analysis.bodySnippet}..."`);
+          logger.info(`ZoomAdapter(zoomJoiner):  Frame[${i}] URL: ${url.substring(0, 50)}...`);
+          logger.info(`ZoomAdapter(zoomJoiner):   - Content: "${analysis.bodySnippet}..."`);
           
           if (analysis.foundCookieBtn) {
-            logger.info(`    - [ACTION] Clicking Cookie Banner`);
+            logger.info(`ZoomAdapter(zoomJoiner):  - [ACTION] Clicking Cookie Banner`);
             await frame.click('#onetrust-accept-btn-handler, .optanon-allow-all').catch(() => {});
           }
 
-          // if (analysis.foundLaunchLink) {
-          //   logger.info(`    - [ACTION] Clicking "Join from Your Browser"`);
-          //   await frame.evaluate(() => {
-          //     const el = Array.from(document.querySelectorAll('a, button')).find(el => /Join from Your Browser/i.test(el.innerText));
-          //     if (el) el.click();
-          //   });
-          // }
-
           if (analysis.foundLaunchLink) {
-              logger.info(`    - [ACTION] Forcing "Join from Your Browser" flow`);
+              logger.info(`ZoomAdapter(zoomJoiner): - [ACTION] Forcing "Join from Your Browser" flow`);
               
               await frame.evaluate(async () => {
                   // 1. Zoom often hides the link until 'Launch Meeting' is clicked at least once
@@ -87,12 +79,12 @@ class ZoomJoiner {
 
               // 3. CRITICAL: Wait for the page to actually change to the web client
               await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => {
-                  logger.info("      (Navigation timeout - might already be on the next page)");
+                  logger.info("ZoomAdapter(zoomJoiner):  (Navigation timeout - might already be on the next page)");
               });
           }
 
           if (analysis.foundNameInput && !analysis.hasLeave) {
-            logger.info(`    - [ACTION] Filling Name & Clicking Join`);
+            logger.info(`ZoomAdapter(zoomJoiner): - [ACTION] Filling Name & Clicking Join`);
             await frame.type('input#input-for-name, input[placeholder*="name"]', this.botName);
 
             await frame.evaluate(async () => {
@@ -120,11 +112,11 @@ class ZoomJoiner {
 
           if (analysis.hasLeave) {
             joined = true;
-            logger.info('✅ SUCCESS: Leave button detected!');
+            logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Leave button detected!');
             break;
           }
         } catch (e) {
-          logger.info(`    - Frame[${i}] is locked (Cross-Origin)`);
+          logger.info(`ZoomAdapter(zoomJoiner): - Frame[${i}] is locked (Cross-Origin)`);
         }
       }
 
@@ -134,13 +126,13 @@ class ZoomJoiner {
 
     if (!joined) {
       await this.page.screenshot({ path: './logs/image/stuck_debug.png' });
-      logger.error('❌ FAILED: Saved stuck_debug.png. Check the logs above to see which frame had the buttons.');
+      logger.error('ZoomAdapter(zoomJoiner): FAILED: Saved stuck_debug.png. Check the logs above to see which frame had the buttons.');
       throw new Error('Zoom join failed');
     }
   }
 
   async checkCaptionsEnabled() {
-    logger.info('🔍 CHECK: Verifying if Host has enabled Live Captions...');
+    logger.info('ZoomAdapter(zoomJoiner): CHECK: Verifying if Host has enabled Live Captions...');
     const frame = this.page.frames().find(f => f.url().includes('zoom.us')) || this.page;
 
     const status = await frame.evaluate(() => {
@@ -154,17 +146,17 @@ class ZoomJoiner {
     });
 
     if (status === "DISABLED") {
-      logger.warn('⚠️  ALERT: Live Captions are NOT enabled by the Host.');
-      logger.info('👉 Action: On the Host Zoom app, click "More" -> "Captions" -> "Enable Auto-Transcription".');
+      logger.warn('ZoomAdapter(zoomJoiner):  ALERT: Live Captions are NOT enabled by the Host.');
+      logger.info('ZoomAdapter(zoomJoiner): Action: On the Host Zoom app, click "More" -> "Captions" -> "Enable Auto-Transcription".');
       return false;
     }
 
-    logger.info('✅ CONFIRMED: Captioning capability detected.');
+    logger.info('ZoomAdapter(zoomJoiner): CONFIRMED: Captioning capability detected.');
     return true;
   }
 
   async sendChatRequest() {
-    logger.info('💬 JT MODE: Sending chat request for captions...');
+    logger.info('ZoomAdapter(zoomJoiner): JT MODE: Sending chat request for captions...');
     const frame = this.page.frames().find(f => f.url().includes('zoom.us')) || this.page;
 
     try {
@@ -188,12 +180,12 @@ class ZoomJoiner {
         }, 1500);
       }, this.botName);
     } catch (e) {
-      logger.error('Chat Request Error: ' + e.message);
+      logger.error('ZoomAdapter(zoomJoiner): Chat Request Error: ' + e.message);
     }
   }
 
   async startTranscriptMonitor(captionMonitor) {
-    logger.info('🚀 [SYSTEM] Starting Step-by-Step Transcript Activation...');
+    logger.info('ZoomAdapter(zoomJoiner): [SYSTEM] Starting Step-by-Step Transcript Activation...');
     const frame = this.page.frames().find(f => f.url().includes('zoom.us/wc')) || this.page;
 
     try {
@@ -203,26 +195,26 @@ class ZoomJoiner {
       await this.handleHostPermissionPopup(frame);
 
       const isVisible = await this.verifySidebarVisibility(frame);
-      logger.info(`📊 FINAL_VARIABLE_sidebarVisible: ${isVisible}`);
+      logger.info(`ZoomAdapter(zoomJoiner): FINAL_VARIABLE_sidebarVisible: ${isVisible}`);
 
       if (isVisible) {
-        logger.info("🎉 SUCCESS: Sidebar and Captions activated.");
+        logger.info("ZoomAdapter(zoomJoiner): SUCCESS: Sidebar and Captions activated.");
         if (captionMonitor) captionMonitor.startPolling();
       } else {
-        logger.error("💀 ERROR: Sidebar did not open. Checking for blocking popups...");
+        logger.error("ZoomAdapter(zoomJoiner): ERROR: Sidebar did not open. Checking for blocking popups...");
         await this.page.screenshot({ path: `./logs/image/blocker_check_${Date.now()}.png` });
       }
 
     } catch (err) {
-      logger.error('❌ EXCEPTION in startTranscriptMonitor: ' + err.message);
+      logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in startTranscriptMonitor: ' + err.message);
     }
   }
 
   async handleHostPermissionPopup(frame) {
-      logger.info('🔍 [START] handleHostPermissionPopup: Checking for Zoom modals...');
+      logger.info('ZoomAdapter(zoomJoiner): [START] handleHostPermissionPopup: Checking for Zoom modals...');
 
       try {
-          logger.info('🔍 test phase 1: Entering Retry Loop');
+          logger.info('ZoomAdapter(zoomJoiner): test phase 1: Entering Retry Loop');
           
           let result = { status: 'not_found' };
           
@@ -258,30 +250,30 @@ class ZoomJoiner {
               await new Promise(res => setTimeout(res, 500));
           }
 
-          logger.info(`🔍 test phase 17: Result received`);
+          logger.info(`ZoomAdapter(zoomJoiner): test phase 17: Result received`);
 
           if (result.status === 'success') {
-              logger.info(`✅ [DETECTED] Found target modal: ${result.type}`);
-              logger.info(`👆 [ACTION] Clicked "${result.btn}" button successfully.`);
+              logger.info(`ZoomAdapter(zoomJoiner): [DETECTED] Found target modal: ${result.type}`);
+              logger.info(`ZoomAdapter(zoomJoiner): [ACTION] Clicked "${result.btn}" button successfully.`);
           } else {
-              logger.info('ℹ️ [SKIP] No active Caption/Permission modals found after 5s retry.');
+              logger.info('ZoomAdapter(zoomJoiner): [SKIP] No active Caption/Permission modals found after 5s retry.');
               
               // --- FAILSAFE ---
               // If the modal is visible but we can't "find" the button via text, 
               // hitting "Enter" usually triggers the primary blue button (Save).
-              logger.info('⌨️ [FAILSAFE] Pressing Enter key to clear potential stuck modal...');
+              logger.info('ZoomAdapter(zoomJoiner): [FAILSAFE] Pressing Enter key to clear potential stuck modal...');
               // await page.keyboard.press('Enter');
           }
 
       } catch (err) {
-          logger.error('❌ EXCEPTION in handleHostPermissionPopup: ' + err.message);
+          logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in handleHostPermissionPopup: ' + err.message);
       }
       
-      logger.info('🏁 [FINISH] handleHostPermissionPopup: Check complete.');
+      logger.info('ZoomAdapter(zoomJoiner): [FINISH] handleHostPermissionPopup: Check complete.');
   }
 
   async verifySidebarVisibility(frame) {
-    logger.info('⏳ Waiting for Sidebar to settle in DOM (Deep Text Scan)...');
+    logger.info('ZoomAdapter(zoomJoiner): Waiting for Sidebar to settle in DOM (Deep Text Scan)...');
     
     const isVisible = await frame.evaluate(async () => {
       const delay = (ms) => new Promise(res => setTimeout(res, ms));
@@ -304,7 +296,7 @@ class ZoomJoiner {
     });
 
     if (isVisible) {
-      logger.info(`✅ SIDEBAR_CONFIRMED: Found via text "Transcript"`);
+      logger.info(`ZoomAdapter(zoomJoiner): SIDEBAR_CONFIRMED: Found via text "Transcript"`);
       return true;
     }
 
@@ -312,7 +304,7 @@ class ZoomJoiner {
     for (const sel of backupSelectors) {
       const found = await frame.waitForSelector(sel, { timeout: 2000 }).then(() => true).catch(() => false);
       if (found) {
-        logger.info(`✅ SIDEBAR_CONFIRMED: Found via backup selector ${sel}`);
+        logger.info(`ZoomAdapter(zoomJoiner): SIDEBAR_CONFIRMED: Found via backup selector ${sel}`);
         return true;
       }
     }

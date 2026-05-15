@@ -1,7 +1,3 @@
-/**
- * Calendar API Routes (FIXED VERSION)
- */
-
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
@@ -19,7 +15,6 @@ function extractMeetingLink(text = '') {
   if (!matches) return null;
 
   for (let url of matches) {
-    // ✅ CLEAN TRAILING JUNK
     url = url.replace(/[>\])]+$/, '');
 
     if (
@@ -57,19 +52,14 @@ function extractMeetingId(link, platform, description = '') {
   let meetingId = null;
   let passcode = null;
 
-  // -------- Zoom --------
   if (platform === 'zoom') {
     try {
       if (link) {
         const url = new URL(link);
-
-        // Meeting ID from URL
         const match = url.pathname.match(/\/j\/(\d+)/);
         if (match) meetingId = match[1];
       }
     } catch {}
-
-    // ✅ Extract REAL passcode from description
     if (description) {
       const idMatch = description.match(/Meeting ID[:\s]*([\d\s]+)/i);
       if (idMatch) {
@@ -81,7 +71,6 @@ function extractMeetingId(link, platform, description = '') {
         passcode = passMatch[1];
       }
     }
-
     return { meetingId, passcode };
   }
 
@@ -98,7 +87,7 @@ function extractMeetingId(link, platform, description = '') {
       };
     }
 
-    // ✅ Teams PERSONAL (teams.live.com)
+    // ✅ Teams 
     const liveMatch = link.match(/meet\/(\d+)/);
     if (liveMatch) {
       return {
@@ -107,7 +96,6 @@ function extractMeetingId(link, platform, description = '') {
       };
     }
 
-    // ❌ Only fallback if nothing matches
     return {
       meetingId: 'teams-' + Date.now(),
       passcode: null
@@ -120,10 +108,7 @@ function extractMeetingId(link, platform, description = '') {
 
     try {
       const url = new URL(link);
-
-      // 👉 Extract /oeb-eahf-toi
       const meetingId = url.pathname.replace('/', '');
-
       return {
         meetingId: meetingId || null,
         passcode: null
@@ -150,7 +135,7 @@ router.get('/multi/users', async (req, res) => {
       }))
     });
   } catch (err) {
-    logger.error('Error listing users:', err);
+    logger.error('Route(calendar): Error listing users:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
@@ -165,7 +150,7 @@ router.post('/multi/users/disconnect', async (req, res) => {
     await CalendarUsersModel.deleteUser(email);
     res.json({ status: 'success', message: `User ${email} disconnected` });
   } catch (err) {
-    logger.error(err);
+    logger.error('Route(calendar): ', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
@@ -211,7 +196,7 @@ router.get('/callback', async (req, res) => {
       </html>
     `);
   } catch (err) {
-    logger.error('OAuth Callback Error:', err);
+    logger.error('Route(calendar): OAuth Callback Error:', err);
     res.status(500).send('Authentication failed: ' + err.message);
   }
 });
@@ -228,19 +213,13 @@ router.post('/multi/callback', async (req, res) => {
     await service.initialize(state);
     const tokens = await service.authorize(code);
 
-    // await CalendarUsersModel.createOrUpdateUser(email, {
-    //   access_token: tokens.access_token,
-    //   refresh_token: tokens.refresh_token,
-    //   expiry_date: tokens.expiry_date
-    // });
-
     res.json({
       status: 'success',
       message: `Authorized ${state}`,
       data: { email: state, expiry: tokens.expiry_date }
     });
   } catch (err) {
-    logger.error(err);
+    logger.error('Route(calendar): ',err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
@@ -281,8 +260,7 @@ router.post('/multi/events', async (req, res) => {
         maxResults: 20
       });
     } catch (err) {
-      logger.error('Google Fetch Error:', err);
-      // OPTIONAL: On error, you could return stored meetings from DB instead of an empty array
+      logger.error('Route(calendar): Google Fetch Error:', err);
       events = []; 
     }
 
@@ -293,13 +271,11 @@ router.post('/multi/events', async (req, res) => {
     });
     
     // --- START OF STORAGE LOGIC ---
-    // We loop through the filtered events and save them to your database
     for (const e of filtered) {
       const link = e.hangoutLink || extractMeetingLink(e.description);
       const platformType = detectPlatform(link);
       const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '');
 
-      // We use your MeetingModel to handle the "Match and Store" logic
       await MeetingModel.getMeetingByIdOrCreate({
         meetingId: meetingId,
         platform: platformType,
@@ -312,7 +288,6 @@ router.post('/multi/events', async (req, res) => {
         title: e.summary || 'Untitled Meeting'
       });
     }
-    // --- END OF STORAGE LOGIC ---
 
     res.json({
       status: 'success',
@@ -342,7 +317,7 @@ router.post('/multi/events', async (req, res) => {
       })
     });
   } catch (err) {
-    logger.error(err);
+    logger.error('Route(calendar): ',err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });

@@ -1,19 +1,13 @@
-/**
- * Transcripts API Routes
- * Manage and retrieve transcript data
- */
-
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
 const TranscriptModel = require('../models/transcriptModel');
-const fs = require('fs').promises;
+
+const { generateCSV, generateTXT } = require('../utils/transcriptUtils');
+
+const fs = require('fs');
 const path = require('path');
 
-/**
- * GET /api/transcripts - List all transcripts with filters
- * Query params: meetingId, sessionId, speaker, limit, offset
- */
 router.get('/', async (req, res) => {
   try {
     const { meetingId, sessionId, speaker, limit = 100, offset = 0 } = req.query;
@@ -47,14 +41,11 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error fetching transcripts:', err);
+    logger.error('Route(transcripts): Error fetching transcripts:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/transcripts/:sessionId - Get all transcripts for a session
- */
 router.get('/session/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -69,14 +60,12 @@ router.get('/session/:sessionId', async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error fetching session transcripts:', err);
+    logger.error('Route(transcripts): Error fetching session transcripts:', err);
+
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/transcripts/meeting/:meetingId - Get all transcripts for a meeting
- */
 router.get('/meeting/:meetingId', async (req, res) => {
   try {
     const { meetingId } = req.params;
@@ -95,20 +84,11 @@ router.get('/meeting/:meetingId', async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error fetching meeting transcripts:', err);
+    logger.error('Route(transcripts): Error fetching meeting transcripts:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * POST /api/transcripts/search - Search transcripts
- * Body: {
- *   query: string,
- *   meetingId?: string,
- *   fields?: ['speaker', 'text'],
- *   limit?: number
- * }
- */
 router.post('/search', async (req, res) => {
   try {
     const { query, meetingId, fields = ['speaker', 'text'], limit = 50 } = req.body;
@@ -140,15 +120,11 @@ router.post('/search', async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error searching transcripts:', err);
+    logger.error('Route(transcripts): Error searching transcripts:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/transcripts/export/:sessionId - Export transcript
- * Query params: format (json, csv, txt, pdf)
- */
 router.get('/export/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -188,14 +164,11 @@ router.get('/export/:sessionId', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(output);
   } catch (err) {
-    logger.error('Error exporting transcript:', err);
+    logger.error('Route(transcripts): Error exporting transcript:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-/**
- * GET /api/transcripts/stats/:meetingId - Get transcript statistics
- */
 router.get('/stats/:meetingId', async (req, res) => {
   try {
     const { meetingId } = req.params;
@@ -228,23 +201,9 @@ router.get('/stats/:meetingId', async (req, res) => {
       data: stats
     });
   } catch (err) {
-    logger.error('Error getting transcript stats:', err);
+    logger.error('Route(transcripts): Error getting transcript stats:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
-
-// Helper functions
-function generateCSV(transcripts) {
-  let csv = 'Speaker,Text,Timestamp\n';
-  transcripts.forEach(t => {
-    const text = (t.text || '').replace(/"/g, '""');
-    csv += `"${t.speaker}","${text}","${t.timestamp}"\n`;
-  });
-  return csv;
-}
-
-function generateTXT(transcripts) {
-  return transcripts.map(t => `[${t.timestamp}] ${t.speaker}: ${t.text}`).join('\n');
-}
 
 module.exports = router;

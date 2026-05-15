@@ -5,59 +5,51 @@ const FormData = require('form-data'); // Fixed: Ensure FormData is imported for
 const BrowserManager = require('../../shared/browserManager');
 const { logger } = require('../../../utils/logger');
 const settings = require('../../../config/settings');
+const PythonBridge = require('../../shared/pythonBridge');
+const path = require('path');
 
 class ProfessionalMeetingBot {
     constructor(meetingUrl) {
         this.meetingUrl = meetingUrl;
-        this.browserManager = null;
-        this.page = null;
     }
 
-    async start() {
-        this.browserManager = new BrowserManager();
-
-        // Initialize browser with necessary flags for audio processing
-        await this.browserManager.init({
-            userDataDir: './user_data',
-            // Ensure these args are passed in your BrowserManager.js:
-            // ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream']
-        });
-
-        this.page = this.browserManager.page;
-
-        // Navigate to the meeting
-        await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
-
-        logger.info("🚀 Bot joined meeting. Browser session is active.");
-
-        /**
-         * NOTE: Removed the spawn('ffmpeg') block from here.
-         * The recording is now handled by SocraticBot calling AudioRecorder.js
-         * to avoid multiple processes trying to hook the same audio driver.
-         */
+    async runAuditPipeline(videoFilePath) {
+        try {
+            const fileName = path.basename(videoFilePath);
+            logger.info(`[ProfessionalBot] Handoff to PythonBridge: ${fileName}`);
+            
+            const result = await PythonBridge.runFullPipeline(fileName);
+            return result;
+        } catch (error) {
+            logger.error(`[ProfessionalBot] Audit Handoff failed: ${error.message}`);
+            return null;
+        }
     }
 
-    async transcribeAudio(filePath) {
+    async transcribeAudio(filePath, transcriptPath) {
+
         if (!fs.existsSync(filePath)) {
-            logger.error(`❌ File not found for transcription: ${filePath}`);
+            logger.error(`GoogleMeetAdapter(audioRecorderBot): Audio File not found at ${filePath}`);
             return null;
         }
 
-        // 1. Define your backup order
-        const priorityList = [settings.ai.provider, 'openai', 'groq'];
-        const providers = [...new Set(priorityList)].filter(p => p);
+        // Optional: Log if we have the transcript path for context
+        if (transcriptPath && fs.existsSync(transcriptPath)) {
+            logger.info(`GoogleMeetAdapter(audioRecorderBot): Transcribing with speaker context from ${transcriptPath}`);
+        }
 
-        // 2. Loop through each one
+        const providers = [...new Set([settings.ai.provider, 'openai', 'groq'])].filter(p => p);
+
         for (const provider of providers) {
             try {
-                logger.info(`🔄 Attempting transcription with: ${provider.toUpperCase()}`);
+                logger.info(`GoogleMeetAdapter(audioRecorderBot): Attempting transcription with: ${provider.toUpperCase()}`);
 
                 const formData = new FormData();
+                // Use fs.createReadStream for large files to keep memory usage low
                 formData.append('file', fs.createReadStream(filePath));
 
                 let apiUrl, apiKey, modelName;
 
-                // 3. Setup the specific provider details
                 if (provider === 'openai') {
                     apiUrl = 'https://api.openai.com/v1/audio/transcriptions';
                     apiKey = settings.ai.openaiApiKey;
@@ -67,77 +59,32 @@ class ProfessionalMeetingBot {
                     apiKey = settings.ai.groqApiKey;
                     modelName = 'whisper-large-v3';
                 } else {
-                    continue; // Skip if unknown
+                    continue;
                 }
 
                 formData.append('model', modelName);
 
-                // 4. Try the request
                 const response = await axios.post(apiUrl, formData, {
                     headers: {
-                        ...formData.getHeaders(),
+                        ...formData.getHeaders(), // Ensure you are using the 'form-data' npm package
                         'Authorization': `Bearer ${apiKey}`
                     },
-                    timeout: 60000 // 1 minute timeout
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity,
+                    timeout: 90000 // Increased to 90s (Whisper can be slow for long meetings)
                 });
 
-                // If we reach here, it worked!
-                logger.info(`✅ ${provider.toUpperCase()} Success!`);
+                logger.info(`GoogleMeetAdapter(audioRecorderBot): ${provider.toUpperCase()} Transcription Success!`);
                 return response.data.text;
 
             } catch (error) {
-                // 5. IMPORTANT: DO NOT THROW HERE
-                // We just log the error and let the 'for' loop continue to the next provider
                 const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-                logger.warn(`⚠️ ${provider.toUpperCase()} failed: ${errorMsg}. Continuing to next provider...`);
+                logger.warn(`GoogleMeetAdapter(audioRecorderBot): ${provider.toUpperCase()} failed: ${errorMsg}. Trying next provider...`);
             }
         }
 
-        // 6. Only reach here if EVERY provider in the list failed
-        logger.error("❌ ALL transcription providers failed. Saving audio for manual retry.");
+        logger.error("GoogleMeetAdapter(audioRecorderBot): All transcription providers failed.");
         return null;
-    }
-
-    async generateSummary(audioText, labeledText) {
-        const providers = [...new Set([settings.ai.provider, 'groq', 'openai'])].filter(p => p);
-
-        for (const provider of providers) {
-            try {
-                logger.info(`📝 Generating Summary with: ${provider.toUpperCase()}`);
-
-                let apiUrl, apiKey, model;
-                if (provider === 'openai') {
-                    apiUrl = 'https://api.openai.com/v1/chat/completions';
-                    apiKey = settings.ai.openaiApiKey;
-                    model = 'gpt-4o'; // or gpt-3.5-turbo
-                } else {
-                    apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-                    apiKey = settings.ai.groqApiKey;
-                    model = 'llama3-8b-8192';
-                }
-
-                const response = await axios.post(apiUrl, {
-                    model: model,
-                    messages: [
-                        {
-                            role: "system",
-                            content: "You are a professional meeting assistant. Use the provided high-quality audio transcript for facts and the labeled caption text to identify who said what."
-                        },
-                        {
-                            role: "user",
-                            content: `Audio Transcript: ${audioText}\n\nLabeled Captions: ${labeledText}`
-                        }
-                    ]
-                }, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` }
-                });
-
-                return response.data.choices[0].message.content;
-            } catch (error) {
-                logger.warn(`⚠️ Summary failed with ${provider}, trying next...`);
-            }
-        }
-        return "Summary generation failed across all providers.";
     }
 }
 

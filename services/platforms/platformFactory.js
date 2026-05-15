@@ -7,8 +7,6 @@ const { logger } = require('../../utils/logger');
 const ZoomAdapter = require('./zoom/ZoomAdapter');
 const TeamsAdapter = require('./teams/TeamsAdapter');
 const GoogleMeetAdapter = require('./google-meet/GoogleMeetAdapter');
-const WebexAdapter = require('./webex/WebexAdapter');
-const GoToMeetingAdapter = require('./goto-meeting/GoToMeetingAdapter');
 const botManager = require('../shared/botManager');
 
 class PlatformFactory {
@@ -32,14 +30,6 @@ class PlatformFactory {
         adapter = new GoogleMeetAdapter(config);
         break;
 
-      case 'webex':
-        adapter = new WebexAdapter(config);
-        break;
-
-      case 'gotomeeting':
-        adapter = new GoToMeetingAdapter(config);
-        break;
-
       default:
         throw new Error(`Unsupported platform: ${platform}. Supported: zoom, teams, google-meet, webex, gotomeeting`);
     }
@@ -61,7 +51,7 @@ class PlatformFactory {
   }
 
   static getSupportedPlatforms() {
-    return ['zoom', 'teams', 'google-meet', 'webex', 'gotomeeting'];
+    return ['zoom', 'teams', 'google-meet'];
   }
 
   static isPlatformSupported(platform) {

@@ -1,160 +1,112 @@
 const path = require('path');
 const { logger } = require('../../../utils/logger');
 
-async function reactiveJoinFlow(page, botName, passcode) {
-  logger.info('🚀 Reactive Zoom Join Flow Started');
-
-  const continueBtnSelector = 'button.preview-join-button, .zm-btn--primary';
-  const joinBtnSelector = 'button.preview-join-button, #joinBtn, .btn-join';
+async function reactiveJoinFlow(page, botName) {
+  logger.info('TeamsAdapter: Reactive Teams Join Flow Started');
 
   try {
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 4000));
 
-    const browserJoinBtn = await page.$('a[href*="join"]');
-    if (browserJoinBtn) {
-      logger.info("Join from Browser page → clicking");
-      await browserJoinBtn.click();
-      await new Promise(r => setTimeout(r, 3000));
-    }
-
-    let target = page;
-    const frameHandle = await page.waitForSelector('#webclient, iframe[src*="zoom.us"]', { timeout: 2000 }).catch(() => null);
-    if (frameHandle) {
-      logger.info("Zoom iframe detected");
-      target = await frameHandle.contentFrame();
-    }
-
-    await target.evaluate(() => {
-      document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        if (!cb.checked) cb.click();
+    // 1. Click "Continue on this browser" (important for Teams)
+    try {
+      await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button, a'))
+          .find(el => /continue on this browser/i.test(el.innerText));
+        if (btn) btn.click();
       });
-      const muteBtn = document.querySelector('button[aria-label="Mute"], button[aria-label*="mic"]');
-      if (muteBtn) muteBtn.click();
-      const cameraBtn = document.querySelector('button[aria-label*="video"], button[aria-label*="camera"]');
-      if (cameraBtn) cameraBtn.click();
+      await new Promise(r => setTimeout(r, 5000));
+    } catch {}
+
+    const target = page;
+
+    // 2. Turn off mic + camera
+    await target.evaluate(() => {
+      const mic = document.querySelector('[aria-label*="microphone"], [aria-label*="mic"]');
+      if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
+
+      const cam = document.querySelector('[aria-label*="camera"], [aria-label*="video"]');
+      if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
     }).catch(() => {});
 
-    const pInputSelector = 'input#input-for-pwd, #inputpass, input[name="inputpasscode"]';
+    // 3. Enter name (guest join)
     try {
-      await target.waitForSelector(pInputSelector, { timeout: 2000 });
-      logger.info("Passcode entry...");
-      await target.type(pInputSelector, passcode, { delay: 50 });
-    } catch (e) {
-      logger.info("No passcode field found, skipping");
+      const nameInput = await target.waitForSelector('input[type="text"]', { timeout: 5000 });
+
+      logger.info(`TeamsAdapter: Setting bot name → ${botName}`);
+
+      await nameInput.click({ clickCount: 3 });
+      await target.keyboard.press('Backspace');
+      await nameInput.type(botName, { delay: 50 });
+    } catch {
+      logger.info("TeamsAdapter: Name input not required");
     }
 
-    const nameSelector = 'input#input-for-name, .form-control';
+    // 4. Click "Join now"
     try {
-      await target.waitForSelector(nameSelector, { timeout: 2000 });
-      logger.info(`Setting Bot Name: ${botName}`);
-      await target.click(nameSelector, { clickCount: 3 });
-      await page.keyboard.press('Backspace');
-      await target.type(nameSelector, botName, { delay: 50 });
+      await target.waitForFunction(() => {
+        return Array.from(document.querySelectorAll('button'))
+          .some(btn => /join now/i.test(btn.innerText));
+      }, { timeout: 8000 });
+
+      await target.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button'))
+          .find(b => /join now/i.test(b.innerText));
+        if (btn) btn.click();
+      });
+
+      logger.info("TeamsAdapter: JOIN button clicked");
     } catch (e) {
-      logger.info("Name field already set or ready");
+      logger.error("TeamsAdapter: Join button not found");
     }
 
-    try {
-      const continueBtn = await target.waitForSelector(continueBtnSelector, { timeout: 2000 });
-      await continueBtn.click();
-      logger.info("Preview/Continue clicked");
-    } catch (e) {
-      logger.info("No preview step found");
-    }
+    // 5. Wait for meeting to load / lobby
+    await new Promise(r => setTimeout(r, 8000));
 
-    try {
-      await target.waitForSelector(joinBtnSelector, { timeout: 2000 });
-      await target.evaluate((sel) => {
-        const btn = document.querySelector(sel);
-        if (btn) {
-          btn.classList.remove('zm-btn--disabled');
-          btn.disabled = false;
-        }
-      }, joinBtnSelector);
-      await target.click(joinBtnSelector);
-      logger.info('✅ JOINED MEETING');
-    } catch (e) {
-      logger.error("Final Join button click failed");
-    }
-
-    await new Promise(r => setTimeout(r, 5000));
+    // 6. Enable captions
     await enableCaptions(target);
 
   } catch (e) {
     const errorPath = path.join(__dirname, '..', '..', '..', 'debug_join_error.png');
     await page.screenshot({ path: errorPath, fullPage: true });
-    logger.error(`Join Flow Failed: ${e.message}. Screenshot saved to: ${errorPath}`);
+    logger.error(`TeamsAdapter: Join Flow Failed: ${e.message}. Screenshot saved to: ${errorPath}`);
   }
 }
 
 async function enableCaptions(target) {
-  logger.info('⚙️  PROCESS: Enabling Captions...');
+  logger.info('TeamsAdapter: Enabling captions...');
 
   try {
-    const moreBtnSelector = '#moreButton button, [aria-label*="More meeting control"], button[aria-label*="More"], .more_button';
-    await target.waitForSelector(moreBtnSelector, { timeout: 5000 });
-    await target.click(moreBtnSelector);
-    logger.info('  ↳ LOG: Clicked "More" button');
-    await new Promise(r => setTimeout(r, 1200));
-
-    const clickedLabel = await target.evaluate(() => {
-      const matcher = /captions|live transcript|view full transcript|closed caption/i;
-      const nodes = Array.from(document.querySelectorAll('.dropdown-item, .more-button__item-box, a[role="button"], button, li'));
-
-      const exact = nodes.find(el => matcher.test(el.innerText));
-      if (exact) {
-        exact.click();
-        return exact.innerText.trim();
-      }
-
-      const ariaSel = [
-        '[aria-label*="Caption"]',
-        '[aria-label*="Live Transcript"]',
-        '[aria-label*="Closed Caption"]',
-        '[aria-label*="transcript"]'
-      ];
-
-      for (const selector of ariaSel) {
-        const el = document.querySelector(selector);
-        if (el) {
-          el.click();
-          return el.getAttribute('aria-label') || el.innerText.trim();
-        }
-      }
-
-      return null;
+    // Open "More actions" (3 dots)
+    await target.evaluate(() => {
+      const btn = document.querySelector('[aria-label*="More"], [aria-label*="more"]');
+      if (btn) btn.click();
     });
 
-    if (clickedLabel) {
-      logger.info(`  ↳ LOG: Captions menu item clicked (${clickedLabel})`);
-    } else {
-      logger.warn('⚠️  WARNING: Could not find any captions/live-transcript item.');
-       }
-
     await new Promise(r => setTimeout(r, 1500));
-    const transcriptOpened = await target.evaluate(() => {
-      if (document.querySelector('.transcript-item-area, .cc-transcript-text, #transcript-list-item, .zm-transcript-viewer')) {
-        return true;
-      }
 
-      const link = Array.from(document.querySelectorAll('.dropdown-item, button, a'))
-        .find(el => /view full transcript|show full transcript|show transcript/i.test(el.innerText));
-      if (link) {
-        link.click();
+    // Click captions / transcript
+    const clicked = await target.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button, span'))
+        .find(el =>
+          /captions|live captions|transcript/i.test(el.innerText)
+        );
+
+      if (btn) {
+        btn.click();
         return true;
       }
 
       return false;
     });
 
-    if (transcriptOpened) {
-      logger.info('✅ SUCCESS: Transcript interface appears active');
+    if (clicked) {
+      logger.info("TeamsAdapter: Captions enabled");
     } else {
-      logger.warn('⚠️  NOTICE: Transcript panel not detected; continuing, but captions may require manual re-check');
+      logger.warn("TeamsAdapter: Captions button not found");
     }
 
   } catch (err) {
-    logger.error('❌ FAILED: Caption enable process interrupted - ' + err.message);
+    logger.error("TeamsAdapter: Failed to enable captions - " + err.message);
   }
 }
 

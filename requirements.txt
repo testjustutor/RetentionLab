@@ -1,0 +1,8 @@
+torch==1.13.1
+torchaudio==0.13.1
+pyannote.audio==2.1.1
+huggingface_hub==0.10.1
+transformers==4.24.0
+speechbrain==0.5.14
+pytorch-lightning==1.6.5
+omegaconf==2.1.2

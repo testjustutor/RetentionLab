@@ -21,6 +21,9 @@ const GoogleMeetAudioRecorderBot = require('./platforms/google-meet/audioRecorde
 const CaptionMonitor = require('./captionMonitor');
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
+const MeetingAssetsModel = require('../models/MeetingAssetsModel');
+
+const PythonBridge = require('./shared/pythonBridge');
 
 const fs = require('fs');
 const path = require('path');
@@ -54,7 +57,7 @@ class SocraticBot {
     
       const uniqueProfileDir = path.resolve(__dirname, '..', 'storage', 'chrome-profiles', `profile_${this.meetingId || this.sessionId}`);
 
-      // ✅ PASS IT TO THE BROWSER MANAGER
+      // PASS IT TO THE BROWSER MANAGER
       this.browserManager = await new BrowserManager().init({
         userDataDir: uniqueProfileDir
       });
@@ -62,22 +65,22 @@ class SocraticBot {
       const joiner = this.createJoiner();
       this.joiner = joiner;
 
-      // 🚀 JOIN MEETING
+      // JOIN MEETING
       await joiner.joinMeeting();
 
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 🎙 START AUDIO RECORDING
-      logger.info('🎙️ Triggering FFmpeg recording...');
+      // START AUDIO RECORDING
+      logger.info('DefaultAdapter(SocraticBot): Triggering FFmpeg recording...');
       await this.audioRecorder.start();
 
-      // 🧠 PLATFORM FEATURES
+      // PLATFORM FEATURES
       await this.handlePlatformFeatures(joiner);
 
-      logger.info('READY: SocraticBot is now recording and transcribing.');
+      logger.info('DefaultAdapter(SocraticBot): READY: SocraticBot is now recording and transcribing.');
 
     } catch (err) {
-      logger.error('FATAL: Bot failed to start', err);
+      logger.error('DefaultAdapter(SocraticBot): FATAL: Bot failed to start', err);
       await this.stop();
       throw err;
     }
@@ -194,7 +197,7 @@ class SocraticBot {
   // -------------------------
   
   async stop() {
-    logger.info('Shutting down SocraticBot...');
+    logger.info('DefaultAdapter(SocraticBot): Shutting down SocraticBot...');
 
     if (this.captionMonitor) {
       this.captionMonitor.stopPolling();
@@ -210,43 +213,50 @@ class SocraticBot {
 
       try {
         const finalAudioPath = this.audioRecorder.audioPath;
+        
+        if (!finalAudioPath) {
+          logger.warn('Final audio path is undefined. Skipping transcription.');
+          return;
+        }
 
         if (fs.existsSync(finalAudioPath)) {
-          logger.info(`Processing final transcription: ${finalAudioPath}`);
+
+          logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
           // 1. Save audio path to DB
           await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
-
-          // 2. Get high-quality text from Audio (Whisper)
-          const audioText = await this.transcriptionService.transcribeAudio(finalAudioPath);
           
-          // 3. MATCHING: Get the speaker-labeled transcript file from Database
+          // 2. MATCHING: Get the speaker-labeled transcript file from Database
           const session = await TranscriptModel.getSessionById(this.sessionId);
           
           if (session && session.transcript_file_name) {
-            const transcriptPath = path.join(__dirname, '../storage/transcript', session.transcript_file_name);
+
+            const transcriptPath = path.join(__dirname, '../storage/transcripts', session.transcript_file_name);
             
             if (fs.existsSync(transcriptPath)) {
-              logger.info(`Matching detected: Audio + Transcript (${session.transcript_file_name})`);
+              logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
-              // 4. Read the labeled text (e.g. "[19:33:33] Yash: ...")
-              const labeledText = fs.readFileSync(transcriptPath, 'utf8');
+              // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
+              // engine_main.py expects an input like REC_<id>.mp3 (relative to storage/recordings),
+              // but `finalAudioPath` is an absolute Windows path. Pass only the filename.
 
-              // 5. SUMMARY: Send both to your AI service
-              // (Assuming your transcriptionService or a Summarizer class handles this)
-              const summary = await this.transcriptionService.generateSummary(audioText, labeledText);
+              await MeetingAssetsModel.initializeAssets(this.meetingId, finalAudioPath);
+
+              const finalAudioFileName = path.basename(finalAudioPath);
+              const auditResults = await PythonBridge.runFullAudioPipeline(finalAudioFileName);
+
+
+              if (auditResults) {
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi_score}`);
+              }              
               
-              // 6. SAVE: Update the database with the final summary
-              await MeetingModel.updateSummary(this.sessionId, summary);
-              
-              logger.info('Final Combined Summary achieved successfully.');
             }
           }
         } else {
-          logger.warn(`Audio file not available, skipping transcription: ${finalAudioPath}`);
+          logger.warn(`DefaultAdapter(SocraticBot): Audio file not available, skipping transcription: ${finalAudioPath}`);
         }
       } catch (err) {
-        logger.error('Transcription/Matching failed during shutdown', err);
+        logger.error('DefaultAdapter(SocraticBot): Transcription/Matching failed during shutdown', err);
       }
     }
 
@@ -254,7 +264,7 @@ class SocraticBot {
       await this.browserManager.close();
     }
 
-    logger.info('SocraticBot stopped.');
+    logger.info('DefaultAdapter(SocraticBot): SocraticBot stopped.');
   }
 }
 

@@ -16,7 +16,7 @@ async function startKeepAlive(page) {
 }
 
 async function monitorMeeting(page, meetingId) {
-  logger.info('🛡️ MONITOR: Stay-Alive loop started');
+  logger.info('DefaultAdapter(monitor): MONITOR: Stay-Alive loop started');
 
   let loopCount = 0;
   const endPhrases = [
@@ -34,28 +34,28 @@ async function monitorMeeting(page, meetingId) {
   try {
     while (true) {
       if (page.isClosed()) {
-        logger.info("📢 EXIT: Page closed → Exporting final transcript");
+        logger.info("DefaultAdapter(monitor): EXIT: Page closed → Exporting final transcript");
         await exportMeetingTranscript(meetingId);
         break;
       }
 
       const url = page.url();
       if (!url.includes('/wc/') && !url.includes('/j/')) {
-        logger.info("📢 EXIT: Redirected away from Zoom → Exporting");
+        logger.info("DefaultAdapter(monitor): EXIT: Redirected away from Zoom → Exporting");
         await exportMeetingTranscript(meetingId);
         break;
       }
 
       const frame = page.frames().find(f => f.url().includes("zoom.us"));
       if (!frame) {
-        logger.info("📢 EXIT: Zoom iframe gone → Export");
+        logger.info("DefaultAdapter(monitor): EXIT: Zoom iframe gone → Export");
         await exportMeetingTranscript(meetingId);
         break;
       }
 
       const pageText = await page.evaluate(() => document.body.innerText.toLowerCase());
       if (pageText.includes('meeting ended by host') || pageText.includes('host ended')) {
-        logger.info("📢 HOST ENDED MEETING → Export now");
+        logger.info("DefaultAdapter(monitor): HOST ENDED MEETING → Export now");
         await exportMeetingTranscript(meetingId);
         break;
       }
@@ -66,7 +66,7 @@ async function monitorMeeting(page, meetingId) {
       }, endPhrases);
 
       if (meetingEnded) {
-        logger.info("📢 EXIT: Meeting end text detected → Exporting final transcript");
+        logger.info("DefaultAdapter(monitor): EXIT: Meeting end text detected → Exporting final transcript");
         await exportMeetingTranscript(meetingId);
         break;
       }
@@ -77,11 +77,11 @@ async function monitorMeeting(page, meetingId) {
       });
 
       if (participantCount === 1) {
-        logger.info("📢 EXIT: Only bot left (1 total) → Exporting");
+        logger.info("DefaultAdapter(monitor): EXIT: Only bot left (1 total) → Exporting");
         await exportMeetingTranscript(meetingId);
         break;
       }
-      logger.debug(`👥 Monitor: ${participantCount} participants active`);
+      logger.debug(`DefaultAdapter(monitor): Monitor: ${participantCount} participants active`);
 
       const waitingRoom = await frame.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
@@ -89,31 +89,31 @@ async function monitorMeeting(page, meetingId) {
       });
 
       if (waitingRoom) {
-        logger.info("⏳ Waiting room detected");
+        logger.info("DefaultAdapter(monitor): Waiting room detected");
       }
 
       await new Promise(r => setTimeout(r, 10000));
       loopCount++;
       if (loopCount % 6 === 0) {
-        logger.info(`💓 MONITOR: Alive ${loopCount / 6}m`);
+        logger.info(`DefaultAdapter(monitor): MONITOR: Alive ${loopCount / 6}m`);
       }
     }
   } catch (error) {
-    logger.error(`❌ MONITOR: ${error.message}`);
+    logger.error(`DefaultAdapter(monitor): MONITOR: ${error.message}`);
   }
 
   if (keepAliveInterval) clearInterval(keepAliveInterval);
-  logger.info("🗄️ MEETING ENDED: Full transcript exported to storage/");
+  logger.info("DefaultAdapter(monitor): MEETING ENDED: Full transcript exported to storage/");
 }
 
 async function exportMeetingTranscript(meetingId) {
   try {
     const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-    logger.info(`📊 EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
+    logger.info(`DefaultAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
     const exports = await exportBoth(meetingId, 'storage');
-    logger.info(`📁 SAVED to storage/: ${exports.json}, ${exports.txt}`);
+    logger.info(`DefaultAdapter(monitor): SAVED to storage/: ${exports.json}, ${exports.txt}`);
   } catch (err) {
-    logger.error('Export fail:', err);
+    logger.error('DefaultAdapter(monitor): Export fail:', err);
   }
 }
 

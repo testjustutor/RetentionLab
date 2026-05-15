@@ -32,7 +32,7 @@ class AudioRecorder {
   }
 
   async start() {
-    logger.info('WINDOWS AUDIO: Tapping into System Sound...');
+    logger.info('DefaultAdapter(audioRecorder): WINDOWS AUDIO: Tapping into System Sound...');
 
     // 🟢 Pull everything from settings.js
     this.ffmpegProcess = spawn('ffmpeg', [
@@ -81,25 +81,25 @@ class AudioRecorder {
         if (isFatal) {
           this.recordingError = true;
           if (/capture device not found|could not find|error opening input file/i.test(line)) {
-            logger.error(`❌ ERROR: Audio device "${settings.audio.deviceName}" not found. Check settings.js`);
+            logger.error(`DefaultAdapter(audioRecorder): ERROR: Audio device "${settings.audio.deviceName}" not found. Check settings.js`);
           }
-          logger.error(`FFMPEG stderr: ${line}`);
+          logger.error(`DefaultAdapter(audioRecorder): FFMPEG stderr: ${line}`);
         } else if (!isProgress) {
-          logger.debug(`FFMPEG stderr: ${line}`);
+          logger.debug(`DefaultAdapter(audioRecorder): FFMPEG stderr: ${line}`);
         }
       });
     });
 
     this.ffmpegProcess.on('error', (err) => {
       this.recordingError = true;
-      logger.error(`FFMPEG Process Error: ${err.message}`);
+      logger.error(`DefaultAdapter(audioRecorder): FFMPEG Process Error: ${err.message}`);
     });
 
     this.ffmpegProcess.on('exit', (code, signal) => {
       this.exitCode = code;
       if (code !== null && code !== 0) {
         this.recordingError = true;
-        logger.error(`FFMPEG exited with code ${code}${signal ? ` signal=${signal}` : ''}. Output may not have been saved.`);
+        logger.error(`DefaultAdapter(audioRecorder): FFMPEG exited with code ${code}${signal ? ` signal=${signal}` : ''}. Output may not have been saved.`);
       }
     });
   }
@@ -109,11 +109,11 @@ class AudioRecorder {
       this.ffmpegProcess.kill('SIGINT');
       const fileExists = fs.existsSync(this.audioPath);
       if (fileExists && !this.recordingError) {
-        logger.info(`AUDIO SAVED: ${this.audioPath}`);
+        logger.info(`DefaultAdapter(audioRecorder): AUDIO SAVED: ${this.audioPath}`);
       } else if (fileExists) {
-        logger.warn(`AUDIO MAY BE CORRUPT: ${this.audioPath}`);
+        logger.warn(`DefaultAdapter(audioRecorder): AUDIO MAY BE CORRUPT: ${this.audioPath}`);
       } else {
-        logger.warn(`AUDIO NOT SAVED: ${this.audioPath}`);
+        logger.warn(`DefaultAdapter(audioRecorder): AUDIO NOT SAVED: ${this.audioPath}`);
       }
       this.ffmpegProcess = null;
     }

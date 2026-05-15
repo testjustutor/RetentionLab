@@ -10,7 +10,7 @@ class BrowserManager {
   }
 
   async init(config) {
-    logger.info('INIT: Launching Chrome (Stealth Mode, Persistent Profile)');
+    logger.info('DefaultAdapter(browserManager): INIT: Launching Chrome (Stealth Mode, Persistent Profile)');
     
     this.browser = await puppeteer.launch({
       ...settings.puppeteer,
@@ -45,7 +45,7 @@ class BrowserManager {
       await this.browser.close();
       this.browser = null;
       this.page = null;
-      logger.info('Browser session closed.');
+      logger.info('DefaultAdapter(browserManager): Browser session closed.');
     }
   }
 }

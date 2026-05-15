@@ -26,10 +26,10 @@ stmt.run(
         function(err) {
           stmt.finalize();
           if (err) {
-            logger.error('Error creating meeting record:', err);
+            logger.error('Model(MeetingModel): Error creating meeting record:', err);
             reject(err);
           } else {
-            logger.info(`Meeting tracked: ${meetingData.meetingId} (${meetingData.platform})`);
+            logger.info(`Model(MeetingModel): Meeting tracked: ${meetingData.meetingId} (${meetingData.platform})`);
             resolve({ id: this.lastID, ...meetingData });
           }
         }
@@ -46,7 +46,7 @@ stmt.run(
       // First check if exists
       db.get('SELECT * FROM calendar_meetings WHERE meeting_id = ?', [meetingData.meetingId], (err, row) => {
         if (err) {
-          logger.error('Error checking meeting existence:', err);
+          logger.error('Model(MeetingModel): Error checking meeting existence:', err);
           return reject(err);
         }
 
@@ -55,12 +55,12 @@ stmt.run(
           const failedStatuses = ['failed', 'error', 'cancelled', 'stopped'];
 
           if (activeStatuses.includes(row.status)) {
-            logger.info(`Meeting ${meetingData.meetingId} already ${row.status}, using existing`);
+            logger.info(`Model(MeetingModel): Meeting ${meetingData.meetingId} already ${row.status}, using existing`);
             return resolve({ id: row.id, exists: true, status: row.status });
           }
 
           if (row.status === 'completed') {
-            logger.info(`Skipping completed meeting ${meetingData.meetingId}`);
+            logger.info(`Model(MeetingModel): Skipping completed meeting ${meetingData.meetingId}`);
             return resolve({ id: row.id, exists: true, skipped: true, status: 'completed' });
           }
 
@@ -73,10 +73,10 @@ stmt.run(
               [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.meetingId],
               function(updateErr) {
                 if (updateErr) {
-                  logger.error('Error resetting meeting:', updateErr);
+                  logger.error('Model(MeetingModel): Error resetting meeting:', updateErr);
                   return reject(updateErr);
                 }
-                logger.info(`Reset meeting ${meetingData.meetingId} with passcode: ${!!meetingData.passcode}`);
+                logger.info(`Model(MeetingModel): Reset meeting ${meetingData.meetingId} with passcode: ${!!meetingData.passcode}`);
                 resolve({ id: row.id, exists: true, reset: true, ...meetingData });
               }
             );
@@ -110,10 +110,10 @@ stmt.run(
             function(err) {
               stmt.finalize();
               if (err) {
-                logger.error('Error creating meeting record:', err);
+                logger.error('Model(MeetingModel): Error creating meeting record:', err);
                 reject(err);
               } else {
-                logger.info(`Created new queued meeting: ${meetingData.meetingId} with passcode: ${!!meetingData.passcode}`);
+                logger.info(`Model(MeetingModel): Created new queued meeting: ${meetingData.meetingId} with passcode: ${!!meetingData.passcode}`);
                 resolve({ id: this.lastID, created: true, ...meetingData });
               }
             }
@@ -130,10 +130,10 @@ stmt.run(
       
       db.run(query, params, function(err) {
         if (err) {
-          logger.error('Error updating meeting status:', err);
+          logger.error('Model(MeetingModel): Error updating meeting status:', err);
           reject(err);
         } else {
-          logger.info(`Meeting ${meetingId} status updated to: ${status}`);
+          logger.info(`Model(MeetingModel): Meeting ${meetingId} status updated to: ${status}`);
           resolve({ changes: this.changes, meetingId });
         }
       });
@@ -155,7 +155,7 @@ stmt.run(
       
       db.all(query, params, (err, rows) => {
         if (err) {
-          logger.error('Error fetching upcoming meetings:', err);
+          logger.error('Model(MeetingModel): Error fetching upcoming meetings:', err);
           reject(err);
         } else {
           resolve(rows);
@@ -182,7 +182,7 @@ stmt.run(
       
       db.all(query, params, (err, rows) => {
         if (err) {
-          logger.error('Error fetching meeting history:', err);
+          logger.error('Model(MeetingModel): Error fetching meeting history:', err);
           reject(err);
         } else {
           resolve(rows);
@@ -195,7 +195,7 @@ stmt.run(
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM calendar_meetings WHERE meeting_id = ?', [meetingId], (err, row) => {
         if (err) {
-          logger.error('Error fetching meeting by ID:', err);
+          logger.error('Model(MeetingModel): Error fetching meeting by ID:', err);
           reject(err);
         } else {
           resolve(row);
@@ -217,7 +217,7 @@ stmt.run(
 
       db.all(query, [], (err, rows) => {
         if (err) {
-          logger.error('Error fetching queued meetings:', err);
+          logger.error('Model(MeetingModel): Error fetching queued meetings:', err);
           reject(err);
         } else {
           resolve(rows);
@@ -234,10 +234,10 @@ stmt.run(
       
       db.run(query, params, function(err) {
         if (err) {
-          logger.error('Error updating meeting status:', err);
+          logger.error('Model(MeetingModel): Error updating meeting status:', err);
           reject(err);
         } else {
-          logger.info(`Meeting ${meetingId} status → ${status} (changes: ${this.changes})`);
+          logger.info(`Model(MeetingModel): Meeting ${meetingId} status → ${status} (changes: ${this.changes})`);
           resolve({ changes: this.changes, meetingId });
         }
       });
@@ -277,7 +277,7 @@ stmt.run(
       `;
       db.all(query, [limit], (err, rows) => {
         if (err) {
-          logger.error('Error fetching batch history:', err);
+          logger.error('Model(MeetingModel): Error fetching batch history:', err);
           reject(err);
         } else {
           resolve(rows);
@@ -286,21 +286,6 @@ stmt.run(
     });
   }
 
-  // Add this to MeetingModel.js
-  static updateSummary(sessionId, summary) {
-    return new Promise((resolve, reject) => {
-      const sql = `UPDATE calendar_meetings SET summary = ? WHERE session_id = ?`;
-      db.run(sql, [summary, sessionId], function(err) {
-        if (err) {
-          logger.error('Error updating summary in DB:', err);
-          reject(err);
-        } else {
-          logger.info(`Summary updated in DB for session: ${sessionId}`);
-          resolve(this.changes);
-        }
-      });
-    });
-  }
 }
 
 module.exports = MeetingModel;
