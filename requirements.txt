@@ -1,8 +1,21 @@
-torch==1.13.1
-torchaudio==0.13.1
-pyannote.audio==2.1.1
-huggingface_hub==0.10.1
-transformers==4.24.0
-speechbrain==0.5.14
-pytorch-lightning==1.6.5
-omegaconf==2.1.2
+# Core AI & Processing
+torch==2.12.0+cpu
+torchaudio
+pyannote.audio
+speechbrain==1.0.0
+openai-whisper==20250625
+
+# Transformers & NLP (The "Sweet Spot" for compatibility)
+transformers==4.44.2 
+tokenizers==0.19.1
+sentence-transformers==3.0.1
+textblob==0.20.0
+
+# API Services
+openai==2.36.0
+google-generativeai==0.8.6
+
+# Utilities
+huggingface_hub==0.36.2
+ffmpeg-python==0.2.0
+pydantic==2.13.4

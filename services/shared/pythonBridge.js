@@ -6,38 +6,34 @@ const { logger } = require('../../utils/logger');
 const MeetingAssetsModel = require('../../models/MeetingAssetsModel');
 
 class PythonBridge {
-  /**
-   * Internal helper to run a specific Python script from the engine folder.
-   * @param {string} scriptName - The bridge file (e.g., 'bridge_media.py')
-   * @param {string[]} args - Arguments for the script
-   */
   static runStage(scriptName, args) {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(__dirname, '../engine/', scriptName);
 
-      // '-u' flag forces Python to send output immediately (unbuffered)
+      logger.info(`[Bridge Debug] Spawning ${scriptName} with args: ${JSON.stringify(args)}`);
+      logger.info(`[Bridge Debug] Script path: ${scriptPath}`);
+
       const pyProcess = spawn('python', ['-u', scriptPath, ...args], {
-        env: { ...process.env, PYTHONUNBUFFERED: '1' },
-        shell: true
+        env: { ...process.env, PYTHONUNBUFFERED: '1' }
       });
 
       let outputData = '';
       let errorData = '';
 
-      // Captures every line Python prints in real-time
+      pyProcess.on('error', (err) => {
+        logger.error(`[Bridge Debug] Failed to spawn ${scriptName}: ${err.message}`);
+      });
+
       pyProcess.stdout.on('data', (data) => {
         const str = data.toString();
         outputData += str;
 
-        // Clean up the string and split into lines to handle rapid updates
+        logger.info(`[Bridge Debug] stdout chunk from ${scriptName}: `);
+
         const lines = str.trim().split(/\r?\n/);
         lines.forEach((line) => {
           if (line) {
-            // This displays EVERYTHING in your terminal as it happens
-            // We use a different color (Cyan) for the engine logs
             console.log(`\x1b[36m[${scriptName}]:\x1b[0m ${line}`);
-
-            // Keep the logger informed too
             if (line.includes('[') || line.includes('%')) {
               logger.info(`[Engine] ${line}`);
             }
@@ -48,36 +44,42 @@ class PythonBridge {
       pyProcess.stderr.on('data', (data) => {
         const errStr = data.toString();
         errorData += errStr;
-        // Print errors in Red immediately
-        console.error(`\x1b[31m[Python Error]:\x1b[0m ${errStr.trim()}`);
+
+        logger.error(`[Bridge Debug] stderr chunk from `);
+        console.error(`\x1b[31m[Python STDERR]:\x1b[0m ${errStr.trim()}`);
       });
 
       pyProcess.on('close', (code) => {
         const out = outputData.trim();
+
+        logger.info(`[Bridge Debug] ${scriptName} exited with code: ${code}`);
+        logger.info(`[Bridge Debug] ${scriptName} full stdout: ${out.slice(0, 50)}`);
+        logger.info(`[Bridge Debug] ${scriptName} full stderr: ${errorData.slice(0, 50)}`);
+
         const extractLastJson = (text) => {
           if (!text) return text;
           const matches = text.match(/\{[\s\S]*\}\s*$/);
           return matches && matches[0] ? matches[0].trim() : text;
         };
 
-
-        // Support two output formats:
-        // 1) "SUCCESS | <payload>" used by bridge_* scripts
-        // 2) Raw JSON like {"success": true, ...} used by engine_main.py
         const hasSuccessPipe = out.includes('SUCCESS |');
         const isJsonSuccess = out.includes('"success"') && out.includes('"success": true');
+
+        logger.info(`[Bridge Debug] ${scriptName} hasSuccessPipe=${hasSuccessPipe}, isJsonSuccess=${isJsonSuccess}`);
 
         if (code === 0 && (hasSuccessPipe || isJsonSuccess)) {
           if (hasSuccessPipe) {
             const lines = out.split(/\r?\n/);
             const successLine = lines.reverse().find((l) => l.includes('SUCCESS |'));
-            const result = successLine ? successLine.split('|')[1].trim() : out;
+            const result = successLine ? successLine.split('SUCCESS |')[1].trim() : out;
+
+            logger.info(`[Bridge Debug] ${scriptName} resolved SUCCESS payload: ${result} `);
             return resolve(result);
           }
 
-          // For JSON output, resolve only the last JSON object (engine_main.py prints logs + JSON)
-          return resolve(extractLastJson(out));
-
+          const extracted = extractLastJson(out);
+          logger.info(`[Bridge Debug] ${scriptName} extracted JSON payload: `);
+          return resolve(extracted);
         }
 
         logger.error(
@@ -89,86 +91,97 @@ class PythonBridge {
     });
   }
 
-  /**
-   * STAGE 1: Media Processing
-   * Handles .mp4 (converts to .wav) or .mp3 (returns original path).
-   */
   static async step1_Media(fileName) {
     logger.info(`[Bridge] Starting Stage 1: Media Check for ${fileName}`);
-    return await this.runStage('bridge_media.py', [fileName]);
+    const result = await this.runStage('bridge_media.py', [fileName]);
+    logger.info(`[Bridge Debug] Stage 1 result: `);
+    return result;
   }
 
-  /**
-   * STAGE 2: AI Pipeline
-   * Runs Whisper & Pyannote. Receives audio path, returns transcript text.
-   */
   static async step2_Transcription(audioPath) {
     logger.info(`[Bridge] Starting Stage 2: AI Pipeline (Whisper/Pyannote)`);
-    return await this.runStage('bridge_pipeline.py', [audioPath]);
+
+    const result = await this.runStage('bridge_pipeline.py', [audioPath]);
+
+    logger.info(`[Bridge Debug] Stage 2 raw result type: ${typeof result}`);
+    logger.info(`[Bridge Debug] Stage 2 raw result value: ${String(result).slice(0, 80)}`);
+    logger.info(`[Bridge Debug] Stage 2 raw result length: ${String(result || '').length}`);
+
+    try {
+      if (!result || String(result).trim() === '') {
+        throw new Error('Empty Stage 2 result');
+      }
+
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+
+      logger.info(`[Bridge Debug] Stage 2 parsed result keys: ${Object.keys(parsed || {}).join(', ')}`);
+      return parsed;
+    } catch (e) {
+      logger.error(`[Bridge Debug] Stage 2 JSON parse failed: ${e.message}`);
+      throw e;
+    }
   }
 
-  /**
-   * STAGE 3: Educational Audit
-   * Receives transcript text, returns JSON audit results.
-   */
   static async step3_Audit(transcriptText) {
     logger.info(`[Bridge] Starting Stage 3: Educational Audit`);
     const result = await this.runStage('bridge_audit.py', [transcriptText]);
-    return JSON.parse(result);
+    logger.info(`[Bridge Debug] Stage 3 raw result: `);
+    return typeof result === 'string' ? JSON.parse(result) : result;
   }
 
-  /**
-   * A consolidated method that runs all steps but allows for per-stage failure handling.
-   */
   static async runFullAudioPipeline(fileName) {
-      
-    const baseId = fileName.replace('REC_', '').split('.')[0];
+
+    const meetingId = fileName.match(/^REC_(.+?)_Sess/)?.[1];
+
+    logger.info(`[Bridge Debug] fileName=${fileName}`);
+    logger.info(`[Bridge Debug] runFullAudioPipeline started for meetingId=${meetingId}`);
 
     try {
+      const wav_audio_path = await this.step1_Media(fileName);
+      logger.info(`[Bridge Debug] wav_audio_path=${wav_audio_path}`);
 
-      const engineResultRaw = await this.runStage('engine_main.py', [fileName]);
-      const engineResult = typeof engineResultRaw === 'string' ? JSON.parse(engineResultRaw) : engineResultRaw;
+      await MeetingAssetsModel.initializeAssets(meetingId, fileName,  wav_audio_path);
 
-      if (!engineResult || !engineResult.success) {
-        throw new Error(engineResult.error || "Python engine failed.");
-      }
+      logger.info(`[Bridge Debug] Saved Stage 1 assets for ${meetingId}`);
 
-      await MeetingAssetsModel.saveAssets(baseId, {
-        // Step 1 Update
-        wav_audio_path: engineResult.audio_path, 
-        
-        // Step 2 Update
-        diarization_path: engineResult.transcript_path, 
-        
-        // Step 3 Update
-        transcript_path: engineResult.transcript_path, 
-        
-        // Step 4 Updates (Intelligence)
-        sentiment_analysis_path: engineResult.sentiment_path || null,
-        talk_ratio_json_path: engineResult.talk_ratio_path || null,
-        
-        // Step 5 Updates (Audit)
-        audit_json_path: engineResult.audit_json_path,
-        summary_path: engineResult.summary_path,
-        oqi_score: engineResult.oqi_score,
-        
-        // FINAL DB UPDATE
-        status: 'Completed' 
+      const stage2Result = await this.step2_Transcription(wav_audio_path);
+      logger.info(`[Bridge Debug] stage2Result`);
+
+      await MeetingAssetsModel.updateAssets(meetingId, {
+        transcript_path: stage2Result.transcript_path || null,
+        diarization_path: stage2Result.diarization_path || null,
+        talk_ratio_json_path: stage2Result.talk_ratio_path || null,
+        status: 'Processing'
       });
+      logger.info(`[Bridge Debug] Saved Stage 2 assets for ${meetingId}`);
 
-      logger.info(`[Bridge] Roadmap Step 5 Reached: Audit complete and status set to 'Completed' for ${baseId}`);
+      const transcriptText = stage2Result.transcript_text || stage2Result.transcript_path || '';
+      logger.info(`[Bridge Debug] transcriptText preview=`);
 
-      return engineResult;
+      const auditResult = await this.step3_Audit(transcriptText);
+      logger.info(`[Bridge Debug] auditResult=`);
 
+      await MeetingAssetsModel.updateAssets(meetingId, {
+        audit_json_path: auditResult.audit_json_path || null,
+        oqi_score: auditResult.oqi_score || 0,
+        evidence_quote: auditResult.evidence_quote || null,
+        status: 'Completed'
+      });
+      logger.info(`[Bridge Debug] Saved Stage 3 assets for ${meetingId}`);
+
+      return {
+        success: true,
+        meetingId,
+        wav_audio_path,
+        stage2Result,
+        auditResult
+      };
     } catch (error) {
-      logger.error(`[Bridge] Roadmap Failed at ${baseId}: ${error.message}`);
-      // Update DB to show exactly where it failed if possible, or just 'Error'
-      await MeetingAssetsModel.update(baseId, { status: 'Error' });
+      logger.error(`[Bridge] Roadmap Failed at ${meetingId}: ${error.message}`);
+      await MeetingAssetsModel.updateAssets(meetingId, { status: 'Error' });
       throw error;
     }
   }
 }
 
 module.exports = PythonBridge;
-
-

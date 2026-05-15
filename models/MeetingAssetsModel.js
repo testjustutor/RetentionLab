@@ -6,30 +6,56 @@ class MeetingAssetsModel {
   /**
    * Step 0: Initialize a record with placeholders.
    */
-  static initializeAssets(meetingId, audioPath) {
+  static initializeAssets(meetingId, audioPath, wav_audio_path) {
+
     return new Promise((resolve, reject) => {
+
       const sql = `
         INSERT INTO meeting_assets_storage (
-            meeting_id, 
-            audio_path, 
-            status, 
+            meeting_id,
+            audio_path,
+            wav_audio_path,
+            status,
             processed_at
         )
-        VALUES (?, ?, 'Conversion', CURRENT_TIMESTAMP)
-        ON CONFLICT(meeting_id) DO UPDATE SET 
-            audio_path = excluded.audio_path,
+        VALUES (?, ?, ?, 'Conversion', CURRENT_TIMESTAMP)
+
+        ON CONFLICT(meeting_id) DO UPDATE SET
+            wav_audio_path = excluded.wav_audio_path,
             status = 'Conversion',
             processed_at = CURRENT_TIMESTAMP
       `;
-      db.run(sql, [meetingId, audioPath], function(err) {
-        if (err) {
-          logger.error(`[MeetingAssetsModel] Init Error: ${err.message}`);
-          reject(err);
-        } else {
-          logger.info(`[MeetingAssetsModel] Step 1 Started: Conversion for ${meetingId}`);
-          resolve({ meetingId, status: 'Conversion' });
+
+      db.run(
+        sql,
+        [
+          meetingId,
+          audioPath,
+          wav_audio_path
+        ],
+        function(err) {
+
+          if (err) {
+
+            logger.error(
+              `[MeetingAssetsModel] Init Error: ${err.message}`
+            );
+
+            reject(err);
+
+          } else {
+
+            logger.info(
+              `[MeetingAssetsModel] Step 1 Started: Conversion for ${meetingId}`
+            );
+
+            resolve({
+              meetingId,
+              status: 'Conversion'
+            });
+          }
         }
-      });
+      );
     });
   }
 

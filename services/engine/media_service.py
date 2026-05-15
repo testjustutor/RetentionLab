@@ -3,6 +3,14 @@ import sys
 import time
 import subprocess
 
+# Dynamically add the project root to the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../../"))
+
+if project_root not in sys.path:
+    sys.path.append(project_root)
+    
+from utils.logger_util import logger
 
 class MediaService:
     def __init__(self, root_dir):
@@ -32,6 +40,9 @@ class MediaService:
         Extract audio from an input .mp3 into cached PCM .wav.
         Renames output from REC_filename.mp3 to WAV_filename.wav
         """
+        
+        logger.info(f"Action | FFmpeg starting on {input_path}")
+
         if not input_path.lower().endswith(".mp3"):
             raise ValueError("MediaService.extract_audio supports only .mp3 inputs.")
 
