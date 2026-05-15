@@ -95,6 +95,7 @@ const initDB = () => {
                     summary_path TEXT,
                     oqi_score REAL,
                     evidence_quote TEXT,
+                    status TEXT DEFAULT 'Start',
                     processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `);

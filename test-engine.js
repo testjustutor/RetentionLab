@@ -20,7 +20,7 @@ async function runManualTest() {
 
         const result = await PythonBridge.runFullAudioPipeline(fileName);
 
-        console.log(`\n✅ SUCCESS! OQI Score: ${result.auditResults.oqi_score}`);
+        console.log(`\n✅ SUCCESS! OQI Score: ${result.oqi_score}`);
         process.exit(0);
     } catch (error) {
         console.error(`\n❌ PIPELINE FAILED: ${error.message}`);
@@ -29,3 +29,4 @@ async function runManualTest() {
 }
 
 runManualTest();
+

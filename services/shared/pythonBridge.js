@@ -121,39 +121,49 @@ class PythonBridge {
    * A consolidated method that runs all steps but allows for per-stage failure handling.
    */
   static async runFullAudioPipeline(fileName) {
+      
+    const baseId = fileName.replace('REC_', '').split('.')[0];
+
     try {
-      // Prefer the single engine entrypoint that writes files to disk:
-      // - storage/transcript/TRANS_{base_id}.txt
-      // - storage/audits/AUDIT_{base_id}.json
+
       const engineResultRaw = await this.runStage('engine_main.py', [fileName]);
       const engineResult = typeof engineResultRaw === 'string' ? JSON.parse(engineResultRaw) : engineResultRaw;
 
-      const baseId = fileName.replace('REC_', '').split('.')[0];
+      if (!engineResult || !engineResult.success) {
+        throw new Error(engineResult.error || "Python engine failed.");
+      }
 
-      // engine_main.py already returns these absolute paths:
-      // audio_path, transcript_path, audit_json_path
       await MeetingAssetsModel.saveAssets(baseId, {
-        wav_audio_path: engineResult.audio_path,
-        transcript_path: engineResult.transcript_path,
+        // Step 1 Update
+        wav_audio_path: engineResult.audio_path, 
+        
+        // Step 2 Update
+        diarization_path: engineResult.transcript_path, 
+        
+        // Step 3 Update
+        transcript_path: engineResult.transcript_path, 
+        
+        // Step 4 Updates (Intelligence)
+        sentiment_analysis_path: engineResult.sentiment_path || null,
+        talk_ratio_json_path: engineResult.talk_ratio_path || null,
+        
+        // Step 5 Updates (Audit)
         audit_json_path: engineResult.audit_json_path,
-        summary_path: engineResult.summary_path || null,
-        oqi_score: engineResult.oqi_score
+        summary_path: engineResult.summary_path,
+        oqi_score: engineResult.oqi_score,
+        
+        // FINAL DB UPDATE
+        status: 'Completed' 
       });
 
-      logger.info(`[Bridge] Database updated successfully for ${baseId}`);
+      logger.info(`[Bridge] Roadmap Step 5 Reached: Audit complete and status set to 'Completed' for ${baseId}`);
 
-      return {
-        success: true,
-        meeting_id: baseId,
-        audioPath: engineResult.audio_path,
-        transcript: engineResult.transcript_path,
-        auditResults: {
-          oqi_score: engineResult.oqi_score,
-          summary_path: engineResult.summary_path
-        }
-      };
+      return engineResult;
+
     } catch (error) {
-      logger.error(`[Bridge] Pipeline crashed: ${error.message}`);
+      logger.error(`[Bridge] Roadmap Failed at ${baseId}: ${error.message}`);
+      // Update DB to show exactly where it failed if possible, or just 'Error'
+      await MeetingAssetsModel.update(baseId, { status: 'Error' });
       throw error;
     }
   }

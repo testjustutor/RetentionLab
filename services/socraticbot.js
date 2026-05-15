@@ -21,6 +21,7 @@ const GoogleMeetAudioRecorderBot = require('./platforms/google-meet/audioRecorde
 const CaptionMonitor = require('./captionMonitor');
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
+const MeetingAssetsModel = require('../models/MeetingAssetsModel');
 
 const PythonBridge = require('./shared/pythonBridge');
 
@@ -238,6 +239,9 @@ class SocraticBot {
               // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
               // engine_main.py expects an input like REC_<id>.mp3 (relative to storage/recordings),
               // but `finalAudioPath` is an absolute Windows path. Pass only the filename.
+
+              await MeetingAssetsModel.initializeAssets(this.meetingId, finalAudioPath);
+
               const finalAudioFileName = path.basename(finalAudioPath);
               const auditResults = await PythonBridge.runFullAudioPipeline(finalAudioFileName);
 

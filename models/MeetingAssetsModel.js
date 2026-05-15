@@ -2,9 +2,40 @@ const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
 class MeetingAssetsModel {
+
+  /**
+   * Step 0: Initialize a record with placeholders.
+   */
+  static initializeAssets(meetingId, audioPath) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        INSERT INTO meeting_assets_storage (
+            meeting_id, 
+            audio_path, 
+            status, 
+            processed_at
+        )
+        VALUES (?, ?, 'Conversion', CURRENT_TIMESTAMP)
+        ON CONFLICT(meeting_id) DO UPDATE SET 
+            audio_path = excluded.audio_path,
+            status = 'Conversion',
+            processed_at = CURRENT_TIMESTAMP
+      `;
+      db.run(sql, [meetingId, audioPath], function(err) {
+        if (err) {
+          logger.error(`[MeetingAssetsModel] Init Error: ${err.message}`);
+          reject(err);
+        } else {
+          logger.info(`[MeetingAssetsModel] Step 1 Started: Conversion for ${meetingId}`);
+          resolve({ meetingId, status: 'Conversion' });
+        }
+      });
+    });
+  }
+
   /**
    * Saves or updates the storage locations for a specific meeting.
-   * Includes all high-accuracy intelligence paths.
+   * Updated to include the 'status' column.
    */
   static saveAssets(meetingId, data) {
     return new Promise((resolve, reject) => {
@@ -15,8 +46,8 @@ class MeetingAssetsModel {
             embeddings_path, llm_prompts_path, action_items_path, 
             sentiment_analysis_path, talk_ratio_json_path, user_silence_duration_path, 
             questions_asked_count_path, topic_clusters_path, summary_path, 
-            oqi_score, evidence_quote
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            oqi_score, evidence_quote, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(meeting_id) DO UPDATE SET
             audio_path = excluded.audio_path,
             transcript_path = excluded.transcript_path,
@@ -36,6 +67,7 @@ class MeetingAssetsModel {
             summary_path = excluded.summary_path,
             oqi_score = excluded.oqi_score,
             evidence_quote = excluded.evidence_quote,
+            status = excluded.status,
             processed_at = CURRENT_TIMESTAMP
       `;
 
@@ -58,7 +90,8 @@ class MeetingAssetsModel {
         data.topic_clusters_path || null,
         data.summary_path || null,
         data.oqi_score || null,
-        data.evidence_quote || null
+        data.evidence_quote || null,
+        data.status || 'Processing' // Default to Processing if not provided
       ];
 
       db.run(sql, params, function(err) {
@@ -66,7 +99,7 @@ class MeetingAssetsModel {
           logger.error(`[MeetingAssetsModel] Save Error: ${err.message}`);
           reject(err);
         } else {
-          logger.info(`[MeetingAssetsModel] Assets stored for: ${meetingId}`);
+          logger.info(`[MeetingAssetsModel] Assets stored for: ${meetingId} (Status: ${data.status})`);
           resolve({ meetingId, status: 'stored' });
         }
       });
@@ -75,17 +108,16 @@ class MeetingAssetsModel {
 
   /**
    * Updates specific fields for an existing meeting record.
-   * Filters based on all available columns in the new schema.
+   * Added 'status' to validColumns.
    */
   static updateAssets(meetingId, data) {
     return new Promise((resolve, reject) => {
-      // Define all valid columns for filtering
       const validColumns = [
         'audio_path', 'transcript_path', 'audit_json_path', 'wav_audio_path',
         'whisper_path', 'captions_raw_path', 'diarization_path', 'embeddings_path',
         'llm_prompts_path', 'action_items_path', 'sentiment_analysis_path',
         'talk_ratio_json_path', 'user_silence_duration_path', 'questions_asked_count_path',
-        'topic_clusters_path', 'summary_path', 'oqi_score', 'evidence_quote'
+        'topic_clusters_path', 'summary_path', 'oqi_score', 'evidence_quote', 'status'
       ];
 
       const keys = Object.keys(data).filter(key => validColumns.includes(key));
@@ -119,9 +151,6 @@ class MeetingAssetsModel {
     });
   }
 
-  /**
-   * Retrieves the file locations for a meeting
-   */
   static getAssets(meetingId) {
     return new Promise((resolve, reject) => {
       const sql = `SELECT * FROM meeting_assets_storage WHERE meeting_id = ?`;
