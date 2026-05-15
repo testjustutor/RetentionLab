@@ -29,7 +29,7 @@ class AiApiService:
             )
         elif self.provider == "ollama":
             return OpenAI(
-                api_key="ollama", 
+                api_key="ollama",
                 base_url=self.config.get("ollamaUrl")
             )
         else:
@@ -42,7 +42,6 @@ class AiApiService:
                 response = self.client.generate_content(full_prompt)
                 return response.text
 
-            # OpenAI-compatible mapping
             model_map = {
                 "groq": "llama-3.3-70b-versatile",
                 "openai": "gpt-4o-mini",

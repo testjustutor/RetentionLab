@@ -1,23 +1,41 @@
-import sys, os, json
+import sys
+import os
+import json
 from audit_service import AuditService
 
+
 def main():
-    # Pass the transcript text as a command line argument 
-    # (or read from a file if it's very long)
-    transcript_text = sys.argv[1] 
+    if len(sys.argv) < 2:
+        print("ERROR | No transcript text provided", flush=True)
+        sys.exit(1)
+
+    transcript_text = sys.argv[1]
 
     try:
-        # IMPORTANT: ensure we use the project-root SQLite DB (the one used by Node: retention_lab.db)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-        DB_PATH = os.path.join(project_root, 'retention_lab.db')
-        audit_engine = AuditService(DB_PATH)
+        db_path = os.path.join(project_root, "retention_lab.db")
 
-
+        audit_engine = AuditService(db_path)
         results = audit_engine.run_audit(transcript_text)
-        print(f"SUCCESS | {json.dumps(results)}")
+
+        if results is None:
+            results = {}
+
+        if not isinstance(results, dict):
+            results = {"result": results}
+
+        results["success"] = True
+
+        print(json.dumps(results), flush=True)
+
     except Exception as e:
-        print(f"ERROR | {str(e)}")
+        error_payload = {
+            "success": False,
+            "error": str(e)
+        }
+        print(json.dumps(error_payload), flush=True)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

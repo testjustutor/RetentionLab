@@ -1,128 +1,174 @@
 import sys
 import os
+
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../.."))
+
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import json
 from textblob import TextBlob
-from sentence_transformers import SentenceTransformer
 
-# Custom Service Imports
-from media_service import MediaService
-from pipeline_service import PipelineService
-from audit_service import AuditService
-from ai_api_service import AiApiService
+from utils.logger_util import logger
+
+from services.engine.media_service import MediaService
+from services.engine.pipeline_service import PipelineService
+from services.engine.audit_service import AuditService
+from services.engine.ai_api_service import AiApiService
 
 class MeetingProcessor:
     def __init__(self, input_file, ai_settings_json):
         self.input_file = input_file
-        self.engine_dir = os.path.dirname(os.path.abspath(__file__))
-        self.project_root = os.path.abspath(os.path.join(self.engine_dir, "../../"))
+        self.project_root = project_root
         self.db_path = os.path.join(self.project_root, "retention_lab.db")
-        
-        # Initialize ID and Paths
         filename_no_ext = os.path.splitext(input_file)[0]
         self.base_id = filename_no_ext.replace("REC_", "") if filename_no_ext.startswith("REC_") else filename_no_ext
         self.paths = self._setup_directories()
-
-        # Parse AI Settings and Init Service
         self.ai_config = json.loads(ai_settings_json)
         self.ai_api = AiApiService(self.ai_config)
+        self._embedding_model = None
 
     def _setup_directories(self):
+        storage_base = os.path.join(self.project_root, "storage")
         dirs = {
-            "recordings": os.path.join(self.project_root, "storage", "recordings"),
-            "transcripts": os.path.join(self.project_root, "storage", "cache_audio_transcripts"),
-            "audits": os.path.join(self.project_root, "storage", "cache_audits"),
-            "summaries": os.path.join(self.project_root, "storage", "summaries"),
-            "intel": os.path.join(self.project_root, "storage", "intel")
+            "recordings": os.path.join(storage_base, "recordings"),
+            "transcripts": os.path.join(storage_base, "cache_audio_transcripts"),
+            "audits": os.path.join(storage_base, "cache_audits"),
+            "summaries": os.path.join(storage_base, "summaries"),
+            "intel": os.path.join(storage_base, "intel")
         }
         for path in dirs.values():
             os.makedirs(path, exist_ok=True)
         return dirs
 
     def run_pipeline(self):
-        # 1. Media & Transcription
         recording_full_path = os.path.join(self.paths["recordings"], self.input_file)
+
         media_service = MediaService(self.project_root)
         audio_path = media_service.extract_audio(recording_full_path)
 
-        pipeline = PipelineService(hf_token=os.getenv("HF_TOKEN"))
-        labeled_transcript, talk_ratio, diarization_data = pipeline.process(audio_path)
+        transcript_path = None
+        labeled_transcript, talk_ratio, diarization_data = PipelineService(
+            hf_token=os.getenv("HF_TOKEN")
+        ).process(audio_path)
 
-        # 2. Extract Intelligence (AI-POWERED)
-        # Using AI for a high-quality summary instead of the old hardcoded logic
-        narrative_text = self.ai_api.ask_ai(
-            labeled_transcript, 
-            "Provide a professional narrative summary of this meeting transcript."
-        )
+        transcript_path = os.path.join(self.paths["transcripts"], f"TRANS_{self.base_id}.txt")
+        with open(transcript_path, "w", encoding="utf-8") as f:
+            f.write(labeled_transcript)
 
-        # Using AI for smarter sentiment analysis
-        ai_sentiment_raw = self.ai_api.ask_ai(
-            labeled_transcript, 
-            "Analyze the sentiment of this meeting. Return ONLY a single word: Positive, Neutral, or Negative."
-        )
-        
-        # 3. Vector Embeddings (Keeping local for speed/cost)
         intel = self._extract_intel(labeled_transcript)
-        intel["sentiment"]["label"] = ai_sentiment_raw.strip().replace(".", "")
 
-        # 4. Audit
+        sentiment_path = os.path.join(self.paths["intel"], f"SENT_{self.base_id}.json")
+        with open(sentiment_path, "w", encoding="utf-8") as f:
+            json.dump(intel["sentiment"], f, indent=4)
+
+        vector_path = os.path.join(self.paths["intel"], f"VEC_{self.base_id}.json")
+        with open(vector_path, "w", encoding="utf-8") as f:
+            json.dump({"vector": intel["vectors"]}, f, indent=4)
+
         audit_engine = AuditService(self.db_path)
         audit_results = audit_engine.run_audit(labeled_transcript)
 
-        # 5. Persistence
-        return self._save_all(
-            audio_path, labeled_transcript, talk_ratio, 
-            diarization_data, intel, audit_results, narrative_text
-        )
+        audit_json_path = os.path.join(self.paths["audits"], f"AUDIT_{self.base_id}.json")
+        with open(audit_json_path, "w", encoding="utf-8") as f:
+            json.dump(audit_results, f, indent=4)
 
-    def _extract_intel(self, text):
-        # Keep embeddings local because sending large text to API for vectors can be expensive/slow
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        vectors = model.encode([text]).tolist()
-        
-        # TextBlob fallback for score
-        analysis = TextBlob(text)
-        return {
-            "sentiment": {"score": round(analysis.sentiment.polarity, 2)}, 
-            "vectors": vectors
-        }
-
-    def _save_all(self, audio_path, transcript, ratio, diarization, intel, audit, summary):
-        t_path = os.path.join(self.paths["transcripts"], f"TRANS_{self.base_id}.txt")
-        d_path = os.path.join(self.paths["transcripts"], f"DIAR_{self.base_id}.json")
-        r_path = os.path.join(self.paths["intel"], f"RATIO_{self.base_id}.json")
-        s_path = os.path.join(self.paths["intel"], f"SENT_{self.base_id}.json")
-        v_path = os.path.join(self.paths["intel"], f"VEC_{self.base_id}.json")
-        a_path = os.path.join(self.paths["audits"], f"AUDIT_{self.base_id}.json")
-        sum_path = os.path.join(self.paths["summaries"], f"SUMMARY_{self.base_id}.txt")
-
-        with open(t_path, "w", encoding="utf-8") as f: f.write(transcript)
-        with open(sum_path, "w", encoding="utf-8") as f: f.write(summary)
-        
-        for p, data in [(d_path, diarization), (r_path, ratio), (s_path, intel['sentiment']), 
-                        (v_path, {"vector": intel['vectors']}), (a_path, audit)]:
-            with open(p, "w") as f:
-                json.dump(data, f, indent=4 if "json" in p else None)
+        summary_text = f"Meeting processed locally. Total transcript length: {len(labeled_transcript)} characters."
+        summary_path = os.path.join(self.paths["summaries"], f"SUMMARY_{self.base_id}.txt")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write(summary_text)
 
         return {
             "success": True,
             "meeting_id": self.base_id,
-            "summary_path": sum_path,
-            "oqi_score": audit.get("oqi_score", 0),
-            "evidence_quote": audit.get("evidence_quote", "")
+            "audio_path": audio_path,
+            "transcript_path": transcript_path,
+            "sentiment_path": sentiment_path,
+            "vector_path": vector_path,
+            "audit_json_path": audit_json_path,
+            "summary_path": summary_path,
+            "oqi_score": audit_results.get("oqi_score", 0)
+        }
+
+    def _extract_intel(self, text):
+        analysis = TextBlob(text)
+        score = round(analysis.sentiment.polarity, 2)
+
+        if score > 0.1:
+            label = "Positive"
+        elif score < -0.1:
+            label = "Negative"
+        else:
+            label = "Neutral"
+
+        vectors = None
+        try:
+            import torch
+            from sentence_transformers import SentenceTransformer
+
+            if not self._embedding_model:
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                self._embedding_model = SentenceTransformer(
+                    'all-MiniLM-L6-v2',
+                    device=device
+                )
+
+            vectors = self._embedding_model.encode(
+                [text],
+                show_progress_bar=False
+            ).tolist()
+
+        except Exception:
+            embeddings = None
+
+        return {
+            "sentiment": {"score": score, "label": label},
+            "vectors": vectors
+        }
+
+    def _save_all(self, audio_path, transcript, ratio, diarization, intel, audit, summary):
+        file_map = {
+            "TRANS": (self.paths["transcripts"], transcript, False),
+            "SUMMARY": (self.paths["summaries"], summary, False),
+            "DIAR": (self.paths["transcripts"], diarization, True),
+            "RATIO": (self.paths["intel"], ratio, True),
+            "SENT": (self.paths["intel"], intel['sentiment'], True),
+            "VEC": (self.paths["intel"], intel['vectors'], True),
+            "AUDIT": (self.paths["audits"], audit, True),
+        }
+
+        for prefix, (folder, data, is_json) in file_map.items():
+            ext = ".json" if isjson else ".txt"
+            p = os.path.join(folder, f"{prefix}_{self.base_id}{ext}")
+            with open(p, "w", encoding="utf-8") as f:
+                if isjson:
+                    json.dump(data, f, indent=4)
+                else:
+                    f.write(str(data))
+
+        return {
+            "success": True,
+            "meeting_id": self.base_id,
+            "oqi_score": audit.get("oqi_score", 0)
         }
 
 if __name__ == "__main__":
-    # Check for TWO arguments now: [filename, ai_settings_json]
-    if len(sys.argv) < 3:
-        print(json.dumps({"success": False, "error": "Missing arguments. Usage: python engine_main.py <file> <ai_json>"}))
-        sys.exit(1)
+    import argparse
 
-    try:
-        # sys.argv[1] is the recording filename
-        # sys.argv[2] is the JSON string of settings.ai
-        processor = MeetingProcessor(sys.argv[1], sys.argv[2])
-        result = processor.run_pipeline()
-        print(json.dumps(result))
-    except Exception as e:
-        print(json.dumps({"success": False, "error": str(e)}))
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file")
+    parser.add_argument("ai_settings_json")
+    args = parser.parse_args()
+
+    processor = MeetingProcessor(
+        args.input_file,
+        args.ai_settings_json
+    )
+
+    result = processor.run_pipeline()
+
+    print(json.dumps(result))

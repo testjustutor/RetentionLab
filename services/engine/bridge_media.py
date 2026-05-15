@@ -26,15 +26,11 @@ def main():
 
         media_service = MediaService(project_root)
         
-        if input_file.lower().endswith(".mp4"):
-            print("Action: Detected .mp4 - Extracting audio to .wav...", flush=True)
-            # The extract_audio method should ideally print its own progress inside, 
-            # but we show a start message here.
+        if input_file.lower().endswith((".mp3", ".mp4")):
+            print("Action: Converting media to .wav...", flush=True)
             output_path = media_service.extract_audio(input_path)
-            print("Action: Extraction complete.", flush=True)
         else:
-            print("Action: Detected .mp3 - Skipping extraction.", flush=True)
-            output_path = input_path
+            raise ValueError("Unsupported file type. Only .mp3 and .mp4 are supported.")
         
         # Crucial: Final success line for Node.js to resolve the Promise
         print(f"SUCCESS | {output_path}", flush=True)
