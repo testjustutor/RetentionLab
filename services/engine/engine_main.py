@@ -4,6 +4,9 @@ import os
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
+# Force stdout to line-buffer to ensure progress percentage logs show up instantly
+sys.stdout.reconfigure(line_buffering=True)
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../.."))
 
@@ -15,10 +18,15 @@ from textblob import TextBlob
 
 from utils.logger_util import logger
 
+# Microservice Imports mapped cleanly to folder packages
 from services.engine.media_service import MediaService
-from services.engine.pipeline_service import PipelineService
-from services.engine.audit_service import AuditService
-from services.engine.ai_api_service import AiApiService
+from services.engine.transcription_service import TranscriptionService # Renamed from PipelineService
+from services.engine.ai_api_service import AiApiService # Added missing link
+
+# Core downstream evaluation microservices
+from services.engine.ai_audit_service import AiAuditService   
+from services.engine.summary_service import SummaryService   
+from services.engine.topic_service import TopicService       
 
 class MeetingProcessor:
     def __init__(self, input_file, ai_settings_json):
@@ -46,21 +54,35 @@ class MeetingProcessor:
         return dirs
 
     def run_pipeline(self):
+        print("\n" + "="*65, flush=True)
+        print(f"INITIALIZING DECOUPLED MICROSERVICE BACKEND | MEETING REF: {self.base_id}", flush=True)
+        print("="*65 + "\n", flush=True)
+
         recording_full_path = os.path.join(self.paths["recordings"], self.input_file)
 
+        # Step 1: Media Service Folder Handshake
+        print("[GLOBAL ORCHESTRATOR] STEP 1/5: Extracting track frames via Media Microservice...", flush=True)
         media_service = MediaService(self.project_root)
         audio_path = media_service.extract_audio(recording_full_path)
+        print("[GLOBAL ORCHESTRATOR] PIPELINE PROGRESS: 15% completed.\n", flush=True)
 
+        # Step 2: Transcription Microservice Folder Handshake
+        print("[GLOBAL ORCHESTRATOR] STEP 2/5: Processing speech structures via Layered Engine...", flush=True)
         transcript_path = None
-        labeled_transcript, talk_ratio, diarization_data = PipelineService(
+        
+        # Pointing explicitly to TranscriptionService 
+        labeled_transcript, talk_ratio, diarization_data = TranscriptionService(
             hf_token=os.getenv("HF_TOKEN")
         ).process(audio_path)
 
         transcript_path = os.path.join(self.paths["transcripts"], f"TRANS_{self.base_id}.txt")
         with open(transcript_path, "w", encoding="utf-8") as f:
             f.write(labeled_transcript)
+        print("[GLOBAL ORCHESTRATOR] PIPELINE PROGRESS: 45% completed.\n", flush=True)
 
-        intel = self._extract_intel(labeled_transcript)
+        # Intel Extraction & Local File Output Logging
+        print("[GLOBAL ORCHESTRATOR] Status: Running local text classification algorithms...", flush=True)
+        intel = self._extract_intel(labeled_transcript, talk_ratio)
 
         sentiment_path = os.path.join(self.paths["intel"], f"SENT_{self.base_id}.json")
         with open(sentiment_path, "w", encoding="utf-8") as f:
@@ -70,17 +92,38 @@ class MeetingProcessor:
         with open(vector_path, "w", encoding="utf-8") as f:
             json.dump({"vector": intel["vectors"]}, f, indent=4)
 
-        audit_engine = AuditService(self.db_path)
-        audit_results = audit_engine.run_audit(labeled_transcript)
+        # Step 3: Call AI Audit Evaluation Microservice Folder
+        print("[GLOBAL ORCHESTRATOR] STEP 3/5: Handoff to AI Evaluation Microservice Folder...", flush=True)
+        audit_engine = AiAuditService(self.db_path, self.ai_config)
+        audit_results = audit_engine.process_audit(labeled_transcript)
 
         audit_json_path = os.path.join(self.paths["audits"], f"AUDIT_{self.base_id}.json")
         with open(audit_json_path, "w", encoding="utf-8") as f:
             json.dump(audit_results, f, indent=4)
+        print("[GLOBAL ORCHESTRATOR] PIPELINE PROGRESS: 70% completed.\n", flush=True)
 
-        summary_text = f"Meeting processed locally. Total transcript length: {len(labeled_transcript)} characters."
+        # Step 4: Call AI Summary Generation Microservice Folder
+        print("[GLOBAL ORCHESTRATOR] STEP 4/5: Handoff to AI Summary Generation Microservice Folder...", flush=True)
+        summary_engine = SummaryService(self.ai_config)
+        summary_text = summary_engine.generate_meeting_summary(labeled_transcript)
+
         summary_path = os.path.join(self.paths["summaries"], f"SUMMARY_{self.base_id}.txt")
         with open(summary_path, "w", encoding="utf-8") as f:
             f.write(summary_text)
+        print("[GLOBAL ORCHESTRATOR] PIPELINE PROGRESS: 85% completed.\n", flush=True)
+
+        # Step 5: Call Algorithmic Chronological Topic Cluster Microservice Folder
+        print("[GLOBAL ORCHESTRATOR] STEP 5/5: Handoff to Algorithmic Clustering Microservice Folder...", flush=True)
+        topic_engine = TopicService()
+        topic_clusters = topic_engine.compute_clusters(diarization_data)
+        
+        # Injecting computed topic results into intel object matrix securely
+        intel['topics'] = topic_clusters
+        print("[GLOBAL ORCHESTRATOR] PIPELINE PROGRESS: 95% completed.\n", flush=True)
+
+        print("\n" + "="*65, flush=True)
+        print("[GLOBAL ORCHESTRATOR] PIPELINE EXECUTION SUCCESS: 100% COMPLETE!", flush=True)
+        print("="*65 + "\n", flush=True)
 
         return {
             "success": True,
@@ -94,7 +137,7 @@ class MeetingProcessor:
             "oqi_score": audit_results.get("oqi_score", 0)
         }
 
-    def _extract_intel(self, text):
+    def _extract_intel(self, text, talk_ratio=None):
         analysis = TextBlob(text)
         score = round(analysis.sentiment.polarity, 2)
 
@@ -123,9 +166,10 @@ class MeetingProcessor:
             ).tolist()
 
         except Exception:
-            embeddings = None
+            vectors = None
 
         return {
+            "checkpoint_ratios": talk_ratio, # Preserving tracking payload context
             "sentiment": {"score": score, "label": label},
             "vectors": vectors
         }
@@ -142,10 +186,10 @@ class MeetingProcessor:
         }
 
         for prefix, (folder, data, is_json) in file_map.items():
-            ext = ".json" if isjson else ".txt"
+            ext = ".json" if is_json else ".txt"
             p = os.path.join(folder, f"{prefix}_{self.base_id}{ext}")
             with open(p, "w", encoding="utf-8") as f:
-                if isjson:
+                if is_json:
                     json.dump(data, f, indent=4)
                 else:
                     f.write(str(data))
@@ -170,5 +214,4 @@ if __name__ == "__main__":
     )
 
     result = processor.run_pipeline()
-
     print(json.dumps(result))

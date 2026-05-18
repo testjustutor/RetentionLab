@@ -1,15 +1,11 @@
+# services/engine/ai_api_service/api_worker.py
 import os
-import json
 from openai import OpenAI  # Used for OpenAI, Groq, xAI, and Ollama
 
 class AiApiService:
     def __init__(self, ai_config):
-        """
-        Takes the 'ai' object from setting.js.
-        Structure: {'provider': 'groq', 'groqApiKey': '...', etc.}
-        """
         self.config = ai_config
-        self.provider = ai_config.get("provider", "openai").lower()
+        self.provider = ai_config["provider"].lower()
         self.client = self._init_client()
 
     def _init_client(self):
@@ -58,4 +54,4 @@ class AiApiService:
             )
             return response.choices[0].message.content
         except Exception as e:
-            return f"Error with {self.provider}: {str(e)}"
+            raise RuntimeError(f"AI Provider error: {str(e)}")
