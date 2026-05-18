@@ -80,6 +80,15 @@ module.exports = {
     ollamaModel: process.env.OLLAMA_MODEL || "llama3.1"
   },
 
+  pipeline_features: {
+    media_extraction: true,
+    transcription: true,
+    intel_extraction: false,
+    ai_audit: false, 
+    summary_generation: false,
+    topic_clustering: false
+  },
+
   services: {
     audioRecorder: true,
     chatCapture: true,
