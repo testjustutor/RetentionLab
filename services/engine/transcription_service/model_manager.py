@@ -20,6 +20,7 @@ class ModelManager:
             audio_path,
             fp16=(self.device == "cuda"),
             condition_on_previous_text=False,
+            word_timestamps=True
         )
         print("[TRANSCRIPTION - STEP 1] Progress: Audio successfully converted to raw segment chunks.", flush=True)
         return result

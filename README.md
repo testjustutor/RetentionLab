@@ -109,3 +109,8 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
 
 🎉 Ready for any meeting!
 
+deactivate
+Remove-Item -Recurse -Force .venv
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
