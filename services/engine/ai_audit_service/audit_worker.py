@@ -4,10 +4,54 @@ import sqlite3
 import re
 import sys
 import time
-from services.engine.ai_api_service import AiApiService
+
+
+class AuditWorker:
+
+    def evaluate(
+        self,
+        transcript,
+        talk_ratio
+    ):
+
+        transcript = transcript or ""
+        word_count = len(
+            transcript.split()
+        )
+
+        has_questions = "?" in transcript
+        has_objective_language = any(
+            token in transcript.lower()
+            for token in [
+                "objective",
+                "goal",
+                "today",
+                "learn"
+            ]
+        )
+
+        domain_scores = {
+            "Transcript Completeness": 100.0 if word_count else 0.0,
+            "Instructional Signals": 100.0 if has_objective_language else 50.0,
+            "Interaction Signals": 100.0 if has_questions else 50.0
+        }
+
+        oqi_score = round(
+            sum(domain_scores.values()) / len(domain_scores),
+            2
+        )
+
+        return {
+            "domain_scores": domain_scores,
+            "oqi_score": oqi_score,
+            "evidence_quote": transcript[:300],
+            "talk_ratio": talk_ratio or {}
+        }
 
 class AiAuditService:
     def __init__(self, db_path, ai_config):
+        from services.engine.ai_api_service import AiApiService
+
         self.db_path = db_path
         self.ai_api = AiApiService(ai_config)
 

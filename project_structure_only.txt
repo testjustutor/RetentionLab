@@ -1,0 +1,333 @@
+## This is full Architecture of project ##
+
+Verified project folder/file structure with file names.
+
+```text
+project_root/
+|-- config
+|   `-- settings.js
+|-- database
+|   |-- db.js
+|   `-- rubricSeeder.js
+|-- models
+|   |-- CalendarUsersModel.js
+|   |-- MeetingAssetsModel.js
+|   |-- MeetingModel.js
+|   |-- RubricModel.js
+|   `-- transcriptModel.js
+|-- public
+|   |-- css
+|   |   |-- admin.css
+|   |   `-- calendar.css
+|   |-- js
+|   |   |-- admin.js
+|   |   `-- calendar.js
+|   |-- db-admin.html
+|   |-- favicon.ico
+|   `-- multi-calendar.html
+|-- routes
+|   |-- assets.js
+|   |-- audit.js
+|   |-- bot.js
+|   |-- calendar.js
+|   |-- db-admin.js
+|   |-- meetings.js
+|   `-- transcripts.js
+|-- services
+|   |-- calendar
+|   |   |-- auth
+|   |   |   |-- credentialsResolver.js
+|   |   |   `-- tokenManager.js
+|   |   |-- config
+|   |   |   `-- paths.js
+|   |   |-- events
+|   |   |   `-- EventService.js
+|   |   |-- CalendarService.js
+|   |   |-- index.js
+|   |   `-- MultiUserCalendarService.js
+|   |-- engine
+|   |   |-- ai_api_service
+|   |   |   |-- __init__.py
+|   |   |   |-- api_worker.py
+|   |   |   `-- service.py
+|   |   |-- ai_audit_service
+|   |   |   |-- __init__.py
+|   |   |   |-- audit_worker.py
+|   |   |   `-- service.py
+|   |   |-- cache
+|   |   |   |-- cache_expiration_manager.py
+|   |   |   |-- cache_indexer.py
+|   |   |   |-- cache_integrity_checker.py
+|   |   |   `-- cache_size_controller.py
+|   |   |-- dashboard
+|   |   |   |-- health_endpoint.py
+|   |   |   |-- metrics_exporter.py
+|   |   |   `-- runtime_dashboard.py
+|   |   |-- database
+|   |   |   |-- analytics_writer.py
+|   |   |   |-- audit_writer.py
+|   |   |   |-- summary_writer.py
+|   |   |   `-- transcript_writer.py
+|   |   |-- distributed
+|   |   |   |-- distributed_scheduler.py
+|   |   |   |-- redis_runtime.py
+|   |   |   |-- task_queue_manager.py
+|   |   |   `-- worker_node_manager.py
+|   |   |-- intelligence
+|   |   |   |-- action_tracker.py
+|   |   |   |-- compliance_checker.py
+|   |   |   |-- deadline_detector.py
+|   |   |   |-- decision_extractor.py
+|   |   |   |-- engagement_analyzer.py
+|   |   |   |-- interruption_detector.py
+|   |   |   |-- meeting_intelligence_builder.py
+|   |   |   |-- meeting_score_engine.py
+|   |   |   |-- participant_statistics.py
+|   |   |   `-- risk_detector.pyrisk_detector.py
+|   |   |-- live
+|   |   |   |-- live_transcriber.py
+|   |   |   |-- realtime_caption_merger.py
+|   |   |   |-- realtime_diarizer.py
+|   |   |   `-- websocket_streamer.py
+|   |   |-- logging
+|   |   |   |-- performance_logger.py
+|   |   |   |-- pipeline_audit_logger.py
+|   |   |   `-- structured_logger.py
+|   |   |-- media_service
+|   |   |   |-- __init__.py
+|   |   |   |-- audio_chunker.py
+|   |   |   |-- audio_duration_reader.py
+|   |   |   |-- audio_extractor.py
+|   |   |   |-- audio_merger.py
+|   |   |   |-- audio_normalizer.py
+|   |   |   |-- audio_validator.py
+|   |   |   |-- audio_waveform_generator.py
+|   |   |   |-- browser_audio_optimizer.py
+|   |   |   |-- browser_recording_validator.py
+|   |   |   |-- browser_session_cleaner.py
+|   |   |   |-- chrome_profile_manager.py
+|   |   |   |-- ffmpeg_converter.py
+|   |   |   |-- file_validator.py
+|   |   |   |-- media_hash_generator.py
+|   |   |   |-- media_metadata_reader.py
+|   |   |   |-- path_formatter.py
+|   |   |   |-- service.py
+|   |   |   `-- silence_detector.py
+|   |   |-- orchestrator
+|   |   |   |-- __init__.py
+|   |   |   |-- dependency_graph.py
+|   |   |   |-- engine_main.py
+|   |   |   |-- execution_graph.py
+|   |   |   |-- execution_manager.py
+|   |   |   |-- MIGRATION_GUIDE.md
+|   |   |   |-- pipeline_bootstrap.py
+|   |   |   |-- pipeline_context.py
+|   |   |   |-- pipeline_runner.py
+|   |   |   |-- pipeline_runtime.py
+|   |   |   |-- README.md
+|   |   |   |-- runtime_manager.py
+|   |   |   |-- runtime_state_manager.py
+|   |   |   `-- task_registry.py
+|   |   |-- prompts
+|   |   |   |-- audit_prompts.py
+|   |   |   |-- rubric_prompts.py
+|   |   |   |-- summary_prompts.py
+|   |   |   `-- topic_prompts.py
+|   |   |-- quality
+|   |   |   |-- confidence_reviewer.py
+|   |   |   |-- hallucination_detector.py
+|   |   |   |-- transcript_repair_engine.py
+|   |   |   `-- transcript_validator.py
+|   |   |-- runtime
+|   |   |   |-- gpu_allocator.py
+|   |   |   |-- gpu_memory_cleaner.py
+|   |   |   |-- model_pool_manager.py
+|   |   |   |-- pipeline_debugger.py
+|   |   |   `-- runtime_dashboard.py
+|   |   |-- shared
+|   |   |   |-- __init__.py
+|   |   |   |-- cache_manager.py
+|   |   |   |-- file_store.py
+|   |   |   |-- json_store.py
+|   |   |   |-- path_resolver.py
+|   |   |   |-- result_objects.py
+|   |   |   |-- runtime_constants.py
+|   |   |   |-- runtime_environment.py
+|   |   |   |-- runtime_logger.py
+|   |   |   `-- task_status.py
+|   |   |-- summary_service
+|   |   |   |-- __init__.py
+|   |   |   |-- service.py
+|   |   |   `-- summary_worker.py
+|   |   |-- task
+|   |   |   |-- audit
+|   |   |   |   |-- __init__.py
+|   |   |   |   `-- audit_task.py
+|   |   |   |-- cache
+|   |   |   |   |-- __init__.py
+|   |   |   |   |-- cache_cleanup_task.py
+|   |   |   |   |-- cache_health_monitor.py
+|   |   |   |   |-- cache_metrics.py
+|   |   |   |   `-- cache_rotation_task.py
+|   |   |   |-- intel
+|   |   |   |   |-- __init__.py
+|   |   |   |   `-- intel_task.py
+|   |   |   |-- media
+|   |   |   |   |-- __init__.py
+|   |   |   |   `-- media_task.py
+|   |   |   |-- runtime
+|   |   |   |   |-- __init__.py
+|   |   |   |   |-- parallel_task_manager.py
+|   |   |   |   |-- runtime_cleanup_task.py
+|   |   |   |   |-- runtime_gpu_monitor.py
+|   |   |   |   |-- runtime_health_report.py
+|   |   |   |   |-- runtime_memory_monitor.py
+|   |   |   |   |-- runtime_metrics_collector.py
+|   |   |   |   `-- task_logger.py
+|   |   |   |-- summary
+|   |   |   |   |-- __init__.py
+|   |   |   |   `-- summary_task.py
+|   |   |   |-- system
+|   |   |   |   |-- __init__.py
+|   |   |   |   |-- pipeline_validator.py
+|   |   |   |   |-- system_diagnostics_task.py
+|   |   |   |   |-- task_dependency_resolver.py
+|   |   |   |   `-- task_result_builder.py
+|   |   |   |-- topics
+|   |   |   |   |-- __init__.py
+|   |   |   |   `-- topics_task.py
+|   |   |   |-- transcription
+|   |   |   |   |-- __init__.py
+|   |   |   |   |-- cache_manager.py
+|   |   |   |   `-- transcription_task.py
+|   |   |   |-- __init__.py
+|   |   |   |-- cache_cleanup_task.py
+|   |   |   |-- cache_health_monitor.py
+|   |   |   |-- media_task.py
+|   |   |   |-- parallel_task_manager.py
+|   |   |   |-- README.md
+|   |   |   |-- runtime_metrics_collector.py
+|   |   |   |-- task_dependency_resolver.py
+|   |   |   |-- task_logger.py
+|   |   |   |-- task_result_builder.py
+|   |   |   |-- TESTING.md
+|   |   |   `-- transcription_task.py
+|   |   |-- topic_service
+|   |   |   |-- __init__.py
+|   |   |   |-- service.py
+|   |   |   `-- topic_worker.py
+|   |   |-- transcription_service
+|   |   |   |-- __init__.py
+|   |   |   |-- action_item_detector.py
+|   |   |   |-- analytics_engine.py
+|   |   |   |-- audio_fingerprint.py
+|   |   |   |-- confidence_scorer.py
+|   |   |   |-- diarization_engine.py
+|   |   |   |-- embedding_engine.py
+|   |   |   |-- entity_extractor.py
+|   |   |   |-- filter_worker.py
+|   |   |   |-- formatter.py
+|   |   |   |-- language_detector.py
+|   |   |   |-- meeting_classifier.py
+|   |   |   |-- model_manager.py
+|   |   |   |-- pyannote_diarizer.py
+|   |   |   |-- question_detector.py
+|   |   |   |-- segment_merger.py
+|   |   |   |-- sentiment_analyzer.py
+|   |   |   |-- service.py
+|   |   |   |-- speaker_mapper.py
+|   |   |   |-- speaker_overlap_detector.py
+|   |   |   |-- speaker_timeline_builder.py
+|   |   |   |-- timestamp_aligner.py
+|   |   |   |-- token_processor.py
+|   |   |   |-- topic_tracker.py
+|   |   |   |-- transcript_builder.py
+|   |   |   |-- transcript_chunker.py
+|   |   |   |-- transcript_cleaner.py
+|   |   |   |-- transcript_exporter.py
+|   |   |   |-- transcript_search_index.py
+|   |   |   |-- transcript_statistics.py
+|   |   |   |-- vad_engine.py
+|   |   |   |-- whisper_cache_manager.py
+|   |   |   |-- whisper_loader.py
+|   |   |   |-- whisper_runner.py
+|   |   |   |-- whisperx_aligner.py
+|   |   |   `-- whisperx_runner.py
+|   |   |-- voiceprints
+|   |   |   |-- speaker_matcher.py
+|   |   |   |-- speaker_memory.py
+|   |   |   `-- voiceprint_builder.py
+|   |   |-- __init__.py
+|   |   `-- engine_main.py
+|   |-- platforms
+|   |   |-- google-meet
+|   |   |   |-- audioRecorderBot.js
+|   |   |   |-- GoogleMeetAdapter.js
+|   |   |   |-- meetJoiner.js
+|   |   |   |-- monitor.js
+|   |   |   `-- reactiveJoinFlow.js
+|   |   |-- teams
+|   |   |   |-- audioRecorderBot.js
+|   |   |   |-- monitor.js
+|   |   |   |-- reactiveJoinFlow.js
+|   |   |   |-- TeamsAdapter.js
+|   |   |   `-- teamsJoiner.js
+|   |   |-- zoom
+|   |   |   |-- audioRecorderBot.js
+|   |   |   |-- monitor.js
+|   |   |   |-- reactiveJoinFlow.js
+|   |   |   |-- ZoomAdapter.js
+|   |   |   `-- zoomJoiner.js
+|   |   `-- platformFactory.js
+|   |-- shared
+|   |   |-- botManager.js
+|   |   |-- browserManager.js
+|   |   `-- pythonBridge.js
+|   |-- __init__.py
+|   |-- audioRecorder.js
+|   |-- audioRecorderBot.js
+|   |-- botManager.js
+|   |-- browserManager.js
+|   |-- captionListener.js
+|   |-- captionMonitor.js
+|   |-- monitor.js
+|   |-- reactiveJoinFlow.js
+|   `-- socraticbot.js
+|-- uploads
+|   `-- google-calendar-json
+|       |-- calendar-token-1.json
+|       |-- credentials_1.json
+|       |-- credentials_2.json
+|       `-- credentials_multi.json
+|-- utils
+|   |-- __init__.py
+|   |-- export.js
+|   |-- logger.js
+|   |-- logger_util.py
+|   `-- transcriptUtils.js
+|-- .env
+|-- .env.example
+|-- .gitignore
+|-- .test-engine.lock
+|-- audit_bridge.py
+|-- check_db.js
+|-- db-query.js
+|-- index.js
+|-- list-tables.js
+|-- package.json
+|-- package-lock.json
+|-- project_process_documentation.txt
+|-- project_structure_only.txt
+|-- README.md
+|-- requirements.txt
+|-- retention_lab.db
+|-- server.js
+|-- setup-db.js
+|-- test_diarization.py
+|-- test-engine.js
+`-- TODO.md
+```
+
+Notes:
+- Generated dependency/cache folders such as `node_modules`, `.venv`, `.git`, `.vscode`, `__pycache__`, logs, and storage runtime outputs are excluded.
+- This file is structure-only. It lists folder and file names without code content.

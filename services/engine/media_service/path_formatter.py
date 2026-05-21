@@ -1,21 +1,45 @@
-# services/engine/media_service/path_formatter.py
 import os
 
-class PathFormatter:
-    @staticmethod
-    def format_output_name(input_path):
-        print("[MEDIA - FORMATTER] Parsing structural name identifiers...", flush=True)
-        
-        if not input_path.lower().endswith(".mp3"):
-            raise ValueError("MediaService processing supports only .mp3 source structures.")
 
-        base_name = os.path.splitext(os.path.basename(input_path))[0]
-        
-        # Transformation logic: Strip 'REC_' and prepend 'WAV_'
-        if base_name.startswith("REC_"):
-            formatted_name = "WAV_" + base_name[4:]
-        else:
-            formatted_name = "WAV_" + base_name
-            
-        print(f"[MEDIA - FORMATTER] String updated: mapping blueprint to -> {formatted_name}.wav", flush=True)
-        return formatted_name
+def generate_output_name(
+    base_id,
+    suffix,
+    extension
+):
+
+    return f"{base_id}_{suffix}.{extension}"
+
+
+def build_storage_path(
+    directory,
+    filename
+):
+
+    return os.path.join(
+        directory,
+        filename
+    )
+
+
+class PathFormatter:
+
+    @staticmethod
+    def format_output_name(
+        input_path
+    ):
+
+        base_name = os.path.splitext(
+            os.path.basename(
+                input_path
+            )
+        )[0]
+
+        if base_name.startswith(
+            "REC_"
+        ):
+
+            return "WAV_" + base_name[
+                len("REC_"):
+            ]
+
+        return "WAV_" + base_name

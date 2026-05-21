@@ -2,6 +2,72 @@
 import sys
 import time
 
+
+class TopicWorker:
+
+    def extract_topics(
+        self,
+        transcript
+    ):
+
+        transcript = (
+            transcript or ""
+        ).lower()
+
+        keyword_map = {
+            "Introduction & Greetings": [
+                "hello",
+                "welcome",
+                "good morning",
+                "greetings"
+            ],
+            "Review & Assignments": [
+                "homework",
+                "assignment",
+                "project",
+                "task"
+            ],
+            "Learning Objectives": [
+                "objective",
+                "goal",
+                "learn",
+                "today"
+            ],
+            "Wrap-up & Closing": [
+                "goodbye",
+                "see you",
+                "wrap up",
+                "closing"
+            ]
+        }
+
+        topics = []
+
+        for topic, keywords in keyword_map.items():
+
+            matches = [
+                keyword
+                for keyword in keywords
+                if keyword in transcript
+            ]
+
+            if matches:
+
+                topics.append({
+                    "topic": topic,
+                    "matched_keywords": matches
+                })
+
+        if not topics:
+
+            topics.append({
+                "topic": "General Discussion",
+                "matched_keywords": []
+            })
+
+        return topics
+
+
 class TopicService:
     def __init__(self):
         pass

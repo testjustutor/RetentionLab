@@ -1,10 +1,41 @@
 # services/engine/summary_service/summary_worker.py
 import sys
 import time
-from services.engine.ai_api_service import AiApiService
+
+
+class SummaryWorker:
+
+    def generate(
+        self,
+        transcript
+    ):
+
+        transcript = (
+            transcript or ""
+        ).strip()
+
+        if not transcript:
+
+            return "Summary generation skipped: transcript is empty."
+
+        words = transcript.split()
+
+        preview = " ".join(
+            words[:120]
+        )
+
+        if len(words) > 120:
+
+            preview += "..."
+
+        return (
+            f"Meeting summary: {preview}"
+        )
 
 class SummaryService:
     def __init__(self, ai_config):
+        from services.engine.ai_api_service import AiApiService
+
         self.ai_api = AiApiService(ai_config)
 
     def generate_meeting_summary(self, transcript_text):

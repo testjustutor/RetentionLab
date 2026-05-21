@@ -378,3 +378,93 @@ Node pythonBridge.runFullAudioPipeline(fileName)
 END OF DOCUMENT
 ==============================
 
+## This is full Architecture of project (high-level)
+
+```text
+project_root/
+│
+├── server.js (Node/Express)
+│   ├── mounts routes/*
+│   ├── handles calendar sync & meeting queue
+│   └── triggers Python processing via bridge
+│
+├── services/
+│   └── engine/
+│
+│       ├── engine_main.py
+│       │   - legacy/simple entrypoint (PipelineContext -> PipelineRunner)
+│       │   - returns JSON to stdout for Node to parse
+│       │
+│       ├── orchestrator/
+│       │   ├── pipeline_context.py
+│       │   │   - shared runtime state + storage path generation
+│       │   │   - holds feature flags and output artifact paths
+│       │   │
+│       │   ├── task_registry.py
+│       │   │   - declares DAG tasks (media, transcription, intel, audit, summary, topics)
+│       │   │   - encodes dependencies + which tasks can run in parallel
+│       │   │
+│       │   ├── dependency_graph.py
+│       │   │   - filters tasks by feature flags
+│       │   │   - checks dependency satisfaction to compute ready tasks
+│       │   │
+│       │   ├── execution_manager.py
+│       │   │   - runs sequential tasks first, then parallel batches
+│       │   │   - uses thread pool for parallel task execution
+│       │   │   - tracks completion + failure lifecycle
+│       │   │
+│       │   ├── pipeline_runner.py
+│       │   │   - wires dependency graph + execution manager + runtime manager
+│       │   │
+│       │   ├── pipeline_bootstrap.py
+│       │   │   - validates inputs
+│       │   │   - ensures required cache/storage directories exist
+│       │   │
+│       │   └── runtime_manager.py / pipeline_runtime.py
+│       │       - runtime lifecycle hooks + exported metrics
+│       │
+│       ├── tasks/
+│       │   ├── media/ (extract+convert audio)
+│       │   ├── transcription/ (Whisper processing)
+│       │   ├── intel/ (sentiment/vectors/topics optional tasks)
+│       │   ├── audit/ (rubric scoring + evidence extraction)
+│       │   ├── summary/ (summary writer placeholder/implementation)
+│       │   └── topics/ (topic clustering placeholder/implementation)
+│       │
+│       ├── media_service/
+│       │   - lower-level utilities for:
+│       │     * validation
+│       │     * audio extraction (ffmpeg)
+│       │     * normalization
+│       │
+│       ├── live/
+│       │   - real-time captioning + diarization utilities (websocket)
+│       │
+│       ├── transcription_service/
+│       │   - whisper transcription helpers
+│       │
+│       ├── ai_audit_service/
+│       │   - rubric loading & audit scoring worker logic
+│       │
+│       ├── cache/
+│       │   - cache integrity/size/expiration managers
+│       │
+│       ├── database/
+│       │   - writers for analytics/audits/summaries/transcripts
+│       │
+│       ├── quality/
+│       │   - transcript validation + repair engines
+│       │
+│       ├── runtime/
+│       │   - GPU allocation & model pooling managers
+│       │
+│       └── shared/
+│           - common helpers used by multiple orchestrator components
+│
+└── services/shared/pythonBridge.js (Node/Python contract)
+    - spawns Python engine entrypoints
+    - parses stdout JSON blocks
+    - writes generated artifact paths into MeetingAssetsModel
+```
+
+

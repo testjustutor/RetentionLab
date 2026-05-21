@@ -1,16 +1,19 @@
-# services/engine/transcription_service/__init__.py
-from .model_manager import ModelManager
-from .token_processor import TokenProcessor
-from .analytics_engine import AnalyticsEngine
-from .formatter import Formatter
-from .filter_worker import FilterWorker  # Your new filter module!
-
 class TranscriptionService:
     def __init__(self, hf_token=None):
+        # Lazy import to prevent entire engine from crashing at import-time
+        # when optional native deps for `whisper` fail (common after upgrades).
+        from .model_manager import ModelManager
+
         self.model_manager = ModelManager()
         self.hf_token = hf_token
 
+
     def process(self, audio_path):
+        from .analytics_engine import AnalyticsEngine
+        from .filter_worker import FilterWorker
+        from .formatter import Formatter
+        from .token_processor import TokenProcessor
+
         print("\n" + "-"*65, flush=True)
         print("[TRANSCRIPTION SERVICE] Activating Layered Audio Processing Pipeline...", flush=True)
         print("-"*65 + "\n", flush=True)
@@ -30,5 +33,11 @@ class TranscriptionService:
         # STEP 5: Format the final transcript payload string
         labeled_transcript = Formatter.build_labeled_string(processed_script, instructor_id)
 
-        print("[TRANSCRIPTION SERVICE] Execution Complete. Returning compiled matrices.\n", flush=True)
-        return labeled_transcript, talk_ratio, processed_script
+        # Re-create a standard list of segment tuples/dicts to safely satisfy Step 5 TopicService downstream
+        diarization_data_compat = [
+            {"start": s["start"], "end": s["end"], "speaker": s["speaker"]} 
+            for s in processed_script
+        ]
+
+        print("[TRANSCRIPTION - SERVICE] Execution Complete. Returning compiled matrices.\n", flush=True)
+        return labeled_transcript, talk_ratio, diarization_data_compat

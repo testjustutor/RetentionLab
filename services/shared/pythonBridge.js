@@ -3,6 +3,7 @@
 const appSettings = require('../../config/settings');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { logger } = require('../../utils/logger');
 const MeetingAssetsModel = require('../../models/MeetingAssetsModel');
 
@@ -16,12 +17,19 @@ class PythonBridge {
   static runStage(scriptName, args) {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(__dirname, '../engine/', scriptName);
+      const projectRoot = path.join(__dirname, '../..');
+      const venvPython = process.env.VIRTUAL_ENV
+        ? path.join(process.env.VIRTUAL_ENV, 'Scripts', 'python.exe')
+        : path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
+      const pythonExecutable = process.env.PYTHON_EXECUTABLE
+        || (fs.existsSync(venvPython) ? venvPython : 'python');
 
       logger.info(`[Bridge Initialization] Spawning ${scriptName}`);
       logger.info(`[Bridge CLI Arguments] target_file="${args[0]}", settings_size=${args[1]?.length || 0} bytes`);
       logger.info(`[Bridge System Path] Execution path: ${scriptPath}`);
+      logger.info(`[Bridge Python Executable] ${pythonExecutable}`);
 
-      const pyProcess = spawn('python', ['-u', scriptPath, ...args], {
+      const pyProcess = spawn(pythonExecutable, ['-u', scriptPath, ...args], {
         env: { ...process.env, PYTHONUNBUFFERED: '1' }
       });
 
@@ -100,6 +108,7 @@ class PythonBridge {
       // 1. Pack environmental parameters into configuration payload mapping
       const runtimeSettings = {
         ...aiProfile,
+        pipeline_features: appSettings.pipeline_features || {},
         execution_context: "automated_test_engine",
         initialized_at: new Date().toISOString(),
         hf_token_configured: appSettings.HF_TOKEN
