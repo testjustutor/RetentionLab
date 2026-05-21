@@ -111,7 +111,8 @@ class PythonBridge {
         pipeline_features: appSettings.pipeline_features || {},
         execution_context: "automated_test_engine",
         initialized_at: new Date().toISOString(),
-        hf_token_configured: appSettings.HF_TOKEN
+        hf_token_configured: !!appSettings.HF_TOKEN,
+        hf_token: appSettings.HF_TOKEN || null
       };
       const stringifiedConfig = JSON.stringify(runtimeSettings);
 
