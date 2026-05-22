@@ -22,6 +22,10 @@ const ZoomCaptionMonitor = require('./platforms/zoom/captionMonitor');
 const TeamsCaptionMonitor = require('./platforms/teams/captionMonitor');
 const GoogleMeetCaptionMonitor = require('./platforms/google-meet/captionMonitor');
 
+const ZoomParticipantTracker = require('./platforms/zoom/participantTracker');
+const TeamsParticipantTracker = require('./platforms/teams/participantTracker');
+const GoogleParticipantTracker = require('./platforms/google-meet/participantTracker');
+
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
@@ -190,6 +194,13 @@ class SocraticBot {
         if (joiner.enableCaptionsIfPossible) {
           await joiner.enableCaptionsIfPossible();
         }
+        
+        const participantTracker = new GoogleParticipantTracker(
+          this.meetingId,
+          this.sessionId
+        );
+
+        joiner.setParticipantTracker(participantTracker);
 
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor(this.captionMonitor);
@@ -210,7 +221,6 @@ class SocraticBot {
             );
 
           break;
-        }
       }
 
       // ---------------- TEAMS ----------------

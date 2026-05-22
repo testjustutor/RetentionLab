@@ -15,6 +15,10 @@ class MeetJoiner {
     this.seenRows = new Set();
   }
 
+  setParticipantTracker(tracker) {
+    this.participantTracker = tracker;
+  }
+
   async joinMeeting() {
     logger.info('GoogleMeetAdapter(meetJoiner): STAGE 1: Navigating to Google Meet (Deep Scan Flow)...');
 
@@ -349,6 +353,7 @@ class MeetJoiner {
               if (!this.seenRows.has(key)) {
                 this.seenRows.add(key);
                 logger.info(`GoogleMeetAdapter(meetJoiner): CAPTION: ${line}`);
+                this.handleCaptionEvent(line);
                 if (this.captionMonitor && this.captionMonitor.filePath) {
                   try {
                     fs.appendFileSync(this.captionMonitor.filePath, `[${new Date().toLocaleTimeString()}] Participant: ${line}\n`);
@@ -358,6 +363,7 @@ class MeetJoiner {
                 }
               }
             }
+
           }
         }
 
@@ -389,6 +395,34 @@ class MeetJoiner {
 
   getTranscript() {
     return this.transcriptBuffer;
+  }
+
+  async handleCaptionEvent(line) {
+    if (!this.participantTracker) return;
+
+    const text = line.trim();
+
+    // JOIN EVENT
+    const joinMatch = text.match(/(.+?) joined/i);
+    if (joinMatch) {
+      const name = joinMatch[1].trim();
+
+      logger.info(`GoogleMeetAdapter(meetJoiner): JOIN detected from caption → ${name}`);
+
+      await this.participantTracker.handleParticipantJoin(name);
+      return;
+    }
+
+    // LEAVE EVENT
+    const leaveMatch = text.match(/(.+?) (has )?left the meeting/i);
+    if (leaveMatch) {
+      const name = leaveMatch[1].trim();
+
+      logger.info(`GoogleMeetAdapter(meetJoiner): LEAVE detected from caption → ${name}`);
+
+      await this.participantTracker.handleParticipantLeave(name);
+      return;
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');
+const ParticipantTracker = require('./participantTracker');
 const path = require('path');
 
 let keepAliveInterval = null;
@@ -100,8 +101,80 @@ async function startKeepAlive(page) {
   }, 2000);
 }
 
-async function monitorMeeting(page, meetingId, botName) {
+/**
+ * Extract current participant names from Google Meet
+ * Used for attendance tracking
+ */
+async function getCurrentParticipantNames(page) {
+  try {
+    const names = await page.evaluate(() => {
+      const participants = [];
+      
+      // Strategy 1: Extract from roster items when people panel is visible
+      const rosterItems = document.querySelectorAll('[role="listitem"]');
+      if (rosterItems.length > 0) {
+        rosterItems.forEach(item => {
+          let name = null;
+          
+          // Try to get name from data attributes
+          if (item.hasAttribute('data-name')) {
+            name = item.getAttribute('data-name');
+          }
+          
+          // Try aria-label
+          if (!name) {
+            name = item.getAttribute('aria-label');
+          }
+          
+          // Try text content
+          if (!name) {
+            const text = item.innerText || item.textContent;
+            if (text) {
+              name = text.split('\n')[0];
+            }
+          }
+          
+          if (name && name.trim()) {
+            const cleanName = name.trim().replace(/\s+/g, ' ');
+            if (!participants.includes(cleanName) && cleanName.length < 200) {
+              participants.push(cleanName);
+            }
+          }
+        });
+      }
+      
+      // Strategy 2: Extract from video tiles
+      if (participants.length === 0) {
+        const videoTiles = document.querySelectorAll('[data-participant-id], [data-allocation-index]');
+        videoTiles.forEach(tile => {
+          const label = tile.getAttribute('aria-label') || tile.getAttribute('data-name') || tile.title;
+          if (label && label.trim()) {
+            const cleanName = label.trim().replace(/\s+/g, ' ');
+            if (!participants.includes(cleanName) && cleanName.length < 200) {
+              participants.push(cleanName);
+            }
+          }
+        });
+      }
+      
+      return participants;
+    });
+    
+    return names;
+  } catch (err) {
+    logger.debug('GoogleMeetAdapter(monitor): Error extracting participant names:', err.message);
+    return [];
+  }
+}
+
+async function monitorMeeting(page, meetingId, botName, sessionId) {
   logger.info('GoogleMeetAdapter(monitor): MONITOR: Stay-Alive loop started');
+
+  // Initialize participant tracker
+  const participantTracker = new ParticipantTracker(meetingId, sessionId);
+  let previousParticipants = [];
+  let lastParticipantCheckTime = Date.now();
+  const PARTICIPANT_CHECK_INTERVAL = 5000; // Check every 5 seconds
 
   let loopCount = 0;
   const startedAt = Date.now();
@@ -160,6 +233,33 @@ async function monitorMeeting(page, meetingId, botName) {
 
       if (waitingRoom) {
         logger.info("GoogleMeetAdapter(monitor): Waiting room / lobby detected");
+      }
+
+      // 4a. ATTENDANCE TRACKING: Check for participant changes
+      const now = Date.now();
+      if (now - lastParticipantCheckTime >= PARTICIPANT_CHECK_INTERVAL) {
+        try {
+          const currentParticipants = await getCurrentParticipantNames(page);
+          
+          // Detect joins (new participants)
+          for (const name of currentParticipants) {
+            if (!previousParticipants.includes(name)) {
+              await participantTracker.handleParticipantJoin(name);
+            }
+          }
+          
+          // Detect leaves (participants no longer in list)
+          for (const name of previousParticipants) {
+            if (!currentParticipants.includes(name)) {
+              await participantTracker.handleParticipantLeave(name);
+            }
+          }
+          
+          previousParticipants = [...currentParticipants];
+          lastParticipantCheckTime = now;
+        } catch (err) {
+          logger.debug('GoogleMeetAdapter(monitor): Error in attendance tracking:', err.message);
+        }
       }
 
       // 5. Leave-signal detection:
