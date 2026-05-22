@@ -175,6 +175,12 @@ class SocraticBot {
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor(this.captionMonitor);
         }
+
+        // Start the Google Meet monitor loop (handles "bot alone" exit condition).
+        // When it exits, shut down the bot cleanly.
+        GoogleMeetMonitor.monitorMeeting(this.browserManager.page, this.meetingId, this.botName)
+          .then(() => this.stop())
+          .catch(err => logger.error('GoogleMeetAdapter(monitor): Monitor loop crashed:', err));
         break;
       }
 
