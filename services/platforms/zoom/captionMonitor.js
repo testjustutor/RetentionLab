@@ -1,7 +1,7 @@
-const TranscriptModel = require('../models/transcriptModel.js');
+const TranscriptModel = require('../../../models/transcriptModel.js');
 const fs = require('fs');
 const path = require('path');
-const { logger } = require('../utils/logger'); 
+const { logger } = require('../../../utils/logger'); 
 
 class CaptionMonitor {
   constructor(sessionId, page, meetingId, platform, joinerInstance, onMeetingEnd) {
@@ -24,7 +24,7 @@ class CaptionMonitor {
                       now.getHours().toString().padStart(2, '0') + '-' + 
                       now.getMinutes().toString().padStart(2, '0');
 
-    this.dirPath = path.join(__dirname, '../storage/transcripts');
+    this.dirPath = path.join(__dirname, '../../../storage/transcripts');
     
     // We change "transcripts" to "TRANS" or keep it, but match the rest of the structure
     this.fileName = `TRANS_${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;

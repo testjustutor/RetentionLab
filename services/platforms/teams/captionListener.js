@@ -1,5 +1,5 @@
-const TranscriptModel = require('../models/transcriptModel');
-const { logger } = require('../utils/logger.js');
+const TranscriptModel = require('../../../models/transcriptModel');
+const { logger } = require('../../../utils/logger.js');
 
 class CaptionListener {
   constructor(page, sessionId) {
