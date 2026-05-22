@@ -18,7 +18,11 @@ const ZoomAudioRecorderBot = require('./platforms/zoom/audioRecorderBot');
 const TeamsAudioRecorderBot = require('./platforms/teams/audioRecorderBot');
 const GoogleMeetAudioRecorderBot = require('./platforms/google-meet/audioRecorderBot');
 
-const CaptionMonitor = require('./captionMonitor');
+// const CaptionMonitor = require('./captionMonitor');
+const ZoomCaptionMonitor = require('./platforms/zoom/captionMonitor');
+const TeamsCaptionMonitor = require('./platforms/teams/captionMonitor');
+const GoogleMeetCaptionMonitor = require('./platforms/google-meet/captionMonitor');
+
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
@@ -46,7 +50,9 @@ class SocraticBot {
     this.transcriptionService = this.createTranscriptionService();
 
     this.browserManager = null;
-    this.captionMonitor = null;
+    this.ZoomCaptionMonitor = null;
+    this.GoogleMeetCaptionMonitor = null;
+    this.TeamsCaptionMonitor = null;
   }
 
   // -------------------------
@@ -139,21 +145,23 @@ class SocraticBot {
   // PLATFORM FEATURES HANDLER
   // -------------------------
   async handlePlatformFeatures(joiner) {
-    this.captionMonitor = new CaptionMonitor(
-      this.sessionId,
-      this.browserManager.page,
-      this.meetingId,
-      this.platform,
-      joiner,
-      this.stop.bind(this)
-    );
-
-    this.captionMonitor.startPolling();
 
     switch (this.platform) {
 
       // ---------------- ZOOM ----------------
       case 'zoom': {
+
+        this.captionMonitor = new ZoomCaptionMonitor(
+          this.sessionId,
+          this.browserManager.page,
+          this.meetingId,
+          this.platform,
+          joiner,
+          this.stop.bind(this)
+        );
+
+        this.captionMonitor.startPolling();
+
         const active = await joiner.checkCaptionsEnabled();
 
         if (!active && joiner.sendChatRequest) {
@@ -168,6 +176,18 @@ class SocraticBot {
 
       // ---------------- GOOGLE MEET ----------------
       case 'google-meet': {
+
+        this.captionMonitor = new GoogleMeetCaptionMonitor(
+          this.sessionId,
+          this.browserManager.page,
+          this.meetingId,
+          this.platform,
+          joiner,
+          this.stop.bind(this)
+        );
+
+        this.captionMonitor.startPolling();
+
         if (joiner.enableCaptionsIfPossible) {
           await joiner.enableCaptionsIfPossible();
         }
@@ -178,14 +198,36 @@ class SocraticBot {
 
         // Start the Google Meet monitor loop (handles "bot alone" exit condition).
         // When it exits, shut down the bot cleanly.
-        GoogleMeetMonitor.monitorMeeting(this.browserManager.page, this.meetingId, this.botName)
+        GoogleMeetMonitor.monitorMeeting(
+          this.browserManager.page,
+          this.meetingId,
+          this.botName
+        )
           .then(() => this.stop())
-          .catch(err => logger.error('GoogleMeetAdapter(monitor): Monitor loop crashed:', err));
+          .catch(err =>
+            logger.error(
+              'GoogleMeetAdapter(monitor): Monitor loop crashed:',
+              err
+            )
+          );
+
         break;
       }
 
       // ---------------- TEAMS ----------------
       case 'teams': {
+
+        this.captionMonitor = new TeamsCaptionMonitor(
+          this.sessionId,
+          this.browserManager.page,
+          this.meetingId,
+          this.platform,
+          joiner,
+          this.stop.bind(this)
+        );
+
+        this.captionMonitor.startPolling();
+
         if (joiner.enableCaptionsIfPossible) {
           await joiner.enableCaptionsIfPossible();
         }
@@ -195,6 +237,9 @@ class SocraticBot {
         }
         break;
       }
+      
+      default:
+        throw new Error(`Unsupported platform: ${this.platform}`);
     }
   }
 

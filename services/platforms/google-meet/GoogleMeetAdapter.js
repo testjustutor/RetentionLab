@@ -8,6 +8,7 @@ const { logger } = require('../../../utils/logger');
 const TranscriptModel = require('../../../models/transcriptModel');
 const botManager = require('../../shared/botManager');
 const { monitorMeeting } = require('./monitor');
+const ParticipantCapture = require('./participantCapture');
 
 class GoogleMeetAdapter {
   constructor(config) {
@@ -139,6 +140,9 @@ class GoogleMeetAdapter {
 
       logger.info(`GoogleMeetAdapter(GoogleMeetAdapter): Successfully joined Google Meet ${this.config.meetingId}`);
 
+      // Capture participant names when bot joins
+      await this.captureAndLogParticipants();
+
       // Start transcript monitoring
       this.monitorTranscript();
 
@@ -168,6 +172,32 @@ class GoogleMeetAdapter {
 
     } catch (err) {
       logger.error('GoogleMeetAdapter(GoogleMeetAdapter): Error monitoring transcript:', err);
+    }
+  }
+
+  async captureAndLogParticipants() {
+    try {
+      const participantCapture = new ParticipantCapture(this.page);
+      const result = await participantCapture.captureParticipants();
+
+      if (result.success && result.count > 0) {
+        const logEntry = {
+          timestamp: result.timestamp,
+          meetingId: this.config.meetingId,
+          participantCount: result.count,
+          participants: result.names
+        };
+
+        logger.info(
+          `GoogleMeetAdapter(GoogleMeetAdapter): Participants logged for meeting ${this.config.meetingId}: ${JSON.stringify(logEntry)}`
+        );
+      } else {
+        logger.info(
+          `GoogleMeetAdapter(GoogleMeetAdapter): No participants captured for meeting ${this.config.meetingId}`
+        );
+      }
+    } catch (err) {
+      logger.warn('GoogleMeetAdapter(GoogleMeetAdapter): Participant capture failed:', err.message);
     }
   }
 

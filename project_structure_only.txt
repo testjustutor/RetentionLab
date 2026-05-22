@@ -263,18 +263,24 @@ project_root/
 |   |   |-- google-meet
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- GoogleMeetAdapter.js
+|   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- meetJoiner.js
 |   |   |   |-- monitor.js
 |   |   |   `-- reactiveJoinFlow.js
 |   |   |-- teams
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- monitor.js
+|   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- reactiveJoinFlow.js
 |   |   |   |-- TeamsAdapter.js
 |   |   |   `-- teamsJoiner.js
 |   |   |-- zoom
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- monitor.js
+|   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- reactiveJoinFlow.js
 |   |   |   |-- ZoomAdapter.js
 |   |   |   `-- zoomJoiner.js
@@ -288,8 +294,6 @@ project_root/
 |   |-- audioRecorderBot.js
 |   |-- botManager.js
 |   |-- browserManager.js
-|   |-- captionListener.js
-|   |-- captionMonitor.js
 |   |-- monitor.js
 |   |-- reactiveJoinFlow.js
 |   `-- socraticbot.js
