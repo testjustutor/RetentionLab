@@ -11,12 +11,12 @@ class CaptionListener {
   }
 
   async start() {
-    logger.info('DefaultAdapter(captionListener): Caption listener started (Tracking Active Speakers)');
+    logger.info('ZoomAdapter(captionListener): Caption listener started (Tracking Active Speakers)');
     this.intervalId = setInterval(async () => {
       try {
         await this.pollCaptions(); 
       } catch (err) {
-        logger.error('DefaultAdapter(captionListener): Error in caption listener loop:', err.message);
+        logger.error('ZoomAdapter(captionListener): Error in caption listener loop:', err.message);
       }
     }, 3000);
   }
@@ -25,7 +25,7 @@ class CaptionListener {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      logger.info('DefaultAdapter(captionListener): Caption listener stopped');
+      logger.info('ZoomAdapter(captionListener): Caption listener stopped');
     }
   }
 
@@ -49,11 +49,11 @@ class CaptionListener {
       for (const text of snippets) {
         if (!this.seenRows.has(text)) {
           this.seenRows.add(text);          
-          logger.info(`DefaultAdapter(captionListener): [Transcript Content]: ${text}`);
+          logger.info(`ZoomAdapter(captionListener): [Transcript Content]: ${text}`);
         }
       }
     } catch (e) {
-      logger.debug(`DefaultAdapter(captionListener): Polling skip: ${e.message}`);
+      logger.debug(`ZoomAdapter(captionListener): Polling skip: ${e.message}`);
     }
   }
 }
