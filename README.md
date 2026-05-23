@@ -122,6 +122,8 @@ python -c "import importlib; importlib.import_module('services.engine.engine_mai
 ## To test pyannote
 python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
 
+# To test node file code is correct
+    node --check services\platforms\google-meet\meetJoiner.js
 
 ## To test dummy audio file
 Remove-Item .test-engine.lock -Force
