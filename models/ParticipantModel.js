@@ -1,5 +1,6 @@
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
+const MeetingParticipantSessionModel = require('./MeetingParticipantSessionModel');
 
 /**
  * ParticipantModel - Manages participant attendance tracking
@@ -12,6 +13,10 @@ class ParticipantModel {
    */
   static recordParticipantJoin(meetingId, sessionId, participantName, joinedAt = new Date()) {
     return new Promise((resolve, reject) => {
+      if (sessionId === undefined || sessionId === null) {
+        return reject(new Error('sessionId is required to record participant join'));
+      }
+
       const sql = `
         INSERT OR IGNORE INTO meeting_participants (
           meeting_id, session_id, participant_name, first_joined_at, 
@@ -31,14 +36,75 @@ class ParticipantModel {
             logger.error('Model(ParticipantModel): Error recording participant join:', err);
             reject(err);
           } else {
-            logger.info(`Model(ParticipantModel): Participant joined - ${participantName} (meeting: ${meetingId})`);
-            resolve({
-              id: this.lastID,
-              meetingId,
-              sessionId,
-              participantName,
-              firstJoinedAt: joinedAt.toISOString()
-            });
+            db.get(
+              `SELECT id FROM meeting_participants
+               WHERE meeting_id = ?
+                 AND session_id = ?
+                 AND participant_name = ?
+                 AND deleted_at IS NULL`,
+              [meetingId, sessionId, participantName],
+              async (fetchErr, existingRow) => {
+                if (fetchErr) {
+                  return reject(fetchErr);
+                }
+
+                const participantId = existingRow?.id || this.lastID;
+
+                try {
+                  await ParticipantModel.ensureAttendanceSession(
+                    meetingId,
+                    participantId,
+                    1,
+                    joinedAt
+                  );
+
+                  await MeetingParticipantSessionModel.recordParticipantJoin(
+                    meetingId,
+                    sessionId,
+                    participantName,
+                    0
+                  );
+                } catch (trackingErr) {
+                  logger.error('Model(ParticipantModel): Error recording participant session:', trackingErr);
+                  return reject(trackingErr);
+                }
+
+                logger.info(`Model(ParticipantModel): Participant joined - ${participantName} (meeting: ${meetingId})`);
+                resolve({
+                  id: participantId,
+                  meetingId,
+                  sessionId,
+                  participantName,
+                  firstJoinedAt: joinedAt.toISOString()
+                });
+              }
+            );
+          }
+        }
+      );
+    });
+  }
+
+  static ensureAttendanceSession(meetingId, participantId, sessionNumber, joinedAt = new Date()) {
+    return new Promise((resolve, reject) => {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO meeting_participant_attendance_sessions (
+          meeting_id, participant_id, session_number, joined_at,
+          attendance_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+
+      stmt.run(
+        meetingId,
+        participantId,
+        sessionNumber,
+        joinedAt.toISOString(),
+        function(err) {
+          stmt.finalize();
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ id: this.lastID, participantId, sessionNumber });
           }
         }
       );
@@ -95,16 +161,64 @@ class ParticipantModel {
                 logger.error('Model(ParticipantModel): Error recording participant leave:', err);
                 reject(err);
               } else {
-                logger.info(
-                  `Model(ParticipantModel): Participant left - ${participantName} (duration: ${sessionDuration}s, total: ${totalDuration}s)`
+                ParticipantModel.closeLatestAttendanceSession(row.id, leftAt)
+                  .then(() => MeetingParticipantSessionModel.recordParticipantLeave(meetingId, participantName))
+                  .then(() => {
+                    logger.info(
+                      `Model(ParticipantModel): Participant left - ${participantName} (duration: ${sessionDuration}s, total: ${totalDuration}s)`
+                    );
+
+                    resolve({
+                      success: true,
+                      participantId: row.id,
+                      sessionDuration,
+                      totalDuration,
+                      leftAt: leftAt.toISOString()
+                    });
+                  })
+                  .catch((trackingErr) => {
+                    logger.error('Model(ParticipantModel): Error closing participant session:', trackingErr);
+                    reject(trackingErr);
+                  }
                 );
-                resolve({
-                  success: true,
-                  participantId: row.id,
-                  sessionDuration,
-                  totalDuration,
-                  leftAt: leftAt.toISOString()
-                });
+              }
+            }
+          );
+        }
+      );
+    });
+  }
+
+  static closeLatestAttendanceSession(participantId, leftAt = new Date()) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, joined_at FROM meeting_participant_attendance_sessions
+         WHERE participant_id = ? AND attendance_status = 'active' AND deleted_at IS NULL
+         ORDER BY session_number DESC LIMIT 1`,
+        [participantId],
+        (err, row) => {
+          if (err) {
+            return reject(err);
+          }
+
+          if (!row) {
+            return resolve({ success: false, message: 'No active attendance session' });
+          }
+
+          const duration = Math.floor((new Date(leftAt) - new Date(row.joined_at)) / 1000);
+          db.run(
+            `UPDATE meeting_participant_attendance_sessions
+             SET left_at = ?,
+                 duration_seconds = ?,
+                 attendance_status = 'left',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND deleted_at IS NULL`,
+            [leftAt.toISOString(), duration, row.id],
+            function(updateErr) {
+              if (updateErr) {
+                reject(updateErr);
+              } else {
+                resolve({ success: true, sessionId: row.id, duration });
               }
             }
           );
@@ -132,9 +246,9 @@ class ParticipantModel {
 
           const nextSessionNumber = (sessionRow?.max_session || 0) + 1;
 
-          // Get meeting_id from participant record
-          db.get(
-            `SELECT meeting_id FROM meeting_participants WHERE id = ?`,
+              // Get participant details for session tracking
+              db.get(
+            `SELECT meeting_id, session_id, participant_name FROM meeting_participants WHERE id = ?`,
             [participantId],
             (err, participantRow) => {
               if (err) {
@@ -175,15 +289,27 @@ class ParticipantModel {
                         if (updateErr) {
                           logger.error('Model(ParticipantModel): Error updating participant status:', updateErr);
                         }
-                        logger.info(
-                          `Model(ParticipantModel): Participant rejoined - session #${nextSessionNumber} (participant_id: ${participantId})`
-                        );
-                        resolve({
-                          id: this.lastID,
-                          participantId,
-                          sessionNumber: nextSessionNumber,
-                          rejoinedAt: rejoinedAt.toISOString()
-                        });
+                        MeetingParticipantSessionModel.recordParticipantJoin(
+                          participantRow.meeting_id,
+                          participantRow.session_id,
+                          participantRow.participant_name,
+                          0
+                        )
+                          .then(() => {
+                            logger.info(
+                              `Model(ParticipantModel): Participant rejoined - session #${nextSessionNumber} (participant_id: ${participantId})`
+                            );
+                            resolve({
+                              id: this.lastID,
+                              participantId,
+                              sessionNumber: nextSessionNumber,
+                              rejoinedAt: rejoinedAt.toISOString()
+                            });
+                          })
+                          .catch((sessionErr) => {
+                            logger.error('Model(ParticipantModel): Error recording rejoin participant session:', sessionErr);
+                            reject(sessionErr);
+                          });
                       }
                     );
                   }
@@ -204,8 +330,15 @@ class ParticipantModel {
     return new Promise((resolve, reject) => {
       // Get current session to calculate duration
       db.get(
-        `SELECT id, participant_id, joined_at FROM meeting_participant_attendance_sessions 
-         WHERE id = ? AND deleted_at IS NULL`,
+        `SELECT
+           mpas.id,
+           mpas.participant_id,
+           mpas.joined_at,
+           mp.meeting_id,
+           mp.participant_name
+         FROM meeting_participant_attendance_sessions mpas
+         JOIN meeting_participants mp ON mp.id = mpas.participant_id
+         WHERE mpas.id = ? AND mpas.deleted_at IS NULL`,
         [sessionId],
         (err, row) => {
           if (err) {
@@ -265,16 +398,23 @@ class ParticipantModel {
                       );
                     }
 
-                    logger.info(
-                      `Model(ParticipantModel): Rejoin session ended - session_id: ${sessionId} (duration: ${duration}s)`
-                    );
-                    resolve({
-                      success: true,
-                      sessionId,
-                      participantId: row.participant_id,
-                      duration,
-                      leftAt: leftAt.toISOString()
-                    });
+                    MeetingParticipantSessionModel.recordParticipantLeave(row.meeting_id, row.participant_name)
+                      .then(() => {
+                        logger.info(
+                          `Model(ParticipantModel): Rejoin session ended - session_id: ${sessionId} (duration: ${duration}s)`
+                        );
+                        resolve({
+                          success: true,
+                          sessionId,
+                          participantId: row.participant_id,
+                          duration,
+                          leftAt: leftAt.toISOString()
+                        });
+                      })
+                      .catch((sessionErr) => {
+                        logger.error('Model(ParticipantModel): Error closing rejoin participant session:', sessionErr);
+                        reject(sessionErr);
+                      });
                   }
                 );
               }

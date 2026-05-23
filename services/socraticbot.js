@@ -210,7 +210,8 @@ class SocraticBot {
         GoogleMeetMonitor.monitorMeeting(
             this.browserManager.page,
             this.meetingId,
-            this.botName
+            this.botName,
+            this.sessionId
           )
             .then(() => this.stop())
             .catch(err =>

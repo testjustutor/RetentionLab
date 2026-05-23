@@ -14,16 +14,6 @@ const db = new sqlite3.Database(dbPath);
 const initDB = () => {
     return new Promise((resolve, reject) => {
         db.serialize(() => {
-            // 1. Transcripts Table
-            db.run(`
-                CREATE TABLE IF NOT EXISTS transcripts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    meeting_session_id TEXT,
-                    speaker TEXT,
-                    text TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
 
             // 2. Meeting Sessions Table
             db.run(`
@@ -54,20 +44,6 @@ const initDB = () => {
                     status TEXT DEFAULT 'joining',
                     session_id TEXT,
                     summary TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-
-            // 4. Calendar Accounts Table
-            db.run(`
-                CREATE TABLE IF NOT EXISTS calendar_accounts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE,
-                    credentials_file TEXT NOT NULL,
-                    token_file TEXT,
-                    scopes TEXT,
-                    status TEXT DEFAULT 'active',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -118,21 +94,6 @@ const initDB = () => {
                     type TEXT CHECK(type IN ('AI', 'HUMAN')),
                     is_gate BOOLEAN DEFAULT 0,
                     FOREIGN KEY (category_id) REFERENCES rubric_categories(category_id)
-                )
-            `);
-
-            // 8. Meeting Scores Table
-            db.run(`
-                CREATE TABLE IF NOT EXISTS meeting_scores (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    meeting_id TEXT NOT NULL,
-                    indicator_id TEXT NOT NULL,
-                    score INTEGER DEFAULT 0,
-                    comment TEXT,
-                    scored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (meeting_id) REFERENCES meeting_assets_storage(meeting_id),
-                    FOREIGN KEY (indicator_id) REFERENCES rubric_indicators(indicator_id),
-                    UNIQUE(meeting_id, indicator_id)
                 )
             `);
 

@@ -1,6 +1,5 @@
 const { logger } = require('../../../utils/logger');
 const fs = require('fs');
-const path = require('path');
 
 class MeetJoiner {
   constructor(page, botName, meetingUrl) {
@@ -30,10 +29,10 @@ class MeetJoiner {
     await this.enterMeeting();
 
     const confirmed = await this.waitForJoinConfirmation();
-    if (!confirmed) {
+    if (!confirmed.success) {
       await this.page.screenshot({ path: 'meet_stuck.png' });
-      logger.error('GoogleMeetAdapter(meetJoiner): join confirmation failed');
-      throw new Error('Google Meet join confirmation failed');
+      logger.error(`GoogleMeetAdapter(meetJoiner): join confirmation failed (${confirmed.state})`);
+      throw new Error(`Google Meet join confirmation failed (${confirmed.state})`);
     }
   }
 
@@ -44,25 +43,88 @@ class MeetJoiner {
     logger.info('GoogleMeetAdapter(meetJoiner): Handling pre-join screen...');
 
     try {
-      await this.page.evaluate(() => {
-        const clickIfExists = (selectors) => {
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el) el.click();
+      const result = await this.page.evaluate(async () => {
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+        const getButtonText = (button) => normalize([
+          button.getAttribute('aria-label'),
+          button.getAttribute('data-tooltip'),
+          button.getAttribute('data-tooltip-id'),
+          button.getAttribute('title'),
+          button.innerText
+        ].filter(Boolean).join(' '));
+
+        const getControlState = (kind) => {
+          const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+          const control = buttons.find(button => {
+            const text = getButtonText(button);
+            return text.includes(kind) || (kind === 'microphone' && text.includes('mic'));
+          });
+
+          if (!control) {
+            return { found: false, isOff: false, label: null };
           }
+
+          const label = getButtonText(control);
+          const isOff =
+            label.includes(`turn on ${kind}`) ||
+            (kind === 'microphone' && label.includes('turn on mic')) ||
+            label.includes(`${kind} is off`) ||
+            (kind === 'microphone' && label.includes('microphone is muted')) ||
+            (kind === 'microphone' && label.includes('mic is off'));
+
+          const isOn =
+            label.includes(`turn off ${kind}`) ||
+            (kind === 'microphone' && label.includes('turn off mic')) ||
+            label.includes(`${kind} is on`) ||
+            (kind === 'microphone' && label.includes('microphone is on')) ||
+            (kind === 'microphone' && label.includes('mic is on'));
+
+          return { found: true, isOff, isOn, label, control };
         };
 
-        clickIfExists([
-          '[aria-label*="camera"]',
-          '[aria-label*="microphone"]',
-          'button[aria-label*="Turn off"]'
-        ]);
+        const ensureOff = async (kind) => {
+          let state = getControlState(kind);
+
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (state.found && state.isOff) {
+              return { kind, success: true, label: state.label, clicked: attempt > 0 };
+            }
+
+            if (state.found && state.isOn) {
+              state.control.click();
+              await sleep(700);
+            } else {
+              await sleep(700);
+            }
+
+            state = getControlState(kind);
+          }
+
+          return {
+            kind,
+            success: !!(state.found && state.isOff),
+            label: state.label,
+            clicked: false
+          };
+        };
+
+        const camera = await ensureOff('camera');
+        const microphone = await ensureOff('microphone');
+
+        return { camera, microphone };
       });
 
-      await new Promise(r => setTimeout(r, 1500));
+      logger.info(`GoogleMeetAdapter(meetJoiner): Pre-join media state: ${JSON.stringify(result)}`);
+
+      if (!result.camera.success || !result.microphone.success) {
+        throw new Error(`Could not verify camera/microphone are off: ${JSON.stringify(result)}`);
+      }
 
     } catch (e) {
-      logger.info('GoogleMeetAdapter(meetJoiner): Pre-join cleanup skipped');
+      logger.error('GoogleMeetAdapter(meetJoiner): Pre-join media setup failed:', e.message);
+      throw e;
     }
   }
 
@@ -122,6 +184,19 @@ class MeetJoiner {
         });
 
         logger.info('GoogleMeetAdapter(meetJoiner): Join button clicked');
+
+        const stateCheck = await this.page.evaluate(() => {
+          const hasAskToJoin = !!document.querySelector('button[aria-label*="Ask to join"]');
+          const hasJoinNow = !!document.querySelector('button[aria-label*="Join now"], button[aria-label*="Ask to join"], button[data-tooltip*="Join now"], button[data-tooltip*="Ask to join"]');
+          const url = window.location.href;
+
+          return {
+            stillLobby: hasAskToJoin || hasJoinNow,
+            url
+          };
+        });
+
+        logger.info(`GoogleMeetAdapter(meetJoiner): POST-JOIN STATE stillLobby=${stateCheck.stillLobby}`);
         joined = true;
       }
 
@@ -139,32 +214,129 @@ class MeetJoiner {
   // WAIT JOIN CONFIRMATION
   // -----------------------------
   async waitForJoinConfirmation() {
-    logger.info('GoogleMeetAdapter(meetJoiner): Waiting for Meet session to load...');
+    logger.info('GoogleMeetAdapter: Waiting for Meet session...');
 
-    for (let i = 0; i < 15; i++) {
-      const ok = await this.page.evaluate(() => {
-        const hasLeaveButton = !!document.querySelector('button[aria-label*="Leave call"], button[aria-label*="Leave meeting"], button[aria-label*="Hang up"], button[aria-label*="End call"], button[data-tooltip*="Leave call"], button[data-tooltip*="Leave meeting"], button[data-tooltip*="Hang up"], button[data-tooltip*="End call"]');
-        const hasChatButton = !!document.querySelector('button[aria-label*="Chat"], button[data-tooltip*="Chat"], [aria-label*="Chat with everyone"], [data-tooltip*="Open chat"]');
-        const hasPeoplePanel = !!document.querySelector('button[aria-label*="People"], button[aria-label*="Participants"], [data-tooltip*="Show everyone"], [data-tooltip*="People"]');
-        const hasPresentButton = !!document.querySelector('button[aria-label*="Present now"], button[data-tooltip*="Present now"]');
-        const url = window.location.href;
-        const isMeetUrl = url.includes('meet.google.com');
-        const isPreview = url.includes('/preview') || url.includes('/join');
-        const hasJoinBtn = !!document.querySelector('button[aria-label*="Join now"], button[aria-label*="Ask to join"], button[data-tooltip*="Join now"], button[data-tooltip*="Ask to join"]');
+    const MEET_STATE = {
+      INIT: 'INIT',
+      JOINING: 'JOINING',
+      LOBBY: 'LOBBY',
+      IN_MEETING: 'IN_MEETING',
+      REJECTED: 'REJECTED',
+      FAILED: 'FAILED'
+    };
 
-        return hasLeaveButton || hasChatButton || hasPeoplePanel || hasPresentButton || (isMeetUrl && !isPreview && !hasJoinBtn);
+    let state = MEET_STATE.INIT;
+    let inMeetingStreak = 0;
+
+    const maxAttempts = 300; // 15 minutes at 3 seconds per attempt.
+
+    for (let i = 0; i < maxAttempts; i++) {
+
+      const snapshot = await this.page.evaluate(() => {
+        const bodyText = (document.body?.innerText || '').toLowerCase();
+
+        const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+        const getText = (el) => [
+          el.getAttribute('aria-label'),
+          el.getAttribute('data-tooltip'),
+          el.getAttribute('title'),
+          el.innerText
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const hasLeaveButton = buttons.some(button => {
+          const text = getText(button);
+          return text.includes('leave call') ||
+            text.includes('leave meeting') ||
+            text.includes('hang up') ||
+            text.includes('end call');
+        });
+
+        const hasJoinBtn = buttons
+          .some(button => {
+            const text = getText(button);
+            return /\b(ask to join|join now|request to join|join meeting)\b/i.test(text);
+          });
+
+        const isWaitingToBeLetIn =
+          bodyText.includes('someone will let you in') ||
+          bodyText.includes('wait for the host') ||
+          bodyText.includes('asking to join...');
+
+        const isRejected =
+          bodyText.includes("can't join") ||
+          bodyText.includes("meeting is full") ||
+          bodyText.includes("you were removed") ||
+          !!document.querySelector('[role="dialog"][aria-label*="cannot"]');
+
+        const hasInMeetingUI =
+          hasLeaveButton ||
+          buttons.some(button => {
+            const text = getText(button);
+            return text.includes('people') ||
+              text.includes('show everyone') ||
+              text.includes('chat') ||
+              text.includes('present now') ||
+              text.includes('raise hand') ||
+              text.includes('turn on captions') ||
+              text.includes('turn off captions') ||
+              text.includes('turn on microphone') ||
+              text.includes('turn off microphone') ||
+              text.includes('turn on camera') ||
+              text.includes('turn off camera');
+          }) ||
+          !!document.querySelector('[data-self-name], [data-allocation-index], [data-grid-item-id], [aria-live="polite"]');
+
+        const isTransitioning =
+          bodyText.includes('joining...') ||
+          bodyText.includes('getting ready') ||
+          bodyText.includes('please wait');
+
+        return {
+          hasLeaveButton,
+          hasJoinBtn,
+          isWaitingToBeLetIn,
+          isRejected,
+          hasInMeetingUI,
+          isTransitioning
+        };
       });
 
-      if (ok) {
-        logger.info('GoogleMeetAdapter(meetJoiner): Successfully joined Google Meet');
-        return true;
+      // 1. REJECTION EXITS
+      if (snapshot.isRejected) {
+        state = MEET_STATE.REJECTED;
+        logger.error('GoogleMeetAdapter: REJECTED by meeting');
+        return { success: false, state };
+      }
+
+      // 2. STABILITY CONFIRMATION STREAKS
+      if (snapshot.hasInMeetingUI && !snapshot.hasJoinBtn && !snapshot.isWaitingToBeLetIn && !snapshot.isTransitioning) {
+        inMeetingStreak++;
+
+        if (inMeetingStreak >= 2) {
+          state = MEET_STATE.IN_MEETING;
+          logger.info('GoogleMeetAdapter: IN MEETING confirmed');
+          return { success: true, state };
+        }
+        logger.info(`GoogleMeetAdapter: Verifying stream stability... (Streak: ${inMeetingStreak}/2)`);
+      } else {
+        inMeetingStreak = 0;
+      }
+
+      // 3. LOBBY STATE ROUTING
+      if (snapshot.isWaitingToBeLetIn || snapshot.hasJoinBtn) {
+        state = MEET_STATE.LOBBY;
+        logger.info(`GoogleMeetAdapter: LOBBY / KNOCKING (attempt ${i + 1}/${maxAttempts})`);
+      } else {
+        state = MEET_STATE.JOINING;
+        logger.info(`GoogleMeetAdapter: JOINING / HANDSHAKE (attempt ${i + 1}/${maxAttempts})`);
       }
 
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    logger.warn('GoogleMeetAdapter(meetJoiner): Could not confirm join state');
-    return false;
+    state = MEET_STATE.FAILED;
+    logger.warn('GoogleMeetAdapter: TIMEOUT waiting for join');
+    return { success: false, state };
   }
 
   // -----------------------------
@@ -189,12 +361,17 @@ class MeetJoiner {
 
         const findCaptionButton = () => {
           const directSelectors = [
-            'button[jsname="RrG0hf"]',
+            'button[aria-label*="captions"]',
             'button[aria-label*="caption"]',
+            'button[aria-label*="subtitle"]',
             'button[aria-label*="subtitles"]',
             'button[data-tooltip*="caption"]',
+            'button[data-tooltip*="captions"]',
+            'button[data-tooltip*="subtitle"]',
             'button[data-tooltip*="subtitles"]',
+            'button[data-tooltip*="Turn on caption"]',
             'button[data-tooltip*="Turn on captions"]',
+            'button[data-tooltip*="Turn on subtitle"]',
             'button[data-tooltip*="Turn on subtitles"]'
           ];
 
@@ -353,7 +530,12 @@ class MeetJoiner {
               if (!this.seenRows.has(key)) {
                 this.seenRows.add(key);
                 logger.info(`GoogleMeetAdapter(meetJoiner): CAPTION: ${line}`);
-                this.handleCaptionEvent(line);
+                this.transcriptBuffer.push({
+                  name: 'Participant',
+                  text: line,
+                  time: new Date().toLocaleTimeString()
+                });
+                await this.handleCaptionEvent(line);
                 if (this.captionMonitor && this.captionMonitor.filePath) {
                   try {
                     fs.appendFileSync(this.captionMonitor.filePath, `[${new Date().toLocaleTimeString()}] Participant: ${line}\n`);

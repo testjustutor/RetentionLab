@@ -117,25 +117,30 @@ class MeetingParticipantSessionModel {
 
                   // In SQLite, we need to calculate duration differently
                   // Update the row with calculated values
+                  const now = Date.now();
+                  const joinedAt = new Date(row.joined_at).getTime();
+
+                  const sessionDuration = Math.floor((now - joinedAt) / 1000);
+
                   const updateStmt = db.prepare(`
                     UPDATE meeting_participant_sessions
                     SET 
-                      left_at = CURRENT_TIMESTAMP,
-                      session_duration_seconds = (
-                        SELECT (julianday(CURRENT_TIMESTAMP) - julianday(joined_at)) * 86400
-                        FROM meeting_participant_sessions WHERE id = ?
-                      ),
-                      total_meeting_duration_seconds = ? + (
-                        SELECT (julianday(CURRENT_TIMESTAMP) - julianday(joined_at)) * 86400
-                        FROM meeting_participant_sessions WHERE id = ?
-                      ),
+                      left_at = ?,
+                      session_duration_seconds = ?,
+                      total_meeting_duration_seconds = ?,
                       session_status = 'left',
                       updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                   `);
 
-                  updateStmt.run(row.id, previousTotalSeconds, row.id, row.id, function(updateErr) {
-                    updateStmt.finalize();
+                  updateStmt.run(
+                    new Date().toISOString(),                 // left_at
+                    sessionDuration,                          // session_duration_seconds
+                    previousTotalSeconds + sessionDuration,   // total_meeting_duration_seconds
+                    row.id,
+                    function(updateErr) {
+                      updateStmt.finalize();
+                      
                     if (updateErr) {
                       logger.error('Model(MeetingParticipantSessionModel): Error updating leave:', updateErr);
                       reject(updateErr);

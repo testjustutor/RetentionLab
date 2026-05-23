@@ -13,6 +13,8 @@ project_root/
 |   |-- CalendarUsersModel.js
 |   |-- MeetingAssetsModel.js
 |   |-- MeetingModel.js
+|   `-- MeetingParticipantSessionModel.js
+|   `-- ParticipantModel.js
 |   |-- RubricModel.js
 |   `-- transcriptModel.js
 |-- public
@@ -263,20 +265,32 @@ project_root/
 |   |   |-- google-meet
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- GoogleMeetAdapter.js
+|   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- meetJoiner.js
 |   |   |   |-- monitor.js
+|   |   |   |-- participantCapture.js
+|   |   |   |-- participantTracker.js
 |   |   |   `-- reactiveJoinFlow.js
 |   |   |-- teams
 |   |   |   |-- audioRecorderBot.js
+|   |   |   |-- GoogleMeetAdapter.js
+|   |   |   |-- captionListener.js
 |   |   |   |-- monitor.js
 |   |   |   |-- reactiveJoinFlow.js
+|   |   |   |-- participantCapture.js
+|   |   |   |-- participantTracker.js
 |   |   |   |-- TeamsAdapter.js
 |   |   |   `-- teamsJoiner.js
 |   |   |-- zoom
 |   |   |   |-- audioRecorderBot.js
+|   |   |   |-- GoogleMeetAdapter.js
+|   |   |   |-- captionListener.js
 |   |   |   |-- monitor.js
 |   |   |   |-- reactiveJoinFlow.js
 |   |   |   |-- ZoomAdapter.js
+|   |   |   |-- participantCapture.js
+|   |   |   |-- participantTracker.js
 |   |   |   `-- zoomJoiner.js
 |   |   `-- platformFactory.js
 |   |-- shared
@@ -288,8 +302,6 @@ project_root/
 |   |-- audioRecorderBot.js
 |   |-- botManager.js
 |   |-- browserManager.js
-|   |-- captionListener.js
-|   |-- captionMonitor.js
 |   |-- monitor.js
 |   |-- reactiveJoinFlow.js
 |   `-- socraticbot.js
