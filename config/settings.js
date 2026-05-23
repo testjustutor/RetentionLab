@@ -1,31 +1,51 @@
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 
+// 👉 choose mode from env
+const BROWSER_MODE = process.env.BROWSER_MODE || "headless";
+
+const isHeadful = BROWSER_MODE === "headful";
+
 module.exports = {
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    headless: false, // "new" or false - using false for compatibility with Google Meet UI detection
+
+    // 🔥 dynamic mode switch
+    headless: isHeadful ? false : "new",
+
     defaultViewport: null,
     protocolTimeout: 60000,
-    userDataDir: process.env.CHROME_PROFILE_PATH || "./chrome-profile",
+
+    // 🔥 IMPORTANT: isolate profile per mode
+    userDataDir: isHeadful
+      ? process.env.CHROME_PROFILE_PATH || "./chrome-profile"
+      : "./tmp-profile",
+
     args: [
       "--start-maximized",
       "--use-fake-ui-for-media-stream",
       "--disable-notifications",
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      
-      "--autoplay-policy=no-user-gesture-required", // Forces incoming audio to play instantly [0.1]
-      "--enable-features=WebRtcAudioProcessing",     // Forces Chromium to decode and mix mobile Opus streams [0.1, 0.1]
-      "--disable-features=WebRtcHideLocalSimulcastSignalingTarget"
+
+      "--autoplay-policy=no-user-gesture-required",
+      "--enable-features=WebRtcAudioProcessing",
+      "--disable-features=WebRtcHideLocalSimulcastSignalingTarget",
+
+      // 🔥 only for headful stability
+      ...(isHeadful
+        ? ["--disable-blink-features=AutomationControlled"]
+        : [
+            "--disable-blink-features=AutomationControlled",
+            "--disable-dev-shm-usage",
+            "--window-size=1920,1080",
+            "--force-webrtc-ip-handling-policy=default_public_interface_only"
+          ])
     ]
   },
 
   audio: {
-    // 🟢 The exact name from your 'ffmpeg -list_devices' command
-    deviceName: "audio=CABLE Output (VB-Audio Virtual Cable)", // Virtual Cable Software
-    // deviceName: "audio=Headset Microphone (Sennheiser SC60 for Lync)",  // when connected headphone 
+    deviceName: "audio=CABLE Output (VB-Audio Virtual Cable)",
     bitrate: "128k",
     sampleRate: "16000",
     channels: "1",
@@ -40,17 +60,17 @@ module.exports = {
 
   platforms: {
     zoom: {
-      baseUrl: process.env.ZOOM_MEETING_LINK, // required
+      baseUrl: process.env.ZOOM_MEETING_LINK,
       botName: process.env.BOT_NAME,
       requiresPasscode: true,
-      joinStrategy: "webclient", // important
+      joinStrategy: "webclient",
       autoEnableCaptions: true
     },
 
     "google-meet": {
       baseUrl: process.env.GOOGLE_MEET_BASE || "https://meet.google.com/",
       botName: process.env.BOT_NAME,
-      joinStrategy: "direct-link", // use event link directly
+      joinStrategy: "direct-link",
       autoJoin: true,
       autoEnableCaptions: true
     },
@@ -88,7 +108,7 @@ module.exports = {
     media_extraction: true,
     transcription: true,
     intel_extraction: true,
-    ai_audit: true, 
+    ai_audit: true,
     summary_generation: true,
     topic_clustering: true
   },

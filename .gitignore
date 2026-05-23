@@ -2,5 +2,16 @@ node_modules/
 .env
 .venv/
 .vscode/
-logs/
-storage/
+
+# Logs
+logs/combined.log
+logs/error.log
+logs/image/*
+!logs/image/.gitkeep
+
+# Storage - ignore contents
+storage/**/*
+
+# Keep folder structure
+!storage/**/
+!storage/**/.gitkeep

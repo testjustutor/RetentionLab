@@ -299,18 +299,11 @@ project_root/
 |   |   `-- pythonBridge.js
 |   |-- __init__.py
 |   |-- audioRecorder.js
-|   |-- audioRecorderBot.js
-|   |-- botManager.js
-|   |-- browserManager.js
-|   |-- monitor.js
-|   |-- reactiveJoinFlow.js
 |   `-- socraticbot.js
+<<<<<<< HEAD
+=======
 |-- uploads
-|   `-- google-calendar-json
-|       |-- calendar-token-1.json
-|       |-- credentials_1.json
-|       |-- credentials_2.json
-|       `-- credentials_multi.json
+>>>>>>> 99413ae8d899247c6ba56f76a45298c4229a77a3
 |-- utils
 |   |-- __init__.py
 |   |-- export.js
