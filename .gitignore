@@ -2,24 +2,16 @@ node_modules/
 .env
 .venv/
 .vscode/
+
+# Logs
 logs/combined.log
 logs/error.log
-logs/image/.gitkeep
-storage/recordings/.gitkeep
-storage/transcripts/.gitkeep
-storage/cache_audio_transcripts/.gitkeep
-storage/cache_audits/.gitkeep
-storage/cache_captions_raw/.gitkeep
-storage/cache_chat_logs/.gitkeep
-storage/cache_diarization/.gitkeep
-storage/cache_embeddings/.gitkeep
-storage/cache_llm_prompts/.gitkeep
-storage/cache_screenshots/.gitkeep
-storage/cache_topic_trackers/.gitkeep
-storage/cache_voice_activity/.gitkeep
-storage/cache_voiceprints/.gitkeep
-storage/cache_wav_audio/.gitkeep
-storage/cache_whisper/.gitkeep
-storage/chrome-profiles/.gitkeep
-storage/intel/.gitkeep
-storage/summaries/.gitkeep
+logs/image/*
+!logs/image/.gitkeep
+
+# Storage - ignore contents
+storage/**/*
+
+# Keep folder structure
+!storage/**/
+!storage/**/.gitkeep
