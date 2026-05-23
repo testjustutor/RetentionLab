@@ -14,16 +14,6 @@ const db = new sqlite3.Database(dbPath);
 const initDB = () => {
     return new Promise((resolve, reject) => {
         db.serialize(() => {
-            // 1. Transcripts Table
-            db.run(`
-                CREATE TABLE IF NOT EXISTS transcripts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    meeting_session_id TEXT,
-                    speaker TEXT,
-                    text TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
 
             // 2. Meeting Sessions Table
             db.run(`
@@ -54,20 +44,6 @@ const initDB = () => {
                     status TEXT DEFAULT 'joining',
                     session_id TEXT,
                     summary TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-
-            // 4. Calendar Accounts Table
-            db.run(`
-                CREATE TABLE IF NOT EXISTS calendar_accounts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE,
-                    credentials_file TEXT NOT NULL,
-                    token_file TEXT,
-                    scopes TEXT,
-                    status TEXT DEFAULT 'active',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -121,7 +97,88 @@ const initDB = () => {
                 )
             `);
 
-            // 8. Meeting Scores Table
+            // 9. Meeting Participant Sessions Table
+            db.run(`
+                CREATE TABLE IF NOT EXISTS meeting_participant_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    meeting_id TEXT NOT NULL,
+                    session_id INTEGER NOT NULL,
+                    participant_name TEXT NOT NULL,
+                    join_sequence INTEGER NOT NULL DEFAULT 1,
+                    joined_at DATETIME NOT NULL,
+                    left_at DATETIME,
+                    session_duration_seconds INTEGER DEFAULT 0,
+                    total_meeting_duration_seconds INTEGER DEFAULT 0,
+                    participant_count_at_join INTEGER DEFAULT 0,
+                    session_status TEXT CHECK(session_status IN ('active', 'left', 'deleted')) DEFAULT 'active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    deleted_at DATETIME
+                )
+            `);
+
+            // 9a. Indexes for Meeting Participant Sessions Table
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participant_sessions_meeting_id 
+                    ON meeting_participant_sessions(meeting_id)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participant_sessions_session_id 
+                    ON meeting_participant_sessions(session_id)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participant_sessions_participant_name 
+                    ON meeting_participant_sessions(participant_name)`);
+
+            // 10. Meeting Participants Table (Attendance Tracking)
+            db.run(`
+                CREATE TABLE IF NOT EXISTS meeting_participants (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    meeting_id TEXT NOT NULL,
+                    session_id INTEGER NOT NULL,
+                    participant_name TEXT NOT NULL,
+                    first_joined_at DATETIME NOT NULL,
+                    last_left_at DATETIME,
+                    total_duration_seconds INTEGER DEFAULT 0,
+                    participant_status TEXT CHECK(participant_status IN ('joined', 'left', 'absent')) DEFAULT 'joined',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    deleted_at DATETIME,
+                    UNIQUE(meeting_id, session_id, participant_name)
+                )
+            `);
+
+            // 10a. Indexes for Meeting Participants Table
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participants_meeting_id 
+                    ON meeting_participants(meeting_id)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participants_participant_name 
+                    ON meeting_participants(participant_name)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_meeting_participants_status 
+                    ON meeting_participants(participant_status)`);
+
+            // 11. Meeting Participant Attendance Sessions Table (Rejoin Sessions)
+            db.run(`
+                CREATE TABLE IF NOT EXISTS meeting_participant_attendance_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    meeting_id TEXT NOT NULL,
+                    participant_id INTEGER NOT NULL,
+                    session_number INTEGER NOT NULL,
+                    joined_at DATETIME NOT NULL,
+                    left_at DATETIME,
+                    duration_seconds INTEGER DEFAULT 0,
+                    attendance_status TEXT CHECK(attendance_status IN ('active', 'left', 'deleted')) DEFAULT 'active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    deleted_at DATETIME,
+                    FOREIGN KEY (participant_id) REFERENCES meeting_participants(id),
+                    UNIQUE(participant_id, session_number)
+                )
+            `);
+
+            // 11a. Indexes for Meeting Participant Attendance Sessions Table
+            db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_meeting_id 
+                    ON meeting_participant_attendance_sessions(meeting_id)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_participant_id 
+                    ON meeting_participant_attendance_sessions(participant_id)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_status 
+                    ON meeting_participant_attendance_sessions(attendance_status)`);
+
+            // 12. Meeting Scores Table
             db.run(`
                 CREATE TABLE IF NOT EXISTS meeting_scores (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

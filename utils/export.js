@@ -1,14 +1,14 @@
 const fs = require('fs').promises;
 const path = require('path');
 const TranscriptModel = require('../models/transcriptModel');
-// const ParticipantModel = require('../models/participantModel'); // TODO: Create participantModel
+const ParticipantModel = require('../models/participantModel'); // TODO: Create participantModel
 const { logger } = require('./logger');
 
 async function exportToJson(meetingId, outputDir = '.') {
   try {
     const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
     const sessionId = transcripts[0]?.meeting_session_id || 0;
-    // const participantEvents = sessionId ? await ParticipantModel.getEventsBySession(sessionId) : []; // TODO: Uncomment when participantModel exists
+    const participantEvents = sessionId ? await ParticipantModel.getEventsBySession(sessionId) : []; // TODO: Uncomment when participantModel exists
 
     const filename = path.join(outputDir, `transcript-${meetingId}-${new Date().toISOString().split('T')[0]}.json`);
 

@@ -1,0 +1,470 @@
+PROJECT FULL PROCESS (NODE + PYTHON)
+Saved as: project_process_documentation.txt
+
+==============================
+1) HIGH-LEVEL OVERVIEW
+==============================
+This project is a “video meeting -> media -> transcript -> audit (OQI/rubric) -> cached results” pipeline.
+
+There are two main runtimes:
+- Node.js (Express server): manages calendar integration, meeting queue/polling, bot launching, and exposes APIs.
+- Python “engine”: does heavy processing (media conversion, Whisper transcription + simple diarization, and rubric-based audit).
+
+The Node <-> Python connection happens via a bridge script that spawns Python processes and parses their outputs.
+
+------------------------------------------------------------
+Key storage locations (under ./storage)
+- storage/recordings                         (input recordings)
+- storage/cache_wav_audio                   (converted WAV)
+- storage/cache_audio_transcripts          (stage2 transcript .txt)
+- storage/cache_diarization                (stage2 diarization JSON)
+- storage/cache_voice_activity             (stage2 talk ratio JSON)
+- storage/cache_audits                     (stage3 audit JSON)
+- storage/summaries                       (summary txt; simple placeholder summary)
+- retention_lab.db                        (SQLite rubric schema + weights)
+
+==============================
+2) NODE.JS FULL PROCESS (END-TO-END)
+==============================
+2.1 Server startup (server.js)
+File: server.js
+1) Loads environment variables: require('dotenv').config()
+2) Creates Express app + Socket.IO server
+3) Sets middleware:
+   - app.use(express.json())
+   - app.use(express.static('public'))
+4) Registers route handlers:
+   - /api/bot
+   - /api/calendar
+   - /api/meetings
+   - /api/db
+   - /api/transcripts
+   - /api/audit
+   - /api/assets
+5) Initializes database tables / sync:
+   - CalendarUsersModel.createTable()
+   - initDB()
+6) Runs an initial global calendar sync immediately on startup:
+   - backgroundSyncAllUsers()
+7) Schedules repeating background sync:
+   - setInterval(backgroundSyncAllUsers, 30 minutes)
+8) Starts polling bot launches (every 10 seconds):
+   - fetch queued meetings from MeetingModel.getQueuedMeetings()
+   - if start_time <= now and meeting_id is valid:
+       botManager.launchFromDb(meeting)
+
+Purpose:
+- Keep calendar events in sync for all authenticated users.
+- Launch “bot instances” when meetings reach their scheduled start times.
+
+2.2 Global calendar sync (backgroundSyncAllUsers in server.js)
+Workflow:
+1) users = CalendarUsersModel.getAllUsers()
+2) For each user:
+   - service = new MultiUserCalendarService(); service.initialize(user.email)
+   - events = service.getEvents({ timeMin: now, timeMax: now+24h, singleEvents: true })
+3) For each event e:
+   - link = e.hangoutLink || extractMeetingLink(e.description)
+   - platformType = detectPlatform(link)
+   - { meetingId, passcode } = extractMeetingId(link, platformType, e.description)
+   - MeetingModel.getMeetingByIdOrCreate({
+       meetingId, platform, passcode, eventId: e.id, account: user.email,
+       meetingLink: link, startTime, endTime, timezone, title
+     })
+4) After scanning events:
+   - MeetingModel.deleteRemovedMeetings(user.email, activeEventIds)
+
+Notes:
+- detectPlatform supports google-meet / zoom / teams.
+- meetingId extraction differs by platform.
+
+2.3 API: Trigger “full audit” for a meeting
+Route file: routes/audit.js
+Endpoint: POST /api/audit/process/:meetingId
+Steps:
+1) Read meetingId from params
+2) session = TranscriptModel.getSessionByMeetingId(meetingId)
+3) If no session or no session.audio_file_name:
+   return 404 Recording not found
+4) Determine videoFileName = path.basename(session.audio_file_name)
+5) bridgePath = path.join(__dirname, '../audit_bridge.py')
+6) Execute Python script via child_process.exec:
+   exec(`python3 "${bridgePath}" "${videoFileName}"`, callback)
+
+7) On python completion:
+   - output = stdout.trim()
+   - If output starts with "SUCCESS":
+       const [_, transcriptPath, auditPath] = output.split('|')
+       - Read audit JSON from auditPath
+       - Return JSON to client:
+         {
+           status: success,
+           data: {
+             meetingId,
+             oqi: reportData.oqi,
+             performance: reportData.results,
+             files: { transcript: basename(transcriptPath), report: basename(auditPath) },
+             processedAt: now
+           }
+         }
+
+Important detail:
+- routes/audit.js expects audit_bridge.py to output a pipe-separated SUCCESS format.
+- The earlier “PythonBridge” class (services/shared/pythonBridge.js) exists for multi-stage processing using spawn and JSON extraction.
+- The direct route uses routes/audit.js calling audit_bridge.py directly with exec.
+
+2.4 API: Retrieve an existing audit report
+Route file: routes/audit.js
+Endpoint: GET /api/audit/report/:meetingId
+Steps:
+1) reportPath = ../storage/audits/TRANS_${meetingId}.json
+2) If missing -> 404
+3) Otherwise read JSON and return it.
+
+(Backend note)
+- This endpoint expects a legacy/alternate audit JSON location under storage/audits.
+
+2.5 Bridge logic for Node->Python staged processing
+File: services/shared/pythonBridge.js
+This file implements a staged pipeline runner (spawn per stage) and updates MeetingAssetsModel.
+
+Core method: PythonBridge.runStage(scriptName, args)
+- scriptPath = path.join(__dirname, '../engine/', scriptName)
+- Spawns: spawn('python', ['-u', scriptPath, ...args])
+- Captures stdout/stderr
+- Resolve condition:
+   - If exit code 0 and stdout contains either:
+     - 'SUCCESS |' marker
+     - or JSON containing {"success": true}
+- Extracts payload:
+   - If SUCCESS line found: extracts text after 'SUCCESS |'
+   - Else extracts last JSON block from output
+
+Stage wrappers:
+- step1_Media(fileName) -> bridge_media.py
+- step2_Transcription(audioPath) -> bridge_pipeline.py
+- step3_Audit(transcriptText) -> bridge_audit.py
+
+Full pipeline runner: runFullAudioPipeline(fileName)
+1) meetingId extracted from filename by regex /^REC_(.+?)_Sess/
+2) wav_audio_path = step1_Media(fileName)
+3) MeetingAssetsModel.initializeAssets(meetingId, fileName, wav_audio_path)
+4) stage2Result = step2_Transcription(wav_audio_path)
+5) MeetingAssetsModel.updateAssets(meetingId, {
+     transcript_path: stage2Result.transcript_path,
+     diarization_path: stage2Result.diarization_path,
+     talk_ratio_json_path: stage2Result.talk_ratio_path,
+     status: 'Processing'
+   })
+6) transcriptText = stage2Result.transcript_text || stage2Result.transcript_path
+7) auditResult = step3_Audit(transcriptText)
+8) MeetingAssetsModel.updateAssets(meetingId, {
+     audit_json_path: auditResult.audit_json_path,
+     oqi_score: auditResult.oqi_score,
+     evidence_quote: auditResult.evidence_quote,
+     status: 'Completed'
+   })
+9) Returns a combined success object.
+
+==============================
+3) PYTHON FULL PROCESS (ENGINE)
+==============================
+Python engine lives under: services/engine/
+Main orchestration file: services/engine/engine_main.py
+But note:
+- The Node staged pipeline uses bridge_media.py + bridge_pipeline.py + bridge_audit.py.
+- engine_main.py provides a local “run everything” implementation (Media -> Pipeline -> Audit) in one go.
+
+---------------------------------
+3.1 bridge_media.py (Stage 1)
+File: services/engine/bridge_media.py
+Purpose: Convert input recording to WAV and output a path.
+Inputs:
+- sys.argv[1] = audio path / input filename
+
+Main flow:
+1) Validate args count (needs at least 1)
+2) Read hf_token from HF_TOKEN env (not heavily used in media stage)
+3) pipeline = (actually MediaService is used)
+4) Media conversion:
+   - Uses MediaService.extract_audio(recording_full_path)
+
+Media conversion function details: services/engine/media_service.py
+- Accepts only .mp3
+- Determines base_name from filename without extension
+- Renames output as:
+   - if base_name starts with "REC_": output file becomes WAV_{base_name_without_REC_}
+   - else WAV_{base_name}
+- Uses FFmpeg with:
+   - -ac 1 (mono)
+   - -ar 16000 (16k sample rate)
+   - pcm_s16le codec
+- Reuses cached wav if already exists and > 1024 bytes
+- Verifies output exists and is not tiny
+
+Output:
+- bridge_media should output JSON describing paths (from bridge_pipeline / engine_main style).
+- In the code shown, bridge_media prints status logs and writes cached audio.
+
+Potential mismatch note:
+- The staged bridge_media is shown as returning JSON in the snippet provided by read_file.
+
+---------------------------------
+3.2 bridge_pipeline.py (Stage 2)
+File: services/engine/bridge_pipeline.py
+Purpose:
+- Run Whisper transcription
+- Build a “labeled transcript” with simple speaker assignment
+- Produce talk ratio + diarization JSON
+
+Main flow:
+1) Validate args (audio_path expected)
+2) hf_token = env HF_TOKEN
+3) pipeline = PipelineService(hf_token)
+4) labeled_transcript, talk_ratio, diarization_data = pipeline.process(audio_path)
+5) Create directories:
+   - storage/cache_audio_transcripts
+   - storage/cache_diarization
+   - storage/cache_voice_activity
+6) Save files:
+   - transcript_path: TRANS_{base_name}.txt
+   - diarization_path: DIAR_{base_name}.json
+   - talk_ratio_path: RATIO_{base_name}.json
+7) Return JSON to stdout via print(json.dumps(result), flush=True)
+
+PipelineService details: services/engine/pipeline_service.py
+1) Select device:
+   - cuda if available else cpu
+2) Load Whisper:
+   - whisper.load_model("base", device=self.device)
+3) Transcribe:
+   - fp16 enabled on cuda
+   - condition_on_previous_text=False
+4) Build processed_script by iterating result["segments"]:
+   - start/end rounded to 2 decimals
+   - speaker alternates deterministically:
+     speaker = "SPEAKER_1" if seg['id'] % 2 == 0 else "SPEAKER_2"
+5) Identify “instructor” heuristically:
+   - Count characters per speaker
+   - inst_id = speaker with max char count
+6) talk_ratio:
+   - instructor = % of instructor chars over total chars
+   - learner = 100 - instructor
+7) transcript_with_labels:
+   - For each segment:
+     role = INSTRUCTOR if seg['speaker'] == inst_id else LEARNER
+     transcript_with_labels += "[ROLE]: text\n"
+
+Return:
+- transcript_with_labels (string)
+- talk_ratio (dict)
+- processed_script (diarization_data list of segment dicts)
+
+---------------------------------
+3.3 bridge_audit.py (Stage 3)
+File: services/engine/bridge_audit.py
+Purpose:
+- Take transcript text
+- Call AuditService
+- Output JSON results
+
+Main flow:
+1) Validate args: sys.argv[1] transcript_text
+2) project_root computed
+3) db_path = project_root/retention_lab.db
+4) audit_engine = AuditService(db_path)
+5) results = audit_engine.run_audit(transcript_text)
+6) Ensure dict payload and set results['success']=True
+7) print(json.dumps(results), flush=True)
+
+AuditService details: services/engine/audit_service.py
+1) get_full_rubric_from_db()
+   - Connects to SQLite db
+   - Reads rubric_categories table
+   - Reads rubric_indicators per category
+   - Builds nested rubric dict:
+     rubric[category_id] = { name, weight, indicators{indicator_id: {name,type,is_gate}} }
+
+2) run_audit(transcript_text)
+   - rubric = get_full_rubric_from_db()
+   - lower_text = transcript_text.lower()
+   - For each rubric category:
+     - possible_points = len(indicators) * 2
+     - For each indicator:
+       - score rules are based on indicator name keywords (objective/goal vs engagement/praise)
+       - transcript word presence triggers score=2 else score=1
+     - cat_percentage = earned_points/possible_points * 100
+     - domain_scores[cat_name] = cat_percentage rounded
+     - total_weighted_oqi accumulates cat_percentage * category weight
+   - final_oqi = total_weighted_oqi / total_weight_found
+   - evidence = extract_dynamic_evidence(transcript_text)
+
+3) extract_dynamic_evidence(text)
+   - Splits transcript by '.'
+   - Finds sentence containing any of [learn, objective, today, start]
+   - Returns first matching sentence + '.'
+   - else returns default “No specific evidence quote…”
+
+Return from run_audit:
+{
+  "oqi_score": final_oqi,
+  "evidence_quote": evidence,
+  "domain_scores": domain_scores,
+  "audit_details": rubric
+}
+
+==============================
+4) LOCAL “ALL-IN-ONE” PYTHON PROCESS (engine_main.py)
+==============================
+File: services/engine/engine_main.py
+Purpose:
+- Single entry point for Media -> Pipeline -> Audit without stage bridges.
+
+Steps:
+1) MeetingProcessor(input_file, ai_settings_json)
+2) Setup directories under storage:
+   - recordings, transcripts, audits, summaries, intel
+3) run_pipeline():
+   - recording_full_path = storage/recordings + input_file
+   - audio_path = MediaService.extract_audio(recording_full_path)
+   - labeled_transcript, talk_ratio, diarization_data = PipelineService.process(audio_path)
+   - transcript_path = storage/cache_audio_transcripts/TRANS_{base_id}.txt
+   - intel extraction with TextBlob sentiment + SentenceTransformer embedding
+     - sentiment saved to SENT_{base_id}.json
+     - vector saved to VEC_{base_id}.json
+   - audit_results = AuditService.run_audit(labeled_transcript)
+   - audit_json_path = storage/cache_audits/AUDIT_{base_id}.json
+   - summary_path = storage/summaries/SUMMARY_{base_id}.txt (placeholder)
+4) Returns a combined dict with paths and oqi_score
+
+==============================
+5) WHAT TO CHECK / KNOWN POTENTIAL MISMATCHES
+==============================
+1) routes/audit.js expects audit_bridge.py output like:
+   SUCCESS | transcriptPath | auditPath
+   and reads auditPath as JSON.
+
+2) services/shared/pythonBridge.js stages expect JSON from bridge_* scripts.
+
+3) engine_main.py returns a dict printed as JSON.
+
+If audit_bridge.py is different from the staged bridge scripts, output formats may differ.
+
+4) Audio input types:
+- MediaService only accepts .mp3
+- Media extraction uses ffmpeg and expects ffmpeg installed.
+
+==============================
+6) NODE -> PYTHON DATA FLOW SUMMARY
+==============================
+Trigger path (common conceptual flow):
+Node API:
+POST /api/audit/process/:meetingId
+  -> TranscriptModel.getSessionByMeetingId(meetingId)
+  -> python3 audit_bridge.py <audio_file_name>
+     -> MediaService.extract_audio (.mp3 -> .wav)
+     -> PipelineService.process (Whisper -> labeled transcript + diarization + talk_ratio)
+     -> AuditService.run_audit (rubric-based OQI + evidence)
+  -> Node returns parsed results
+
+Or staged pipeline (if using pythonBridge.js):
+Node pythonBridge.runFullAudioPipeline(fileName)
+  -> bridge_media.py
+  -> bridge_pipeline.py
+  -> bridge_audit.py
+  -> update MeetingAssetsModel with stored paths and scores
+
+==============================
+END OF DOCUMENT
+==============================
+
+## This is full Architecture of project (high-level)
+
+```text
+project_root/
+│
+├── server.js (Node/Express)
+│   ├── mounts routes/*
+│   ├── handles calendar sync & meeting queue
+│   └── triggers Python processing via bridge
+│
+├── services/
+│   └── engine/
+│
+│       ├── engine_main.py
+│       │   - legacy/simple entrypoint (PipelineContext -> PipelineRunner)
+│       │   - returns JSON to stdout for Node to parse
+│       │
+│       ├── orchestrator/
+│       │   ├── pipeline_context.py
+│       │   │   - shared runtime state + storage path generation
+│       │   │   - holds feature flags and output artifact paths
+│       │   │
+│       │   ├── task_registry.py
+│       │   │   - declares DAG tasks (media, transcription, intel, audit, summary, topics)
+│       │   │   - encodes dependencies + which tasks can run in parallel
+│       │   │
+│       │   ├── dependency_graph.py
+│       │   │   - filters tasks by feature flags
+│       │   │   - checks dependency satisfaction to compute ready tasks
+│       │   │
+│       │   ├── execution_manager.py
+│       │   │   - runs sequential tasks first, then parallel batches
+│       │   │   - uses thread pool for parallel task execution
+│       │   │   - tracks completion + failure lifecycle
+│       │   │
+│       │   ├── pipeline_runner.py
+│       │   │   - wires dependency graph + execution manager + runtime manager
+│       │   │
+│       │   ├── pipeline_bootstrap.py
+│       │   │   - validates inputs
+│       │   │   - ensures required cache/storage directories exist
+│       │   │
+│       │   └── runtime_manager.py / pipeline_runtime.py
+│       │       - runtime lifecycle hooks + exported metrics
+│       │
+│       ├── tasks/
+│       │   ├── media/ (extract+convert audio)
+│       │   ├── transcription/ (Whisper processing)
+│       │   ├── intel/ (sentiment/vectors/topics optional tasks)
+│       │   ├── audit/ (rubric scoring + evidence extraction)
+│       │   ├── summary/ (summary writer placeholder/implementation)
+│       │   └── topics/ (topic clustering placeholder/implementation)
+│       │
+│       ├── media_service/
+│       │   - lower-level utilities for:
+│       │     * validation
+│       │     * audio extraction (ffmpeg)
+│       │     * normalization
+│       │
+│       ├── live/
+│       │   - real-time captioning + diarization utilities (websocket)
+│       │
+│       ├── transcription_service/
+│       │   - whisper transcription helpers
+│       │
+│       ├── ai_audit_service/
+│       │   - rubric loading & audit scoring worker logic
+│       │
+│       ├── cache/
+│       │   - cache integrity/size/expiration managers
+│       │
+│       ├── database/
+│       │   - writers for analytics/audits/summaries/transcripts
+│       │
+│       ├── quality/
+│       │   - transcript validation + repair engines
+│       │
+│       ├── runtime/
+│       │   - GPU allocation & model pooling managers
+│       │
+│       └── shared/
+│           - common helpers used by multiple orchestrator components
+│
+└── services/shared/pythonBridge.js (Node/Python contract)
+    - spawns Python engine entrypoints
+    - parses stdout JSON blocks
+    - writes generated artifact paths into MeetingAssetsModel
+```
+
+

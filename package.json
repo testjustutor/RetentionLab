@@ -30,6 +30,7 @@
     "form-data": "^4.0.5",
     "google-auth-library": "^9.0.0",
     "googleapis": "^129.0.0",
+    "openai": "^6.38.0",
     "puppeteer": "^23.5.3",
     "puppeteer-stream": "^3.0.4",
     "socket.io": "^4.8.3",

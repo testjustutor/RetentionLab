@@ -142,7 +142,7 @@ class GoogleMeetAdapter {
       // Start transcript monitoring
       this.monitorTranscript();
 
-      monitorMeeting(this.page, this.config.meetingId).catch(err => {
+      monitorMeeting(this.page, this.config.meetingId, this.config.botName, this.sessionId).catch(err => {
         logger.error("GoogleMeetAdapter(GoogleMeetAdapter): Monitor loop crashed:", err);
       });
 
