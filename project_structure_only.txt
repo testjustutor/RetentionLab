@@ -300,6 +300,10 @@ project_root/
 |   |-- __init__.py
 |   |-- audioRecorder.js
 |   `-- socraticbot.js
+<<<<<<< HEAD
+=======
+|-- uploads
+>>>>>>> 99413ae8d899247c6ba56f76a45298c4229a77a3
 |-- utils
 |   |-- __init__.py
 |   |-- export.js
