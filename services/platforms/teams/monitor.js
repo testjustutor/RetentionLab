@@ -1,6 +1,7 @@
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');
+const ParticipantTracker = require('./participantTracker');
 
 let keepAliveInterval = null;
 
@@ -14,8 +15,99 @@ async function startKeepAlive(page) {
   }, 2000);
 }
 
-async function monitorMeeting(page, meetingId) {
+async function getCurrentParticipantNames(page, botName) {
+  try {
+    const names = await page.evaluate((bot) => {
+      const participants = [];
+      const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+      const botName = normalize(bot).toLowerCase();
+
+      const addName = (value) => {
+        let cleanName = normalize(value)
+          .replace(/\b(organizer|presenter|attendee|muted|unmuted|camera off|more options|you)\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        cleanName = cleanName.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+
+        if (
+          cleanName &&
+          cleanName.length < 120 &&
+          cleanName.toLowerCase() !== botName &&
+          !participants.includes(cleanName)
+        ) {
+          participants.push(cleanName);
+        }
+      };
+
+      const peopleButton = Array.from(document.querySelectorAll('button, [role="button"]'))
+        .find(button => {
+          const text = [
+            button.getAttribute('aria-label'),
+            button.getAttribute('title'),
+            button.innerText
+          ].filter(Boolean).join(' ').toLowerCase();
+
+          return text.includes('people') ||
+            text.includes('participants') ||
+            text.includes('show participants');
+        });
+
+      if (peopleButton) {
+        peopleButton.click();
+      }
+
+      const selectors = [
+        '[data-tid*="participant"]',
+        '[data-tid*="roster"]',
+        '[id*="participant"]',
+        '[class*="participant"]',
+        '[class*="roster"]',
+        '[aria-label*="participant"]',
+        '[aria-label*="attendee"]',
+        '[data-tid="calling-participant-stream"]',
+        '[data-tid="video-stream"]'
+      ];
+
+      for (const selector of selectors) {
+        document.querySelectorAll(selector).forEach(node => {
+          const label = node.getAttribute('aria-label') ||
+            node.getAttribute('title') ||
+            node.innerText ||
+            node.textContent;
+
+          if (!label) return;
+
+          const lines = normalize(label).split(/\n|,/).map(part => part.trim()).filter(Boolean);
+          if (lines.length > 1) {
+            lines.forEach(addName);
+          } else {
+            addName(label);
+          }
+        });
+
+        if (participants.length > 0) {
+          return participants;
+        }
+      }
+
+      return participants;
+    }, botName);
+
+    return names;
+  } catch (err) {
+    logger.debug(`TeamsAdapter: Error extracting participant names: ${err.message}`);
+    return [];
+  }
+}
+
+async function monitorMeeting(page, meetingId, botName, sessionId) {
   logger.info('TeamsAdapter: MONITOR: Stay-Alive loop started');
+
+  const participantTracker = new ParticipantTracker(meetingId, sessionId);
+  let previousParticipants = [];
+  let lastParticipantCheckTime = Date.now();
+  const PARTICIPANT_CHECK_INTERVAL = 5000;
 
   let loopCount = 0;
 
@@ -69,6 +161,30 @@ async function monitorMeeting(page, meetingId) {
 
       if (waitingRoom) {
         logger.info("TeamsAdapter: Lobby detected");
+      }
+
+      const now = Date.now();
+      if (now - lastParticipantCheckTime >= PARTICIPANT_CHECK_INTERVAL) {
+        try {
+          const currentParticipants = await getCurrentParticipantNames(page, botName);
+
+          for (const name of currentParticipants) {
+            if (!previousParticipants.includes(name)) {
+              await participantTracker.handleParticipantJoin(name);
+            }
+          }
+
+          for (const name of previousParticipants) {
+            if (!currentParticipants.includes(name)) {
+              await participantTracker.handleParticipantLeave(name);
+            }
+          }
+
+          previousParticipants = [...currentParticipants];
+          lastParticipantCheckTime = now;
+        } catch (err) {
+          logger.debug(`TeamsAdapter: Error in attendance tracking: ${err.message}`);
+        }
       }
 
       // 5. Participant count (best effort)

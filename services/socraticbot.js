@@ -39,12 +39,12 @@ const { logger } = require('../utils/logger');
 
 class SocraticBot {
   constructor(config = {}) {
-    this.meetingUrl = config.meetingUrl || process.env.ZOOM_MEETING_LINK;
+    this.meetingUrl = config.meetingUrl;
     this.botName = config.botName;
     this.passcode = config.passcode || process.env.ZOOM_PASSCODE || '';
-    this.sessionId = config.sessionId || 0;
-    this.platform = config.platform || 'zoom';
-    this.meetingId = config.meetingId || null;
+    this.sessionId = config.sessionId;
+    this.platform = config.platform;
+    this.meetingId = config.meetingId;
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
     this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
@@ -120,7 +120,8 @@ class SocraticBot {
         return new TeamsJoiner(
           this.browserManager.page,
           this.botName,
-          this.meetingUrl
+          this.meetingUrl,
+          this.passcode
         );
 
       default:
@@ -165,6 +166,15 @@ class SocraticBot {
 
         this.captionMonitor.startPolling();
 
+        const participantTracker = new ZoomParticipantTracker(
+          this.meetingId,
+          this.sessionId
+        );
+
+        if (joiner.setParticipantTracker) {
+          joiner.setParticipantTracker(participantTracker);
+        }
+
         const active = await joiner.checkCaptionsEnabled();
 
         if (!active && joiner.sendChatRequest) {
@@ -174,6 +184,20 @@ class SocraticBot {
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
         }
+
+        ZoomMonitor.monitorMeeting(
+          this.browserManager.page,
+          this.meetingId,
+          this.botName,
+          this.sessionId
+        )
+          .then(() => this.stop())
+          .catch(err =>
+            logger.error(
+              'ZoomAdapter(monitor): Monitor loop crashed:',
+              err
+            )
+          );
         break;
       }
 
@@ -200,6 +224,8 @@ class SocraticBot {
           this.sessionId
         );
 
+        // Inject dependencies using setters for proper state initialization
+        joiner.setCaptionMonitor(this.captionMonitor);
         joiner.setParticipantTracker(participantTracker);
 
         if (joiner.startTranscriptMonitor) {
@@ -308,24 +334,15 @@ class SocraticBot {
 
 
               if (auditResults) {
-                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi_score}`);
-              }              
-              
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
+              }
             }
           }
-        } else {
-          logger.warn(`DefaultAdapter(SocraticBot): Audio file not available, skipping transcription: ${finalAudioPath}`);
         }
       } catch (err) {
-        logger.error('DefaultAdapter(SocraticBot): Transcription/Matching failed during shutdown', err);
+        logger.error('DefaultAdapter(SocraticBot): Final transcription/audit failed', err);
       }
     }
-
-    if (this.browserManager) {
-      await this.browserManager.close();
-    }
-
-    logger.info('DefaultAdapter(SocraticBot): SocraticBot stopped.');
   }
 }
 

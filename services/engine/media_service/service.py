@@ -62,7 +62,7 @@ class MediaService:
             self.context.storage_paths[
                 "wav_audio"
             ],
-            f"NORM_{self.context.base_id}.wav"
+            f"WAV_{self.context.base_id}.wav"
         )
 
         normalized_audio = (

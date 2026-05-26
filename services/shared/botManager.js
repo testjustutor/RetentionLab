@@ -71,6 +71,12 @@ class BotManager {
       const platform = meetingRecord.platform;
       const passcode = meetingRecord.passcode || '';
 
+      const existing = this.instances.get(meetingId);
+      if (existing && ['running', 'joining', 'starting', 'launching', 'live'].includes(existing.status)) {
+        logger.info(`BotManager: Skipping queued launch for ${meetingId}; bot already ${existing.status}.`);
+        return { success: true, meetingId, status: existing.status, skipped: true };
+      }
+
       logger.info(`🚀 Launching queued ${meetingId}`);
 
       // Update DB status
@@ -258,7 +264,7 @@ class BotManager {
       // Check already running
       if (this.instances.has(meetingId)) {
         const instance = this.instances.get(meetingId);
-        if (instance.status === 'running' || instance.status === 'joining' || instance.status === 'starting') {
+        if (['running', 'joining', 'starting', 'launching', 'live'].includes(instance.status)) {
           return { success: false, error: `Bot already ${instance.status} for ${meetingId}` };
         }
       }
@@ -293,7 +299,7 @@ class BotManager {
         bot,
         status: 'starting',
         startedAt: Date.now(),
-        config: { meetingId, passcode: !!passcode, webhookUrl: !!webhookUrl },
+        config: { meetingId, platform, passcode: !!passcode, webhookUrl: !!webhookUrl },
         sessionId: session.id,
         type: 'immediate' // Mark as immediate (no DB record)
       });

@@ -189,11 +189,6 @@ class PipelineContext:
                 "cache_screenshots"
             ),
 
-            "transcripts": os.path.join(
-                storage_base,
-                "cache_audio_transcripts"
-            ),
-
             "cache_audio_transcripts": os.path.join(
                 storage_base,
                 "cache_audio_transcripts"

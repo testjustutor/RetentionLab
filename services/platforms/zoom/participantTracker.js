@@ -26,7 +26,7 @@ class ParticipantTracker {
         // If was previously left, handle as rejoin
         if (tracked.status === 'left') {
           logger.info(
-            `GoogleMeetAdapter(participantTracker): Participant rejoining - ${participantName}`
+            `ZoomAdapter(participantTracker): Participant rejoining - ${participantName}`
           );
 
           // Create rejoin session
@@ -55,7 +55,7 @@ class ParticipantTracker {
         } else {
           // Already joined, no action needed
           logger.debug(
-            `GoogleMeetAdapter(participantTracker): Participant already joined - ${participantName}`
+            `ZoomAdapter(participantTracker): Participant already joined - ${participantName}`
           );
           return {
             success: true,
@@ -68,7 +68,7 @@ class ParticipantTracker {
 
       // First join - create participant record
       logger.info(
-        `GoogleMeetAdapter(participantTracker): Participant first join - ${participantName}`
+        `ZoomAdapter(participantTracker): Participant first join - ${participantName}`
       );
 
       const joinResult = await ParticipantModel.recordParticipantJoin(
@@ -83,7 +83,7 @@ class ParticipantTracker {
         id: joinResult.id,
         status: 'joined',
         joinTime,
-        currentSessionId: null,
+        currentSessionId: this.sessionId,
         sessions: [
           {
             type: 'initial',
@@ -100,7 +100,7 @@ class ParticipantTracker {
       };
     } catch (err) {
       logger.error(
-        `GoogleMeetAdapter(participantTracker): Error handling participant join - ${participantName}:`,
+        `ZoomAdapter(participantTracker): Error handling participant join - ${participantName}:`,
         err
       );
       return {
@@ -118,22 +118,69 @@ class ParticipantTracker {
    */
   async handleParticipantLeave(participantName, leaveTime = new Date()) {
     try {
-      if (!this.trackedParticipants.has(participantName)) {
+
+      if (!participantName || typeof participantName !== 'string') {
         logger.warn(
-          `GoogleMeetAdapter(participantTracker): Participant not tracked, cannot record leave - ${participantName}`
+          `ZoomAdapter(participantTracker): Invalid leave event (missing name)`
         );
+
         return {
           success: false,
-          participantName,
-          message: 'Participant not tracked'
+          participantName: 'UNKNOWN_PARTICIPANT',
+          message: 'Invalid participant name'
         };
       }
 
-      const tracked = this.trackedParticipants.get(participantName);
+      participantName = participantName.trim();
+
+      let tracked = this.trackedParticipants.get(participantName);
+
+      // AUTO-RECOVERY: participant exists but was never recorded via join
+      if (!tracked) {
+        logger.warn(
+          `ZoomAdapter(participantTracker): Missing join state, auto-creating participant record - ${participantName}`
+        );
+
+        try {
+          const joinTime = new Date(Date.now() - 60000);
+
+          const joinResult = await ParticipantModel.recordParticipantJoin(
+            this.meetingId,
+            this.sessionId,
+            participantName,
+            joinTime
+          );
+
+          tracked = {
+            id: joinResult.id,
+            status: 'joined',
+            joinTime,
+            currentSessionId: this.sessionId,
+            sessions: [
+              {
+                type: 'auto-recovered',
+                joinTime: joinTime 
+              }
+            ]
+          };
+
+          this.trackedParticipants.set(participantName, tracked);
+        } catch (err) {
+          logger.error(
+            `ZoomAdapter(participantTracker): Auto-recovery failed - ${participantName}`,
+            err
+          );
+          return {
+            success: false,
+            participantName,
+            message: 'Auto recovery failed'
+          };
+        }
+      }
 
       if (tracked.status !== 'joined') {
         logger.debug(
-          `GoogleMeetAdapter(participantTracker): Participant already left - ${participantName}`
+          `ZoomAdapter(participantTracker): Participant already left - ${participantName}`
         );
         return {
           success: true,
@@ -148,7 +195,7 @@ class ParticipantTracker {
       const isRejoin = lastSession?.type === 'rejoin';
 
       logger.info(
-        `GoogleMeetAdapter(participantTracker): Participant leaving - ${participantName} (rejoin: ${isRejoin})`
+        `ZoomAdapter(participantTracker): Participant leaving - ${participantName} (rejoin: ${isRejoin})`
       );
 
       let leaveResult;
@@ -183,7 +230,7 @@ class ParticipantTracker {
       };
     } catch (err) {
       logger.error(
-        `GoogleMeetAdapter(participantTracker): Error handling participant leave - ${participantName}:`,
+        `ZoomAdapter(participantTracker): Error handling participant leave - ${participantName}:`,
         err
       );
       return {
@@ -250,7 +297,7 @@ class ParticipantTracker {
   reset() {
     this.trackedParticipants.clear();
     logger.info(
-      `GoogleMeetAdapter(participantTracker): Tracker reset for meeting ${this.meetingId}`
+      `ZoomAdapter(participantTracker): Tracker reset for meeting ${this.meetingId}`
     );
   }
 }

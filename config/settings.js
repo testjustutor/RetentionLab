@@ -1,47 +1,78 @@
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 
-// 👉 choose mode from env
-const BROWSER_MODE = process.env.BROWSER_MODE || "headless";
+function getActivePlatform() {
+  const envPlatform =
+    process.env.PLATFORM ||
+    process.env.BOT_PLATFORM ||
+    process.env.MEETING_PLATFORM ||
+    process.env.npm_config_platform;
 
-const isHeadful = BROWSER_MODE === "headful";
+  if (envPlatform) {
+    return envPlatform;
+  }
+
+  try {
+    const botManager = require('../services/shared/botManager');
+
+    for (const instance of botManager.instances?.values?.() || []) {
+      const platform = instance?.bot?.platform || instance?.config?.platform;
+      if (platform) {
+        return platform;
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+function isGoogleMeetPlatform() {
+  const platform = String(getActivePlatform() || '').toLowerCase();
+  return platform === 'google-meet' || platform === 'google meet';
+}
 
 module.exports = {
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
 
     // 🔥 dynamic mode switch
-    headless: isHeadful ? false : "new",
+    get headless() {
+      return isGoogleMeetPlatform() ? false : false;
+    },
 
     defaultViewport: null,
     protocolTimeout: 60000,
 
     // 🔥 IMPORTANT: isolate profile per mode
-    userDataDir: isHeadful
-      ? process.env.CHROME_PROFILE_PATH || "./chrome-profile"
-      : "./tmp-profile",
+    get userDataDir() {
+      return isGoogleMeetPlatform()
+        ? process.env.CHROME_PROFILE_PATH || "./chrome-profile"
+        : "./tmp-profile";
+    },
 
-    args: [
-      "--start-maximized",
-      "--use-fake-ui-for-media-stream",
-      "--disable-notifications",
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
+    get args() {
+      return [
+        "--start-maximized",
+        "--use-fake-ui-for-media-stream",
+        "--disable-notifications",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
 
-      "--autoplay-policy=no-user-gesture-required",
-      "--enable-features=WebRtcAudioProcessing",
-      "--disable-features=WebRtcHideLocalSimulcastSignalingTarget",
+        "--autoplay-policy=no-user-gesture-required",
+        "--enable-features=WebRtcAudioProcessing",
+        "--disable-features=WebRtcHideLocalSimulcastSignalingTarget",
 
       // 🔥 only for headful stability
-      ...(isHeadful
-        ? ["--disable-blink-features=AutomationControlled"]
-        : [
-            "--disable-blink-features=AutomationControlled",
-            "--disable-dev-shm-usage",
-            "--window-size=1920,1080",
-            "--force-webrtc-ip-handling-policy=default_public_interface_only"
-          ])
-    ]
+        ...(isGoogleMeetPlatform()
+          ? ["--disable-blink-features=AutomationControlled"]
+          : [
+              "--disable-blink-features=AutomationControlled",
+              "--disable-dev-shm-usage",
+              "--window-size=1920,1080",
+              "--force-webrtc-ip-handling-policy=default_public_interface_only"
+            ])
+      ];
+    }
   },
 
   audio: {

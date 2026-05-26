@@ -15,7 +15,8 @@ function extractMeetingLink(text = '') {
   if (!matches) return null;
 
   for (let url of matches) {
-    url = url.replace(/[>\])]+$/, '');
+    // ✅ Strip trailing quotes, parentheses, and brackets that corrupt the URL
+    url = url.replace(/[>\])"']+$/, '');
 
     if (
       url.includes('zoom.us') ||
@@ -78,12 +79,16 @@ function extractMeetingId(link, platform, description = '') {
   if (platform === 'teams') {
     if (!link) return { meetingId: null, passcode: null };
 
+    let passcode = null;
+    const passMatch = description.match(/(?:Passcode|Password)[:\s]*([\w]+)/i) || link.match(/[?&](?:passcode|pwd|p)=([^&]+)/i);
+    if (passMatch) passcode = passMatch[1];
+
     // ✅ Teams ORG (teams.microsoft.com)
     const orgMatch = link.match(/meetup-join\/([^/?]+)/);
     if (orgMatch) {
       return {
-        meetingId: orgMatch[1].substring(0, 40),
-        passcode: null
+        meetingId: decodeURIComponent(orgMatch[1]),
+        passcode
       };
     }
 
@@ -92,13 +97,13 @@ function extractMeetingId(link, platform, description = '') {
     if (liveMatch) {
       return {
         meetingId: liveMatch[1],
-        passcode: null
+        passcode
       };
     }
 
     return {
       meetingId: 'teams-' + Date.now(),
-      passcode: null
+      passcode
     };
   }
 

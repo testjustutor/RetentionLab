@@ -96,10 +96,10 @@ class TranscriptBuilder:
         transcript_path = os.path.join(
 
             self.context.storage_paths[
-                "transcripts"
+                "cache_audio_transcripts"
             ],
 
-            f"{self.context.base_id}.txt"
+            f"AUDIO_TRANS_{self.context.base_id}.txt"
         )
 
         FileStore.save_text(

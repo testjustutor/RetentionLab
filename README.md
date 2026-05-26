@@ -109,26 +109,36 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
 
 🎉 Ready for any meeting!
 
-deactivate
-Remove-Item -Recurse -Force .venv
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
+## To install npm 
+
+    npm install -g npm
+
+
+## To vertal environment of pythone new
+
+    deactivate
+    Remove-Item -Recurse -Force .venv
+    python -m venv .venv
+    .venv\Scripts\activate
+    python -m pip install --upgrade pip
 
 ## To test is my python engine code correct
-python -c "import services.engine.engine_main as m; print('import_ok')"
-python -c "import importlib; importlib.import_module('services.engine.engine_main'); print('import_ok')"
+
+    python -c "import services.engine.engine_main as m; print('import_ok')"
+    python -c "import importlib; importlib.import_module('services.engine.engine_main'); print('import_ok')"
 
 ## To test pyannote
-python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
+    python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
 
 # To test node file code is correct
     node --check services\platforms\google-meet\meetJoiner.js
 
 ## To test dummy audio file
-Remove-Item .test-engine.lock -Force
-node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
+    Remove-Item .test-engine.lock -Force
+    node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
 
 
 ## FFMPEG
 ffmpeg -hide_banner -devices
+
+

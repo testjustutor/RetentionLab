@@ -29,6 +29,8 @@ function extractMeetingLink(description) {
   const matches = description.match(urlPattern);
   if (matches) {
     for (let url of matches) {
+      // ✅ Strip trailing quotes, parentheses, and brackets that corrupt the URL
+      url = url.replace(/[>\])"']+$/, '');
       if (url.includes('zoom.us') || url.includes('meet.google.com') || url.includes('teams.microsoft.com') || url.includes('teams.live.com')) {
         return url;
       }
@@ -89,12 +91,17 @@ function extractMeetingId(link, platform, description = '') {
   if (platform === 'teams') {
     if (!link) return { meetingId: null, passcode: null };
 
+    let passcode = null;
+    const passMatch = description.match(/(?:Passcode|Password)[:\s]*([\w]+)/i) || link.match(/[?&](?:passcode|pwd|p)=([^&]+)/i);
+    if (passMatch) passcode = passMatch[1];
+
     // ✅ Teams ORG (teams.microsoft.com)
     const orgMatch = link.match(/meetup-join\/([^/?]+)/);
     if (orgMatch) {
       return {
-        meetingId: orgMatch[1].substring(0, 40),
-        passcode: null
+        // ✅ Fix: Don't truncate Teams IDs; they can be over 100+ characters long
+        meetingId: decodeURIComponent(orgMatch[1]),
+        passcode
       };
     }
 
@@ -103,14 +110,14 @@ function extractMeetingId(link, platform, description = '') {
     if (liveMatch) {
       return {
         meetingId: liveMatch[1],
-        passcode: null
+        passcode
       };
     }
 
     // ❌ Only fallback if nothing matches
     return {
       meetingId: 'teams-' + Date.now(),
-      passcode: null
+      passcode
     };
   }
 
@@ -325,7 +332,21 @@ setInterval(async () => {
       const startTime = new Date(meeting.start_time);
       const now = new Date();
       
-      if (startTime <= now) {
+      // Dynamically calculate the minutes until this specific meeting starts
+      const timeDiffMs = startTime.getTime() - now.getTime();
+      const minutesUntilStart = timeDiffMs / (1000 * 60);
+
+      // If the meeting started more than 5 minutes ago, it has timed out - do NOT auto launch
+      if (minutesUntilStart < -5) {
+        logger.warn(`(ServerJS File): Skipping meeting ${meeting.meeting_id}: Time out (missed by ${Math.abs(Math.round(minutesUntilStart))} mins).`);
+        if (typeof MeetingModel.updateMeetingStatus === 'function') {
+            await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'expired');
+        }
+        continue;
+      }
+
+      // Launch exactly 1 minute before the dynamic start time
+      if (minutesUntilStart <= 1) {
         // ✅ FIX: Check for the ID before launching
         if (!meeting.meeting_id || meeting.meeting_id === 'null') {
           logger.warn(`(ServerJS File): Skipping meeting ${meeting.meeting_id}: No valid meeting_id found in DB.`);
