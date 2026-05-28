@@ -8,9 +8,9 @@ const MeetingModel = require('../models/MeetingModel');
 const PlatformFactory = require('../services/platforms/platformFactory');
 
 // ---------------------- HELPERS ----------------------
-function extractMeetingLink(text = '') {
+function extractMeetingLink(text = '', location = '') {
   if (!text) return null;
-
+  location
   const matches = text.match(/https?:\/\/[^\s<>\]]+/g);
   if (!matches) return null;
 
@@ -33,23 +33,27 @@ function extractMeetingLink(text = '') {
   return null;
 }
 
-function detectPlatform(link = '') {
-  if (!link) return 'unknown';
+function detectPlatform(link = '', location = '') {
+  if (!link && !location) return 'unknown';
 
-  link = link.toLowerCase();
+  if (location) {
+    const lowerLoc = location.toLowerCase().trim();
+    if (lowerLoc === 'zoom' || lowerLoc.includes('zoom.us')) return 'zoom';
+    if (lowerLoc.includes('google meet') || lowerLoc.includes('meet.google')) return 'google-meet';
+    if (lowerLoc.includes('teams')) return 'teams';
+  }
 
-  if (link.includes('meet.google.com')) return 'google-meet';
-  if (link.includes('zoom.us')) return 'zoom';
-
-  if (
-    link.includes('teams.microsoft.com') ||
-    link.includes('teams.live.com')
-  ) return 'teams';
+  if (link) {
+    const lowerLink = link.toLowerCase();
+    if (lowerLink.includes('meet.google.com')) return 'google-meet';
+    if (lowerLink.includes('zoom.us')) return 'zoom';
+    if (lowerLink.includes('teams.microsoft.com') || lowerLink.includes('teams.live.com')) return 'teams';
+  }
 
   return 'unknown';
 }
 
-function extractMeetingId(link, platform, description = '') {
+function extractMeetingId(link, platform, description = '', location = '') {
   let meetingId = null;
   let passcode = null;
 
@@ -67,7 +71,7 @@ function extractMeetingId(link, platform, description = '') {
         meetingId = idMatch[1].replace(/\s/g, '');
       }
 
-      const passMatch = description.match(/Passcode[:\s]*([\w]+)/i);
+      const passMatch = description.match(/(?:Passcode|Password)[:\s]*([\w]+)/i)
       if (passMatch) {
         passcode = passMatch[1];
       }
@@ -109,14 +113,20 @@ function extractMeetingId(link, platform, description = '') {
 
   // -------- Google Meet --------
   if (platform === 'google-meet') {
-    if (!link) return { meetingId: null, passcode: null };
+   
+    const meetUrl = location ? location : link;
+
+    if (!meetUrl) {
+      return { meetingId: null, passcode: null };
+    }
 
     try {
-      const url = new URL(link);
+      const url = new URL(meetUrl);
       const meetingId = url.pathname.replace('/', '');
+
       return {
         meetingId: meetingId || null,
-        passcode: null
+        passcode: null 
       };
     } catch {
       return { meetingId: null, passcode: null };
@@ -270,28 +280,48 @@ router.post('/multi/events', async (req, res) => {
     }
 
     const filtered = events.filter(e => {
-      const link = e.hangoutLink || extractMeetingLink(e.description);
-      const detected = detectPlatform(link);
+      const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
+      const detected = detectPlatform(link, e.location);
       return platform ? detected === platform : true;
     });
     
     // --- START OF STORAGE LOGIC ---
     for (const e of filtered) {
-      const link = e.hangoutLink || extractMeetingLink(e.description);
-      const platformType = detectPlatform(link);
-      const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '');
 
-      await MeetingModel.getMeetingByIdOrCreate({
-        meetingId: meetingId,
-        platform: platformType,
-        eventId: e.id,
-        account: email,
-        meetingLink: link,
-        startTime: e.start.dateTime || e.start.date,
-        endTime: e.end.dateTime || e.end.date,
-        timezone: e.start.timezone,
-        title: e.summary || 'Untitled Meeting'
-      });
+      logger.info('(Route(calendar): e.location -', e.location);
+
+      // logger.info(`(Route(calendar): description - ${e.description} `);
+
+      const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
+      logger.info(`(Route(calendar): link - ${link} `);
+      
+      const platformType = detectPlatform(link, e.location);
+
+      // logger.info(`(Route(calendar): platformType - ${platformType} `);
+
+      if (platformType && platformType !== 'unknown') {
+        
+        const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '', e.location || '');
+
+        // logger.info(`(Route(calendar): Platform - ${platformType} meetingId - ${meetingId} and passcode - ${passcode} `);
+        
+        if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
+              
+          await MeetingModel.getMeetingByIdOrCreate({
+            meetingId: meetingId,
+            platform: platformType,
+            eventId: e.id,
+            passcode:passcode,
+            account: email,
+            meetingLink: link,
+            startTime: e.start.dateTime || e.start.date,
+            endTime: e.end.dateTime || e.end.date,
+            timezone: e.start.timezone,
+            title: e.summary || 'Untitled Meeting'
+          });
+        }
+      }
+
     }
 
     res.json({
@@ -299,14 +329,10 @@ router.post('/multi/events', async (req, res) => {
       count: filtered.length,
       eventsAll:events,
       events: filtered.map(e => {
-        const link = e.hangoutLink || extractMeetingLink(e.description);
-        const platformType = detectPlatform(link);
+        const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
+        const platformType = detectPlatform(link, e.location || '');
 
-        const { meetingId, passcode } = extractMeetingId(
-          link,
-          platformType,
-          e.description || ''
-        );
+        const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '', e.location || '');
 
         return {
           id: e.id,
@@ -322,7 +348,7 @@ router.post('/multi/events', async (req, res) => {
       })
     });
   } catch (err) {
-    logger.error('Route(calendar): ',err);
+    // logger.error('Route(calendar): ',err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });

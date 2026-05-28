@@ -129,7 +129,7 @@ async function enableCaptions(target) {
       logger.info(`ZoomAdapter(reactiveJoinFlow): LOG: Captions menu item clicked (${clickedLabel})`);
     } else {
       logger.warn('ZoomAdapter(reactiveJoinFlow): WARNING: Could not find any captions/live-transcript item.');
-    }
+       }
 
     await new Promise(r => setTimeout(r, 1500));
     const transcriptOpened = await target.evaluate(() => {

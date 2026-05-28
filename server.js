@@ -25,13 +25,16 @@ app.use(express.static('public'));
 // -------------------------------------------------------------------------
 function extractMeetingLink(description) {
   if (!description) return null;
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  const urlPattern = /https?:\/\/[^\s<>\]]+/g;
   const matches = description.match(urlPattern);
   if (matches) {
     for (let url of matches) {
-      // ✅ Strip trailing quotes, parentheses, and brackets that corrupt the URL
       url = url.replace(/[>\])"']+$/, '');
-      if (url.includes('zoom.us') || url.includes('meet.google.com') || url.includes('teams.microsoft.com') || url.includes('teams.live.com')) {
+      if (url.includes('zoom.us') || 
+          url.includes('meet.google.com') || 
+          url.includes('teams.microsoft.com') || 
+          url.includes('teams.live.com')
+        ) {
         return url;
       }
     }
@@ -39,18 +42,23 @@ function extractMeetingLink(description) {
   return null;
 }
 
-function detectPlatform(link = '') {
-  if (!link) return 'unknown';
+function detectPlatform(link = '', location = '') {
+  if (!link && !location) return 'unknown';
 
-  link = link.toLowerCase();
+  if (link) {
+    const lowerLink = link.toLowerCase();
+    if (lowerLink.includes('meet.google.com')) return 'google-meet';
+    if (lowerLink.includes('zoom.us')) return 'zoom';
+    if (lowerLink.includes('teams.microsoft.com') || lowerLink.includes('teams.live.com')) return 'teams';
+  }
 
-  if (link.includes('meet.google.com')) return 'google-meet';
-  if (link.includes('zoom.us')) return 'zoom';
-
-  if (
-    link.includes('teams.microsoft.com') ||
-    link.includes('teams.live.com')
-  ) return 'teams';
+  // 2. Secondary check: Fall back to raw text inside the Location input box
+  if (location) {
+    const lowerLoc = location.toLowerCase().trim();
+    if (lowerLoc === 'zoom' || lowerLoc.includes('zoom.us')) return 'zoom';
+    if (lowerLoc.includes('google meet') || lowerLoc.includes('meet.google')) return 'google-meet';
+    if (lowerLoc.includes('teams')) return 'teams';
+  }
 
   return 'unknown';
 }
@@ -167,28 +175,41 @@ async function backgroundSyncAllUsers() {
 
         for (const e of events) {
           activeEventIds.push(e.id);
+          
+          logger.info(`(ServerJS File): e.id - ${e.id} `);
+          
           const link = e.hangoutLink || extractMeetingLink(e.description);
           if (link) {
-            const platformType = detectPlatform(link);
-            const { meetingId, passcode } = extractMeetingId(link, platformType, e.description);
             
-            logger.info(`(ServerJS File): meetingId : ${meetingId} and passcode : ${passcode} `);
-            // Store & Match logic
-            await MeetingModel.getMeetingByIdOrCreate({
-              meetingId: meetingId || e.id,
-              platform: platformType,
-              passcode: passcode,
-              eventId: e.id,
-              account: user.email,
-              meetingLink: link,
-              startTime: e.start.dateTime || e.start.date,
-              endTime: e.end.dateTime || e.end.date,
-              timezone: e.start.timezone || e.start.timeZone,
-              title: e.summary || 'Untitled Meeting'
-            });
+            const platformType = detectPlatform(link, e.location || '');
+
+            if (platformType && platformType !== 'unknown') {
+
+              const { meetingId, passcode } = extractMeetingId(link, platformType, e.description);
+              
+              logger.info(`(ServerJS File): Platform - ${platformType} meetingId - ${meetingId} and passcode - ${passcode} `);
+              
+              if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
+                // Store & Match logic
+                await MeetingModel.getMeetingByIdOrCreate({
+                  meetingId: meetingId,
+                  platform: platformType,
+                  passcode: passcode,
+                  eventId: e.id,
+                  account: user.email,
+                  meetingLink: link,
+                  startTime: e.start.dateTime || e.start.date,
+                  endTime: e.end.dateTime || e.end.date,
+                  timezone: e.start.timezone || e.start.timeZone,
+                  title: e.summary || 'Untitled Meeting'
+                });
+              }else{
+                logger.warn(`(ServerJS File): Skipping DB store. Invalid meetingId gathered: "${meetingId}"`);
+              }
+            }
           }
         }
-        await MeetingModel.deleteRemovedMeetings(user.email, activeEventIds);
+        // await MeetingModel.deleteRemovedMeetings(user.email, activeEventIds);
         logger.info(`(ServerJS File): Sync complete for ${user.email}. Cleanup performed.`);
       } catch (userErr) {
         logger.error(`(ServerJS File): Failed to sync for ${user.email}: ${userErr.message}`);
@@ -292,25 +313,6 @@ app.use('/api/transcripts', require('./routes/transcripts'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/assets', require('./routes/assets'));
 
-
-// app.get('/api/transcripts/:meetingId', async (req, res) => {
-//   try {
-//     const transcripts = await TranscriptModel.getTranscriptsByMeeting(req.params.meetingId);
-//     res.json({
-//       meetingId: req.params.meetingId,
-//       count: transcripts.length,
-//       transcripts: transcripts.map(t => ({
-//         speaker: t.speaker,
-//         text: t.text,
-//         time: t.timestamp
-//       }))
-//     });
-//   } catch (err) {
-//     logger.error('(ServerJS File): API error:', err);
-//     res.status(500).json({ error: err.message });
-//   }
-// });
-
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 
 const httpServer = http.createServer(app);
@@ -323,44 +325,53 @@ const io = new Server(httpServer, {
 // -------------------------------------------------------------------------
 setInterval(async () => {
   try {
-    const queued = await MeetingModel.getQueuedMeetings();
-    if (queued.length > 0) {
-        logger.info(`(ServerJS File): Polling found ${queued.length} queued meetings`);
-    }
-    
-    for (const meeting of queued) {
-      const startTime = new Date(meeting.start_time);
-      const now = new Date();
-      
-      // Dynamically calculate the minutes until this specific meeting starts
-      const timeDiffMs = startTime.getTime() - now.getTime();
-      const minutesUntilStart = timeDiffMs / (1000 * 60);
+    // ✅ Only fetch meetings that haven't been touched yet
+    const queued = await MeetingModel.getQueuedMeetings(['queued']);
 
-      // If the meeting started more than 5 minutes ago, it has timed out - do NOT auto launch
+    if (queued.length > 0) {
+      logger.info(`(ServerJS): Polling found ${queued.length} queued meetings`);
+    }
+
+    for (const meeting of queued) {
+      const minutesUntilStart =
+        (new Date(meeting.start_time).getTime() - Date.now()) / 60000;
+
+      // ✅ Timed out — mark expired and skip
       if (minutesUntilStart < -5) {
-        logger.warn(`(ServerJS File): Skipping meeting ${meeting.meeting_id}: Time out (missed by ${Math.abs(Math.round(minutesUntilStart))} mins).`);
-        if (typeof MeetingModel.updateMeetingStatus === 'function') {
-            await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'expired');
-        }
+        logger.warn(
+          `(ServerJS): Skipping ${meeting.meeting_id}: timed out by ${Math.abs(Math.round(minutesUntilStart))} mins`
+        );
+        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'expired');
         continue;
       }
 
-      // Launch exactly 1 minute before the dynamic start time
-      if (minutesUntilStart <= 1) {
-        // ✅ FIX: Check for the ID before launching
-        if (!meeting.meeting_id || meeting.meeting_id === 'null') {
-          logger.warn(`(ServerJS File): Skipping meeting ${meeting.meeting_id}: No valid meeting_id found in DB.`);
-          
-          continue; 
-        }
+      // ✅ Wider 1–3 min window gives more polling cycles to catch it
+      if (minutesUntilStart > 3 || minutesUntilStart < 1) continue;
 
+      // ✅ Validate ID
+      if (!meeting.meeting_id || meeting.meeting_id === 'null') {
+        logger.warn(`(ServerJS): Skipping: no valid meeting_id`);
+        continue;
+      }
+
+      // ✅ Mark 'launching' BEFORE calling launchFromDb — prevents double-launch
+      //    on the next poll cycle (getQueuedMeetings won't return this meeting again)
+      await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'launching');
+
+      try {
         await botManager.launchFromDb(meeting);
+        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'in_progress');
+        logger.info(`(ServerJS): Launched meeting ${meeting.meeting_id}`);
+      } catch (launchErr) {
+        logger.error(`(ServerJS): Launch failed for ${meeting.meeting_id}:`, launchErr);
+        // ✅ Roll back so it can be retried, or set 'failed' to stop retrying
+        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'failed');
       }
     }
   } catch (err) {
-    logger.error('(ServerJS File): Polling error:', err);
+    logger.error('(ServerJS): Polling error:', err);
   }
-}, 10000);
+}, 30000); // ✅ 30s is enough — meetings don't change second-by-second
 
 // -------------------------------------------------------------------------
 // SERVER STARTUP WITH INITIAL GLOBAL SYNC

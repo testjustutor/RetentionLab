@@ -57,10 +57,13 @@ module.exports = {
         "--disable-notifications",
         "--no-sandbox",
         "--disable-setuid-sandbox",
+        "--disable-permissions-api",
+        "--disable-features=TranslateUI",
 
         "--autoplay-policy=no-user-gesture-required",
         "--enable-features=WebRtcAudioProcessing",
         "--disable-features=WebRtcHideLocalSimulcastSignalingTarget",
+        "--protocol-handler-policy=block-external-protocol-dialogs",
 
       // 🔥 only for headful stability
         ...(isGoogleMeetPlatform()

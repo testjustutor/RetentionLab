@@ -1,7 +1,7 @@
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');
-const ParticipantTracker = require('./participantTracker');
+const path = require('path');
 
 let keepAliveInterval = null;
 
@@ -15,71 +15,8 @@ async function startKeepAlive(page) {
   }, 2000);
 }
 
-async function getCurrentParticipantNames(frame, botName) {
-  try {
-    const names = await frame.evaluate((bot) => {
-      const participants = [];
-      const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
-      const addName = (value) => {
-        const cleanName = normalize(value)
-          .replace(/\b(host|co-host|me|muted|unmuted|video off|more)\b/gi, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        if (
-          cleanName &&
-          cleanName.length < 120 &&
-          cleanName.toLowerCase() !== normalize(bot).toLowerCase() &&
-          !participants.includes(cleanName)
-        ) {
-          participants.push(cleanName);
-        }
-      };
-
-      const selectors = [
-        '.participants-item__display-name',
-        '.participants-item__name-section',
-        '.participants-item-position',
-        '.participant-item__display-name',
-        '.participant-name',
-        '.username',
-        '.display_name',
-        '[class*="participant"] [class*="name"]',
-        '[aria-label*="participant"]'
-      ];
-
-      for (const selector of selectors) {
-        document.querySelectorAll(selector).forEach(node => {
-          const label = node.getAttribute('aria-label') ||
-            node.getAttribute('title') ||
-            node.innerText ||
-            node.textContent;
-
-          addName(label);
-        });
-
-        if (participants.length > 0) {
-          return participants;
-        }
-      }
-
-      return participants;
-    }, botName);
-
-    return names;
-  } catch (err) {
-    logger.debug(`ZoomAdapter(monitor): Error extracting participant names: ${err.message}`);
-    return [];
-  }
-}
-
-async function monitorMeeting(page, meetingId, botName, sessionId) {
+async function monitorMeeting(page, meetingId) {
   logger.info('ZoomAdapter(monitor): MONITOR: Stay-Alive loop started');
-
-  const participantTracker = new ParticipantTracker(meetingId, sessionId);
-  let previousParticipants = [];
-  let lastParticipantCheckTime = Date.now();
-  const PARTICIPANT_CHECK_INTERVAL = 5000;
 
   let loopCount = 0;
   const endPhrases = [
@@ -138,30 +75,6 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
         const nodes = document.querySelectorAll('[class*="participant"],[class*="Participant"],[class*="username"],.username,.display_name');
         return nodes.length;
       });
-
-      const now = Date.now();
-      if (now - lastParticipantCheckTime >= PARTICIPANT_CHECK_INTERVAL) {
-        try {
-          const currentParticipants = await getCurrentParticipantNames(frame, botName);
-
-          for (const name of currentParticipants) {
-            if (!previousParticipants.includes(name)) {
-              await participantTracker.handleParticipantJoin(name);
-            }
-          }
-
-          for (const name of previousParticipants) {
-            if (!currentParticipants.includes(name)) {
-              await participantTracker.handleParticipantLeave(name);
-            }
-          }
-
-          previousParticipants = [...currentParticipants];
-          lastParticipantCheckTime = now;
-        } catch (err) {
-          logger.debug(`ZoomAdapter(monitor): Error in attendance tracking: ${err.message}`);
-        }
-      }
 
       if (participantCount === 1) {
         logger.info("ZoomAdapter(monitor): EXIT: Only bot left (1 total) → Exporting");
