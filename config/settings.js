@@ -11,7 +11,7 @@ module.exports = {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
 
     // 🔥 dynamic mode switch
-    headless: isHeadful ? false : "new",
+    headless: isHeadful ? false : false,
 
     defaultViewport: null,
     protocolTimeout: 60000,
