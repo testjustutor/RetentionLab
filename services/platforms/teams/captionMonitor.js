@@ -141,89 +141,31 @@ class CaptionMonitor {
     }
   }
 
-  async getZoomTranscript(frame) {
-    return await frame.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('.lt-full-transcript__item'));
+  async getTeamsTranscript() {
+    return await this.page.evaluate(() => {
+      // 1. Target the specific chat message container identified in your HTML
+      const rows = Array.from(document.querySelectorAll('.fui-ChatMessageCompact'));
+      
       if (rows.length === 0) return { count: 0, data: [] };
 
       return {
         count: rows.length,
         data: rows.map(row => {
-          const nameEl = row.querySelector('.lt-full-transcript__display-name');
-          const msgEl = row.querySelector('.lt-full-transcript__message');
-          const timeEl = row.querySelector('.lt-full-transcript__time');
-
-          let name = "";
-          if (nameEl) {
-            name = nameEl.querySelector('b') ? nameEl.querySelector('b').innerText.trim() : nameEl.innerText.trim();
-          }
-
-          let text = msgEl ? msgEl.innerText.trim() : "";
-          let time = timeEl ? timeEl.innerText.trim() : "";
+          // 2. Extract Author/Speaker Name
+          const nameEl = row.querySelector('[data-tid="author"]');
+          // 3. Extract Message Content
+          const msgEl = row.querySelector('[data-tid="closed-caption-text"]');
+          
+          // 4. Fallbacks for safety
+          const name = nameEl ? nameEl.innerText.trim() : "Unknown";
+          const text = msgEl ? msgEl.innerText.trim() : "";
+          
+          // Teams doesn't provide explicit timestamps per row in this structure,
+          // so we generate one at the time of scraping.
+          const time = new Date().toLocaleTimeString();
 
           return { name, text, time };
         }).filter(item => item.text.length > 0)
-      };
-    });
-  }
-
-  async getMeetTranscript() {
-    return await this.page.evaluate(() => {
-      const selectors = [
-        '[aria-live="polite"]',
-        '[jsname="dsyhDe"]',
-        '[jsname="tgaKEf"]',
-        '[class*="caption"]'
-      ];
-
-      let data = [];
-
-      selectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(el => {
-          if (!el || !el.innerText) return;
-
-          const lines = el.innerText.split('\n').map(line => line.trim()).filter(Boolean);
-          lines.forEach(line => {
-            data.push({
-              name: 'Participant',
-              text: line,
-              time: new Date().toLocaleTimeString()
-            });
-          });
-        });
-      });
-
-      return {
-        count: data.length,
-        data
-      };
-    });
-  }
-
-  async getTeamsTranscript() {
-    return await this.page.evaluate(() => {
-      const blocks = document.querySelectorAll('[aria-live="polite"]');
-
-      let data = [];
-
-      blocks.forEach(block => {
-        const lines = block.innerText.split('\n');
-
-        lines.forEach(line => {
-          if (!line.trim()) return;
-
-          data.push({
-            name: 'Participant', // Meet doesn’t always expose speaker cleanly
-            text: line.trim(),
-            time: new Date().toLocaleTimeString()
-          });
-        });
-      });
-
-      return {
-        count: data.length,
-        data
       };
     });
   }
@@ -264,16 +206,6 @@ class CaptionMonitor {
           logger.error(`TeamsAdapter(captionMonitor): File Append Error: ${fileErr.message}`);
         }
 
-        // try {
-        //   await TranscriptModel.createTranscript(
-        //     this.sessionId,
-        //     cleanName,
-        //     cleanText,
-        //     new Date().toISOString()
-        //   );
-        // } catch (dbErr) {
-        //   logger.error(`TeamsAdapter(captionMonitor): Database Save Error: ${dbErr.message}`);
-        // }
       }
     }
   }
