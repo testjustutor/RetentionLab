@@ -1,7 +1,7 @@
 const { logger } = require('../../../../utils/logger');
 
 module.exports = async function joinMeeting() {
-  logger.info('ZoomAdapter(zoomJoiner): STAGE 1: Navigating to Zoom (Deep Scan Flow)...');
+  logger.info('ZoomJoiner(joinMeeting): STAGE 1: Navigating to Zoom (Deep Scan Flow)...');
   await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
 
   let joined = false;
@@ -12,7 +12,7 @@ module.exports = async function joinMeeting() {
     attempts++;
     const allFrames = this.page.frames();
 
-    logger.info(`ZoomAdapter(zoomJoiner): --- Join Attempt ${attempts}/${MAX_ATTEMPTS} | Detected ${allFrames.length} frames ---`);
+    logger.info(`ZoomJoiner(joinMeeting): --- Join Attempt ${attempts}/${MAX_ATTEMPTS} | Detected ${allFrames.length} frames ---`);
 
     for (let i = 0; i < allFrames.length; i++) {
       const frame = allFrames[i];
@@ -47,16 +47,16 @@ module.exports = async function joinMeeting() {
           };
         }, this.botName, this.passcode);
 
-        logger.info(`ZoomAdapter(zoomJoiner):  Frame[${i}] URL: ${url.substring(0, 50)}...`);
-        logger.info(`ZoomAdapter(zoomJoiner):   - Content Snippet: "${analysis.bodySnippet}..."`);
+        logger.info(`ZoomJoiner(joinMeeting):  Frame[${i}] URL: ${url.substring(0, 50)}...`);
+        logger.info(`ZoomJoiner(joinMeeting):   - Content Snippet: "${analysis.bodySnippet}..."`);
 
         if (analysis.foundCookieBtn) {
-          logger.info(`ZoomAdapter(zoomJoiner):  - [ACTION] Clicking Cookie Banner`);
+          logger.info(`ZoomJoiner(joinMeeting):  - [ACTION] Clicking Cookie Banner`);
           await frame.click('#onetrust-accept-btn-handler, .optanon-allow-all').catch(() => {});
         }
 
         if (analysis.foundLaunchLink) {
-          logger.info(`ZoomAdapter(zoomJoiner): - [ACTION] Forcing "Join from Your Browser" flow`);
+          logger.info(`ZoomJoiner(joinMeeting): - [ACTION] Forcing "Join from Your Browser" flow`);
 
           await frame.evaluate(async () => {
             const launchBtn = Array.from(document.querySelectorAll('button, a'))
@@ -79,7 +79,7 @@ module.exports = async function joinMeeting() {
             waitUntil: 'networkidle2',
             timeout: 8000
           }).catch(() => {
-            logger.info("ZoomAdapter(zoomJoiner):  (Navigation timeout - might already be on the next page)");
+            logger.info("ZoomJoiner(joinMeeting):  (Navigation timeout - might already be on the next page)");
           });
 
           break;
@@ -91,7 +91,7 @@ module.exports = async function joinMeeting() {
         if (analysis.foundNameInput && !analysis.hasLeave) {
           
           // STEP 1: Wait for media controls to load
-          logger.info(`ZoomAdapter(zoomJoiner): - Waiting for Pre-Join Media controls to render...`);
+          logger.info(`ZoomJoiner(joinMeeting): - Waiting for Pre-Join Media controls to render...`);
           try {
             await frame.waitForFunction(() => {
               const textOf = (el) => `${el.innerText || ''} ${el.getAttribute('aria-label') || ''}`.trim();
@@ -102,17 +102,17 @@ module.exports = async function joinMeeting() {
               return hasMediaControls;
             }, { timeout: 6000 });
           } catch (err) {
-            logger.warn(`ZoomAdapter(zoomJoiner): - Media controls did not render in time. Proceeding anyway.`);
+            logger.warn(`ZoomJoiner(joinMeeting): - Media controls did not render in time. Proceeding anyway.`);
           }
 
           // STEP 2: Mute Media
           const mediaStateResult = await this.preparePreJoinMedia(frame);
-          logger.info(`ZoomAdapter(zoomJoiner): - Pre-join media state: ${JSON.stringify(mediaStateResult)}`);
+          logger.info(`ZoomJoiner(joinMeeting): - Pre-join media state: ${JSON.stringify(mediaStateResult)}`);
 
           await new Promise(r => setTimeout(r, 1000));
 
           // STEP 3: Enter Name (and Passcode)
-          logger.info(`ZoomAdapter(zoomJoiner): - [ACTION] Filling Name`);
+          logger.info(`ZoomJoiner(joinMeeting): - [ACTION] Filling Name`);
           await frame.type(
             'input#input-for-name, input[placeholder*="name"]',
             this.botName
@@ -123,7 +123,7 @@ module.exports = async function joinMeeting() {
           }
 
           // STEP 4: Click Join
-          logger.info(`ZoomAdapter(zoomJoiner): - [ACTION] Clicking Join Button`);
+          logger.info(`ZoomJoiner(joinMeeting): - [ACTION] Clicking Join Button`);
           await frame.evaluate(() => {
             const btn = Array.from(document.querySelectorAll('button'))
               .find(b => /Join/i.test(b.innerText) || b.classList.contains('zm-btn--primary'));
@@ -136,24 +136,24 @@ module.exports = async function joinMeeting() {
         if (analysis.hasLeave) {
           const muteState = await this.ensureMicMuted(frame);
           
-          logger.info(`ZoomAdapter(zoomJoiner): - In-meeting mic state: ${JSON.stringify(muteState)}`);
+          logger.info(`ZoomJoiner(joinMeeting): - In-meeting mic state: ${JSON.stringify(muteState)}`);
           
           joined = true;
           
-          logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Leave button detected!');
+          logger.info('ZoomJoiner(joinMeeting): SUCCESS: Leave button detected!');
           
           break;
 
         } else if (analysis.isWaitingRoom) {
-          logger.info('ZoomAdapter(zoomJoiner): STATUS: In Waiting Room / Lobby. Waiting for host...');
+          logger.info('ZoomJoiner(joinMeeting): STATUS: In Waiting Room / Lobby. Waiting for host...');
         }
 
       } catch (e) {
 
         if (e.message.includes('Execution context was destroyed')) {
-          logger.info(`ZoomAdapter(zoomJoiner): - Frame[${i}] context reset (normal during navigation).`);
+          logger.info(`ZoomJoiner(joinMeeting): - Frame[${i}] context reset (normal during navigation).`);
         } else {
-          logger.info(`ZoomAdapter(zoomJoiner): - Frame[${i}] eval locked/failed: ${e.message}`);
+          logger.info(`ZoomJoiner(joinMeeting): - Frame[${i}] eval locked/failed: ${e.message}`);
         }
 
       }
@@ -167,7 +167,7 @@ module.exports = async function joinMeeting() {
   if (!joined) {
     await this.page.screenshot({ path: './logs/image/stuck_debug.png' });
 
-    logger.error('ZoomAdapter(zoomJoiner): FAILED: Saved stuck_debug.png. Check the logs above to see which frame had the buttons.');
+    logger.error('ZoomJoiner(joinMeeting): FAILED: Saved stuck_debug.png. Check the logs above to see which frame had the buttons.');
 
     throw new Error('Zoom join failed');
   }

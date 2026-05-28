@@ -6,10 +6,10 @@ class PopupHandler {
   }
 
   async handleHostPermissionPopup(frame) {
-    logger.info('ZoomAdapter(zoomJoiner): [START] handleHostPermissionPopup: Checking for Zoom modals...');
+    logger.info('ZoomJoiner(popupHandler): [START] handleHostPermissionPopup: Checking for Zoom modals...');
 
     try {
-      logger.info('ZoomAdapter(zoomJoiner): test phase 1: Entering Retry Loop');
+      logger.info('ZoomJoiner(popupHandler): test phase 1: Entering Retry Loop');
 
       let result = { status: 'not_found' };
 
@@ -56,18 +56,18 @@ class PopupHandler {
         await new Promise(res => setTimeout(res, 500));
       }
 
-      logger.info(`ZoomAdapter(zoomJoiner): test phase 17: Result received`);
+      logger.info(`ZoomJoiner(popupHandler): test phase 17: Result received`);
 
       if (result.status === 'success') {
-        logger.info(`ZoomAdapter(zoomJoiner): [DETECTED] Found target modal: ${result.type}`);
-        logger.info(`ZoomAdapter(zoomJoiner): [ACTION] Clicked "${result.btn}" button successfully.`);
+        logger.info(`ZoomJoiner(popupHandler): [DETECTED] Found target modal: ${result.type}`);
+        logger.info(`ZoomJoiner(popupHandler): [ACTION] Clicked "${result.btn}" button successfully.`);
       } else {
-        logger.info('ZoomAdapter(zoomJoiner): [SKIP] No active Caption/Permission modals found after 5s retry.');
+        logger.info('ZoomJoiner(popupHandler): [SKIP] No active Caption/Permission modals found after 5s retry.');
 
         // --- FAILSAFE ---
         // If the modal is visible but we can't "find" the button via text,
         // hitting "Enter" usually triggers the primary blue button (Save).
-        logger.info('ZoomAdapter(zoomJoiner): [FAILSAFE] Pressing Enter/Escape keys to clear potential stuck modal...');
+        logger.info('ZoomJoiner(popupHandler): [FAILSAFE] Pressing Enter/Escape keys to clear potential stuck modal...');
 
         if (this.page.keyboard) {
           await this.page.keyboard.press('Enter').catch(() => {});
@@ -81,10 +81,10 @@ class PopupHandler {
       }
 
     } catch (err) {
-      logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in handleHostPermissionPopup: ' + err.message);
+      logger.error('ZoomJoiner(popupHandler): EXCEPTION in handleHostPermissionPopup: ' + err.message);
     }
 
-    logger.info('ZoomAdapter(zoomJoiner): [FINISH] handleHostPermissionPopup: Check complete.');
+    logger.info('ZoomJoiner(popupHandler): [FINISH] handleHostPermissionPopup: Check complete.');
   }
 }
 

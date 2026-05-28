@@ -32,8 +32,8 @@ class CaptionsManager {
       }, regexPattern);
 
       if (matchText) {
-        logger.info(`ZoomAdapter(zoomJoiner): [TAB HUNT] FOUND Match! Focused on: "${matchText}"`);
-        logger.info(`ZoomAdapter(zoomJoiner): [TAB HUNT] Pressing 'Enter' on target...`);
+        logger.info(`ZoomJoiner(captionsManager): [TAB HUNT] FOUND Match! Focused on: "${matchText}"`);
+        logger.info(`ZoomJoiner(captionsManager): [TAB HUNT] Pressing 'Enter' on target...`);
         
         await this.page.keyboard.press('Enter'); // Activate the button
         await new Promise(r => setTimeout(r, 1000)); // Wait for dropdown/popup to open
@@ -41,12 +41,12 @@ class CaptionsManager {
       }
     }
     
-    logger.warn(`ZoomAdapter(zoomJoiner): [TAB HUNT] FAILED to find /${regexPattern}/ after ${maxTabs} tabs.`);
+    logger.warn(`ZoomJoiner(captionsManager): [TAB HUNT] FAILED to find /${regexPattern}/ after ${maxTabs} tabs.`);
     return false;
   }
 
   async checkCaptionsEnabled() {
-    logger.info('ZoomAdapter(zoomJoiner): CHECK: Verifying Captions via KEYBOARD TAB NAVIGATION...');
+    logger.info('ZoomJoiner(captionsManager): CHECK: Verifying Captions via KEYBOARD TAB NAVIGATION...');
     const frame = await this.getZoomFrame();
 
     try {
@@ -62,14 +62,14 @@ class CaptionsManager {
       });
 
       if (isAlreadyEnabled) {
-        logger.info('ZoomAdapter(zoomJoiner): STATUS: Captions are already fully enabled.');
+        logger.info('ZoomJoiner(captionsManager): STATUS: Captions are already fully enabled.');
         return true;
       }
 
       // ==========================================
       // STRATEGY: TAB THROUGH THE MAIN TOOLBAR
       // ==========================================
-      logger.info('ZoomAdapter(zoomJoiner): Tabbing through main toolbar looking for Captions or More...');
+      logger.info('ZoomJoiner(captionsManager): Tabbing through main toolbar looking for Captions or More...');
       
       let foundDirectCaption = false;
       let foundMore = false;
@@ -91,12 +91,12 @@ class CaptionsManager {
         });
 
         if (detectedType === 'CAPTION') {
-          logger.info(`ZoomAdapter(zoomJoiner): [TAB HUNT] Found direct 'Captions' button. Pressing Enter.`);
+          logger.info(`ZoomJoiner(captionsManager): [TAB HUNT] Found direct 'Captions' button. Pressing Enter.`);
           await this.page.keyboard.press('Enter');
           foundDirectCaption = true;
           break; // Stop tabbing
         } else if (detectedType === 'MORE') {
-          logger.info(`ZoomAdapter(zoomJoiner): [TAB HUNT] Found 'More' button. Pressing Enter.`);
+          logger.info(`ZoomJoiner(captionsManager): [TAB HUNT] Found 'More' button. Pressing Enter.`);
           await this.page.keyboard.press('Enter');
           foundMore = true;
           break; // Stop tabbing
@@ -109,27 +109,27 @@ class CaptionsManager {
       // DRILL DOWN INTO OPENED MENUS
       // ==========================================
       if (foundDirectCaption) {
-        logger.info('ZoomAdapter(zoomJoiner): Direct popup opened. Hunting for "Show Captions"...');
+        logger.info('ZoomJoiner(captionsManager): Direct popup opened. Hunting for "Show Captions"...');
         
         // Tab through the popup to find "Show Caption"
         const clickedShow = await this.tabHunter(frame, 'show caption|enable caption', 10);
         if (clickedShow) return true;
 
       } else if (foundMore) {
-        logger.info('ZoomAdapter(zoomJoiner): More dropdown opened. Hunting for "Captions" menu item...');
+        logger.info('ZoomJoiner(captionsManager): More dropdown opened. Hunting for "Captions" menu item...');
         
         // Tab through the More dropdown to find "Captions"
         const clickedMenuCap = await this.tabHunter(frame, 'captions|live transcript', 15);
         
         if (clickedMenuCap) {
-          logger.info('ZoomAdapter(zoomJoiner): Captions secondary popup opened. Hunting for "Show Captions"...');
+          logger.info('ZoomJoiner(captionsManager): Captions secondary popup opened. Hunting for "Show Captions"...');
           
           // Tab through the secondary popup to find "Show Captions"
           const clickedShow = await this.tabHunter(frame, 'show caption|enable caption', 10);
           
           // If "Show Captions" wasn't there, hunt for "Full Transcript" as fallback
           if (!clickedShow) {
-             logger.info('ZoomAdapter(zoomJoiner): "Show Captions" missing. Hunting for "Full Transcript"...');
+             logger.info('ZoomJoiner(captionsManager): "Show Captions" missing. Hunting for "Full Transcript"...');
              await this.tabHunter(frame, 'full transcript|view transcript', 5);
           }
           return true;
@@ -139,20 +139,20 @@ class CaptionsManager {
       return false; // If we reach here, host disabled captions
 
     } catch (e) {
-      logger.error('ZoomAdapter(zoomJoiner): Tab Navigation Error: ' + e.message);
+      logger.error('ZoomJoiner(captionsManager): Tab Navigation Error: ' + e.message);
       return false;
     }
   }
 
   async sendChatRequest(botName) {
-    logger.info('ZoomAdapter(zoomJoiner): JT MODE: Sending chat request for captions...');
+    logger.info('ZoomJoiner(captionsManager): JT MODE: Sending chat request for captions...');
     const frame = await this.getZoomFrame();
 
     try {
       await frame.click('body').catch(() => {});
       
       if (this.page && this.page.keyboard) {
-        logger.info('ZoomAdapter(zoomJoiner): Firing Alt+H to open Chat panel...');
+        logger.info('ZoomJoiner(captionsManager): Firing Alt+H to open Chat panel...');
         await this.page.keyboard.down('Alt');
         await this.page.keyboard.press('h');
         await this.page.keyboard.up('Alt');
@@ -169,9 +169,9 @@ class CaptionsManager {
         }
       }, botName);
       
-      logger.info('ZoomAdapter(zoomJoiner): Chat request sent successfully.');
+      logger.info('ZoomJoiner(captionsManager): Chat request sent successfully.');
     } catch (e) {
-      logger.error('ZoomAdapter(zoomJoiner): Chat Request Error: ' + e.message);
+      logger.error('ZoomJoiner(captionsManager): Chat Request Error: ' + e.message);
     }
   }
 }

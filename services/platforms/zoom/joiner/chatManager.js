@@ -4,7 +4,7 @@ const { logger } = require('../../../../utils/logger');
 
 module.exports = async function sendChatRequest() {
 
-  logger.info('ZoomAdapter(zoomJoiner): JT MODE: Sending chat request for captions...');
+  logger.info('ZoomJoiner(chatManager): JT MODE: Sending chat request for captions...');
 
   const frame = await this.getZoomFrame();
 
@@ -53,7 +53,7 @@ module.exports = async function sendChatRequest() {
   } catch (e) {
 
     logger.error(
-      'ZoomAdapter(zoomJoiner): Chat Request Error: ' + e.message
+      'ZoomJoiner(chatManager): Chat Request Error: ' + e.message
     );
   }
 };

@@ -1,4 +1,6 @@
 const { logger } = require('../../../../utils/logger');
+const path = require('path');
+const { format } = require('date-fns');
 
 const handlePreJoinScreen = require('./preJoinMedia');
 
@@ -22,6 +24,7 @@ class MeetJoiner {
     this.page = page;
     this.botName = botName;
     this.meetingUrl = meetingUrl;
+    this.filePath = this.generateTranscriptFilePath();
 
     // external services
     this.captionMonitor = null;
@@ -64,11 +67,21 @@ class MeetJoiner {
     await this.enableCaptionsIfPossible();
 
     await this.startTranscriptMonitor({
+      page: this.page,
       captionMonitor: this.captionMonitor,
       participantTracker: this.participantTracker,
-      handleCaptionEvent
+      handleCaptionEvent,
+      filePath: this.filePath,
     });
 
+  }
+
+  generateTranscriptFilePath() {
+    const url = new URL(this.meetingUrl);
+    const meetingId = url.pathname.split('/').pop();
+    const date = format(new Date(), 'yyyy-MM-dd');
+    const filename = `transcript-${meetingId}-${date}.txt`;
+    return path.join(__dirname, '../../../../../../storage/transcripts', filename);
   }
 }
 

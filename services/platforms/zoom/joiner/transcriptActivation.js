@@ -16,12 +16,18 @@ class TranscriptActivation {
   async verifySidebarVisibility(frame) {
     for (let i = 0; i < 6; i++) {
       const isVisible = await frame.evaluate(() => {
-        const header = Array.from(document.querySelectorAll('h1, h2, span, div')).find(el => el.innerText && el.innerText.trim() === "Transcript" && el.offsetWidth > 0);
-        const container = document.querySelector('[class*="transcript"], [id*="transcript"], .zm-sidebar-pane');
-        return !!(container || header);
+        // Look for the element that holds the live text, not the container
+        const transcriptList = document.querySelector('[aria-label*="Transcription List"], [role="application"]');
+        
+        // Look for any element that contains "Transcript" text without hardcoding classes
+        const hasTranscriptText = Array.from(document.querySelectorAll('*'))
+          .find(el => el.innerText && el.innerText.trim() === "Transcript" && el.offsetParent !== null);
+        
+        return !!(transcriptList && hasTranscriptText);
       });
+      
       if (isVisible) return true;
-      await this.delay(500);
+      await this.delay(1500);
     }
     return await this.findTranscriptInAnyFrame();
   }
@@ -30,10 +36,20 @@ class TranscriptActivation {
     const frames = this.page.frames();
     for (const candidate of frames) {
       const found = await candidate.evaluate(() => {
-        const selectors = ['.transcript-item-area', '.zm-transcript-viewer', '.zm-sidebar-pane', '[aria-label*="Transcript"]'];
+        // Use role and aria-label which are more stable than CSS classes
+        const selectors = [
+          '[aria-label*="Transcription List"]', 
+          '[role="application"]',
+          '#wc-container-right',
+          '#full-transcription'
+        ];
+        
+        // Check if any of our robust selectors exist
         if (selectors.some(sel => document.querySelector(sel))) return true;
         
-        return !!Array.from(document.querySelectorAll('span, div, h1, h2, p, li')).find(el => el.innerText && /Transcript|Caption|Live Transcript/i.test(el.innerText) && el.offsetParent !== null);
+        // Fallback: Check for the text header within the found frame
+        return !!Array.from(document.querySelectorAll('.lt-header__title, .window-header-title'))
+                      .find(el => el.innerText.trim() === "Transcript" && el.offsetParent !== null);
       }).catch(() => false);
       
       if (found) return true;
@@ -46,13 +62,13 @@ class TranscriptActivation {
   // ==========================================
 
   async stepWakeUI(frame) {
-    logger.info('ZoomAdapter(reactiveJoinFlow): Action - Waking up UI');
+    logger.info('ZoomJoiner(transcriptActivation): Action - Waking up UI');
     await frame.evaluate(() => document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true })));
     await this.delay(800);
   }
 
   async stepClickMore(frame, phase) {
-    logger.info(`ZoomAdapter(reactiveJoinFlow): Action - Clicking "More" (${phase})`);
+    logger.info(`ZoomJoiner(transcriptActivation): Action - Clicking "More" (${phase})`);
     const clicked = await frame.evaluate(() => {
       const selectors = [
         '#moreButton button',
@@ -71,13 +87,13 @@ class TranscriptActivation {
       return false;
     });
 
-    if (!clicked) logger.warn(`ZoomAdapter(reactiveJoinFlow): WARNING: "More" button not found (${phase})`);
+    if (!clicked) logger.warn(`ZoomJoiner(transcriptActivation): WARNING: "More" button not found (${phase})`);
     await this.delay(1200);
     return clicked;
   }
 
   async helperClickDropdown(frame, regexStr, ariaSelectors, stepName) {
-    logger.info(`ZoomAdapter(reactiveJoinFlow): ACTION: Clicking "${stepName}"`);
+    logger.info(`ZoomJoiner(transcriptActivation): ACTION: Clicking "${stepName}"`);
 
     const clicked = await frame.evaluate((regex, ariaSel) => {
       const matcher = new RegExp(regex, 'i');
@@ -141,9 +157,9 @@ class TranscriptActivation {
     }, regexStr, ariaSelectors);
 
     if (!clicked) {
-      logger.warn(`ZoomAdapter(reactiveJoinFlow): WARNING: Failed to find target for ${stepName}`);
+      logger.warn(`ZoomJoiner(transcriptActivation): WARNING: Failed to find target for ${stepName}`);
     } else {
-      logger.info(`ZoomAdapter(reactiveJoinFlow): SUCCESS: Clicked "${clicked}"`);
+      logger.info(`ZoomJoiner(transcriptActivation): SUCCESS: Clicked "${clicked}"`);
     }
 
     await this.delay(1200);
@@ -169,7 +185,7 @@ class TranscriptActivation {
     const success = await this.helperClickDropdown(
       frame, 
       'view full transcript|show full transcript|full transcript', 
-      ['[aria-label*="Full Transcript"]'], 
+      ['[aria-label*="Transcript"]'], 
       "View Full Transcript"
     );
     await this.delay(300);
@@ -181,69 +197,63 @@ class TranscriptActivation {
   // ==========================================
 
   async executeNavigationSequence(frame) {
-    logger.info('ZoomAdapter(reactiveJoinFlow): PROCESS: Executing Modular 8-Step Caption/Transcript Flow...');
+    logger.info('ZoomJoiner(transcriptActivation): PROCESS: Executing Optimized 2-Phase Flow...');
 
     try {
+      // Helper to reset UI state
+      const resetUI = async () => {
+        if (this.page.keyboard) {
+          await this.page.keyboard.press('Escape').catch(() => {});
+          await this.delay(500);
+        }
+      };
+
       // ------------------------------------
-      // PHASE 1: TURN ON CAPTIONS
+      // PHASE 1: ATTEMPT BASIC ACTIVATION
       // ------------------------------------
       await this.stepWakeUI(frame);
-
-      const moreFound1 = await this.stepClickMore(frame, "Phase 1");
-      if (!moreFound1) return { status: "FAIL" };
-
-      const folderFound1 = await this.stepClickCaptionsFolder(frame, "Phase 1");
-      if (folderFound1) {
-        await this.stepClickShowCaptions(frame);
-      }
-
-
-      logger.info('ZoomAdapter(reactiveJoinFlow): Checking for intercepting Language Modal before starting Phase 2...');
-      await this.handleHostPermissionPopup(frame);
       
-      // Force close any dropdowns that might have accidentally stayed open
-      if (this.page.keyboard) {
-        await this.page.keyboard.press('Escape').catch(() => {});
+      // Check state before clicking
+      if (!(await this.verifySidebarVisibility(frame))) {
+        const moreFound1 = await this.stepClickMore(frame, "Phase 1");
+        if (moreFound1) {
+          const folderFound1 = await this.stepClickCaptionsFolder(frame, "Phase 1");
+          if (folderFound1) {
+            await this.stepClickShowCaptions(frame);
+            await this.handleHostPermissionPopup(frame);
+          }
+        }
       }
-      await this.delay(500);
+
+      await resetUI();
 
       // ------------------------------------
-      // PHASE 2: CHECK SIDEBAR & FORCE FULL TRANSCRIPT
+      // PHASE 2: STRICT VERIFICATION & FULL TRANSCRIPT
       // ------------------------------------
-
-      logger.info('ZoomAdapter(reactiveJoinFlow): Checking if Sidebar is open...');
-      let isSidebarOpen = await this.verifySidebarVisibility(frame);
-
-      if (isSidebarOpen) {
-        logger.info('ZoomAdapter(reactiveJoinFlow): SUCCESS: Transcript interface appears active');
+      if (await this.verifySidebarVisibility(frame)) {
+        logger.info('ZoomJoiner(transcriptActivation): SUCCESS: Transcript active.');
         return { status: "SUCCESS" };
       }
 
-      logger.info('ZoomAdapter(reactiveJoinFlow): Transcript sidebar not visible; forcing it open...');
-
+      logger.info('ZoomJoiner(transcriptActivation): Sidebar not visible; forcing Full Transcript path...');
+      
       await this.stepWakeUI(frame);
-
       const moreFound2 = await this.stepClickMore(frame, "Phase 2");
-      if (!moreFound2) return { status: "FAIL" };
-
-      const folderFound2 = await this.stepClickCaptionsFolder(frame, "Phase 2");
-      if (folderFound2) {
-        await this.stepClickFullTranscript(frame);
+      
+      if (moreFound2) {
+        const folderFound2 = await this.stepClickCaptionsFolder(frame, "Phase 2");
+        if (folderFound2) {
+          await this.stepClickFullTranscript(frame);
+        }
       }
 
       // Final Verify
-      isSidebarOpen = await this.verifySidebarVisibility(frame);
-
-      if (isSidebarOpen) {
-        logger.info('ZoomAdapter(reactiveJoinFlow): SUCCESS: Transcript interface appears active after strict flow');
-        return { status: "SUCCESS" };
-      } else {
-        logger.warn('ZoomAdapter(reactiveJoinFlow): NOTICE: Transcript panel not detected; continuing, but captions may require manual re-check');
-        return { status: "FAIL" };
-      }
+      return (await this.verifySidebarVisibility(frame)) 
+        ? { status: "SUCCESS" } 
+        : { status: "FAIL" };
 
     } catch (err) {
-      logger.error('ZoomAdapter(reactiveJoinFlow): FAILED: Caption enable process interrupted - ' + err.message);
+      logger.error('ZoomJoiner(transcriptActivation): FAILED: ' + err.message);
       return { status: "FAIL" };
     }
   }
@@ -253,43 +263,36 @@ class TranscriptActivation {
   // ==========================================
 
   async startTranscriptMonitor(captionMonitor) {
-    logger.info('ZoomAdapter(zoomJoiner): [SYSTEM] Starting DOM-Select Transcript Activation...');
+    logger.info('ZoomJoiner(transcriptActivation): [SYSTEM] Starting DOM-Select Transcript Activation...');
     try {
       const frame = await this.getZoomFrame();
-
-      const result = await this.executeNavigationSequence(frame);
-      logger.info(`ZoomAdapter(zoomJoiner): First activation result: ${result.status}`);
-
       let isVisible = await this.verifySidebarVisibility(frame);
-      logger.info(`ZoomAdapter(zoomJoiner): Sidebar visible after first attempt: ${isVisible}`);
-      
+
       if (!isVisible) {
-        logger.warn('ZoomAdapter(zoomJoiner): Sidebar not visible. Retrying sequence...');
-        await this.delay(1500);
 
-        const retryResult = await this.executeNavigationSequence(frame);
-        logger.info(`ZoomAdapter(zoomJoiner): Retry activation result: ${retryResult.status}`);
-        
-        await this.handleHostPermissionPopup(frame);
+        logger.info('ZoomJoiner(transcriptActivation): Sidebar not detected. Starting activation flow...');
+        const result = await this.executeNavigationSequence(frame);
+        logger.info(`ZoomJoiner(transcriptActivation): First activation result: ${result.status}`);
 
-        isVisible = await this.verifySidebarVisibility(frame);
-        logger.info(`ZoomAdapter(zoomJoiner): Sidebar visible after retry: ${isVisible}`);
+        let isVisible = await this.verifySidebarVisibility(frame);
+      }else{
+        logger.info(`ZoomJoiner(transcriptActivation): Sidebar already active. Skipping activation flow. ${isVisible}`);
       }
 
       if (isVisible) {
-        logger.info("ZoomAdapter(zoomJoiner): SUCCESS: Sidebar and Captions activated.");
+        logger.info("ZoomJoiner(transcriptActivation): SUCCESS: Sidebar and Captions activated.");
         if (captionMonitor) captionMonitor.startPolling();
       } else {
-        logger.error("ZoomAdapter(zoomJoiner): ERROR: Sidebar did not open.");
-        await this.page.screenshot({ path: `./logs/image/blocker_check_${Date.now()}.png` }).catch(() => {});
+        const result = await this.executeNavigationSequence(frame);
+        logger.error("ZoomJoiner(transcriptActivation): ERROR: Sidebar did not open.");
       }
     } catch (err) {
-      logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in startTranscriptMonitor: ' + err.message);
+      logger.error('ZoomJoiner(transcriptActivation): EXCEPTION in startTranscriptMonitor: ' + err.message);
     }
   }
 
   async handleHostPermissionPopup(frame) {
-    logger.info('ZoomAdapter(reactiveJoinFlow): [START] Checking for Caption Language modals...');
+    logger.info('ZoomJoiner(transcriptActivation): [START] Checking for Caption Language modals...');
     try {
       // 1. Give the modal half a second to fade in
       await new Promise(res => setTimeout(res, 800));
@@ -318,12 +321,12 @@ class TranscriptActivation {
       });
 
       if (modalCleared) {
-        logger.info(`ZoomAdapter(reactiveJoinFlow): SUCCESS: Cleared Language Modal by clicking "${modalCleared}"`);
+        logger.info(`ZoomJoiner(transcriptActivation): SUCCESS: Cleared Language Modal by clicking "${modalCleared}"`);
         // Give the modal 1 second to fade out so it doesn't block the next click
         await new Promise(res => setTimeout(res, 1000));
       } else {
         // 3. Fallback: If no button was clicked, hit Enter/Escape to clear trapped focus
-        logger.info('ZoomAdapter(reactiveJoinFlow): No modal detected, or exact button not found. Firing Escape sequence...');
+        logger.info('ZoomJoiner(transcriptActivation): No modal detected, or exact button not found. Firing Escape sequence...');
         if (this.page.keyboard) {
           await this.page.keyboard.press('Enter').catch(() => {});
           await new Promise(res => setTimeout(res, 300));
@@ -331,7 +334,7 @@ class TranscriptActivation {
         }
       }
     } catch (err) {
-      logger.error('ZoomAdapter(reactiveJoinFlow): Modal Error: ' + err.message);
+      logger.error('ZoomJoiner(transcriptActivation): Modal Error: ' + err.message);
     }
   }
 }

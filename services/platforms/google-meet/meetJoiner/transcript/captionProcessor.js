@@ -1,3 +1,6 @@
+/**
+ * root/services/platforms/google-meet/meetJoiner/transcript/captionProcessor.js
+ */
 const { logger } = require('../../../../../utils/logger');
 const { saveTranscriptLine } = require('./transcriptStorage');
 
@@ -7,7 +10,6 @@ async function processCaptionLines(
   lastCaptionLine,
   lastSpeakerName
 ) {
-
   const {
     seenRows,
     transcriptBuffer,
@@ -17,122 +19,116 @@ async function processCaptionLines(
   for (const item of captions) {
     const { name, text } = item;
 
-    logger.info(`DEBUG: Processing | Name: "${name}" | Text: "${text}"`);
-    
+    logger.info(`GoogleMeetJoiner(captionProcessor): Processing | Name: "${name}" | Text: "${text}"`);
+
+    // Fix 1: Check participant name bubble BEFORE seenRows to avoid poisoning the set
+    try {
+      const tracker = ctx?.participantTracker;
+      const candidate = (text || '').trim();
+      if (candidate && tracker?.trackedParticipants?.has(candidate)) {
+        logger.info(`GoogleMeetJoiner(captionProcessor): Skipping name bubble: "${candidate}"`);
+        continue;
+      }
+    } catch (e) {
+      logger.debug('GoogleMeetJoiner(captionProcessor): participantTracker check failed', e.message);
+    }
+
     const current = (text || '').toLowerCase();
     const last = (lastCaptionLine || '').toLowerCase();
 
-    // detect "same sentence getting extended"
-    const isExtension = name === lastSpeakerName && current.startsWith(last);
-    
-    logger.info(`DEBUG: Logic Check | isExtension: ${isExtension} | lastSpeakerName: "${lastSpeakerName}"`);
-    
-    // ignore extension updates
+    // Fix 4: Improved extension check — also handles mid-sentence corrections
+    const isExtension =
+      name === lastSpeakerName &&
+      (
+        current.startsWith(last) ||           // forward build: "hello" → "hello world"
+        last.startsWith(current) ||           // truncation: "hello world" → "hello wor"
+        (last.length > 5 && current.includes(last.slice(-10))) // overlap on tail
+      );
+
+    logger.info(`GoogleMeetJoiner(captionProcessor): isExtension: ${isExtension} | lastSpeaker: "${lastSpeakerName}"`);
+
     if (isExtension) {
-      lastCaptionLine = text; // just update memory, no write
+      lastCaptionLine = text; // update memory, no write
       continue;
     }
 
     const key = `${name}:${text}`;
 
-    // Filter 4
     if (seenRows.has(key)) {
       continue;
     }
 
     seenRows.add(key);
 
+    // Fix 3: Use LRU-style eviction instead of full clear
     if (seenRows.size > 1000) {
-      seenRows.clear();
+      const firstKey = seenRows.values().next().value;
+      seenRows.delete(firstKey); // remove oldest entry only
     }
 
     lastCaptionLine = text;
     lastSpeakerName = name;
 
-    const formattedTime = new Date().toTimeString().split(' ')[0];    
-    
+    const formattedTime = new Date().toTimeString().split(' ')[0];
     const formattedLine = `[${formattedTime}] ${name}: ${text}`;
 
-    transcriptBuffer.push({
-      name,
-      text,
-      time: formattedTime
-    });
-
+    transcriptBuffer.push({ name, text, time: formattedTime });
 
     if (handleCaptionEvent) {
-      await handleCaptionEvent(text);
+      await handleCaptionEvent.call(ctx, text);
     } else {
-      logger.info(`GoogleMeetJoiner(captionProcessor): handleCaptionEvent NOT SET`);
+      // Fix 5: debug not info — avoid log spam
+      logger.debug('GoogleMeetJoiner(captionProcessor): handleCaptionEvent NOT SET');
     }
-    
-    // const finalFormattedLine = cleanTranscript(formattedLine);
 
     await saveTranscriptLine(ctx, formattedLine);
-
   }
 
   return { lastCaptionLine, lastSpeakerName };
 }
 
 
+// Fix 2: Export cleanTranscript so it can be used at export time
 function cleanTranscript(rawText) {
-    // Split text into individual lines and remove empty ones
-    const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
-    const cleaned = [];
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const cleaned = [];
 
-    for (let i = 0; i < lines.length; i++) {
-        const currentLine = lines[i];
-        
-        // Regex to extract [timestamp], speaker, and the spoken text
-        const match = currentLine.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*([^:]+):\s*(.*)$/);
-        if (!match) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const currentLine = lines[i];
+    const match = currentLine.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*([^:]+):\s*(.*)$/);
+    if (!match) continue;
 
-        const [_, timestamp, speaker, text] = match;
-        
-        let isDuplicate = false;
+    const [_, timestamp, speaker, text] = match;
+    let isDuplicate = false;
 
-        // Normalize current text for safe comparisons
-        const cleanCurrent = text.toLowerCase().replace(/[^a-z0-9]/g, '');
-        // Take a unique signature from the end of the text block
-        const currentTailSignature = cleanCurrent.slice(-20); 
+    const cleanCurrent = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const currentTailSignature = cleanCurrent.slice(-20);
 
-        // UPDATE 1: Look ahead through ALL remaining lines, not just i + 1
-        for (let j = i + 1; j < lines.length; j++) {
-            const nextLine = lines[j];
-            const nextMatch = nextLine.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*([^:]+):\s*(.*)$/);
-            
-            if (nextMatch) {
-                const [__, nextTimestamp, nextSpeaker, nextText] = nextMatch;
+    for (let j = i + 1; j < lines.length; j++) {
+      const nextMatch = lines[j].match(/^(\[\d{2}:\d{2}:\d{2}\])\s*([^:]+):\s*(.*)$/);
+      if (!nextMatch) continue;
 
-                // Only evaluate lines matching the exact same speaker
-                if (speaker === nextSpeaker) {
-                    const cleanNext = nextText.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const [__, _ts, nextSpeaker, nextText] = nextMatch;
+      if (speaker !== nextSpeaker) continue;
 
-                    // UPDATE 2 & 3: Run advanced overlap checks
-                    if (
-                        cleanNext.startsWith(cleanCurrent) || // Normal building line
-                        (currentTailSignature && cleanNext.includes(currentTailSignature)) || // Handles buffer drops (e.g., "Hello Diary" cleared out)
-                        cleanCurrent.includes(cleanNext) // Handles trail truncation (e.g., correcting "He?")
-                    ) {
-                        isDuplicate = true;
-                    }
-                    
-                    // Break out of the look-ahead loop once we find the next instance of this speaker
-                    break; 
-                }
-            }
-        }
+      const cleanNext = nextText.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-        // If it's not a duplicate fragment, keep it
-        if (!isDuplicate) {
-            cleaned.push(`${timestamp} ${speaker}: ${text}`);
-        }
+      if (
+        cleanNext.startsWith(cleanCurrent) ||
+        (currentTailSignature && cleanNext.includes(currentTailSignature)) ||
+        cleanCurrent.includes(cleanNext)
+      ) {
+        isDuplicate = true;
+      }
+      break;
     }
 
-    return cleaned.join('\n');
+    if (!isDuplicate) {
+      cleaned.push(`${timestamp} ${speaker}: ${text}`);
+    }
+  }
+
+  return cleaned.join('\n');
 }
 
-
-
-module.exports = { processCaptionLines };
+module.exports = { processCaptionLines, cleanTranscript };
