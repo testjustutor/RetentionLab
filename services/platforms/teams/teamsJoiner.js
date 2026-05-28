@@ -12,7 +12,7 @@ class TeamsJoiner {
   // MAIN ENTRY
   // -----------------------------
   async joinMeeting() {
-    logger.info('TeamsAdapter: STAGE 1: Navigating to Microsoft Teams...');
+    logger.info('TeamsAdapter(teamJoiner): STAGE 1: Navigating to Microsoft Teams...');
 
     try {
       await this.page.setRequestInterception(true);
@@ -24,7 +24,7 @@ class TeamsJoiner {
             url.startsWith('teamscmd:') ||
             url.startsWith('ms-teams:')
           ) {
-            logger.info('TeamsAdapter: Blocked Teams Desktop App launch attempt.');
+            logger.info('TeamsAdapter(teamJoiner): Blocked Teams Desktop App launch attempt.');
             request.abort();
           } else {
             request.continue();
@@ -32,7 +32,7 @@ class TeamsJoiner {
         } catch (err) {}
       });
     } catch (e) {
-      logger.warn('TeamsAdapter: Request interception already handled or failed.');
+      logger.warn('TeamsAdapter(teamJoiner): Request interception already handled or failed.');
     }
 
     await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
@@ -44,20 +44,16 @@ class TeamsJoiner {
     // STAGE 3: Handle pre-join (mic/cam off)
     await this.handlePreJoin();
 
-    // STAGE 4: ✅ Dismiss audio/video popup HERE — right before touching name input
+    // STAGE 4: Dismiss audio/video popup HERE — right before touching name input
     await this.dismissAudioVideoPopup();
 
     // STAGE 5: Enter name and join
     await this.enterLobby();
-    
-    // Dismiss popup again if Teams re-opened it
-    // await this.dismissAudioVideoPopup();
-    // await this.clickJoinNowButton();
 
     // STAGE 6: Wait for host to admit
-    await this.waitForJoinConfirmation();
+    const wasAdmitted = await this.waitForJoinConfirmation();
 
-
+    return wasAdmitted;
   }
 
   // -----------------------------
@@ -65,7 +61,7 @@ class TeamsJoiner {
   // -----------------------------
   async clickContinueOnBrowser() {
     try {
-      logger.info('TeamsAdapter: Waiting for "Continue on this browser" button...');
+      logger.info('TeamsAdapter(teamJoiner): Waiting for "Continue on this browser" button...');
 
       await this.page.waitForFunction(() => {
         const btnTid = document.querySelector('button[data-tid="joinOnWeb"]');
@@ -105,9 +101,9 @@ class TeamsJoiner {
         if (btnText) btnText.click();
       });
 
-      logger.info('TeamsAdapter: Clicked: Continue on this browser');
+      logger.info('TeamsAdapter(teamJoiner): Clicked: Continue on this browser');
     } catch (e) {
-      logger.info('TeamsAdapter: Launcher screen not detected or already bypassed');
+      logger.info('TeamsAdapter(teamJoiner): Launcher screen not detected or already bypassed');
     }
   }
 
@@ -115,12 +111,12 @@ class TeamsJoiner {
   // STAGE 3: PRE-JOIN (mic/cam)
   // -----------------------------
   async handlePreJoin() {
-    logger.info('TeamsAdapter: Handling Teams pre-join screen...');
+    logger.info('TeamsAdapter(teamJoiner): Handling Teams pre-join screen...');
 
     try {
       await new Promise(resolve => setTimeout(resolve, 6000));
 
-      logger.info('TeamsAdapter: Checking for Passcode Error Modal (Pre-join)...');
+      logger.info('TeamsAdapter(teamJoiner): Checking for Passcode Error Modal (Pre-join)...');
       await this.handlePasscodeModal();
 
       // Turn off mic and camera
@@ -132,7 +128,7 @@ class TeamsJoiner {
         if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
       });
     } catch (e) {
-      logger.error('TeamsAdapter: Pre-join adjustments error: ' + e.message);
+      logger.error('TeamsAdapter(teamJoiner): Pre-join adjustments error: ' + e.message);
     }
   }
 
@@ -141,7 +137,7 @@ class TeamsJoiner {
   // ✅ Separated into its own method, called right before enterLobby
   // -----------------------------
   async dismissAudioVideoPopup() {
-    logger.info('TeamsAdapter: Checking for "Continue without audio or video" popup...');
+    logger.info('TeamsAdapter(teamJoiner): Checking for "Continue without audio or video" popup...');
 
     // Poll for up to 10 seconds (20 × 500ms)
     for (let i = 0; i < 20; i++) {
@@ -158,7 +154,7 @@ class TeamsJoiner {
         });
 
         if (dismissed) {
-          logger.info('TeamsAdapter: Dismissed audio/video popup successfully');
+          logger.info('TeamsAdapter(teamJoiner): Dismissed audio/video popup successfully');
           // Wait for the popup to fully close before proceeding
           await new Promise(r => setTimeout(r, 1500));
           return;
@@ -171,20 +167,20 @@ class TeamsJoiner {
     }
 
     // Not an error — the popup may simply not appear on all meeting types
-    logger.info('TeamsAdapter: No audio/video popup found — continuing');
+    logger.info('TeamsAdapter(teamJoiner): No audio/video popup found — continuing');
   }
 
   // -----------------------------
   // STAGE 5: ENTER NAME + JOIN
   // -----------------------------
   async enterLobby() {
-    logger.info('TeamsAdapter: Attempting to join Teams meeting...');
+    logger.info('TeamsAdapter(teamJoiner): Attempting to join Teams meeting...');
 
     try {
       const nameInputSelector = 'input[data-tid="prejoin-display-name-input"]';
 
       // ✅ Wait for the name input — it must be visible and not obscured
-      logger.info('TeamsAdapter: Waiting for name input field...',nameInputSelector);
+      logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...',nameInputSelector);
       await this.page.waitForSelector(nameInputSelector, { timeout: 1500 });
 
       // ✅ Small settle delay — Teams re-renders after popup closes
@@ -195,10 +191,10 @@ class TeamsJoiner {
       await this.page.keyboard.press('Backspace');
       await this.page.type(nameInputSelector, this.botName, { delay: 80 });
 
-      logger.info(`TeamsAdapter: Set bot name to: ${this.botName}`);
+      logger.info(`TeamsAdapter(teamJoiner): Set bot name to: ${this.botName}`);
 
       // ✅ Wait for Join button to become enabled, then click
-      logger.info('TeamsAdapter: Waiting for Join Now button to become enabled...');
+      logger.info('TeamsAdapter(teamJoiner): Waiting for Join Now button to become enabled...');
       await this.page.evaluate(async () => {
         const delay = ms => new Promise(r => setTimeout(r, ms));
 
@@ -225,9 +221,9 @@ class TeamsJoiner {
         throw new Error('Join button not found or remained disabled after 10s');
       });
 
-      logger.info('TeamsAdapter: Clicked Join Now');
+      logger.info('TeamsAdapter(teamJoiner): Clicked Join Now');
     } catch (e) {
-      logger.error('TeamsAdapter: Failed to join lobby: ' + e.message);
+      logger.error('TeamsAdapter(teamJoiner): Failed to join lobby: ' + e.message);
     }
   }
 
@@ -244,7 +240,7 @@ class TeamsJoiner {
     });
 
     if (requiresPasscode) {
-      logger.info('TeamsAdapter: Meeting passcode modal detected! Attempting recovery.');
+      logger.info('TeamsAdapter(teamJoiner): Meeting passcode modal detected! Attempting recovery.');
 
       let pass = this.passcode;
       if (!pass) {
@@ -259,7 +255,7 @@ class TeamsJoiner {
       }
 
       if (pass) {
-        logger.info(`TeamsAdapter: Typing extracted passcode: ${pass}`);
+        logger.info(`TeamsAdapter(teamJoiner): Typing extracted passcode: ${pass}`);
         const passInput = 'input[data-tid="meeting-passcode-input"]';
         await this.page.waitForSelector(passInput, { timeout: 5000 }).catch(() => {});
         await this.page.click(passInput, { clickCount: 3 }).catch(() => {});
@@ -278,7 +274,7 @@ class TeamsJoiner {
         });
         return true;
       } else {
-        logger.warn('TeamsAdapter: Passcode required but not found in configuration or URL.');
+        logger.warn('TeamsAdapter(teamJoiner): Passcode required but not found in configuration or URL.');
       }
     }
     return false;
@@ -288,74 +284,78 @@ class TeamsJoiner {
   // STAGE 6: LOBBY WAIT
   // -----------------------------
   async waitForJoinConfirmation() {
-    logger.info('TeamsAdapter: Bot is in the lobby. Waiting for host to admit...');
+    logger.info('TeamsAdapter(teamJoiner): Bot is in the lobby. Waiting for host to admit...');
 
     for (let i = 0; i < 200; i++) {
       const sessionState = await this.page.evaluate(() => {
         const text = document.body.innerText;
 
-        // const admitted =
-        //   !!document.querySelector('[aria-label*="Leave"]') ||
-        //   !!document.querySelector('[aria-label*="Hang up"]') ||
-        //   !!document.querySelector('[data-tid="call-controls"]') ||
-        //   !!document.querySelector('[data-tid="toggle-mute"]') ||
-        //   !!document.querySelector('[data-tid="toggle-video"]') ||
-        //   !!document.querySelector('[data-tid="meeting-stage"]') ||
-        //   !!document.querySelector('[data-tid="roster-button"]') ||
-        //   bodyHTML.includes('ts-calling-screen') ||
-        //   bodyHTML.includes('calling-screen') ||
-        //   bodyHTML.includes('control-bar') ||
-        //   bodyHTML.includes('meeting-stage');
+        const admittedSelectors = [
+          '[aria-label="Mute mic"]',
+          '[aria-label="Mute Mic"]',
+          '[aria-label="No available camera found"]',
+          '[aria-label="People"]',
+          '[aria-label="Chat"]',
+          '[aria-label="Raise"]',
+          '[aria-label="Share"]',
+          '[data-tid="toolbar-item-badge"]',
+        ];
+
+        const isAdmitted = admittedSelectors.some(sel => {
+          try { return !!document.querySelector(sel); } catch { return false; }
+        });
+
+        const isStillInLobby =
+          text.includes('Someone will let you in shortly') ||
+          text.includes('Someone will let you in shortly.') ||
+          text.toLowerCase().includes('someone will let you in shortly') ||
+          text.includes('waiting in the lobby') ||
+          text.includes("You're in the lobby") ||
+          text.includes('waiting to be admitted');
+
+        const needsPasscode =
+          text.includes("We couldn't find a meeting") ||
+          text.includes("Type a meeting passcode");
 
         return {
-          isAdmitted: !!(
-            document.querySelector('[data-tid="meeting-title"]') ||
-            document.querySelector('.meeting-control-bar') ||
-            document.querySelector('[aria-label*="Hang up"]')
-          ),
-          // isAdmitted: admitted,
-          isStillInLobby:
-            text.includes('Someone will let you in shortly') ||
-            text.includes('Someone will let you in shortly.') ||
-            text.includes('someone will let you in shortly') ||
-            text.includes('someone will let you in shortly.') ||
-            text.includes('waiting in the lobby'),
-          needsPasscode:
-            text.includes("We couldn't find a meeting") ||
-            text.includes("Type a meeting passcode")
+          isAdmitted,
+          isStillInLobby,
+          needsPasscode,
+          pageTextSample: text.trim().slice(0, 300),
         };
       });
 
-      logger.info('TeamsAdapter: sessionState is: ',sessionState);
+      logger.info('TeamsAdapter(teamJoiner): sessionState is: ',sessionState);
       
+      // 1. SUCCESS: Admitted
       if (sessionState.isAdmitted) {
-        logger.info('TeamsAdapter: SUCCESS: Host admitted the bot to the meeting');
+        logger.info('TeamsAdapter(teamJoiner): SUCCESS: Host admitted the bot to the meeting');
         await new Promise(r => setTimeout(r, 2000));
         return true;
       }
 
+      // 2. PASSCODE: Still working
       if (sessionState.needsPasscode) {
-        logger.info('TeamsAdapter: Passcode modal popped up while waiting!');
+        logger.info('TeamsAdapter(teamJoiner): Passcode modal popped up while waiting!');
         const recovered = await this.handlePasscodeModal();
         if (recovered) {
           await new Promise(r => setTimeout(r, 2000));
 
-          logger.info('TeamsAdapter: Re-clicked Join Now after passcode recovery');
+          logger.info('TeamsAdapter(teamJoiner): Re-clicked Join Now after passcode recovery');
           await this.dismissAudioVideoPopup();
           await this.clickJoinNowButton();
-
           continue;
         }
       }
 
       if (i % 10 === 0) {
-        logger.info('TeamsAdapter: ...still waiting in lobby for host admission...');
+        logger.info('TeamsAdapter(teamJoiner): ...still waiting in lobby for host admission...');
       }
 
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    logger.warn('TeamsAdapter: Admission timeout: Bot was never let into the meeting');
+    logger.warn('TeamsAdapter(teamJoiner): Admission timeout: Bot was never let into the meeting');
   }
 
 
@@ -394,7 +394,7 @@ class TeamsJoiner {
   // CAPTION MONITOR
   // -----------------------------
   async startTranscriptMonitor() {
-    logger.info('TeamsAdapter: Admitted! Starting Teams transcript monitor...');
+    logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
     await this.enableCaptionsIfPossible();
 
     setInterval(async () => {
@@ -413,16 +413,16 @@ class TeamsJoiner {
         });
 
         if (captions && captions.trim().length > 0) {
-          logger.info(`TeamsAdapter: TEAMS CAPTION: ${captions.slice(-150)}`);
+          logger.info(`TeamsAdapter(teamJoiner): TEAMS CAPTION: ${captions.slice(-150)}`);
         }
       } catch (e) {
-        logger.error('TeamsAdapter: Teams caption monitor error:', e.message);
+        logger.error('TeamsAdapter(teamJoiner): Teams caption monitor error:', e.message);
       }
     }, 4000);
   }
 
   async enableCaptionsIfPossible() {
-    logger.info('TeamsAdapter: Attempting to enable Teams captions...');
+    logger.info('TeamsAdapter(teamJoiner): Attempting to enable Teams captions...');
     try {
       await this.page.evaluate(() => {
         const moreBtn = document.querySelector('[aria-label*="More"], [aria-label*="more"]');
@@ -438,7 +438,7 @@ class TeamsJoiner {
         if (captionBtn) captionBtn.click();
       });
     } catch (e) {
-      logger.warn('TeamsAdapter: Captions not available or already enabled');
+      logger.warn('TeamsAdapter(teamJoiner): Captions not available or already enabled');
     }
   }
 }
