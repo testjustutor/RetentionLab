@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 # Setup paths
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 
 if not os.path.exists(LOG_DIR):
