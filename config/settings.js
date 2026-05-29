@@ -46,8 +46,8 @@ module.exports = {
     // 🔥 IMPORTANT: isolate profile per mode
     get userDataDir() {
       return isGoogleMeetPlatform()
-        ? process.env.CHROME_PROFILE_PATH || "./chrome-profile"
-        : "./tmp-profile";
+        ? process.env.CHROME_PROFILE_PATH || "./chrome-profiles"
+        : "./storage/chrome-profiles";
     },
 
     get args() {

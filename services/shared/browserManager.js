@@ -12,10 +12,20 @@ class BrowserManager {
   async init(config) {
     logger.info('INIT: Launching Chrome (Stealth Mode, Persistent Profile)');
 
+    const profileDir = config.userDataDir || settings.puppeteer.userDataDir;
+
+    if (!fs.existsSync(profileDir)) {
+      fs.mkdirSync(profileDir, { recursive: true });
+    }
+
     this.browser = await puppeteer.launch({
       ...settings.puppeteer,
-      userDataDir: config.userDataDir || settings.puppeteer.userDataDir,
-      args: settings.puppeteer.args
+
+      userDataDir: profileDir,
+
+      args: settings.puppeteer.args,
+
+      dumpio: true
     });
 
     this.page = await this.browser.newPage();

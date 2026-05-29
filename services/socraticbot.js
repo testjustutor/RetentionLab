@@ -64,8 +64,16 @@ class SocraticBot {
   // -------------------------
   async run() {
     try {
-    
-      const uniqueProfileDir = path.resolve(__dirname, '..', 'storage', 'chrome-profiles', `profile_${this.meetingId || this.sessionId}`);
+      
+      const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
+      
+      const uniqueProfileDir = path.resolve(
+        __dirname,
+        '..',
+        'storage',
+        'chrome-profiles',
+        `profile_${safeId}`
+      );
 
       // PASS IT TO THE BROWSER MANAGER
       this.browserManager = await new BrowserManager().init({
@@ -278,6 +286,20 @@ class SocraticBot {
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
         }
+
+        ZoomMonitor.monitorMeeting(
+          this.browserManager.page,
+          this.meetingId,
+          this.botName,
+          this.sessionId
+        )
+          .then(() => this.stop())
+          .catch(err =>
+            logger.error(
+              'ZoomAdapter(monitor): Monitor loop crashed:',
+              err
+            )
+          );
         break;
       }
     
