@@ -128,6 +128,10 @@ class TeamsJoiner {
         const cam = document.querySelector('[aria-label*="camera"], [aria-label*="video"]');
         if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
       });
+    
+      // await this.muteMicWithRetry();  // retries 10× every 2s until confirmed muted
+      // await this.muteCamera();        // camera still single-shot (no retry needed)
+    
     } catch (e) {
       logger.error('TeamsAdapter(teamJoiner): Pre-join adjustments error: ' + e.message);
     }
