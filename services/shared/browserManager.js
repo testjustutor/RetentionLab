@@ -9,26 +9,59 @@ class BrowserManager {
     this.page = null;
   }
 
-  async init(config) {
-    logger.info('INIT: Launching Chrome (Stealth Mode, Persistent Profile)');
+  async init(config = {}) {
+    logger.info('Shared(browserManager): INIT: Launching Chrome (Stealth Mode, Persistent Profile)');
+
+    const launchOptions = {
+      ...settings.puppeteer,
+      args: settings.puppeteer.args,
+      dumpio: true
+    };
 
     const profileDir = config.userDataDir || settings.puppeteer.userDataDir;
 
-    if (!fs.existsSync(profileDir)) {
-      fs.mkdirSync(profileDir, { recursive: true });
+    if (profileDir) {
+      if (!fs.existsSync(profileDir)) {
+        fs.mkdirSync(profileDir, { recursive: true });
+      }
+
+      launchOptions.userDataDir = profileDir;
+
+      logger.info(
+        `Shared(browserManager): INIT: Using Chrome profile -> ${profileDir}`
+      );
+    } else {
+      logger.info(
+        'Shared(browserManager): INIT: Using temporary Chrome profile'
+      );
     }
 
-    this.browser = await puppeteer.launch({
-      ...settings.puppeteer,
+    this.browser = await puppeteer.launch(launchOptions);
 
-      userDataDir: profileDir,
-
-      args: settings.puppeteer.args,
-
-      dumpio: true
+    this.browser.on('disconnected', () => {
+      logger.error('Shared(browserManager): Chrome browser disconnected');
     });
 
-    this.page = await this.browser.newPage();
+    this.pages = await this.browser.pages();
+
+    this.page =
+      this.pages.length > 0
+        ? this.pages[0]
+        : await this.browser.newPage();
+        
+    this.page.setDefaultTimeout(30000);
+    this.page.setDefaultNavigationTimeout(60000);
+
+
+    this.page.on('pageerror', err => {
+      logger.error(`Shared(browserManager): PAGE ERROR: ${err.message}`);
+    });
+
+    this.page.on('requestfailed', req => {
+      logger.warn(
+        `Shared(browserManager): REQUEST FAILED: ${req.url()} -> ${req.failure()?.errorText}`
+      );
+    });
 
     // ✅ Stealth patch
     await this.page.evaluateOnNewDocument(() => {
@@ -55,7 +88,7 @@ class BrowserManager {
       await this.browser.close();
       this.browser = null;
       this.page = null;
-      logger.info('Browser session closed.');
+      logger.info('Shared(browserManager): Browser session closed.');
     }
   }
 }

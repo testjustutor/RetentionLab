@@ -73,11 +73,11 @@ class BotManager {
 
       const existing = this.instances.get(meetingId);
       if (existing && ['running', 'joining', 'starting', 'launching', 'live'].includes(existing.status)) {
-        logger.info(`BotManager: Skipping queued launch for ${meetingId}; bot already ${existing.status}.`);
+        logger.info(`Shared(botManager): Skipping queued launch for ${meetingId}; bot already ${existing.status}.`);
         return { success: true, meetingId, status: existing.status, skipped: true };
       }
 
-      logger.info(`🚀 Launching queued ${meetingId}`);
+      logger.info(`Shared(botManager): Launching queued ${meetingId}`);
 
       // Update DB status
       await MeetingModel.updateMeetingStatus(meetingId, 'launching');
@@ -89,7 +89,7 @@ class BotManager {
       // 🔥 BUILD YOUR OWN LINK (NOT FROM DB)
       const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
 
-      logger.info(`🚀 meetingLink meetingLink ${meetingLink}`);
+      logger.info(`Shared(botManager): meetingLink meetingLink ${meetingLink}`);
 
       const platformConfig = settings.platforms[platform];
 
@@ -121,7 +121,7 @@ class BotManager {
           MeetingModel.updateMeetingStatus(meetingId, 'completed');
         })
         .catch(err => {
-          logger.error(`Launch error ${meetingId}:`, err);
+          logger.error(`Shared(botManager): Launch error ${meetingId}:`, err);
           this.instances.get(meetingId).status = 'error';
           MeetingModel.updateMeetingStatus(meetingId, 'error');
         });
@@ -129,7 +129,7 @@ class BotManager {
       return { success: true, meetingId };
 
     } catch (err) {
-      logger.error('Launch from DB failed:', err);
+      logger.error('Shared(botManager): Launch from DB failed:', err);
       await MeetingModel.updateMeetingStatus(meetingRecord.meeting_id, 'failed');
       return { success: false };
     }
@@ -149,7 +149,7 @@ class BotManager {
       }
 
       const instance = this.instances.get(meetingId);
-      logger.info(`🛑 Stopping bot for meeting ${meetingId}`);
+      logger.info(`Shared(botManager):  Stopping bot for meeting ${meetingId}`);
 
       if (instance.bot && typeof instance.bot.stop === 'function') {
         await instance.bot.stop();
@@ -164,7 +164,7 @@ class BotManager {
         status: 'stopped'
       };
     } catch (err) {
-      logger.error('Error stopping bot:', err);
+      logger.error('Shared(botManager): Error stopping bot:', err);
       return {
         success: false,
         error: err.message,
@@ -276,11 +276,11 @@ class BotManager {
 
       const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
 
-      logger.info(`⚡ IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
+      logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
 
       // Create transcript session
       const session = await TranscriptModel.createSession(meetingId);
-      logger.info(`📝 Session created: ${session.id} for immediate ${meetingId}`);
+      logger.info(`Shared(botManager): Session created: ${session.id} for immediate ${meetingId}`);
 
       // Create SocraticBot
       const bot = new SocraticBot({
@@ -306,10 +306,10 @@ class BotManager {
 
       // Launch async
       bot.run().then(() => {
-        logger.info(`✅ Immediate ${meetingId} completed`);
+        logger.info(`Shared(botManager): Immediate ${meetingId} completed`);
         this.instances.get(meetingId).status = 'completed';
       }).catch(err => {
-        logger.error(`❌ Immediate ${meetingId} failed:`, err);
+        logger.error(`Shared(botManager): Immediate ${meetingId} failed:`, err);
         this.instances.get(meetingId).status = 'error';
       });
 
@@ -322,7 +322,7 @@ class BotManager {
         link: meetingLink
       };
     } catch (err) {
-      logger.error('🚨 Immediate launch failed:', err);
+      logger.error('Shared(botManager): Immediate launch failed:', err);
       return { success: false, error: err.message, meetingId };
     }
   }

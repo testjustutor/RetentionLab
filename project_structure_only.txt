@@ -263,11 +263,23 @@ project_root/
 |   |   `-- engine_main.py
 |   |-- platforms
 |   |   |-- google-meet
+|   |   |   |-- meetJoiner
+|   |   |   |	|-- transcript
+|   |   |   |	|	|-- captionExtractor.js
+|   |   |   |	|	|-- captionProcessor.js
+|   |   |   |	|	|-- captionValidator.js
+|   |   |   |	|	|-- participantEvents.js
+|   |   |   |	|	|-- transcriptMonitor.js
+|   |   |   |	|	|-- transcriptStorage.js
+|   |   |   |	|-- captionManager.js
+|   |   |   |	|-- index.js
+|   |   |   |	|-- meetingNavigation.js
+|   |   |   |	|-- preJoinMedia.js
+|   |   |   |	|-- transcriptMonitor.js
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- GoogleMeetAdapter.js
 |   |   |   |-- captionListener.js
 |   |   |   |-- captionMonitor.js
-|   |   |   |-- meetJoiner.js
 |   |   |   |-- monitor.js
 |   |   |   |-- participantCapture.js
 |   |   |   |-- participantTracker.js
@@ -300,10 +312,9 @@ project_root/
 |   |-- __init__.py
 |   |-- audioRecorder.js
 |   `-- socraticbot.js
-<<<<<<< HEAD
-=======
 |-- uploads
->>>>>>> 99413ae8d899247c6ba56f76a45298c4229a77a3
+|	|-- google-calendar-json
+|	|	|-- credentials_multi.json
 |-- utils
 |   |-- __init__.py
 |   |-- export.js
@@ -313,8 +324,6 @@ project_root/
 |-- .env
 |-- .env.example
 |-- .gitignore
-|-- .test-engine.lock
-|-- audit_bridge.py
 |-- check_db.js
 |-- db-query.js
 |-- index.js
@@ -328,7 +337,6 @@ project_root/
 |-- retention_lab.db
 |-- server.js
 |-- setup-db.js
-|-- test_diarization.py
 |-- test-engine.js
 `-- TODO.md
 ```

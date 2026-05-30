@@ -36,6 +36,7 @@ class TeamsJoiner {
     }
 
     await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
+
     await this.page.keyboard.press('Escape').catch(() => {});
 
     // STAGE 2: Click "Continue on this browser"
@@ -181,7 +182,7 @@ class TeamsJoiner {
 
       // ✅ Wait for the name input — it must be visible and not obscured
       logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...',nameInputSelector);
-      await this.page.waitForSelector(nameInputSelector, { timeout: 1500 });
+      await this.page.waitForSelector(nameInputSelector, { timeout: 15000 });
 
       // ✅ Small settle delay — Teams re-renders after popup closes
       await new Promise(r => setTimeout(r, 1000));
@@ -215,7 +216,7 @@ class TeamsJoiner {
             return;
           }
 
-          await delay(500);
+          await delay(1500);
         }
 
         throw new Error('Join button not found or remained disabled after 10s');
@@ -324,8 +325,6 @@ class TeamsJoiner {
           pageTextSample: text.trim().slice(0, 300),
         };
       });
-
-      logger.info('TeamsAdapter(teamJoiner): sessionState is: ',sessionState);
       
       // 1. SUCCESS: Admitted
       if (sessionState.isAdmitted) {
@@ -388,155 +387,6 @@ class TeamsJoiner {
       throw new Error('Join button not found');
     });
   }
-
-
-  // async startTranscriptMonitor() {
-  //   logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
-
-  //   await this.enableCaptionsIfPossible();
-
-  //   // ✅ Give captions UI time to appear after enabling
-  //   await new Promise(r => setTimeout(r, 3000));
-
-  //   setInterval(async () => {
-  //     try {
-  //       const result = await this.page.evaluate(() => {
-  //         // ✅ All known Teams Web caption containers
-  //         const containers = [
-  //           document.querySelector('[data-tid="closed-captions-renderer"]'),
-  //           document.querySelector('[data-tid="captions-renderer"]'),
-  //           document.querySelector('.pt-captions-container'),
-  //           document.querySelector('[class*="caption"]'),
-  //           document.querySelector('[class*="Caption"]'),
-  //           document.querySelector('[class*="transcript"]'),
-  //           document.querySelector('[class*="Transcript"]'),
-  //         ];
-
-  //         for (const container of containers) {
-  //           if (container && container.innerText.trim().length > 0) {
-  //             return { 
-  //               text: container.innerText.trim(), 
-  //               source: container.className || container.getAttribute('data-tid') 
-  //             };
-  //           }
-  //         }
-
-  //         // Fallback: individual caption text nodes
-  //         const nodes = Array.from(
-  //           document.querySelectorAll(
-  //             'div[data-tid="caption-text"], [class*="captionText"], [class*="caption-text"]'
-  //           )
-  //         );
-  //         if (nodes.length > 0) {
-  //           return { 
-  //             text: nodes.map(n => n.innerText).join('\n').trim(), 
-  //             source: 'caption-text nodes' 
-  //           };
-  //         }
-
-  //         return null;
-  //       });
-
-  //       if (result && result.text.length > 0) {
-  //         logger.info(`TeamsAdapter(captionMonitor): [${result.source}] ${result.text.slice(-200)}`);
-  //       } else {
-  //         // ✅ Log every 30s if nothing found — helps diagnose
-  //         logger.info('TeamsAdapter(captionMonitor): No caption text found yet');
-  //       }
-
-  //     } catch (e) {
-  //       logger.error('TeamsAdapter(captionMonitor): Monitor error:', e.message);
-  //     }
-  //   }, 4000);
-  // }
-
-  // async enableCaptionsIfPossible() {
-  //   logger.info('TeamsAdapter(teamJoiner): Attempting to enable Teams captions...');
-
-  //   try {
-  //     // ✅ STEP 1: Click the "More" (3 dots) button in the toolbar
-  //     const moreClicked = await this.page.evaluate(() => {
-  //       const selectors = [
-  //         '[aria-label="More"]',
-  //         '[aria-label="More actions"]',
-  //         '[aria-label="More options"]',
-  //         '[data-tid="more-button"]',
-  //         '[data-tid="calling-buttons-more"]',
-  //       ];
-  //       for (const sel of selectors) {
-  //         const btn = document.querySelector(sel);
-  //         if (btn) { btn.click(); return sel; }
-  //       }
-  //       // Fallback: find by text
-  //       const byText = Array.from(document.querySelectorAll('button')).find(b =>
-  //         /^more$/i.test((b.getAttribute('aria-label') || b.innerText || '').trim())
-  //       );
-  //       if (byText) { byText.click(); return 'text:More'; }
-  //       return null;
-  //     });
-
-  //     if (!moreClicked) {
-  //       logger.warn('TeamsAdapter(teamJoiner): Could not find More button — captions skipped');
-  //       return;
-  //     }
-
-  //     logger.info(`TeamsAdapter(teamJoiner): Clicked More button via: ${moreClicked}`);
-
-  //     // ✅ STEP 2: Wait for dropdown to render
-  //     await new Promise(r => setTimeout(r, 2000));
-
-  //     // ✅ STEP 3: Find and click captions/transcript option in the dropdown
-  //     const captionClicked = await this.page.evaluate(() => {
-  //       const allClickable = Array.from(
-  //         document.querySelectorAll('button, [role="menuitem"], [role="option"], li, span[tabindex]')
-  //       );
-
-  //       const captionItem = allClickable.find(el => {
-  //         const label = (
-  //           el.getAttribute('aria-label') || 
-  //           el.innerText || 
-  //           el.textContent || 
-  //           ''
-  //         ).toLowerCase().trim();
-
-  //         return (
-  //           label.includes('caption') ||
-  //           label.includes('live caption') ||
-  //           label.includes('transcript') ||
-  //           label.includes('subtitles')
-  //         );
-  //       });
-
-  //       if (captionItem) {
-  //         captionItem.click();
-  //         return captionItem.getAttribute('aria-label') || captionItem.innerText;
-  //       }
-  //       return null;
-  //     });
-
-  //     if (captionClicked) {
-  //       logger.info(`TeamsAdapter(teamJoiner): Captions enabled via: "${captionClicked}"`);
-  //       await new Promise(r => setTimeout(r, 2000));
-
-  //       // ✅ STEP 4: Some Teams versions show a "Turn on" confirmation dialog
-  //       await this.page.evaluate(() => {
-  //         const confirmBtn = Array.from(document.querySelectorAll('button')).find(b =>
-  //           /turn on|enable|start|confirm/i.test(b.innerText || '')
-  //         );
-  //         if (confirmBtn) confirmBtn.click();
-  //       });
-
-  //     } else {
-  //       logger.warn('TeamsAdapter(teamJoiner): Captions menu item not found in dropdown');
-
-  //       // ✅ Close the dropdown so it doesn't block the UI
-  //       await this.page.keyboard.press('Escape');
-  //     }
-
-  //   } catch (e) {
-  //     logger.warn('TeamsAdapter(teamJoiner): Captions enable failed: ' + e.message);
-  //   }
-  // }
 
   // -----------------------------
   // CAPTION MONITOR

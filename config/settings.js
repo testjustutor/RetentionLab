@@ -41,7 +41,8 @@ module.exports = {
     },
 
     defaultViewport: null,
-    protocolTimeout: 60000,
+    protocolTimeout: 180000,
+    slowMo: 0,
 
     // 🔥 IMPORTANT: isolate profile per mode
     get userDataDir() {
@@ -49,6 +50,7 @@ module.exports = {
         ? process.env.CHROME_PROFILE_PATH || "./chrome-profiles"
         : "./storage/chrome-profiles";
     },
+    // userDataDir: null,
 
     get args() {
       return [
@@ -59,6 +61,12 @@ module.exports = {
         "--disable-setuid-sandbox",
         "--disable-permissions-api",
         "--disable-features=TranslateUI",
+
+        "--mute-audio",
+
+        '--disable-features=ExternalProtocolDialog',
+        '--no-default-browser-check',
+        '--disable-popup-blocking',
 
         "--autoplay-policy=no-user-gesture-required",
         "--enable-features=WebRtcAudioProcessing",

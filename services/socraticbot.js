@@ -65,6 +65,8 @@ class SocraticBot {
   async run() {
     try {
       
+      // this.browserManager = await new BrowserManager().init();
+
       const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
       
       const uniqueProfileDir = path.resolve(
@@ -75,10 +77,10 @@ class SocraticBot {
         `profile_${safeId}`
       );
 
-      // PASS IT TO THE BROWSER MANAGER
       this.browserManager = await new BrowserManager().init({
         userDataDir: uniqueProfileDir
       });
+
 
       const joiner = this.createJoiner();
       this.joiner = joiner;
@@ -203,7 +205,7 @@ class SocraticBot {
           .then(() => this.stop())
           .catch(err =>
             logger.error(
-              'ZoomAdapter(monitor): Monitor loop crashed:',
+              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
               err
             )
           );
@@ -257,7 +259,7 @@ class SocraticBot {
             .then(() => this.stop())
             .catch(err =>
               logger.error(
-                'GoogleMeetAdapter(monitor): Monitor loop crashed:',
+                'DefaultAdapter(SocraticBot): Monitor loop crashed:',
                 err
               )
             );
@@ -287,7 +289,7 @@ class SocraticBot {
           await joiner.startTranscriptMonitor();
         }
 
-        ZoomMonitor.monitorMeeting(
+        TeamsMonitor.monitorMeeting(
           this.browserManager.page,
           this.meetingId,
           this.botName,
@@ -296,7 +298,7 @@ class SocraticBot {
           .then(() => this.stop())
           .catch(err =>
             logger.error(
-              'ZoomAdapter(monitor): Monitor loop crashed:',
+              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
               err
             )
           );
