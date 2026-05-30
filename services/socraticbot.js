@@ -373,6 +373,18 @@ class SocraticBot {
       } catch (err) {
         logger.error('DefaultAdapter(SocraticBot): Final transcription/audit failed', err);
       }
+      // ADD at the end of stop(), after the catch block
+      try {
+        if (this.browserManager && this.browserManager.browser) {
+          await this.browserManager.browser.close();
+          logger.info('DefaultAdapter(SocraticBot): Browser closed');
+        }
+      } catch (err) {
+        logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
+      } finally {
+        logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
+        process.exit(0);
+      }
     }
   }
 }
