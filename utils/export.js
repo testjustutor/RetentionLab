@@ -28,8 +28,8 @@ async function exportToJson(meetingId, outputDir = '.') {
       summary: transcripts.length ? `${transcripts.length} utterances from ${new Set(transcripts.map(t => t.speaker)).size} speakers` : 'No captions detected (HOST+BOT still exports metadata)'
     };
 
-    await fs.writeFile(filename, JSON.stringify(data, null, 2));
-    logger.info(`JSON transcript exported to ${filename}`);
+    // await fs.writeFile(filename, JSON.stringify(data, null, 2));
+    // logger.info(`JSON transcript exported to ${filename}`);
     return filename;
   } catch (err) {
     logger.error('JSON export error:', err);
@@ -47,8 +47,8 @@ async function exportToTxt(meetingId, outputDir = '.') {
       content += `[${t.timestamp}] ${t.speaker}: ${t.text}\n`;
     });
 
-    await fs.writeFile(filename, content);
-    logger.info(`TXT transcript exported to ${filename}`);
+    // await fs.writeFile(filename, content);
+    // logger.info(`TXT transcript exported to ${filename}`);
     return filename;
   } catch (err) {
     logger.error('TXT export error:', err);

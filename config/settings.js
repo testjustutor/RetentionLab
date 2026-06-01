@@ -43,7 +43,7 @@ module.exports = {
     defaultViewport: null,
     protocolTimeout: 180000,
     slowMo: 0,
-
+    ignoreDefaultArgs: ['--mute-audio'],
     // 🔥 IMPORTANT: isolate profile per mode
     get userDataDir() {
       return isGoogleMeetPlatform()
@@ -55,22 +55,38 @@ module.exports = {
     get args() {
       return [
         "--start-maximized",
-        "--use-fake-ui-for-media-stream",
+        
+        // ── Media permissions ────────────────────────
+        '--use-fake-ui-for-media-stream',           // auto-accept mic/camera
+
         "--disable-notifications",
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-permissions-api",
         "--disable-features=TranslateUI",
 
-        "--mute-audio",
+        // "--mute-audio",
 
         '--disable-features=ExternalProtocolDialog',
         '--no-default-browser-check',
         '--disable-popup-blocking',
 
-        "--autoplay-policy=no-user-gesture-required",
-        "--enable-features=WebRtcAudioProcessing",
-        "--disable-features=WebRtcHideLocalSimulcastSignalingTarget",
+        '--auto-select-desktop-capture-source=Tab', // ✅ ADD: needed for tab audio capture
+
+        // ── Audio Quality ─────────────────────────────
+        '--audio-output-sample-rate=48000',           // ✅ KEEP: full quality
+        '--audio-buffer-size=4096',                   // ✅ KEEP: fewer dropouts
+
+        
+        // ── WebRTC ────────────────────────────────────
+        '--enable-features=WebRtcAudioProcessing',    // ✅ KEEP
+        '--disable-features=WebRtcHideLocalSimulcastSignalingTarget',
+        '--disable-webrtc-hw-encoding',               // ✅ ADD: software encoding = more stable
+        '--disable-webrtc-hw-decoding',               // ✅ ADD: software decoding = clearer audio
+
+        // ── AudioContext / Autoplay ───────────────────
+        '--autoplay-policy=no-user-gesture-required', // ✅ KEEP: prevents ctx suspension
+
         "--protocol-handler-policy=block-external-protocol-dialogs",
 
       // 🔥 only for headful stability
@@ -91,7 +107,15 @@ module.exports = {
     bitrate: "128k",
     sampleRate: "16000",
     channels: "1",
-    format: "libmp3lame"
+    format: "libmp3lame",
+    
+    // Applied during webm → wav conversion in audioRecorderBot
+    enhancementFilters: [
+      'highpass=f=80',              // cut keyboard/desk rumble below 80Hz
+      'afftdn=nf=-25',              // FFT noise reduction
+      'loudnorm=I=-16:TP=-1.5:LRA=11', // normalize to -16 LUFS (broadcast standard)
+      'aresample=16000',            // resample last (after processing)
+    ],
   },
 
   paths: {
