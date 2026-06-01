@@ -270,13 +270,10 @@ project_root/
 |   |   |   |	|-- preJoinMedia.js
 |   |   |   |	|-- transcriptEngine.js
 |   |   |   |-- audioRecorderBot.js
-|   |   |   |-- GoogleMeetAdapter.js
-|   |   |   |-- captionListener.js
 |   |   |   |-- captionMonitor.js
+|   |   |   |-- GoogleMeetAdapter.js
 |   |   |   |-- monitor.js
-|   |   |   |-- participantCapture.js
 |   |   |   |-- participantTracker.js
-|   |   |   `-- reactiveJoinFlow.js
 |   |   |-- teams
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- GoogleMeetAdapter.js

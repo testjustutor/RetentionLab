@@ -192,6 +192,102 @@ function buildHeader(ctx) {
   ].join('\n');
 }
 
+function buildFooter() {
+  return [
+    '',
+    '==========================================',
+    `TRANSCRIPT ENDED: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+    '==========================================',
+    ''
+  ].join('\n');
+}
+
+function longestCommonPrefix(a, b) {
+  const minLen = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < minLen && a[i] === b[i]) {
+    i += 1;
+  }
+  return a.slice(0, i);
+}
+
+function compressTranscriptUpdates(rawText) {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const compressed = [];
+  const lastBySpeaker = {};
+  const greetingPattern = /^(hello|hi|hey|good (morning|afternoon|evening))[!,]?\s+/i;
+
+  for (const line of lines) {
+    const match = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*([^:]+):\s*(.*)$/);
+    if (!match) continue;
+
+    const [, timestamp, speaker, text] = match;
+    let cleanedText = text;
+    const previousText = lastBySpeaker[speaker];
+
+    if (previousText) {
+      const prefix = longestCommonPrefix(previousText, cleanedText);
+      if (prefix.length > 0 && prefix.length < cleanedText.length) {
+        cleanedText = cleanedText.slice(prefix.length).trim();
+        cleanedText = cleanedText.replace(/^[\s,;:.!?-]+/, '');
+      }
+    }
+
+    if (greetingPattern.test(cleanedText)) {
+      const trimmed = cleanedText.replace(greetingPattern, '').trim();
+      if (trimmed.length > 0) {
+        cleanedText = trimmed;
+      }
+    }
+
+    compressed.push(`${timestamp} ${speaker}: ${cleanedText}`);
+    lastBySpeaker[speaker] = text;
+  }
+
+  return compressed.join('\n');
+}
+
+function buildFinalCaptionSection(cleanedContent) {
+  const compressedContent = compressTranscriptUpdates(cleanedContent);
+  return [
+    '',
+    '==========================================',
+    'FINAL CAPTION SNAPSHOT',
+    'This is the last full caption data collected at meeting end.',
+    '==========================================',
+    '',
+    compressedContent,
+    buildFooter()
+  ].join('\n');
+}
+
+async function readTranscriptLinesFromFile(filePath) {
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const transcriptLines = [];
+    let insideTranscript = false;
+
+    for (const line of lines) {
+      if (!insideTranscript && /^\[\d{2}:\d{2}:\d{2}\]/.test(line)) {
+        insideTranscript = true;
+      }
+      if (insideTranscript) {
+        if (line === '==========================================' && transcriptLines.length > 0) {
+          break;
+        }
+        if (/^\[\d{2}:\d{2}:\d{2}\]/.test(line)) {
+          transcriptLines.push(line);
+        }
+      }
+    }
+
+    return transcriptLines;
+  } catch (err) {
+    return [];
+  }
+}
+
 async function ensureTranscriptHeader(ctx) {
   if (!ctx.filePath) return;
   try {
@@ -229,18 +325,45 @@ async function saveTranscriptLine(ctx, formattedLine) {
 async function exportTranscriptBuffer(ctx) {
   if (!ctx)          { logger.warn('GoogleMeetJoiner(transcriptEngine): exportTranscriptBuffer missing ctx'); return; }
   if (!ctx.filePath) { logger.warn('GoogleMeetJoiner(transcriptEngine): filePath missing'); return; }
+  
+  if (ctx._exportedTranscript) {
+    logger.info('GoogleMeetJoiner(transcriptEngine): Transcript already exported, skipping duplicate');
+    return;
+  }
 
   try {
     const stat = await fs.stat(ctx.filePath).catch(() => null);
+    const buffer = Array.isArray(ctx.transcriptBuffer) ? ctx.transcriptBuffer : [];
 
     if (stat && stat.size > 0) {
-      const footer = `\n==========================================\nTRANSCRIPT ENDED: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n==========================================\n`;
-      await fs.appendFile(ctx.filePath, footer);
-      logger.info(`GoogleMeetJoiner(transcriptEngine): Footer appended → ${ctx.filePath}`);
+      let finalSection = '';
+
+      if (buffer.length > 0) {
+        const rawContent     = buffer.map(b => `[${b.time}] ${b.name}: ${b.text}`).join('\n') + '\n';
+        const cleanedContent = cleanTranscript(rawContent);
+        finalSection = buildFinalCaptionSection(cleanedContent);
+      } else {
+        const fileLines = await readTranscriptLinesFromFile(ctx.filePath);
+        if (fileLines.length > 0) {
+          const rawContent     = fileLines.join('\n') + '\n';
+          const cleanedContent = cleanTranscript(rawContent);
+          finalSection = buildFinalCaptionSection(cleanedContent);
+        }
+      }
+
+      if (finalSection) {
+        await fs.appendFile(ctx.filePath, finalSection);
+        ctx._exportedTranscript = true;
+        logger.info(`GoogleMeetJoiner(transcriptEngine): Final caption snapshot appended → ${ctx.filePath}`);
+      } else {
+        const footer = `\n==========================================\nTRANSCRIPT ENDED: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n==========================================\n`;
+        await fs.appendFile(ctx.filePath, footer);
+        ctx._exportedTranscript = true;
+        logger.info(`GoogleMeetJoiner(transcriptEngine): Footer appended → ${ctx.filePath}`);
+      }
       return;
     }
 
-    const buffer = Array.isArray(ctx.transcriptBuffer) ? ctx.transcriptBuffer : [];
     if (buffer.length === 0) {
       logger.warn('GoogleMeetJoiner(transcriptEngine): transcriptBuffer is empty');
       return;
@@ -249,7 +372,8 @@ async function exportTranscriptBuffer(ctx) {
     await fs.mkdir(path.dirname(ctx.filePath), { recursive: true });
     const rawContent     = buffer.map(b => `[${b.time}] ${b.name}: ${b.text}`).join('\n') + '\n';
     const cleanedContent = cleanTranscript(rawContent);
-    await fs.writeFile(ctx.filePath, buildHeader(ctx) + cleanedContent);
+    await fs.writeFile(ctx.filePath, buildHeader(ctx) + buildFinalCaptionSection(cleanedContent));
+    ctx._exportedTranscript = true;
     logger.info(`GoogleMeetJoiner(transcriptEngine): Buffer exported → ${ctx.filePath}`);
 
   } catch (err) {
@@ -371,10 +495,11 @@ async function processCaptionLines(ctx, captions, lastCaptionLine, lastSpeakerNa
 // ═══════════════════════════════════════════════════════════
 
 function initContext(ctx) {
-  if (!ctx.transcriptBuffer) ctx.transcriptBuffer = [];
-  if (!ctx.seenRows)         ctx.seenRows = new Set();
-  if (!ctx._lastPerSpeaker)  ctx._lastPerSpeaker = {};
-  if (ctx.captionInterval)   clearInterval(ctx.captionInterval);
+  ctx.transcriptBuffer = [];
+  ctx.seenRows = new Set();
+  ctx._lastPerSpeaker = {};
+  if (ctx.captionInterval) clearInterval(ctx.captionInterval);
+  logger.info('GoogleMeetJoiner(transcriptEngine): Transcript context reset for new meeting');
 }
 
 function filterValidCaptions(captions) {
