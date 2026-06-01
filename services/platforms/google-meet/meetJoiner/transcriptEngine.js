@@ -178,35 +178,6 @@ async function extractCaptions(page, knownParticipants = new Set()) {
   return valid;
 }
 
-// ═══════════════════════════════════════════════════════════
-// SECTION 3 — PARTICIPANT EVENT HANDLER
-// ═══════════════════════════════════════════════════════════
-
-async function handleCaptionEvent(line) {
-  if (!this.participantTracker) return;
-
-  const text = line.trim();
-
-  const joinMatch = text.match(/(.+?) joined/i);
-  if (joinMatch) {
-    const name = joinMatch[1].trim();
-    logger.info(`GoogleMeetJoiner(transcriptEngine): JOIN detected → ${name}`);
-    await this.participantTracker.handleParticipantJoin(name);
-    return;
-  }
-
-  const leaveMatch = text.match(/(.+?) (has )?left the meeting/i);
-  if (leaveMatch) {
-    const name = leaveMatch[1].trim();
-    logger.info(`GoogleMeetJoiner(transcriptEngine): LEAVE detected → ${name}`);
-    await this.participantTracker.handleParticipantLeave(name);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// SECTION 4 — TRANSCRIPT STORAGE
-// ═══════════════════════════════════════════════════════════
-
 function buildHeader(ctx) {
   const dateStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   return [
@@ -324,7 +295,7 @@ function cleanTranscript(rawText) {
 }
 
 async function processCaptionLines(ctx, captions, lastCaptionLine, lastSpeakerName) {
-  const { seenRows, transcriptBuffer, handleCaptionEvent: ctxCaptionEvent } = ctx;
+  const { seenRows, transcriptBuffer } = ctx;
 
   // Per-speaker last line tracking — prevents false "extension" when switching speakers
   if (!ctx._lastPerSpeaker) ctx._lastPerSpeaker = {};
@@ -389,9 +360,6 @@ async function processCaptionLines(ctx, captions, lastCaptionLine, lastSpeakerNa
 
     transcriptBuffer.push({ name, text, time: formattedTime });
 
-    const eventHandler = ctxCaptionEvent || handleCaptionEvent;
-    if (eventHandler) await eventHandler.call(ctx, text);
-
     await saveTranscriptLine(ctx, formattedLine);
   }
 
@@ -452,7 +420,10 @@ async function handleIntervalError(err, ctx, page) {
 }
 
 async function runCaptionTick(ctx, page, state) {
-  const knownParticipants = ctx?.participantTracker?.trackedParticipants ?? new Set();
+  const trackedParticipants = ctx?.participantTracker?.trackedParticipants;
+  const knownParticipants = trackedParticipants instanceof Map
+    ? new Set(trackedParticipants.keys())
+    : trackedParticipants ?? new Set();
   const captions          = await extractCaptions(page, knownParticipants);
 
   if (!captions?.length) return state;
@@ -530,5 +501,4 @@ module.exports = {
   extractCaptions,
   isValid,
   INVALID_PATTERNS,
-  handleCaptionEvent,
 };

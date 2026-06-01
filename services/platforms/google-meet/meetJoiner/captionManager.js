@@ -3,7 +3,7 @@ const { logger } = require('../../../../utils/logger');
 module.exports = async function enableCaptionsIfPossible() {
   logger.info('GoogleMeetJoiner(captionManager): ENTER enableCaptionsIfPossible');
 
-    const result = await this.page.evaluate(async () => {
+    return await this.page.evaluate(async () => {
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
       const log = (msg, data) => {
@@ -132,5 +132,4 @@ module.exports = async function enableCaptionsIfPossible() {
         debug: debugInfo
       };
     });
-
 };

@@ -171,11 +171,10 @@ async function getCurrentParticipantNames(page) {
   }
 }
 
-async function monitorMeeting(page, meetingId, botName, sessionId) {
+async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker) {
   logger.info('GoogleMeetAdapter(monitor): MONITOR: Stay-Alive loop started');
 
-  // Initialize participant tracker
-  const participantTracker = new ParticipantTracker(meetingId, sessionId);
+  const tracker = participantTracker || new ParticipantTracker(meetingId, sessionId);
   let previousParticipants = [];
   let lastParticipantCheckTime = Date.now();
   const PARTICIPANT_CHECK_INTERVAL = 5000; // Check every 5 seconds
@@ -248,14 +247,14 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
           // Detect joins (new participants)
           for (const name of currentParticipants) {
             if (!previousParticipants.includes(name)) {
-              await participantTracker.handleParticipantJoin(name);
+              await tracker.handleParticipantJoin(name);
             }
           }
           
           // Detect leaves (participants no longer in list)
           for (const name of previousParticipants) {
             if (!currentParticipants.includes(name)) {
-              await participantTracker.handleParticipantLeave(name);
+              await tracker.handleParticipantLeave(name);
             }
           }
           

@@ -1,8 +1,6 @@
-const puppeteer = require('puppeteer');
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data'); // Fixed: Ensure FormData is imported for Node.js
-const BrowserManager = require('../../shared/browserManager');
 const { logger } = require('../../../utils/logger');
 const settings = require('../../../config/settings');
 const PythonBridge = require('../../shared/pythonBridge');

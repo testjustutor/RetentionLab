@@ -10,10 +10,6 @@ const ZoomMonitor = require('./platforms/zoom/monitor');
 const TeamsMonitor = require('./platforms/teams/monitor');
 const GoogleMeetMonitor = require('./platforms/google-meet/monitor');
 
-const ZoomReactiveJoinFlow = require('./platforms/zoom/reactiveJoinFlow');
-const TeamsReactiveJoinFlow = require('./platforms/teams/reactiveJoinFlow');
-const GoogleMeetReactiveJoinFlow = require('./platforms/google-meet/reactiveJoinFlow');
-
 const ZoomAudioRecorderBot = require('./platforms/zoom/audioRecorderBot');
 const TeamsAudioRecorderBot = require('./platforms/teams/audioRecorderBot');
 const GoogleMeetAudioRecorderBot = require('./platforms/google-meet/audioRecorderBot');
@@ -25,10 +21,8 @@ const GoogleMeetCaptionMonitor = require('./platforms/google-meet/captionMonitor
 const ZoomParticipantTracker = require('./platforms/zoom/participantTracker');
 const TeamsParticipantTracker = require('./platforms/teams/participantTracker');
 const GoogleParticipantTracker = require('./platforms/google-meet/participantTracker');
-const { handleCaptionEvent } = require('./platforms/google-meet/meetJoiner/transcriptEngine');
 
 const AudioRecorder = require('./audioRecorder');
-const MeetingModel = require('../models/MeetingModel');
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
 
 const PythonBridge = require('./shared/pythonBridge');
@@ -226,10 +220,6 @@ class SocraticBot {
 
         this.captionMonitor.startPolling();
 
-        if (joiner.enableCaptionsIfPossible) {
-          await joiner.enableCaptionsIfPossible();
-        }
-        
         const participantTracker = new GoogleParticipantTracker(
           this.meetingId,
           this.sessionId
@@ -248,7 +238,8 @@ class SocraticBot {
             this.browserManager.page,
             this.meetingId,
             this.botName,
-            this.sessionId
+            this.sessionId,
+            participantTracker
           )
             .then(() => this.stop())
             .catch(err =>

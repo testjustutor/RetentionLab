@@ -1,6 +1,4 @@
 const { logger } = require('../../../../utils/logger');
-const path   = require('path');
-const { format } = require('date-fns');
 
 const handlePreJoinScreen                        = require('./preJoinMedia');
 const { enterMeeting, waitForJoinConfirmation }  = require('./meetingNavigation');
@@ -10,7 +8,6 @@ const {
   startTranscriptMonitor,
   stopTranscriptMonitor,
   getTranscript,
-  handleCaptionEvent,
 } = require('./transcriptEngine');
 
 class MeetJoiner {
@@ -41,7 +38,6 @@ class MeetJoiner {
     this.startTranscriptMonitor = () => startTranscriptMonitor(this);
     this.stopTranscriptMonitor  = () => stopTranscriptMonitor(this);
     this.getTranscript          = () => getTranscript(this);
-    this.handleCaptionEvent     = handleCaptionEvent.bind(this);
   }
 
   // ─────────────────────────────────────────────
