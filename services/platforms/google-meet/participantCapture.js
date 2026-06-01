@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/participantCapture.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 
 /**

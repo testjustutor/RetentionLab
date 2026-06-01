@@ -122,10 +122,10 @@ class TeamsJoiner {
 
       // Turn off mic and camera
       await this.page.evaluate(() => {
-        const mic = document.querySelector('[aria-label*="microphone"], [aria-label*="mic"]');
+        const mic = document.querySelector('[data-track-action-scenario="callMuteAudio"], [aria-label*="Mute mic"], [data-state="mic-volume-renderer"]');
         if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
 
-        const cam = document.querySelector('[aria-label*="camera"], [aria-label*="video"]');
+        const cam = document.querySelector('[aria-label="Turn camera off"], [data-state="call-video"], [data-track-action-scenario="callStopVideo"], [data-track-module-name-new="videoOff"]');
         if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
       });
     

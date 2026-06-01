@@ -16,12 +16,12 @@ class ProfessionalMeetingBot {
     async runAuditPipeline(videoFilePath) {
         try {
             const fileName = path.basename(videoFilePath);
-            logger.info(`[ProfessionalBot] Handoff to PythonBridge: ${fileName}`);
+            logger.info(`GoogleMeetAdapter(audioRecorderBot): Handoff to PythonBridge: ${fileName}`);
             
             const result = await PythonBridge.runFullPipeline(fileName);
             return result;
         } catch (error) {
-            logger.error(`[ProfessionalBot] Audit Handoff failed: ${error.message}`);
+            logger.error(`GoogleMeetAdapter(audioRecorderBot): Audit Handoff failed: ${error.message}`);
             return null;
         }
     }

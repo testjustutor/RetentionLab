@@ -25,7 +25,7 @@ const GoogleMeetCaptionMonitor = require('./platforms/google-meet/captionMonitor
 const ZoomParticipantTracker = require('./platforms/zoom/participantTracker');
 const TeamsParticipantTracker = require('./platforms/teams/participantTracker');
 const GoogleParticipantTracker = require('./platforms/google-meet/participantTracker');
-const { handleCaptionEvent } = require('./platforms/google-meet/meetJoiner/transcript/participantEvents');
+const { handleCaptionEvent } = require('./platforms/google-meet/meetJoiner/transcriptEngine');
 
 const AudioRecorder = require('./audioRecorder');
 const MeetingModel = require('../models/MeetingModel');
@@ -240,13 +240,7 @@ class SocraticBot {
         joiner.setParticipantTracker(participantTracker);
 
         if (joiner.startTranscriptMonitor) {
-          await joiner.startTranscriptMonitor({
-            page: this.browserManager.page,
-            captionMonitor: this.captionMonitor,
-            participantTracker: participantTracker,
-            handleCaptionEvent,
-            filePath: joiner.filePath
-          });
+          await joiner.startTranscriptMonitor();
         }
 
         // Start the Google Meet monitor loop (handles "bot alone" exit condition).
@@ -322,7 +316,7 @@ class SocraticBot {
     }
 
     if (this.joiner && typeof this.joiner.stopTranscriptMonitor === 'function') {
-      this.joiner.stopTranscriptMonitor(this.joiner);
+      await this.joiner.stopTranscriptMonitor();
     }
 
     // stop recording + transcribe
@@ -383,7 +377,7 @@ class SocraticBot {
         logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
       } finally {
         logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
-        process.exit(0);
+        // process.exit(0);
       }
     }
   }

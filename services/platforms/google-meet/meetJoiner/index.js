@@ -1,39 +1,54 @@
 const { logger } = require('../../../../utils/logger');
-const path = require('path');
+const path   = require('path');
 const { format } = require('date-fns');
 
-const handlePreJoinScreen = require('./preJoinMedia');
-
-const { enterMeeting, waitForJoinConfirmation } = require('./meetingNavigation');
-
-const enableCaptionsIfPossible = require('./captionManager');
+const handlePreJoinScreen                        = require('./preJoinMedia');
+const { enterMeeting, waitForJoinConfirmation }  = require('./meetingNavigation');
+const enableCaptionsIfPossible                   = require('./captionManager');
 
 const {
   startTranscriptMonitor,
   stopTranscriptMonitor,
-  getTranscript
-} = require('./transcript/transcriptMonitor');
-
-const {
-  handleCaptionEvent
-} = require('./transcript/participantEvents');
+  getTranscript,
+  handleCaptionEvent,
+} = require('./transcriptEngine');
 
 class MeetJoiner {
-  constructor(page, botName, meetingUrl) {
 
-    this.page = page;
-    this.botName = botName;
-    this.meetingUrl = meetingUrl;
-    this.filePath = this.generateTranscriptFilePath();
+  // ─────────────────────────────────────────────
+  // CONSTRUCTOR
+  // ─────────────────────────────────────────────
+
+  constructor(page, botName, meetingUrl) {
+    this.page        = page;
+    this.botName     = botName;
+    this.meetingUrl  = meetingUrl;
+
+    // transcript state
+    this.captionInterval  = null;
+    this.isStopping       = false;
+    this.transcriptBuffer = [];
+    this.seenRows         = new Set();
 
     // external services
-    this.captionMonitor = null;
+    this.captionMonitor     = null;
+    Object.defineProperty(this, 'filePath', {
+      get: () => this.captionMonitor?.filePath
+    });
     this.participantTracker = null;
 
+    // ── transcript bindings (ctx = this) ──
+    this.startTranscriptMonitor = () => startTranscriptMonitor(this);
+    this.stopTranscriptMonitor  = () => stopTranscriptMonitor(this);
+    this.getTranscript          = () => getTranscript(this);
+    this.handleCaptionEvent     = handleCaptionEvent.bind(this);
   }
 
-  setCaptionMonitor(monitor) {
+  // ─────────────────────────────────────────────
+  // SETTERS
+  // ─────────────────────────────────────────────
 
+  setCaptionMonitor(monitor) {
     this.captionMonitor = monitor;
   }
 
@@ -41,61 +56,43 @@ class MeetJoiner {
     this.participantTracker = tracker;
   }
 
+  // ─────────────────────────────────────────────
+  // JOIN FLOW
+  // ─────────────────────────────────────────────
+
   async joinMeeting() {
+    logger.info('GoogleMeetJoiner(index): STAGE 1: Navigating to Google Meet...');
 
-    await this.page.goto(this.meetingUrl, {
-      waitUntil: 'networkidle2'
-    });
+    await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
 
+    // 1. Turn off mic and camera
     await this.handlePreJoinScreen();
 
+    // 2. Type name and click Join
     await this.enterMeeting();
 
+    // 3. Wait to be admitted from lobby
     const confirmed = await this.waitForJoinConfirmation();
-
     if (!confirmed.success) {
-
       await this.page.screenshot({ path: 'meet_stuck.png' });
-
-      throw new Error(`Google Meet join failed (${confirmed.state})`);
+      logger.error(`GoogleMeetJoiner(index): Join confirmation failed (${confirmed.state})`);
+      throw new Error(`Google Meet join confirmation failed (${confirmed.state})`);
     }
 
-    // =========================
-    // POST-JOIN STAGE
-    // =========================
-
+    // 4. Enable captions
     await this.enableCaptionsIfPossible();
 
-    await this.startTranscriptMonitor({
-      page: this.page,
-      captionMonitor: this.captionMonitor,
-      participantTracker: this.participantTracker,
-      handleCaptionEvent,
-      filePath: this.filePath,
-    });
-
-  }
-
-  generateTranscriptFilePath() {
-    const url = new URL(this.meetingUrl);
-    const meetingId = url.pathname.split('/').pop();
-    const date = format(new Date(), 'yyyy-MM-dd');
-    const filename = `transcript-${meetingId}-${date}.txt`;
-    return path.join(__dirname, '../../../../../../storage/transcripts', filename);
+    logger.info('GoogleMeetJoiner(index): Join flow completed successfully.');
   }
 }
 
-// =========================
+// ─────────────────────────────────────────────
 // PROTOTYPE BINDINGS
-// =========================
+// ─────────────────────────────────────────────
 
-MeetJoiner.prototype.handlePreJoinScreen = handlePreJoinScreen;
-MeetJoiner.prototype.enterMeeting = enterMeeting;
-MeetJoiner.prototype.waitForJoinConfirmation = waitForJoinConfirmation;
+MeetJoiner.prototype.handlePreJoinScreen      = handlePreJoinScreen;
+MeetJoiner.prototype.enterMeeting             = enterMeeting;
+MeetJoiner.prototype.waitForJoinConfirmation  = waitForJoinConfirmation;
 MeetJoiner.prototype.enableCaptionsIfPossible = enableCaptionsIfPossible;
-
-MeetJoiner.prototype.startTranscriptMonitor = startTranscriptMonitor;
-MeetJoiner.prototype.stopTranscriptMonitor = stopTranscriptMonitor;
-MeetJoiner.prototype.getTranscript = getTranscript;
 
 module.exports = MeetJoiner;

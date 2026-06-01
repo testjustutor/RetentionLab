@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/monitor.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');

@@ -264,18 +264,11 @@ project_root/
 |   |-- platforms
 |   |   |-- google-meet
 |   |   |   |-- meetJoiner
-|   |   |   |	|-- transcript
-|   |   |   |	|	|-- captionExtractor.js
-|   |   |   |	|	|-- captionProcessor.js
-|   |   |   |	|	|-- captionValidator.js
-|   |   |   |	|	|-- participantEvents.js
-|   |   |   |	|	|-- transcriptMonitor.js
-|   |   |   |	|	|-- transcriptStorage.js
 |   |   |   |	|-- captionManager.js
 |   |   |   |	|-- index.js
 |   |   |   |	|-- meetingNavigation.js
 |   |   |   |	|-- preJoinMedia.js
-|   |   |   |	|-- transcriptMonitor.js
+|   |   |   |	|-- transcriptEngine.js
 |   |   |   |-- audioRecorderBot.js
 |   |   |   |-- GoogleMeetAdapter.js
 |   |   |   |-- captionListener.js

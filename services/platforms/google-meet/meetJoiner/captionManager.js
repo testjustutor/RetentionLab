@@ -1,7 +1,7 @@
 const { logger } = require('../../../../utils/logger');
 
 module.exports = async function enableCaptionsIfPossible() {
-  logger.info('captionManager: ENTER enableCaptionsIfPossible');
+  logger.info('GoogleMeetJoiner(captionManager): ENTER enableCaptionsIfPossible');
 
     const result = await this.page.evaluate(async () => {
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
