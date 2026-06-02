@@ -184,7 +184,7 @@ function renderMeetingsList() {
     listEl.innerHTML = html;
 }
 
-window.selectMeeting = function(id) {
+window.selectMeeting = async function(id) {
     activeMeetingId = id;
     renderMeetingsList();
 
@@ -216,8 +216,50 @@ window.selectMeeting = function(id) {
     audioPlayer.src = meeting.audioUrl || '';
 
     document.getElementById('searchTranscript').value = '';
-    renderTranscripts(meeting.transcripts || []);
+
+    console.log(meeting.transcripts);
+    const rawText = await fetch(meeting.transcripts).then(r => r.text());
+    const transcripts = parseTranscript(rawText);
+
+    renderTranscripts(transcripts);
+
+    // renderTranscripts(meeting.transcripts || []);
 };
+
+function getColor(speaker) {
+    let hash = 0;
+    for (let i = 0; i < speaker.length; i++) {
+        hash += speaker.charCodeAt(i);
+    }
+
+    const colors = ['emerald', 'blue', 'indigo', 'orange', 'fuchsia'];
+    return colors[hash % colors.length];
+}
+
+function parseTranscript(text) {
+    const lines = text.split('\n');
+
+    const result = [];
+
+    const regex = /^\[(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s(.+)$/;
+
+    for (const line of lines) {
+        const match = line.match(regex);
+        if (!match) continue;
+
+        const [, time, speaker, msg] = match;
+
+        result.push({
+            time,
+            speaker,
+            text: msg,
+            isSystem: false,
+            color: getColor(speaker)
+        });
+    }
+
+    return result;
+}
 
 function renderTranscripts(transcripts) {
     const listEl = document.getElementById('transcriptList');

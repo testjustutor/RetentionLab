@@ -53,12 +53,40 @@ class ArchivesModel {
         date,
         platform: m.platform || 'unknown',
         meetingId: mMeetingId,
-        audioUrl: session && session.audio_file_name ? String(session.audio_file_name) : (session && session.audio_file_name ? String(session.audio_file_name) : ''),
-        transcripts: session && session.transcript_file_name ? String(session.transcript_file_name) : (session && session.transcript_file_name ? String(session.transcript_file_name) : '')
+        audioUrl: ArchivesModel.toPublicUrl(session?.audio_file_name, 'audio'),
+        transcripts: session?.transcript_file_name
+          ? ArchivesModel.toPublicUrl(session.transcript_file_name, 'transcript')
+          : ''
       });
     }
 
     return { meetings: hydrated };
+  }
+
+  static toPublicUrl(filePath, type = 'file') {
+    if (!filePath) return '';
+
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+    let normalized = String(filePath).replace(/\\/g, '/');
+
+    // already full URL
+    if (normalized.startsWith('http')) return normalized;
+
+    // if full disk path exists (audio case)
+    const idx = normalized.indexOf('/storage/');
+    if (idx !== -1) {
+      return baseUrl + normalized.slice(idx);
+    }
+
+    // filename only (transcript case)
+    const fileName = normalized.split('/').pop();
+
+    if (type === 'audio') {
+      return `${baseUrl}/storage/recordings/${fileName}`;
+    }
+
+    return `${baseUrl}/storage/transcripts/${fileName}`;
   }
 
   static #inferTranscriptColor(speaker) {

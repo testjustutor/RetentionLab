@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = express.json(); // Simple CORS
 const TranscriptModel = require('./models/transcriptModel');
@@ -19,6 +20,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors);
 app.use(express.json());
 app.use(express.static('public'));
+app.use(
+  '/storage',
+  express.static(path.join(__dirname, 'storage'))
+);
 
 // -------------------------------------------------------------------------
 // NEW: BACKGROUND SYNC HELPERS (Keeps logic consistent with calendar.js)
