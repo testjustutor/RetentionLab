@@ -1,0 +1,46 @@
+{
+    "logs": [
+        {
+            "timestamp": "2026-06-01 17:30:12",
+            "level": "INFO",
+            "module": "AUTH",
+            "description": "User authenticated successfully via multi-cal auth flow.",
+            "user": "admin@local"
+        },
+        {
+            "timestamp": "2026-06-01 17:29:45",
+            "level": "WARN",
+            "module": "BOT_ENGINE",
+            "description": "Failed to join Google Meet (invalid passcode).",
+            "user": "bot-14z"
+        },
+        {
+            "timestamp": "2026-06-01 17:28:10",
+            "level": "INFO",
+            "module": "MEETING",
+            "description": "Bot connected to Zoom meeting ID 91029.",
+            "user": "bot-19x"
+        },
+        {
+            "timestamp": "2026-06-01 17:25:00",
+            "level": "ERROR",
+            "module": "TRANSCRIPT",
+            "description": "Audio segmentation process failed (timeout: 30s).",
+            "user": "system"
+        },
+        {
+            "timestamp": "2026-06-01 17:20:15",
+            "level": "INFO",
+            "module": "DB_ADMIN",
+            "description": "Truncated table transcriptModel due to retention policy.",
+            "user": "cron"
+        },
+        {
+            "timestamp": "2026-06-01 17:15:30",
+            "level": "INFO",
+            "module": "DB_ADMIN",
+            "description": "Exported DB snapshot to zip file.",
+            "user": "admin@local"
+        }
+    ]
+}

@@ -12,17 +12,24 @@ async function loadTables() {
   showLoading();
   try {
     const res = await fetch('/api/db/tables');
-    const data = await res.json();
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error('HTML response');
+    const data = JSON.parse(text);
     const select = document.getElementById('tableSelect');
     select.innerHTML = '<option value="">Select table</option>';
-    data.data.tables.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = t.name;
-      select.appendChild(opt);
-    });
+    const tablesArr = data.data ? data.data.tables : data.tables;
+    if (tablesArr) {
+      tablesArr.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = t.name;
+        select.appendChild(opt);
+      });
+    }
   } catch (e) {
-    showError(e.message);
+    console.warn('API error, tables could not be loaded', e);
+    const select = document.getElementById('tableSelect');
+    select.innerHTML = '<option value="">Cannot load tables (API Error)</option>';
   }
   hideLoading();
 }
@@ -31,13 +38,19 @@ async function loadTableData(table) {
   showLoading();
   try {
     const res = await fetch(`/api/db/table/${table}`);
-    const data = await res.json();
-    if (data.status !== 'success') throw new Error(data.message);
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error('HTML response');
+    const data = JSON.parse(text);
+    if (data.status && data.status !== 'success') throw new Error(data.message || 'Error');
     renderTable(data.data);
     currentTable = table;
     updateLastUpdated();
   } catch (e) {
-    showError(e.message);
+    console.warn('API error, table data could not be loaded', e);
+    const el = document.getElementById('data');
+    el.innerHTML = '<div class="empty">Unable to load data. The API endpoints are not yet connected or returned an error.</div>';
+    currentTable = table;
+    updateLastUpdated();
   }
   hideLoading();
 }
@@ -103,16 +116,27 @@ function refreshData() {
 async function loadStats() {
   try {
     const res = await fetch('/api/db/stats');
-    const data = await res.json();
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error('HTML response');
+    const data = JSON.parse(text);
     const el = document.getElementById('stats');
-    el.innerHTML = data.data.tables.map(t => `
-      <div class="stat-card">
-        <div class="stat-number">${t.count}</div>
-        <div>${t.name}</div>
+    const tablesArr = data.data ? data.data.tables : [];
+    el.innerHTML = tablesArr.map(t => `
+      <div class="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-md rounded-xl p-4 flex flex-col gap-1 transition relative overflow-hidden group hover:border-slate-700">
+        <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-500/50 to-purple-500/50 opacity-50 group-hover:opacity-100 transition"></div>
+        <div class="text-2xl font-bold text-white font-mono leading-none">${t.count}</div>
+        <div class="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">${t.name}</div>
       </div>
     `).join('');
   } catch(e) {
-    console.error(e);
+    console.warn('API error, stats could not be loaded', e);
+    const el = document.getElementById('stats');
+    el.innerHTML = `
+      <div class="bg-indigo-500/10 backdrop-blur-md border border-indigo-500/20 shadow-md rounded-xl p-4 flex flex-col gap-1 mx-auto col-span-full">
+        <div class="text-[12px] uppercase tracking-wide text-indigo-400 font-semibold text-center mt-2 mb-2">No Data Available</div>
+        <div class="text-[11px] text-slate-400 text-center font-mono">System disconnected from underlying database layer or API is under construction.</div>
+      </div>
+    `;
   }
 }
 

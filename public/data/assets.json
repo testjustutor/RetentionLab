@@ -1,0 +1,18 @@
+{
+    "folders": [
+        { "name": "/uploads/raw_audio", "active": true, "iconColor": "violet" },
+        { "name": "/uploads/merged", "active": false, "iconColor": "slate" },
+        { "name": "/exports/zips", "active": false, "iconColor": "slate" }
+    ],
+    "currentPath": "/uploads/raw_audio",
+    "files": [
+        { "name": "raw_chunk_1_09x.wav", "size": "12.4 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_2_09x.wav", "size": "8.1 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_3_09x.wav", "size": "21.6 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_4_10z.wav", "size": "15.2 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_5_10z.wav", "size": "19.8 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_6_10z.wav", "size": "9.5 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_7_11a.wav", "size": "3.2 MB", "type": "Audio", "ext": ".WAV" },
+        { "name": "raw_chunk_8_11a.wav", "size": "2.1 MB", "type": "Audio", "ext": ".WAV" }
+    ]
+}

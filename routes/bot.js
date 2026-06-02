@@ -63,5 +63,43 @@ router.get('/queued', async (req, res) => {
   }
 });
 
+// GET /api/bot
+router.get('/', async (req, res) => {
+  try {
+    // TODO: Pull live stats from your botManager and DB, e.g.:
+    // const workers = botManager.listActiveWorkers();
+    // const stats = await botManager.getSystemStats();
+    
+    const mockBotData = {
+      "stats": {
+        "status": "ONLINE",
+        "activeBots": "3 / 50",
+        "gpuCompute": "14%",
+        "taskQueue": "0"
+      },
+      "logs": [
+        { "time": "10:41:01", "type": "SYSTEM", "typeColor": "indigo", "message": "Initializing orchestrator core..." }
+      ],
+      "workers": [
+        {
+          "id": "Bot 89X-ZM",
+          "status": "Recording",
+          "statusColor": "emerald",
+          "isPulsing": true,
+          "platform": "Zoom",
+          "meeting": "Product Sync",
+          "duration": "04:12",
+          "action": "Terminate"
+        }
+      ]
+    };
+
+    res.json(mockBotData);
+  } catch (err) {
+    logger.error('Route(bot): Error fetching bot dashboard data:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 module.exports = router;
 

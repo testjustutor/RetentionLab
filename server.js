@@ -312,8 +312,10 @@ app.use('/api/db', require('./routes/db-admin'));
 app.use('/api/transcripts', require('./routes/transcripts'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/assets', require('./routes/assets'));
+app.use('/api/archives', require('./routes/archives'));
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
+
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {

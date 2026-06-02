@@ -12,7 +12,19 @@ if (!fs.existsSync(logDir)) {
 // Format: 2026-05-29
 const currentDate = new Date().toISOString().split('T')[0];
 
+// Custom log levels
+const customLevels = {
+  levels: {
+    critical: 0,
+    error: 1,
+    warn: 2,
+    info: 3
+  }
+};
+
 const logger = winston.createLogger({
+  levels: customLevels.levels,
+
   level: process.env.LOG_LEVEL || 'info',
 
   format: winston.format.combine(
@@ -26,16 +38,28 @@ const logger = winston.createLogger({
   },
 
   transports: [
+    // Critical logs
+    new winston.transports.File({
+      filename: path.join(logDir, `critical-${currentDate}.log`),
+      level: 'critical'
+    }),
 
-    // Error logs by date
+    // Error logs
     new winston.transports.File({
       filename: path.join(logDir, `error-${currentDate}.log`),
       level: 'error'
     }),
 
-    // Combined logs by date
+    // Warning logs
     new winston.transports.File({
-      filename: path.join(logDir, `combined-${currentDate}.log`)
+      filename: path.join(logDir, `warn-${currentDate}.log`),
+      level: 'warn'
+    }),
+
+    // Info logs
+    new winston.transports.File({
+      filename: path.join(logDir, `info-${currentDate}.log`),
+      level: 'info'
     }),
 
     // Console logs

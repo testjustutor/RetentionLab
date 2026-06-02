@@ -122,24 +122,7 @@ stmt.run(
       });
     });
   }
-
-  static updateMeetingStatus(meetingId, status, sessionId = null) {
-    return new Promise((resolve, reject) => {
-      let query = 'UPDATE calendar_meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ?';
-      let params = [status, sessionId, meetingId];
-      
-      db.run(query, params, function(err) {
-        if (err) {
-          logger.error('Model(MeetingModel): Error updating meeting status:', err);
-          reject(err);
-        } else {
-          logger.info(`Model(MeetingModel): Meeting ${meetingId} status updated to: ${status}`);
-          resolve({ changes: this.changes, meetingId });
-        }
-      });
-    });
-  }
-
+  
   static getUpcomingMeetings(account = null, limit = 20) {
     return new Promise((resolve, reject) => {
       let query = 'SELECT * FROM calendar_meetings WHERE status IN ("joining", "active")';
@@ -229,16 +212,32 @@ stmt.run(
   // NEW: Update status (enhanced for batch tracking)
   static updateMeetingStatus(meetingId, status, sessionId = null) {
     return new Promise((resolve, reject) => {
-      let query = 'UPDATE calendar_meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ?';
-      let params = [status, sessionId, meetingId];
-      
-      db.run(query, params, function(err) {
+      const query = `
+        UPDATE calendar_meetings
+        SET status = ?,
+            session_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE meeting_id = ?
+          AND status IN ('queued', 'launching')
+      `;
+
+      const params = [status, sessionId, meetingId];
+
+      db.run(query, params, function (err) {
         if (err) {
           logger.error('Model(MeetingModel): Error updating meeting status:', err);
           reject(err);
         } else {
-          logger.info(`Model(MeetingModel): Meeting ${meetingId} status → ${status} (changes: ${this.changes})`);
-          resolve({ changes: this.changes, meetingId });
+          logger.info(
+            `Model(MeetingModel): Meeting ${meetingId} status → ${status} (changes: ${this.changes})`
+          );
+
+          resolve({
+            success: true,
+            updated: this.changes > 0,
+            changes: this.changes,
+            meetingId
+          });
         }
       });
     });

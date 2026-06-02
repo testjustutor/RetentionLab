@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Audit Logs</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#141E33', 900: '#0F172A', 950: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="./css/audit.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="./js/audit.js"></script>
+</head>
+<body class="antialiased font-sans p-2 sm:p-4">
+    <div class="max-w-6xl mx-auto flex flex-col gap-4">
+        <!-- Header -->
+        <header class="flex items-center gap-3 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md p-3 shrink-0">
+            <div class="inline-flex items-center justify-center p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)] shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </div>
+            <div class="flex-1">
+                <h1 class="text-lg font-bold tracking-tight text-white mb-0.5 leading-tight">System Audit Logs</h1>
+                <p class="text-slate-400 text-xs truncate">Immutable records of all database queries, authentication attempts, and system actions.</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/schedule-intelligence.html" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    Schedule
+                </a>
+                <button class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export CSV
+                </button>
+            </div>
+        </header>
+
+        <!-- Main View -->
+        <div class="bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md h-[550px] lg:h-[calc(100vh-120px)] flex flex-col overflow-hidden">
+            
+            <!-- Toolbar -->
+            <div class="px-4 py-3 border-b border-slate-800/60 bg-slate-800/20 flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <input id="auditSearchInput" type="text" placeholder="Search logs..." class="bg-slate-950/50 border border-slate-700/80 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-64">
+                    <input id="auditFromDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-40" title="From date">
+                    <input id="auditToDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-40" title="To date">
+                    <select id="auditLevelSelect" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-2 flex-1 py-1.5 text-xs focus:outline-none focus:border-amber-500/50">
+                        <option value="ALL">Level: ALL</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 text-slate-400">
+                    <span id="auditCountSummary" class="text-[10px] font-mono tracking-widest uppercase">Loading logs...</span>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="flex-1 overflow-auto custom-scrollbar relative">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead class="sticky top-0 bg-slate-850/95 backdrop-blur-sm z-10">
+                        <tr class="text-[10px] font-mono uppercase tracking-wider text-slate-500 border-b border-slate-800">
+                            <th class="px-4 py-3 font-medium w-40">Timestamp</th>
+                            <th class="px-4 py-3 font-medium w-24">Level</th>
+                            <th class="px-4 py-3 font-medium w-32">Module</th>
+                            <th class="px-4 py-3 font-medium">Event Description</th>
+                            <th class="px-4 py-3 font-medium w-28">User/Actor</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50 text-[#cbd5e1] font-mono text-[11px]" id="logTableBody">
+                        <!-- Populated randomly for layout visualization -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination block -->
+            <div class="px-4 py-2 border-t border-slate-800/60 bg-slate-800/30 flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0">
+                <span id="auditBottomSummary" class="text-[10px] text-slate-500 font-mono">Showing all logs</span>
+                <div class="flex items-center gap-2">
+                    <button id="auditPrevBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition">Prev</button>
+                    <button id="auditNextBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+    "stats": {
+        "status": "ONLINE",
+        "activeBots": "3 / 50",
+        "gpuCompute": "14%",
+        "taskQueue": "0"
+    },
+    "logs": [
+        { "time": "10:41:01", "type": "SYSTEM", "typeColor": "indigo", "message": "Initializing orchestrator core..." },
+        { "time": "10:41:02", "type": "BOOT", "typeColor": "blue", "message": "Connecting to Redis task queue... OK." },
+        { "time": "10:41:02", "type": "BOOT", "typeColor": "blue", "message": "Loading VAD audio models into memory..." },
+        { "time": "10:41:05", "type": "BOOT", "typeColor": "blue", "message": "FastWhisper alignment models loaded. GPU memory: 1,024MB." },
+        { "time": "10:42:15", "type": "SPAWN", "typeColor": "emerald", "message": "Dispatching Bot 'Z-Observer-89X' to Zoom meeting..." },
+        { "time": "10:42:19", "type": "WARN", "typeColor": "amber", "message": "Meeting requires passcode. Injecting credentials..." },
+        { "time": "10:42:25", "type": "JOIN", "typeColor": "emerald", "message": "Bot admitted to meeting. Audio transport established." },
+        { "time": "10:45:10", "type": "STREAM", "typeColor": "cyan", "message": "Receiving multi-channel audio chunks..." }
+    ],
+    "workers": [
+        {
+            "id": "Bot 89X-ZM",
+            "status": "Recording",
+            "statusColor": "emerald",
+            "isPulsing": true,
+            "platform": "Zoom",
+            "meeting": "Product Sync",
+            "duration": "04:12",
+            "action": "Terminate"
+        },
+        {
+            "id": "Bot 14M-GM",
+            "status": "IDLE",
+            "statusColor": "blue",
+            "isPulsing": false,
+            "platform": "Google Meet",
+            "meeting": "Standby",
+            "duration": "--:--",
+            "action": "Waiting Task"
+        }
+    ]
+}

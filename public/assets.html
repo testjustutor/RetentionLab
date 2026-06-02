@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Assets Manager</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#141E33', 900: '#0F172A', 950: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="./css/assets.css">
+    <script src="./js/assets.bundle.js"></script>
+</head>
+<body class="antialiased font-sans p-2 sm:p-4">
+    <div class="max-w-6xl mx-auto flex flex-col gap-4">
+        <!-- Header -->
+        <header class="flex items-center gap-3 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md p-3 shrink-0">
+            <div class="inline-flex items-center justify-center p-2 bg-violet-500/10 rounded-lg border border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)] shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m20 17-1.09-1.09a2 2 0 0 0-2.82 0L10 22"/></svg>
+            </div>
+            <div class="flex-1">
+                <h1 class="text-lg font-bold tracking-tight text-white mb-0.5 leading-tight">Media Assets Manager</h1>
+                <p class="text-slate-400 text-xs truncate">View partitioned audio chunks, merged files, and raw exports currently cached in the filesystem.</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/schedule-intelligence.html" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    Schedule
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[550px] lg:h-[calc(100vh-120px)]">
+            
+            <!-- Sidebar: Folders -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md flex flex-col h-full overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800/60 bg-slate-800/30 shrink-0">
+                    <h2 class="text-slate-200 font-semibold text-[11px] uppercase tracking-widest text-slate-400">Storage Directory</h2>
+                </div>
+                <div class="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar" id="storage-sidebar">
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600/10 text-violet-300 border border-violet-500/20 text-xs font-medium" data-folder="cache_wav_audio">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_wav_audio</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_audio_transcripts">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_audio_transcripts</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_audits">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_audits</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_captions_raw">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_captions_raw</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_chat_logs">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_chat_logs</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_diarization">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_diarization</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_embeddings">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_embeddings</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_llm_prompts">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_llm_prompts</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_screenshots">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_screenshots</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_topic_trackers">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_topic_trackers</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_voice_activity">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_voice_activity</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_voiceprints">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_voiceprints</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="cache_whisper">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">cache_whisper</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="intel">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">intel</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="recordings">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">recordings</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="summaries">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">summaries</span>
+                    </button>
+                    <button class="sidebar-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 text-xs font-medium transition cursor-pointer" data-folder="transcripts">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="truncate">transcripts</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main File Viewer -->
+            <div class="lg:col-span-3 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md flex flex-col h-full overflow-hidden">
+                <div class="px-5 py-3 border-b border-slate-800/60 bg-slate-800/20 flex flex-col sm:flex-row justify-between items-center shrink-0">
+                    <span id="assetsHeaderPath" class="text-xs text-slate-400 font-mono">/uploads/raw_audio (12 items)</span>
+                    <div class="flex items-center gap-2 mt-2 sm:mt-0">
+                        <button class="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-semibold transition border border-slate-700/80">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg> Download All
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" id="assetsGrid">
+                        <!-- Assets populated by script -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        <!-- Viewer Modal -->
+        <div id="assetsViewer" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 rounded-lg border border-slate-800 max-w-4xl w-full max-h-[80vh] overflow-auto">
+                <div class="flex justify-between items-center p-3 border-b border-slate-800">
+                    <div class="text-sm text-slate-300 font-semibold" id="assetsViewerTitle">File Viewer</div>
+                    <button id="assetsViewerClose" class="text-slate-400 hover:text-white px-3 py-1">Close</button>
+                </div>
+                <div id="assetsViewerContent" class="p-4 text-sm text-slate-200"></div>
+            </div>
+        </div>
+</body>
+</html>
