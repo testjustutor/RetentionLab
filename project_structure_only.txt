@@ -1,6 +1,16 @@
 ## This is full Architecture of project ##
 
+
+# These are mandatory 
+# Python version 3.10.11
+# Python Library (torch,openai-whisper,whisperx,huggingface_hub)
+# database sqlite
+# Using ffmpeg
+
+# node version v22.19.0
+  Using (node puppeteer)
 Verified project folder/file structure with file names.
+
 
 ```text
 project_root/

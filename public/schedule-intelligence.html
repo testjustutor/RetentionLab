@@ -358,12 +358,12 @@
                 });
 
                 const data = await response.json();
-
-                if (data.status === 'success') {
+                console.log(data);
+                if (data.success === true) {
                     showMessage('quickJoinMessage', 'success', `[SUCCESS] Bot dispatched. Meeting: ${meetingId} | Origin: ${account}`);
                     setTimeout(() => {
                         document.getElementById('quickJoinArea').classList.add('hidden');
-                        fetchUserMeetings();
+                        // fetchUserMeetings();
                     }, 4000);
                 } else {
                     showMessage('quickJoinMessage', 'error', '[FAILED] ' + data.message);

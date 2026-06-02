@@ -57,7 +57,7 @@
                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                         </span>
-                        ONLINE
+                        <span id="statusText"></span>
                     </p>
                 </div>
                 <div class="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg hidden sm:block">
@@ -67,7 +67,7 @@
             <div class="bg-slate-900/60 backdrop-blur-md rounded-xl p-4 border border-slate-800/80 shadow-md flex items-center justify-between">
                 <div>
                     <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-1">Active Bots</p>
-                    <p class="text-white text-xl font-bold font-sans">3 / 50</p>
+                    <p id="kpiActiveBots" class="text-white text-xl font-bold font-sans">3 / 50</p>
                 </div>
                 <div class="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg hidden sm:block">
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/></svg>
@@ -76,7 +76,7 @@
             <div class="bg-slate-900/60 backdrop-blur-md rounded-xl p-4 border border-slate-800/80 shadow-md flex items-center justify-between">
                 <div>
                     <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-1">GPU Compute</p>
-                    <p class="text-white text-xl font-bold font-sans text-emerald-400">14%</p>
+                    <p id="kpiGpuCompute" class="text-white text-xl font-bold font-sans text-emerald-400">14%</p>
                 </div>
                 <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg hidden sm:block">
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -85,7 +85,7 @@
             <div class="bg-slate-900/60 backdrop-blur-md rounded-xl p-4 border border-slate-800/80 shadow-md flex items-center justify-between">
                 <div>
                     <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-1">Task Queue</p>
-                    <p class="text-white text-xl font-bold font-sans">0</p>
+                    <p id="kpiTaskQueue" class="text-white text-xl font-bold font-sans">0</p>
                 </div>
                 <div class="p-2.5 bg-amber-500/10 text-amber-400 rounded-lg hidden sm:block">
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>

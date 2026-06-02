@@ -18,14 +18,15 @@ const customLevels = {
     critical: 0,
     error: 1,
     warn: 2,
-    info: 3
+    info: 3,
+    debug: 4
   }
 };
 
 const logger = winston.createLogger({
   levels: customLevels.levels,
 
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || 'debug',
 
   format: winston.format.combine(
     winston.format.timestamp(),

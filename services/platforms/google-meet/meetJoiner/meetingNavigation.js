@@ -124,10 +124,14 @@ async function waitForJoinConfirmation() {
 
     if (snapshot.isWaitingToBeLetIn || snapshot.hasJoinBtn) {
       state = MEET_STATE.LOBBY;
-      logger.info(`GoogleMeetJoiner:meetingNavigation / KNOCKING (attempt ${i + 1}/${maxAttempts})`);
+      if ((i + 1) % 5 === 0) {
+        logger.info(`GoogleMeetJoiner:meetingNavigation / KNOCKING (attempt ${i + 1}/${maxAttempts})`);
+      }
     } else {
       state = MEET_STATE.JOINING;
-      logger.info(`GoogleMeetJoiner:meetingNavigation / HANDSHAKE (attempt ${i + 1}/${maxAttempts})`);
+      if ((i + 1) % 5 === 0) {
+        logger.info(`GoogleMeetJoiner:meetingNavigation / HANDSHAKE (attempt ${i + 1}/${maxAttempts})`);
+      }
     }
 
     await new Promise(r => setTimeout(r, 3000));
