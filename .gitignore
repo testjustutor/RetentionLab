@@ -21,3 +21,6 @@ storage/**/*
 retention_lab.db
 .test-engine.lock
 package-lock.json
+
+__pycache__/
+*.pyc
