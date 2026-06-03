@@ -24,6 +24,7 @@ const GoogleParticipantTracker = require('./platforms/google-meet/participantTra
 
 const AudioRecorder = require('./audioRecorder');
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
+const MeetingModel = require('../models/MeetingModel');
 
 const PythonBridge = require('./shared/pythonBridge');
 
@@ -350,6 +351,7 @@ class SocraticBot {
 
 
               if (auditResults) {
+                await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
                 logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
               }
             }
