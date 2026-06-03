@@ -131,7 +131,7 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
     python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
 
 # To test node file code is correct
-    node --check services\platforms\google-meet\meetJoiner.js
+    node --check services\platforms\google-meet\monitor.js
 
 ## To test dummy audio file
     Remove-Item .test-engine.lock -Force
@@ -142,3 +142,35 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
 ffmpeg -hide_banner -devices
 
 
+
+Step 1 : git clone https://github.com/testjustutor/RetentionLab.git
+
+Step 2 : git checkout development (temporary for development)
+
+Step 3 : npm install
+
+Step 4 :   if already have old .venv 
+            deactivate
+            Remove-Item -Recurse -Force .venv
+
+Step 5 :    & "C:\Users\shyam.charan\AppData\Local\Programs\Python\Python310\python.exe" -m venv .venv
+
+Step 6 : .\.venv\Scripts\Activate.ps1
+
+Step 7 : python -m pip install --upgrade pip
+
+Step 8 :    pip install pyannote.audio
+            pip install openai-whisper
+            pip install openai
+
+Step 8 : Copy paste .dll file from ffmppeg (8.1.1-full_build-shared) to C://ffmpeg/bin/
+
+
+Step 10 : npm start
+
+            For Account Join & Manual meeting launch -> schedule-intelligence.html
+            For database -> data-architecture.html
+            For old Meetings -> archives.html
+            For Storage -> assets.html
+            For Logs -> audit.html
+            For Bot Tracking -> bot.html

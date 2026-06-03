@@ -367,7 +367,7 @@ class SocraticBot {
       } catch (err) {
         logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
       } finally {
-        logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
+        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
         // process.exit(0);
       }
     }

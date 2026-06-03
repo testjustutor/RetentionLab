@@ -19,3 +19,5 @@ storage/**/*
 
 # SQLite database
 retention_lab.db
+.test-engine.lock
+package-lock.json
