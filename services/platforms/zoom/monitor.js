@@ -108,8 +108,6 @@ async function monitorMeeting(page, meetingId) {
 
 async function exportMeetingTranscript(meetingId) {
   try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-    logger.info(`ZoomAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
     const exports = await exportBoth(meetingId, 'storage');
     logger.info(`ZoomAdapter(monitor): SAVED to storage/: ${exports.json}, ${exports.txt}`);
   } catch (err) {

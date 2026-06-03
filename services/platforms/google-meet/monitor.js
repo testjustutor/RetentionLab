@@ -353,9 +353,6 @@ async function monitorMeeting(page, meetingId, botName, sessionId, participantTr
 
 async function exportMeetingTranscript(meetingId) {
   try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-
-    logger.info(`GoogleMeetAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
 
     const exports = await exportBoth(meetingId, 'storage');
 

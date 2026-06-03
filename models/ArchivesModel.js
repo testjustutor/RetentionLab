@@ -154,22 +154,6 @@ class ArchivesModel {
     });
   }
 
-  static getTranscriptsBySession(sessionId) {
-    return new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM transcripts WHERE meeting_session_id = ? ORDER BY timestamp ASC',
-        [sessionId],
-        (err, rows) => {
-          if (err) {
-            logger.error('Model(ArchivesModel): Error fetching transcripts by session:', err);
-            return reject(err);
-          }
-          resolve(rows || []);
-        }
-      );
-    });
-  }
-
   static getSessionByMeetingId(meetingId) {
     return new Promise((resolve, reject) => {
       db.get(

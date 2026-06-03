@@ -170,7 +170,7 @@ async function getParticipantCount(page) {
 async function trackAttendanceChanges(page, botName, participantTracker, previousParticipants) {
   const currentParticipants = await getCurrentParticipantNames(page, botName);
 
-  logger.error(`TeamsAdapter (Monitor): attendance tracking Participant Name : ${currentParticipants}`);
+  logger.info(`TeamsAdapter (Monitor): attendance tracking Participant Name : ${currentParticipants}`);
 
   for (const name of currentParticipants) {
     if (!previousParticipants.includes(name)) {
@@ -192,8 +192,6 @@ async function trackAttendanceChanges(page, botName, participantTracker, previou
 
 async function exportMeetingTranscript(meetingId) {
   try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-    logger.info(`TeamsAdapter (Monitor): EXPORT: ${meetingId} - ${transcripts.length} captions`);
     const exports = await exportBoth(meetingId, 'storage');
     logger.info(`TeamsAdapter (Monitor): SAVED: ${exports.json}, ${exports.txt}`);
   } catch (err) {
@@ -259,12 +257,12 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
     // 6. Participant count (best effort)
     const participantCount = await getParticipantCount(page);
     if (participantCount === 1) {
-      logger.info("TeamsAdapter (Monitor): EXIT: Only bot left → Exporting");
+      logger.warn("TeamsAdapter (Monitor): EXIT: Only bot left → Exporting");
       await exportMeetingTranscript(meetingId);
       break;
     }
 
-    logger.warn(`TeamsAdapter (Monitor): participants ≈ ${participantCount}`);
+    logger.info(`TeamsAdapter (Monitor): participants ≈ ${participantCount}`);
 
     // 7. Loop delay
     await new Promise(r => setTimeout(r, 10000));

@@ -54,7 +54,27 @@ class BrowserManager {
 
 
     this.page.on('pageerror', err => {
-      logger.error(`Shared(browserManager): PAGE ERROR: ${err.message}`);
+      if (!err) return;
+      logger.error(
+        `PAGE ERROR: ${err?.stack || err?.message || JSON.stringify(err)}`
+      );
+    });
+
+    await this.page.setRequestInterception(true);
+
+    this.page.on('request', req => {
+      const url = req.url();
+
+      if (
+        url.includes('skype.com') ||
+        url.includes('edge.skype.com') ||
+        url.includes('telemetry') ||
+        url.includes('statics.teams.cdn.live.net')
+      ) {
+        return req.abort();
+      }
+
+      req.continue();
     });
 
     this.page.on('requestfailed', req => {
