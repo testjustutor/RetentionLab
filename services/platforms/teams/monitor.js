@@ -256,7 +256,7 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
 
     // 6. Participant count (best effort)
     const participantCount = await getParticipantCount(page);
-    if (participantCount === 1) {
+    if (participantCount <= 1) {
       logger.warn("TeamsAdapter (Monitor): EXIT: Only bot left → Exporting");
       await exportMeetingTranscript(meetingId);
       break;

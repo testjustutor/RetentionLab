@@ -40,8 +40,14 @@ async function monitorMeeting(page, meetingId) {
       }
 
       const url = page.url();
-      if (!url.includes('/wc/') && !url.includes('/j/')) {
-        logger.info("ZoomAdapter(monitor): EXIT: Redirected away from Zoom → Exporting");
+      // 1. Check if we were completely redirected away from Zoom
+      const isNotZoom = !url.includes('/wc/') && !url.includes('/j/');
+
+      // 2. NEW: Check if we landed on the post-meeting dashboard page (https://app.zoom.us/wc/)
+      const isZoomDashboardPage = url.endsWith('/wc') || url.endsWith('/wc/');
+
+      if (isNotZoom || isZoomDashboardPage) {
+        logger.info(`ZoomAdapter(monitor): EXIT: Meeting ended (Redirected to ${url}) → Exporting`);
         await exportMeetingTranscript(meetingId);
         break;
       }

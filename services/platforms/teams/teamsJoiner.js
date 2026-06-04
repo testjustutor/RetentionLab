@@ -6,6 +6,8 @@ class TeamsJoiner {
     this.botName = botName;
     this.meetingUrl = meetingUrl;
     this.passcode = passcode;
+
+    this.captionMonitor = null;
   }
 
   // -----------------------------
@@ -16,6 +18,9 @@ class TeamsJoiner {
 
     try {
       await this.page.setRequestInterception(true);
+
+      this.page.removeAllListeners('request');
+
       this.page.on('request', (request) => {
         try {
           const url = request.url();
@@ -399,8 +404,19 @@ class TeamsJoiner {
     logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
     await this.enableCaptionsIfPossible();
 
-    setInterval(async () => {
+    this.captionMonitor = setInterval(async () => {
       try {
+
+        if (!this.page || this.page.isClosed()) {
+           this.stopTranscriptMonitor();
+
+          logger.info(
+            'TeamsAdapter(teamJoiner): Caption monitor stopped (page closed)'
+          );
+
+          return;
+        }
+
         const captions = await this.page.evaluate(() => {
           const captionContainer =
             document.querySelector('.pt-captions-container') ||
@@ -418,9 +434,22 @@ class TeamsJoiner {
           logger.info(`TeamsAdapter(teamJoiner): TEAMS CAPTION: ${captions.slice(-150)}`);
         }
       } catch (e) {
-        logger.error('TeamsAdapter(teamJoiner): Teams caption monitor error:', e.message);
+        logger.error(
+          `TeamsAdapter(teamJoiner): Teams caption monitor error: ${e.message}`
+        );
       }
     }, 4000);
+  }
+
+  async stopTranscriptMonitor() {
+    if (this.captionMonitor) {
+      clearInterval(this.captionMonitor);
+      this.captionMonitor = null;
+
+      logger.info(
+        'TeamsAdapter(teamJoiner): Transcript monitor stopped'
+      );
+    }
   }
 
   async enableCaptionsIfPossible() {
