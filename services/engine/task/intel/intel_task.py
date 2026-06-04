@@ -1,3 +1,7 @@
+# root/services/engine/task/intel/intel_task.py
+
+from utils.logger_util import log_with_type
+
 import os
 import hashlib
 
@@ -28,21 +32,21 @@ def run_intel_task(context):
     context.mark_task_started(
         "intel"
     )
+    log_with_type("info", "Engine(task > intel > intel_task) : Intel task started", "TASK")
 
     try:
-
-        print(
-            "\n[INTEL TASK] Starting...",
-            flush=True
-        )
 
         engine = EmbeddingEngine(
             context
         )
 
+        log_with_type("info", "Engine(task > intel > intel_task) : EmbeddingEngine initialized", "TASK")
+
         embeddings = engine.generate(
             context.labeled_transcript
         )
+
+        log_with_type("info", f"Engine(task > intel) : Embeddings generated size={len(embeddings) if embeddings else 0}", "TASK")
 
         output_path = os.path.join(
 
@@ -58,6 +62,8 @@ def run_intel_task(context):
             embeddings
         )
 
+        log_with_type("info", f"Engine(task > intel) : Embeddings saved path={output_path}", "TASK")
+
         context.vector_path = (
             output_path
         )
@@ -69,6 +75,8 @@ def run_intel_task(context):
         voiceprint_builder = VoiceprintBuilder(
             context
         )
+
+        log_with_type("info", "Engine(task > intel > intel_task) : VoiceprintBuilder initialized", "TASK")
 
         voiceprint_paths = {}
 
@@ -91,6 +99,8 @@ def run_intel_task(context):
                     for byte in digest[:32]
                 ]
             )
+
+            log_with_type("info", f"Engine(task > intel) : Voiceprint generated speaker={speaker}", "TASK")
 
         intel_path = os.path.join(
 
@@ -121,15 +131,14 @@ def run_intel_task(context):
             "intel"
         )
 
-        print(
-            "[INTEL TASK] Completed.\n",
-            flush=True
-        )
+        log_with_type("info", "Engine(task > intel > intel_task) : Intel task completed", "TASK")
 
     except Exception:
 
         context.mark_task_failed(
             "intel"
         )
+
+        log_with_type("error", f"Engine(task > intel) : Intel task failed error={str(e)}", "TASK")
 
         raise

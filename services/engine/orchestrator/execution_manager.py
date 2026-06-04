@@ -1,3 +1,7 @@
+# root/services/engine/orchestrator/execution_manager.py
+
+from utils.logger_util import log_with_type
+
 from concurrent.futures import (
     ThreadPoolExecutor,
     as_completed
@@ -44,7 +48,10 @@ class ExecutionManager:
 
     def execute(self):
 
+        log_with_type("info", "Engine(orchestrator > execution_manager) : ExecutionManager loop started", "EXECUTION")
+
         while True:
+
 
             ready_tasks = (
                 self.graph.get_ready_tasks(
@@ -52,34 +59,44 @@ class ExecutionManager:
                 )
             )
 
+            log_with_type("info", f"Ready tasks fetched: {len(ready_tasks)}", "EXECUTION")
+
             # ==========================================
             # EXIT CONDITION
             # ==========================================
 
             if not ready_tasks:
+                
+                log_with_type("info", "Engine(orchestrator > execution_manager) : No ready tasks, exiting loop", "EXECUTION")
 
                 break
 
             # ==========================================
             # SPLIT EXECUTION TYPES
             # ==========================================
-
+    
             sequential_tasks, parallel_tasks = (
-
                 self.graph.split_parallel_tasks(
                     ready_tasks
                 )
             )
 
+            log_with_type("info", f"Engine(orchestrator > execution_manager) : Sequential={len(sequential_tasks)} | Parallel={len(parallel_tasks)}", "EXECUTION")
+
             # ==========================================
             # RUN SEQUENTIAL TASKS
             # ==========================================
 
+
             for task in sequential_tasks:
+
+                log_with_type("info", f"Engine(orchestrator > execution_manager) : SEQUENTIAL START -> {task['task_name']}", "TASK")
 
                 self._execute_single_task(
                     task
                 )
+
+                log_with_type("info", f"Engine(orchestrator > execution_manager) : SEQUENTIAL DONE -> {task['task_name']}", "TASK")
 
             # ==========================================
             # RUN PARALLEL TASKS
@@ -87,10 +104,13 @@ class ExecutionManager:
 
             if parallel_tasks:
 
+                log_with_type("info", f"Engine(orchestrator > execution_manager) : PARALLEL START -> {len(parallel_tasks)} tasks", "TASK")
+
                 self._execute_parallel_tasks(
                     parallel_tasks
                 )
 
+                log_with_type("info", "Engine(orchestrator > execution_manager) : PARALLEL DONE", "TASK")
     # ==========================================
     # SINGLE TASK EXECUTION
     # ==========================================
@@ -103,6 +123,9 @@ class ExecutionManager:
         task_name = task["task_name"]
 
         handler = task["handler"]
+
+        log_with_type("info", f"Engine(orchestrator > execution_manager) : TASK STARTED -> {task_name}", "TASK")
+
 
         self.runtime_manager.task_started(
             task_name
@@ -122,7 +145,11 @@ class ExecutionManager:
                 task_name
             )
 
+            log_with_type("info", f"Engine(orchestrator > execution_manager) : TASK COMPLETED -> {task_name}", "TASK")
+
         except Exception as error:
+
+            log_with_type("error", f"Engine(orchestrator > execution_manager) : TASK FAILED -> {task_name} | {str(error)}", "TASK")
 
             self.runtime_manager.task_failed(
                 task_name,
@@ -140,6 +167,8 @@ class ExecutionManager:
         tasks
     ):
 
+        log_with_type("info", f"Engine(orchestrator > execution_manager) : PARALLEL EXECUTION START -> {len(tasks)} tasks", "TASK")
+        
         futures = {}
 
         with ThreadPoolExecutor(
@@ -148,12 +177,13 @@ class ExecutionManager:
 
         ) as executor:
 
+
             for task in tasks:
 
                 task_name = task[
                     "task_name"
                 ]
-
+                
                 handler = task[
                     "handler"
                 ]
@@ -167,10 +197,12 @@ class ExecutionManager:
                     task_name,
                     handler
                 )
-
+    
                 futures[
                     future
                 ] = task_name
+
+                log_with_type("info", f"Engine(orchestrator > execution_manager) : Parallel task submitted={task_name}", "EXECUTION")
 
             # ==========================================
             # WAIT FOR ALL
@@ -179,7 +211,8 @@ class ExecutionManager:
             for future in as_completed(
                 futures
             ):
-
+    
+    
                 task_name = futures[
                     future
                 ]
@@ -196,12 +229,16 @@ class ExecutionManager:
                         task_name
                     )
 
+                    log_with_type("info", f"Engine(orchestrator > execution_manager) : Parallel task completed={task_name}", "EXECUTION")
+
                 except Exception as error:
 
                     self.runtime_manager.task_failed(
                         task_name,
                         error
                     )
+
+                    log_with_type("error", f"Engine(orchestrator > execution_manager) : Parallel task failed={task_name} error={str(error)}", "EXECUTION")
 
                     raise
 
@@ -214,6 +251,8 @@ class ExecutionManager:
         task_name,
         handler
     ):
+
+        log_with_type("info", f"Engine(orchestrator > execution_manager) : Running parallel wrapper task={task_name}", "EXECUTION")
 
         return handler(
             self.context

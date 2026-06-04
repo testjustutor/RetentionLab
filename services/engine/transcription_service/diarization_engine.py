@@ -1,3 +1,7 @@
+# root/services/engine/transcription_service/diarization_engine.py
+
+from utils.logger_util import log_with_type
+
 import os
 from .pyannote_diarizer import PyannoteDiarizer
 
@@ -18,6 +22,8 @@ class DiarizationEngine:
 
         self.context = context
 
+        log_with_type("info", "Engine(transcription_service > diarization_engine) : DiarizationEngine initialized", "SERVICE")
+
     # ==========================================
     # PROCESS
     # ==========================================
@@ -27,6 +33,8 @@ class DiarizationEngine:
         audio_path,
         whisper_result=None
     ):
+
+        log_with_type("info", f"Engine(transcription_service > diarization_engine) : Processing started audio_path={audio_path}", "SERVICE")
 
         segments = (
             whisper_result or {}
@@ -42,18 +50,30 @@ class DiarizationEngine:
         if not hf_token:
             hf_token = os.getenv("HF_TOKEN")
 
+        log_with_type("info", "Engine(transcription_service > diarization_engine) : HF token resolved", "SERVICE")
+
         try:
             diarizer = PyannoteDiarizer(hf_token)
+
+            log_with_type("info", "Engine(transcription_service > diarization_engine) : PyannoteDiarizer initialized", "SERVICE")
+
             diarization_segments = diarizer.diarize(audio_path)
+
+            log_with_type("info", f"Engine(transcription_service > diarization_engine) : Diarization segments received count={len(diarization_segments)}", "SERVICE")
+
         except Exception as error:
-            print(
-                f"[DIARIZATION ENGINE] Warning: failed to run Pyannote diarizer: {error}",
-                flush=True
-            )
+    
+            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : Pyannote failed fallback used error={str(error)}", "SERVICE")
+
             diarization_segments = []
 
         if not diarization_segments:
+
+            log_with_type("info", "Engine(transcription_service > diarization_engine) : Using fallback diarization", "SERVICE")
+
             return self._build_fallback_diarization(segments)
+
+        log_with_type("info", "Engine(transcription_service > diarization_engine) : Assigning speaker labels", "SERVICE")
 
         return self._assign_labels_to_segments(
             segments,
@@ -80,6 +100,8 @@ class DiarizationEngine:
                 "source": "whisper_segment",
                 "segment_index": index
             })
+
+        log_with_type("info", f"Engine(transcription_service > diarization_engine) : Fallback diarization built count={len(diarization)}", "SERVICE")
 
         return diarization
 
@@ -125,5 +147,7 @@ class DiarizationEngine:
                 "source": "pyannote_diarization",
                 "segment_index": index
             })
+
+        log_with_type("info", f"Engine(transcription_service > diarization_engine) : Label assignment completed count={len(labeled)}", "SERVICE")
 
         return labeled

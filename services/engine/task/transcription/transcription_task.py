@@ -1,3 +1,7 @@
+# root/services/engine/task/transcription/transcription_task.py
+
+from utils.logger_util import log_with_type
+
 import os
 
 from services.engine.shared.json_store import (
@@ -22,21 +26,21 @@ def run_transcription_task(context):
     context.mark_task_started(
         "transcription"
     )
+    log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription task started", "TASK")
 
     try:
-
-        print(
-            "\n[TRANSCRIPTION TASK] Starting...",
-            flush=True
-        )
 
         service = TranscriptionService(
             context
         )
 
+        log_with_type("info", "Engine(task > transcription > transcription_task) : TranscriptionService initialized", "TASK")
+
         result = service.transcribe(
             context.audio_path
         )
+
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription completed", "TASK")
 
         context.transcript_path = (
             result["transcript_path"]
@@ -54,12 +58,16 @@ def run_transcription_task(context):
             result["talk_ratio"]
         )
 
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Context updated with transcript + diarization", "TASK")
+
         context.whisper_path = (
             TranscriptionCacheManager.save_whisper_output(
                 context,
                 result["whisper_result"]
             )
         )
+
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Whisper output cached", "TASK")
 
         diarization_path = os.path.join(
             context.storage_paths[
@@ -85,6 +93,8 @@ def run_transcription_task(context):
             context.talk_ratio
         )
 
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Diarization + talk ratio saved", "TASK")
+
         context.diarization_path = (
             diarization_path
         )
@@ -99,6 +109,8 @@ def run_transcription_task(context):
                 context.diarization_data
             )
         )
+
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Raw captions generated", "TASK")
 
         JsonStore.save(
             os.path.join(
@@ -134,15 +146,14 @@ def run_transcription_task(context):
             "transcription"
         )
 
-        print(
-            "[TRANSCRIPTION TASK] Completed.\n",
-            flush=True
-        )
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription task completed", "TASK")
 
     except Exception:
 
         context.mark_task_failed(
             "transcription"
         )
+        
+        log_with_type("error", f"Engine(task > transcription > transcription_task) : Transcription failed error={str(e)}", "TASK")
 
         raise

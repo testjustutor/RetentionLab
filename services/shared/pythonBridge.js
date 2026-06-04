@@ -32,7 +32,11 @@ class PythonBridge {
       logger.info(`[Bridge Python Executable] ${pythonExecutable}`);
 
       const pyProcess = spawn(pythonExecutable, ['-u', scriptPath, ...args], {
-        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+          PYTHONPATH: projectRoot
+        }
       });
 
       let outputData = '';

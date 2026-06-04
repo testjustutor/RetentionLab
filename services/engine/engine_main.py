@@ -1,4 +1,4 @@
-# root/services/platforms/google-meet/meetJoiner/preJoinMedia.js
+# root/services/engine/engine_main.py
 
 import os
 import sys
@@ -42,6 +42,8 @@ if project_root not in sys.path:
 # IMPORTS
 # ==========================================
 
+from utils.logger_util import log_with_type
+
 from services.engine.orchestrator.pipeline_context import (
     PipelineContext
 )
@@ -59,6 +61,7 @@ def run_pipeline(
     input_file,
     ai_settings_json
 ):
+    log_with_type("info", "Engine(engin_main): Python engine started from Node bridge", "BRIDGE")
 
     # ==========================================
     # PARSE AI CONFIG
@@ -68,9 +71,17 @@ def run_pipeline(
         ai_settings_json
     )
 
+    log_with_type("info", "Engine(engin_main): AI config parsed successfully", "PIPELINE")
+
     # ==========================================
     # BUILD SHARED CONTEXT
     # ==========================================
+
+    log_with_type(
+        "info",
+        f"Creating PipelineContext for input_file={input_file}",
+        "PIPELINE"
+    )
 
     context = PipelineContext(
         input_file=input_file,
@@ -78,9 +89,15 @@ def run_pipeline(
         project_root=project_root
     )
 
+    log_with_type("info", "Engine(engin_main): PipelineContext initialized", "PIPELINE")
+
     # ==========================================
     # START ORCHESTRATOR
     # ==========================================
+
+    log_with_type("info", "Engine(engin_main): PipelineRunner initialized", "PIPELINE")
+
+    log_with_type("info", "Engine(engin_main): Pipeline execution started", "PIPELINE")
 
     runner = PipelineRunner(
         context

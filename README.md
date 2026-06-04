@@ -134,6 +134,7 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
     node --check services\platforms\google-meet\monitor.js
 
 ## To test dummy audio file
+    del .test-engine.lock
     Remove-Item .test-engine.lock -Force
     node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
 
