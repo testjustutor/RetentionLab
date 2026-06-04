@@ -163,6 +163,7 @@ Step 7 : python -m pip install --upgrade pip
 Step 8 :    pip install pyannote.audio
             pip install openai-whisper
             pip install openai
+            pip install sentence-transformers
 
 Step 8 : Copy paste .dll file from ffmppeg (8.1.1-full_build-shared) to C://ffmpeg/bin/
 

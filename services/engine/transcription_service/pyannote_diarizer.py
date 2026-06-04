@@ -39,7 +39,7 @@ class PyannoteDiarizer:
 
                     "pyannote/speaker-diarization-3.1",
 
-                    use_auth_token=(
+                    token=(
                         self.hf_token
                     )
                 )
