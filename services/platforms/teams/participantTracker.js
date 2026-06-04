@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/teams/participantTracker.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 const ParticipantModel = require('../../../models/ParticipantModel');
 

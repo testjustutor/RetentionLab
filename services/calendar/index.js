@@ -1,4 +1,8 @@
 /**
+ * root/services/calendar/index.js
+ *
+ */
+/**
  * Calendar Service - Main Entry Point
  * Composes modular calendar functionality
  */

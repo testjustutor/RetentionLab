@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/meetJoiner/captionManager.js
+ *
+ */
 const { logger } = require('../../../../utils/logger');
 
 module.exports = async function enableCaptionsIfPossible() {

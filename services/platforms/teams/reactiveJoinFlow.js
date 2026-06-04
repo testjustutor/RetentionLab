@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/teams/reactiveJoinFlow.js
+ *
+ */
 const path = require('path');
 const { logger } = require('../../../utils/logger');
 

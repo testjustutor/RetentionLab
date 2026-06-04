@@ -1,3 +1,7 @@
+/**
+ * root/services/shared/botManager.js
+ *
+ */
 const { logger } = require('../../utils/logger');
 const SocraticBot = require('../socraticbot');
 const TranscriptModel = require('../../models/transcriptModel');

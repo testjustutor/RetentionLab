@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/audioRecorderBot.js
+ *
+ */
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data'); // Fixed: Ensure FormData is imported for Node.js

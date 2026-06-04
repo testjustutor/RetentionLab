@@ -1,4 +1,8 @@
 /**
+ * root/services/platforms/platformFactory.js
+ *
+ */
+/**
  * Platform Factory
  * Creates the appropriate platform adapter based on platform type
  */

@@ -1,3 +1,7 @@
+/**
+ * root/services/shared/browserManager.js
+ *
+ */
 const puppeteer = require('puppeteer');
 const { logger } = require('../../utils/logger');
 const settings = require('../../config/settings');

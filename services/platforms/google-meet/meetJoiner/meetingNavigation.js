@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/meetJoiner/meetNavigation.js
+ *
+ */
 const { logger } = require('../../../../utils/logger');
 
 async function enterMeeting() {

@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/zoom/participantCapture.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 
 /**

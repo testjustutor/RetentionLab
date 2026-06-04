@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/meetJoiner/index.js
+ *
+ */
 const { logger } = require('../../../../utils/logger');
 
 const handlePreJoinScreen                        = require('./preJoinMedia');

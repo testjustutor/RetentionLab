@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/teams/teamsJoiner.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 
 class TeamsJoiner {

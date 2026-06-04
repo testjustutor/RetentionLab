@@ -1,5 +1,7 @@
-// services/shared/pythonBridge.js
-
+/**
+ * root/services/shared/pythonBridge.js
+ *
+ */
 const appSettings = require('../../config/settings');
 const { spawn } = require('child_process');
 const path = require('path');

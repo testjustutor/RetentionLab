@@ -1,3 +1,7 @@
+/**
+ * root/services/socraticbot.js
+ *
+ */
 const BrowserManager = require('./shared/browserManager');
 
 // Platform-specific joiners

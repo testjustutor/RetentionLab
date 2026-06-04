@@ -1,4 +1,8 @@
 /**
+ * root/services/platforms/zoom/ZoomAdapter.js
+ *
+ */
+/**
  * Zoom Platform Adapter
  * Implements platform-agnostic interface using existing SocraticBot
  */

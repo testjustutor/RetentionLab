@@ -1,3 +1,7 @@
+/**
+ * root/services/calendar/MultiUserCalendarService.js
+ *
+ */
 const { google } = require('googleapis');
 const { logger } = require('../../utils/logger');
 const CalendarUsersModel = require('../../models/CalendarUsersModel');

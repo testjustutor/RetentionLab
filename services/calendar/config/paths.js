@@ -1,3 +1,7 @@
+/**
+ * root/services/calendar/config/EventService.js
+ *
+ */
 const path = require('path');
 
 const CREDENTIALS_DIR = path.join(__dirname, '../../../uploads/google-calendar-json');
