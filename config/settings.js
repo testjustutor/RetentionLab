@@ -118,6 +118,11 @@ module.exports = {
     ],
   },
 
+  screen: {
+    framerate: '15',      // 15fps is plenty for meeting recordings, saves disk space
+    crf: '28',            // compression quality — 18–28 is good range
+  },
+
   paths: {
     recordings: "storage/recordings",
     transcripts: "storage/transcripts",

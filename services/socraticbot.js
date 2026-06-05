@@ -27,6 +27,8 @@ const TeamsParticipantTracker = require('./platforms/teams/participantTracker');
 const GoogleParticipantTracker = require('./platforms/google-meet/participantTracker');
 
 const AudioRecorder = require('./audioRecorder');
+const ScreenRecorder = require('./screenRecorder');
+
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
 const MeetingModel = require('../models/MeetingModel');
 
@@ -48,6 +50,9 @@ class SocraticBot {
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
     this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
+
+    const screenStorageDir = path.resolve(__dirname, '..', 'storage', 'screen-recordings');
+    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingId);
 
     // Initialize platform-specific transcription service
     this.transcriptionService = this.createTranscriptionService();
@@ -92,6 +97,7 @@ class SocraticBot {
       // START AUDIO RECORDING
       logger.info('DefaultAdapter(SocraticBot): Triggering FFmpeg recording...');
       await this.audioRecorder.start();
+      this.screenRecorder.start();
 
       // PLATFORM FEATURES
       await this.handlePlatformFeatures(joiner);
@@ -315,7 +321,7 @@ class SocraticBot {
     if (this.joiner && typeof this.joiner.stopTranscriptMonitor === 'function') {
       await this.joiner.stopTranscriptMonitor();
     }
-    
+
     // // ✅ Mark all still-active participants as left
     // if (this.participantTracker) {
     //   await this.participantTracker.reset(new Date());
@@ -324,6 +330,7 @@ class SocraticBot {
     // stop recording + transcribe
     if (this.audioRecorder) {
       this.audioRecorder.stop();
+      await this.screenRecorder.stop();
 
       try {
         const finalAudioPath = this.audioRecorder.audioPath;
