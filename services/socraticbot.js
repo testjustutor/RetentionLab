@@ -199,7 +199,8 @@ class SocraticBot {
           this.browserManager.page,
           this.meetingId,
           this.botName,
-          this.sessionId
+          this.sessionId,
+          participantTracker
         )
           .then(() => this.stop())
           .catch(err =>
@@ -314,6 +315,11 @@ class SocraticBot {
     if (this.joiner && typeof this.joiner.stopTranscriptMonitor === 'function') {
       await this.joiner.stopTranscriptMonitor();
     }
+    
+    // // ✅ Mark all still-active participants as left
+    // if (this.participantTracker) {
+    //   await this.participantTracker.reset(new Date());
+    // }
 
     // stop recording + transcribe
     if (this.audioRecorder) {

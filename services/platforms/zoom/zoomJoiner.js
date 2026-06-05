@@ -21,9 +21,6 @@ class ZoomJoiner {
 
     let joined = false;
     let attempts = 0;
-
-    // ✅ 120 attempts × 5s = 10 minutes max wait
-    // Covers "waiting for host to start" scenarios
     const MAX_ATTEMPTS = 120;
 
     while (!joined && attempts < MAX_ATTEMPTS) {
@@ -36,206 +33,42 @@ class ZoomJoiner {
         const url = frame.url();
 
         if (!url || url === 'about:blank') continue;
-
-        // ✅ Skip cross-origin frames (reCAPTCHA, Google frames etc.)
-        // These always throw and are never the Zoom join frame
-        if (
-          url.includes('google.com/recaptcha') ||
-          url.includes('recaptcha') ||
-          url.includes('gstatic.com') ||
-          url.includes('youtube.com') ||
-          url.includes('doubleclick')
-        ) {
-          logger.info(`ZoomAdapter(zoomJoiner):  Frame[${i}] Skipped (known cross-origin): ${url.substring(0, 60)}`);
+        if (this._isCrossOriginFrame(url)) {
+          logger.info(`ZoomAdapter(zoomJoiner): Frame[${i}] Skipped (cross-origin): ${url.substring(0, 60)}`);
           continue;
         }
 
         try {
-          const analysis = await frame.evaluate((name, code) => {
-            const body = document.body;
-            if (!body) return null;
-
-            const text = body.innerText || '';
-
-            const hasLeave = !!(
-              document.querySelector('button[aria-label*="Leave"]') ||
-              document.querySelector('.footer-button__leave-btn') ||
-              document.querySelector('#leave-btn')
-            );
-
-            const nameInp = document.querySelector(
-              'input#input-for-name, input[placeholder*="name" i], input[name*="name" i]'
-            );
-            const passInp = document.querySelector('input#inputpass, input[name*="pass" i]');
-            const joinBtn = Array.from(document.querySelectorAll('button')).find(
-              b => /^join$/i.test((b.innerText || '').trim()) || b.classList.contains('zm-btn--primary')
-            );
-            const launchLink = Array.from(document.querySelectorAll('a, button')).find(
-              el => /join from your browser/i.test(el.innerText || '')
-            );
-            const cookieBtn = document.querySelector(
-              '#onetrust-accept-btn-handler, .optanon-allow-all'
-            );
-
-            // ✅ Detect "waiting for host" state — don't treat as failure
-            const isWaitingForHost =
-              text.includes('Waiting for the host to start') ||
-              text.includes('waiting for the host') ||
-              text.includes('The meeting has not started') ||
-              text.includes('Please wait for the host');
-
-            // ✅ Detect "meeting ended" state — exit immediately
-            const isMeetingEnded =
-              text.includes('This meeting has been ended') ||
-              text.includes('meeting is over') ||
-              text.includes('meeting has ended');
-
-            return {
-              hasLeave,
-              foundNameInput: !!nameInp,
-              foundPassInput: !!passInp,
-              foundJoinBtn: !!joinBtn,
-              foundLaunchLink: !!launchLink,
-              foundCookieBtn: !!cookieBtn,
-              isWaitingForHost,
-              isMeetingEnded,
-              bodySnippet: text.substring(0, 120).replace(/\n/g, ' '),
-            };
-          }, this.botName, this.passcode);
-
-          // ✅ evaluate() can return null if body isn't ready
+          const analysis = await this._analyzeFrame(frame);
           if (!analysis) continue;
 
-          logger.info(`ZoomAdapter(zoomJoiner):  Frame[${i}] URL: ${url.substring(0, 70)}`);
-          logger.info(`ZoomAdapter(zoomJoiner):   - Content: "${analysis.bodySnippet}"`);
+          logger.info(`ZoomAdapter(zoomJoiner): Frame[${i}] URL: ${url.substring(0, 70)}`);
+          logger.info(`ZoomAdapter(zoomJoiner): Content: "${analysis.bodySnippet}"`);
 
-          // ✅ Meeting already ended — no point waiting
           if (analysis.isMeetingEnded) {
             logger.warn('ZoomAdapter(zoomJoiner): Meeting has ended — aborting join');
             throw new Error('Zoom meeting has already ended');
           }
 
-          // ✅ Host hasn't started yet — log and wait, don't count as failure
           if (analysis.isWaitingForHost) {
             if (attempts % 6 === 0) {
-              // Log every 30s to avoid spamming
-              logger.info(`ZoomAdapter(zoomJoiner): Waiting for host to start (${Math.round(attempts * 5 / 60)} min elapsed)...`);
+              logger.info(`ZoomAdapter(zoomJoiner): Waiting for host (${Math.round(attempts * 5 / 60)} min elapsed)...`);
             }
-            break; // Break frame loop, outer while loop will retry after 5s
+            break;
           }
 
-          // ── Actions ──────────────────────────────────────
-
-          if (analysis.foundCookieBtn) {
-            logger.info('ZoomAdapter(zoomJoiner): [ACTION] Dismissing cookie banner');
-            await frame.click('#onetrust-accept-btn-handler, .optanon-allow-all').catch(() => {});
-          }
-
-          if (analysis.foundLaunchLink) {
-            logger.info('ZoomAdapter(zoomJoiner): [ACTION] Clicking "Join from Your Browser"');
-            await frame.evaluate(() => {
-              // Click Launch Meeting first (makes the browser link appear)
-              const launchBtn = Array.from(document.querySelectorAll('button, a'))
-                .find(el => /launch meeting/i.test(el.innerText || ''));
-              if (launchBtn) launchBtn.click();
-            });
-
-            await new Promise(r => setTimeout(r, 1500));
-
-            await frame.evaluate(() => {
-              const browserLink = Array.from(document.querySelectorAll('a, button'))
-                .find(el => /join from your browser/i.test(el.innerText || ''));
-              if (browserLink) browserLink.click();
-            });
-
-            await this.page.waitForNavigation({
-              waitUntil: 'networkidle2',
-              timeout: 8000,
-            }).catch(() => {
-              logger.info('ZoomAdapter(zoomJoiner): Navigation timeout — continuing');
-            });
-          }
-
-          if (analysis.foundNameInput && !analysis.hasLeave) {
-            logger.info('ZoomAdapter(zoomJoiner): [ACTION] Filling name and joining');
-
-            // ✅ Clear first then type — avoids appending to existing text
-            await frame.evaluate(() => {
-              const inp = document.querySelector(
-                'input#input-for-name, input[placeholder*="name" i]'
-              );
-              if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
-            });
-            await frame.type(
-              'input#input-for-name, input[placeholder*="name" i]',
-              this.botName,
-              { delay: 60 }
-            );
-
-            // ✅ Turn off mic and camera on pre-join (State-Aware for BOTH)
-
-            await frame.evaluate(async () => {
-              const delay = ms => new Promise(r => setTimeout(r, ms));
-              const logs = [];
-              const log = (varName, value) =>
-                logs.push(`[STEP-LOG] ${new Date().toLocaleTimeString()} | ${varName}: ${JSON.stringify(value)}`);
-
-              const getVisibleElements = () =>
-                Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
-                  .filter(el => {
-                    const s = window.getComputedStyle(el);
-                    return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0;
-                  });
-
-              const findAndClick = (regex, label) => {
-                const target = getVisibleElements().find(
-                  el => regex.test((el.innerText || el.ariaLabel || '').trim())
-                );
-                if (target) {
-                  log(`${label}_CLICKING`, { text: (target.innerText || target.ariaLabel).trim() });
-                  target.click();
-                  return true;
-                }
-                return false;
-              };
-
-              const hasView = findAndClick(/Mute my microphone|^Mute$/i, 'STEP1_');
-
-              return { status: hasView ? 'SUCCESS' : 'FAIL', logs };
-            });
-
-            await new Promise(r => setTimeout(r, 1000));
-
-            if (analysis.foundPassInput && this.passcode) {
-              await frame.evaluate(() => {
-                const inp = document.querySelector('input#inputpass');
-                if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
-              });
-              await frame.type('input#inputpass', this.passcode, { delay: 60 });
-            }
-
-            await new Promise(r => setTimeout(r, 1000));
-            
-            // Click Join
-            await frame.evaluate(() => {
-              const btn = Array.from(document.querySelectorAll('button')).find(
-                b => /^join$/i.test((b.innerText || '').trim()) || b.classList.contains('zm-btn--primary')
-              );
-              if (btn) btn.click();
-            });
-
-            logger.info('ZoomAdapter(zoomJoiner): [ACTION] Clicked Join — waiting for admission');
-          }
+          await this._handleFrameActions(frame, analysis);
 
           if (analysis.hasLeave) {
             joined = true;
-            logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Leave button detected — bot is in the meeting');
+            logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Bot is in the meeting');
+            await this.muteMicAfterJoin();
             break;
           }
 
         } catch (e) {
           if (e.message.includes('already ended')) throw e;
-          logger.info(`ZoomAdapter(zoomJoiner):  Frame[${i}] skipped: ${e.message.substring(0, 80)}`);
+          logger.info(`ZoomAdapter(zoomJoiner): Frame[${i}] skipped: ${e.message.substring(0, 80)}`);
         }
       }
 
@@ -247,6 +80,235 @@ class ZoomJoiner {
       await this.page.screenshot({ path: './logs/image/stuck_debug.png' }).catch(() => {});
       logger.error('ZoomAdapter(zoomJoiner): FAILED after max attempts — saved stuck_debug.png');
       throw new Error('Zoom join failed');
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // FRAME FILTER
+  // ─────────────────────────────────────────────
+
+  _isCrossOriginFrame(url) {
+    return (
+      url.includes('google.com/recaptcha') ||
+      url.includes('recaptcha') ||
+      url.includes('gstatic.com') ||
+      url.includes('youtube.com') ||
+      url.includes('doubleclick')
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // FRAME ANALYSIS
+  // ─────────────────────────────────────────────
+
+  async _analyzeFrame(frame) {
+    return frame.evaluate(() => {
+      const body = document.body;
+      if (!body) return null;
+      const text = body.innerText || '';
+
+      return {
+        hasLeave: !!(
+          document.querySelector('button[aria-label*="Leave"]') ||
+          document.querySelector('.footer-button__leave-btn') ||
+          document.querySelector('#leave-btn')
+        ),
+        foundNameInput: !!document.querySelector('input#input-for-name, input[placeholder*="name" i], input[name*="name" i]'),
+        foundPassInput: !!document.querySelector('input#inputpass, input[name*="pass" i]'),
+        foundJoinBtn: !!Array.from(document.querySelectorAll('button')).find(
+          b => /^join$/i.test((b.innerText || '').trim()) || b.classList.contains('zm-btn--primary')
+        ),
+        foundLaunchLink: !!Array.from(document.querySelectorAll('a, button')).find(
+          el => /join from your browser/i.test(el.innerText || '')
+        ),
+        foundCookieBtn: !!document.querySelector('#onetrust-accept-btn-handler, .optanon-allow-all'),
+        isWaitingForHost:
+          text.includes('Waiting for the host to start') ||
+          text.includes('waiting for the host') ||
+          text.includes('The meeting has not started') ||
+          text.includes('Please wait for the host'),
+        isMeetingEnded:
+          text.includes('This meeting has been ended') ||
+          text.includes('meeting is over') ||
+          text.includes('meeting has ended'),
+        bodySnippet: text.substring(0, 120).replace(/\n/g, ' '),
+      };
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  // FRAME ACTIONS
+  // ─────────────────────────────────────────────
+
+  async _handleFrameActions(frame, analysis) {
+    if (analysis.foundCookieBtn) {
+      logger.info('ZoomAdapter(zoomJoiner): [ACTION] Dismissing cookie banner');
+      await frame.click('#onetrust-accept-btn-handler, .optanon-allow-all').catch(() => {});
+    }
+
+    if (analysis.foundLaunchLink) {
+      await this._clickJoinFromBrowser(frame);
+    }
+
+    if (analysis.foundNameInput && !analysis.hasLeave) {
+      await this._fillNameAndJoin(frame, analysis);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CLICK JOIN FROM BROWSER
+  // ─────────────────────────────────────────────
+
+  async _clickJoinFromBrowser(frame) {
+    logger.info('ZoomAdapter(zoomJoiner): [ACTION] Clicking "Join from Your Browser"');
+
+    await frame.evaluate(() => {
+      const launchBtn = Array.from(document.querySelectorAll('button, a'))
+        .find(el => /launch meeting/i.test(el.innerText || ''));
+      if (launchBtn) launchBtn.click();
+    });
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    await frame.evaluate(() => {
+      const browserLink = Array.from(document.querySelectorAll('a, button'))
+        .find(el => /join from your browser/i.test(el.innerText || ''));
+      if (browserLink) browserLink.click();
+    });
+
+    await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 })
+      .catch(() => logger.info('ZoomAdapter(zoomJoiner): Navigation timeout — continuing'));
+  }
+
+  // ─────────────────────────────────────────────
+  // FILL NAME + MUTE + JOIN
+  // ─────────────────────────────────────────────
+
+  async _fillNameAndJoin(frame, analysis) {
+    logger.info('ZoomAdapter(zoomJoiner): [ACTION] Filling name and joining');
+
+    await frame.evaluate(() => {
+      const inp = document.querySelector('input#input-for-name, input[placeholder*="name" i]');
+      if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+
+    await frame.type('input#input-for-name, input[placeholder*="name" i]', this.botName, { delay: 60 });
+
+    await this._muteMicPreJoin(frame);
+
+    if (analysis.foundPassInput && this.passcode) {
+      await this._fillPasscode(frame);
+    }
+
+    await new Promise(r => setTimeout(r, 1000));
+    await this._clickJoinButton(frame);
+    logger.info('ZoomAdapter(zoomJoiner): [ACTION] Clicked Join — waiting for admission');
+  }
+
+  // ─────────────────────────────────────────────
+  // PRE-JOIN MIC MUTE
+  // ─────────────────────────────────────────────
+
+async _muteMicPreJoin(frame) {
+  await new Promise(r => setTimeout(r, 1000)); // wait for pre-join UI to render
+
+  await frame.evaluate(() => {
+    const getVisible = () =>
+      Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
+        .filter(el => {
+          const s = window.getComputedStyle(el);
+          return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0;
+        });
+
+    const findAndClick = (regex) =>
+      getVisible().find(el => regex.test((el.innerText || el.ariaLabel || '').trim()));
+
+    // Mic — only click if currently unmuted
+    const micBtn = findAndClick(/^Mute$|Mute my mic|mute microphone|turn off mic/i);
+    if (micBtn) micBtn.click();
+
+    // Camera — only click if currently on
+    const camBtn = findAndClick(/^Stop Video$|turn off camera|stop my video|stop camera/i);
+    if (camBtn) camBtn.click();
+  });
+
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Confirm both
+  const { micMuted, camOff } = await frame.evaluate(() => {
+    const text = (el) => (el?.innerText || el?.getAttribute('aria-label') || '').trim();
+    const allBtns = Array.from(document.querySelectorAll('button'));
+
+    const micMuted = allBtns.some(b => /^Unmute$|unmute my mic|unmute microphone/i.test(text(b)));
+    const camOff   = allBtns.some(b => /^Start Video$|start my video|turn on camera/i.test(text(b)));
+
+    return { micMuted, camOff };
+  });
+
+  logger.info(`ZoomAdapter(zoomJoiner): Pre-join mic muted: ${micMuted}, camera off: ${camOff}`);
+
+  if (!micMuted) logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted on pre-join.');
+  if (!camOff)   logger.warn('ZoomAdapter(zoomJoiner): Could not confirm camera off on pre-join.');
+}
+
+  // ─────────────────────────────────────────────
+  // FILL PASSCODE
+  // ─────────────────────────────────────────────
+
+  async _fillPasscode(frame) {
+    await frame.evaluate(() => {
+      const inp = document.querySelector('input#inputpass');
+      if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    await frame.type('input#inputpass', this.passcode, { delay: 60 });
+  }
+
+  // ─────────────────────────────────────────────
+  // CLICK JOIN BUTTON
+  // ─────────────────────────────────────────────
+
+  async _clickJoinButton(frame) {
+    await frame.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(
+        b => /^join$/i.test((b.innerText || '').trim()) || b.classList.contains('zm-btn--primary')
+      );
+      if (btn) btn.click();
+    });
+  }
+
+  async muteMicAfterJoin() {
+    await new Promise(r => setTimeout(r, 2000));
+
+    const frame = this.page.frames().find(f => f.url().includes('zoom.us')) || this.page;
+
+    await frame.evaluate(() => {
+      const mic =
+        document.querySelector('button[aria-label="Mute"]') ||
+        document.querySelector('button[aria-label="mute my microphone"]') ||
+        document.querySelector('.join-audio-by-voip__join-btn') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          /^mute$/i.test((b.getAttribute('aria-label') || b.innerText || '').trim())
+        );
+      if (mic) mic.click();
+    });
+
+    // Confirm
+    await new Promise(r => setTimeout(r, 1000));
+
+    const isMuted = await frame.evaluate(() => {
+      const mic =
+        document.querySelector('button[aria-label="Unmute"]') ||
+        document.querySelector('button[aria-label="unmute my microphone"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          /^unmute$/i.test((b.getAttribute('aria-label') || b.innerText || '').trim())
+        );
+      return !!mic;
+    });
+
+    if (isMuted) {
+      logger.info('ZoomAdapter(zoomJoiner): Mic confirmed muted after joining.');
+    } else {
+      logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted after joining.');
     }
   }
 
