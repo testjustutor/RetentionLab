@@ -55,13 +55,16 @@ async function getCurrentParticipantNames(page, botName) {
         return true;
       };
 
-      // Open roster if not already open
-      const peopleButton = Array.from(document.querySelectorAll('button,[role="button"]')).find((button) => {
-        const text = [button.getAttribute('aria-label'), button.getAttribute('title'), button.innerText]
-          .filter(Boolean).join(' ').toLowerCase();
-        return text.includes('people') || text.includes('participant') || text.includes('show participants');
-      });
-      if (peopleButton) peopleButton.click();
+      // WITH THIS — only click if roster is not already visible:
+      const rosterAlreadyOpen = !!document.querySelector('[data-cid="roster-participant"], [data-tid^="participantsInCall-"]');
+      if (!rosterAlreadyOpen) {
+        const peopleButton = Array.from(document.querySelectorAll('button,[role="button"]')).find((button) => {
+          const text = [button.getAttribute('aria-label'), button.getAttribute('title'), button.innerText]
+            .filter(Boolean).join(' ').toLowerCase();
+          return text.includes('people') || text.includes('participant') || text.includes('show participants');
+        });
+        if (peopleButton) peopleButton.click();
+      }
 
       // PASS 1 (BEST SOURCE): Actual roster participants
       const rosterParticipants = document.querySelectorAll('[data-cid="roster-participant"]');
@@ -69,7 +72,7 @@ async function getCurrentParticipantNames(page, botName) {
         let name = '';
         const dataTid = node.getAttribute('data-tid');
         if (dataTid?.startsWith('participantsInCall-')) {
-          name = dataTid.replace('participantsInCall-', '');
+          name = decodeURIComponent(dataTid.replace('participantsInCall-', ''));
         }
         if (!name) {
           const titleEl = node.querySelector('[title], [id^="roster-avatar-img"]');

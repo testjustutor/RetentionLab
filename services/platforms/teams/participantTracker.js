@@ -99,24 +99,6 @@ class ParticipantTracker {
   // LEAVE HANDLING
   // ─────────────────────────────────────────────
 
-  async _autoRecoverParticipant(participantName) {
-    logger.warn(`TeamsAdapter(participantTracker): Missing join state, auto-creating participant record - ${participantName}`);
-
-    const joinTime = new Date(Date.now() - 60000);
-
-    const joinResult = await ParticipantModel.recordParticipantJoin(
-      this.meetingId,
-      this.sessionId,
-      participantName,
-      joinTime
-    );
-
-    const tracked = this._buildTrackedRecord(joinResult.id, joinTime, 'auto-recovered');
-    this.trackedParticipants.set(this._key(participantName), tracked);
-
-    return tracked;
-  }
-
   async handleParticipantLeave(participantName, leaveTime = new Date()) {
     try {
       if (!participantName || typeof participantName !== 'string') {
@@ -124,34 +106,33 @@ class ParticipantTracker {
         return { success: false, participantName: 'UNKNOWN_PARTICIPANT', message: 'Invalid participant name' };
       }
 
-      participantName = participantName.trim().toLowerCase();
+      const key = this._key(participantName);
+      const originalName = participantName.trim();
 
-      let tracked = this.trackedParticipants.get(participantName);
+      let tracked = this.trackedParticipants.get(key);
 
-      // AUTO-RECOVERY: participant exists but was never recorded via join
       if (!tracked) {
         try {
-          tracked = await this._autoRecoverParticipant(participantName);
+          tracked = await this._autoRecoverParticipant(originalName);
         } catch (err) {
-          logger.error(`TeamsAdapter(participantTracker): Auto-recovery failed - ${participantName}`, err);
-          return { success: false, participantName, message: 'Auto recovery failed' };
+          logger.error(`TeamsAdapter(participantTracker): Auto-recovery failed - ${originalName}`, err);
+          return { success: false, participantName: originalName, message: 'Auto recovery failed' };
         }
       }
 
       if (tracked.status !== 'joined') {
-        logger.debug(`TeamsAdapter(participantTracker): Participant already left - ${participantName}`);
-        return { success: true, participantName, event: 'already_left', participantId: tracked.id };
+        logger.debug(`TeamsAdapter(participantTracker): Participant already left - ${originalName}`);
+        return { success: true, participantName: originalName, event: 'already_left', participantId: tracked.id };
       }
 
-      // Check if this is a rejoin leave or initial leave
       const lastSession = tracked.sessions[tracked.sessions.length - 1];
       const isRejoin = lastSession?.type === 'rejoin';
 
-      logger.info(`TeamsAdapter(participantTracker): Participant leaving - ${participantName} (rejoin: ${isRejoin})`);
+      logger.info(`TeamsAdapter(participantTracker): Participant leaving - ${originalName} (rejoin: ${isRejoin})`);
 
       const leaveResult = isRejoin && tracked.currentSessionId
         ? await ParticipantModel.recordRejoinLeave(tracked.currentSessionId, leaveTime)
-        : await ParticipantModel.recordParticipantLeave(this.meetingId, participantName, leaveTime);
+        : await ParticipantModel.recordParticipantLeave(this.meetingId, originalName, leaveTime);
 
       tracked.status = 'left';
       tracked.leaveTime = leaveTime;
@@ -159,7 +140,7 @@ class ParticipantTracker {
 
       return {
         success: true,
-        participantName,
+        participantName: originalName,
         event: 'leave',
         participantId: tracked.id,
         duration: leaveResult.sessionDuration || leaveResult.duration || 0

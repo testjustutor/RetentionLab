@@ -406,6 +406,10 @@ class TeamsJoiner {
   // -----------------------------
   async startTranscriptMonitor() {
     logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
+
+    // ✅ Mute mic right after joining
+    await this.muteMicAfterJoin();
+
     await this.enableCaptionsIfPossible();
 
     this.captionMonitor = setInterval(async () => {
@@ -443,6 +447,40 @@ class TeamsJoiner {
         );
       }
     }, 4000);
+  }
+  
+  async muteMicAfterJoin() {
+    await new Promise(r => setTimeout(r, 2000));
+
+    await this.page.evaluate(() => {
+      const mic =
+        document.querySelector('button[data-track-action-scenario="callMuteAudio"]') ||
+        document.querySelector('button[data-state="mic-volume-renderer"]') ||
+        document.querySelector('button[data-inp="microphone-button"][aria-label="Mute mic"]') ||
+        document.querySelector('button[id="microphone-button"][aria-label="Mute mic"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.getAttribute('aria-label') === 'Mute mic'
+        );
+
+      if (mic) mic.click();
+    });
+
+    // Confirm mic is now muted
+    await new Promise(r => setTimeout(r, 1000));
+
+    const isMuted = await this.page.evaluate(() => {
+      const mic =
+        document.querySelector('button[data-track-action-scenario="callUnmuteAudio"]') ||
+        document.querySelector('button[data-state="mic-off"]') ||
+        document.querySelector('button[aria-label="Unmute mic"]');
+      return !!mic;
+    });
+
+    if (isMuted) {
+      logger.info('TeamsAdapter(teamJoiner): Mic confirmed muted after joining.');
+    } else {
+      logger.warn('TeamsAdapter(teamJoiner): Could not confirm mic muted after joining.');
+    }
   }
 
   async stopTranscriptMonitor() {
