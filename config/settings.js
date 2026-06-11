@@ -150,7 +150,7 @@ module.exports = {
     },
 
     teams: {
-      baseUrl: process.env.TEAMS_BASE || "https://teams.live.com/meet/",
+      baseUrl: process.env.TEAMS_BASE || "https://teams.microsoft.com/l/meetup-join",
       botName: process.env.BOT_NAME,
       joinStrategy: "direct-link",
       autoJoin: true,

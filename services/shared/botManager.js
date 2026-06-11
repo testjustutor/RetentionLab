@@ -34,7 +34,7 @@ class BotManager {
     }));
   }
 
-  buildMeetingLink(platform, meetingId, passcode = '') {
+  buildMeetingLink(platform, meetingId, passcode = '', meetingUrl = '') {
     const platformConfig = settings.platforms[platform];
 
     if (!platformConfig) {
@@ -58,7 +58,7 @@ class BotManager {
     else if (platform === 'teams') {
       link = `${platformConfig.baseUrl}${meetingId}`;
       try {
-        link = this.prepareTeamsUrl(link);
+        link = this.prepareTeamsUrl(link, meetingUrl);
       } catch {}
     }
 
@@ -244,7 +244,12 @@ class BotManager {
     return this.instances.get(meetingId);
   }
 
-  prepareTeamsUrl(url) {
+  prepareTeamsUrl(url, meetingUrl = null) {
+
+    if (meetingUrl && meetingUrl.includes('teams.microsoft.com')) {
+      return meetingUrl;
+    }
+    
     const teamsUrl = new URL(url);
     // These parameters force Teams to bypass the "Open App" popup
     teamsUrl.searchParams.set('msLaunch', 'false');
@@ -278,7 +283,7 @@ class BotManager {
         throw new Error(`Unsupported platform: ${platform}`);
       }
 
-      const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
+      const meetingLink = this.buildMeetingLink(platform, meetingId, passcode, meetingUrl);
 
       logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
 

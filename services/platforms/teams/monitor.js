@@ -230,7 +230,7 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
 
     // 2. Left Teams meeting
     const url = page.url();
-    if (!url.includes('teams.live.com')) {
+    if (!url.includes('teams.live.com') || !url.includes('teams.microsoft.com')) {
       logger.info("TeamsAdapter (Monitor): EXIT: Navigated away from Teams → Exporting");
       await exportMeetingTranscript(meetingId);
       break;
