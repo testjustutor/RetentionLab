@@ -1,3 +1,7 @@
+/**
+ * root/index.js
+ *
+ */
 require('dotenv').config();
 const { logger } = require('./utils/logger');
 const { initDB } = require('./database/db');

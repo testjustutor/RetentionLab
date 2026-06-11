@@ -1,3 +1,6 @@
+/**
+ * root/models/RubicModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 

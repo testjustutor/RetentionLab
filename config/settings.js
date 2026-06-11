@@ -1,3 +1,6 @@
+/**
+ * root/config/settings.js
+ */
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 

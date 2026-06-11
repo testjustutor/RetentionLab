@@ -1,3 +1,6 @@
+/**
+ * root/public/js/admin.react.js
+*/
 const { useState, useEffect } = React;
 
 function ApiError({ message }){

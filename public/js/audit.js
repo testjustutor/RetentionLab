@@ -1,3 +1,6 @@
+/**
+ * root/public/js/audit.js
+*/
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('auditSearchInput');
     const levelSelect = document.getElementById('auditLevelSelect');

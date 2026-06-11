@@ -1,3 +1,6 @@
+/**
+ * root/routes/bot.js
+ */
 const express = require('express');
 const router = express.Router();
 const MeetingModel = require('../models/MeetingModel');

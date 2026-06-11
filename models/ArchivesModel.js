@@ -1,3 +1,6 @@
+/**
+ * root/models/ArchivesModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
@@ -116,7 +119,7 @@ class ArchivesModel {
   } = {}) {
     return new Promise((resolve, reject) => {
       let query = `
-        SELECT * FROM calendar_meetings
+        SELECT * FROM meetings
         WHERE status NOT IN ('queued')
       `;
 

@@ -282,6 +282,15 @@ class SocraticBot {
           await joiner.enableCaptionsIfPossible();
         }
 
+        // const participantTracker = new TeamsParticipantTracker(
+        //   this.meetingId,
+        //   this.sessionId
+        // );
+
+        // if (joiner.setParticipantTracker) {
+        //   joiner.setParticipantTracker(participantTracker);
+        // }
+
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
         }

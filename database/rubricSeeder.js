@@ -1,3 +1,6 @@
+/**
+ * root/database/rubicSeeder.js
+ */
 const { db } = require('./db');
 const { logger } = require('../utils/logger');
 

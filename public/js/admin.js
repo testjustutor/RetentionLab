@@ -1,3 +1,6 @@
+/**
+ * root/public/js/admin.js
+*/
 let currentTable = "";
 
 // INIT

@@ -114,6 +114,47 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
     npm install -g npm
 
 
+## To install Seeder data
+
+    npm run db:init
+    npm run db:seed
+
+## Mail setup for calendar verification
+
+To send calendar verification emails, add SMTP values to `.env`.
+
+### Gmail / Google Workspace
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=yourname@gmail.com
+SMTP_PASS=your_google_app_password
+MAIL_FROM="Retention Lab <yourname@gmail.com>"
+```
+
+### Outlook / Microsoft 365
+```env
+SMTP_HOST=smtp-mail.outlook.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=yourname@outlook.com
+SMTP_PASS=your_mailbox_password_or_app_password
+MAIL_FROM="Retention Lab <yourname@outlook.com>"
+```
+
+### Custom domain mail
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+MAIL_FROM="Retention Lab <no-reply@yourdomain.com>"
+```
+
+If you use port `465`, set `SMTP_SECURE=true`.
+
 ## To vertal environment of pythone new
 
     deactivate

@@ -1,3 +1,6 @@
+/**
+ * root/models/MeetingAssetsModel.js
+ */
 const { db } = require('../database/db'); 
 const { logger } = require('../utils/logger');
 
@@ -11,7 +14,7 @@ class MeetingAssetsModel {
     return new Promise((resolve, reject) => {
 
       const sql = `
-        INSERT INTO meeting_assets_storage (
+        INSERT INTO meeting_assets (
             meeting_id,
             audio_path,
             wav_audio_path,
@@ -66,7 +69,7 @@ class MeetingAssetsModel {
   static saveAssets(meetingId, data) {
     return new Promise((resolve, reject) => {
       const sql = `
-        INSERT INTO meeting_assets_storage (
+        INSERT INTO meeting_assets (
             meeting_id, audio_path, transcript_path, audit_json_path, 
             wav_audio_path, whisper_path, captions_raw_path, diarization_path, 
             embeddings_path, llm_prompts_path, action_items_path, 
@@ -157,7 +160,7 @@ class MeetingAssetsModel {
       params.push(meetingId);
 
       const sql = `
-        UPDATE meeting_assets_storage 
+        UPDATE meeting_assets 
         SET ${setClause}, processed_at = CURRENT_TIMESTAMP 
         WHERE meeting_id = ?
       `;
@@ -179,7 +182,7 @@ class MeetingAssetsModel {
 
   static getAssets(meetingId) {
     return new Promise((resolve, reject) => {
-      const sql = `SELECT * FROM meeting_assets_storage WHERE meeting_id = ?`;
+      const sql = `SELECT * FROM meeting_assets WHERE meeting_id = ?`;
       db.get(sql, [meetingId], (err, row) => {
         if (err) {
           logger.error(`[MeetingAssetsModel] Retrieval Error: ${err.message}`);

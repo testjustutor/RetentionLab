@@ -1,0 +1,9 @@
+/* Shared user dashboard styles - lightweight additions to Tailwind */
+:root{
+  --card-bg: rgba(15,23,42,0.9);
+}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+.card{background:var(--card-bg);border:1px solid rgba(148,163,184,0.06);border-radius:16px;padding:18px}
+.header-actions{display:flex;gap:8px;align-items:center}
+.info-dl dt{color:#94a3b8;font-weight:600}
+.info-dl dd{color:#e2e8f0}

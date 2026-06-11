@@ -1,3 +1,6 @@
+/**
+ * root/public/js/bot.js
+*/
 document.addEventListener('DOMContentLoaded', () => {
     loadBotData();
     // Refresh every 10 seconds for real-time updates

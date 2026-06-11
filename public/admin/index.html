@@ -1,0 +1,164 @@
+<!-- root/public/admin/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <title>Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="mx-auto p-6">    <div id="header-placeholder"></div>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Active Schedules</p>
+        <h3 class="text-2xl font-bold text-white mt-1">1,248</h3>
+        <p class="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+          +12% vs last week
+        </p>
+      </div>
+      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">System Load</p>
+        <h3 class="text-2xl font-bold text-violet-400 mt-1">24.2%</h3>
+        <div class="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div class="bg-violet-500 h-full w-[24.2%] rounded-full"></div>
+        </div>
+      </div>
+      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">API Requests</p>
+        <h3 class="text-2xl font-bold text-white mt-1">42.1k</h3>
+        <p class="text-[10px] text-slate-500 mt-1">Measured within last 24h</p>
+      </div>
+      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Gateway Flags</p>
+        <h3 class="text-2xl font-bold text-amber-400 mt-1">2</h3>
+        <p class="text-[10px] text-amber-500 font-medium mt-1">Requires system validation</p>
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      
+      <div class="space-y-6 lg:col-span-1">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold tracking-tight text-white mb-3 flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Active Session
+          </h2>
+          <dl class="space-y-2.5 text-xs">
+            <div class="flex justify-between border-b border-slate-800/60 pb-2">
+              <dt class="text-slate-400">Identity Context</dt>
+              <dd id="userName" class="text-slate-200 font-medium"></dd>
+            </div>
+            <div class="flex justify-between border-b border-slate-800/60 pb-2">
+              <dt class="text-slate-400">Scope Routing</dt>
+              <dd id="userEmail" class="text-slate-200 font-mono text-[11px]"></dd>
+            </div>
+            <div class="flex justify-between pb-1">
+              <dt class="text-slate-400">Internal Role</dt>
+              <dd id="userRole" class="text-violet-400 font-semibold uppercase text-[10px] bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded"></dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold tracking-tight text-white mb-3">Company Tools</h2>
+          <div class="flex flex-col gap-2.5 text-xs font-medium">
+            <a href="/dashboard" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
+              <span class="text-slate-200 group-hover:text-white">Platform Dashboard</span>
+              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a href="/admin/archives.html" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
+              <span class="text-slate-200 group-hover:text-white">Archives Matrix</span>
+              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-sm font-semibold tracking-tight text-white">System Deployment Queue</h2>
+            <p class="text-[11px] text-slate-500">Live infrastructure records and build deployments</p>
+          </div>
+          <button class="shrink-0 bg-violet-600 hover:bg-violet-500 transition-colors text-white text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-md shadow-violet-600/10">
+            Provision Cluster
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
+                <th class="pb-2.5">Identifier</th>
+                <th class="pb-2.5">Environment</th>
+                <th class="pb-2.5">Data Metric</th>
+                <th class="pb-2.5 text-right">Routing Status</th>
+              </tr>
+            </thead>
+            <tbody class="text-slate-300 divide-y divide-slate-800/40">
+              <tr>
+                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-prod-01a</td>
+                <td class="py-3">US-East Gateway</td>
+                <td class="py-3 text-slate-400">99.98% SLA</td>
+                <td class="py-3 text-right">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Operational</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-stage-04</td>
+                <td class="py-3">EU-Central Hub</td>
+                <td class="py-3 text-slate-400">84.1% Sync</td>
+                <td class="py-3 text-right">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">Syncing</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-3 font-mono text-violet-400 text-[11px]">cron-intel-sync</td>
+                <td class="py-3">Virtual Cluster</td>
+                <td class="py-3 text-slate-400">Idle Pipeline</td>
+                <td class="py-3 text-right">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">Suspended</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-3 font-mono text-violet-400 text-[11px]">api-mesh-router</td>
+                <td class="py-3">Global Edge CDN</td>
+                <td class="py-3 text-slate-400">14.1k req/s</td>
+                <td class="py-3 text-right">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="../js/auth.js"></script>
+<!-- 
+  <script>
+    function toggleProfileMenu() {
+        const menu = document.getElementById('profileMenu');
+        const chevron = document.getElementById('profileChevron');
+        const isOpen = !menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', isOpen);
+        chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
+
+    document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('profileMenuWrap');
+        if (wrap && !wrap.contains(e.target)) {
+            document.getElementById('profileMenu').classList.add('hidden');
+            document.getElementById('profileChevron').style.transform = '';
+        }
+    });
+  </script> -->
+  <script src="../js/load-components.js"></script>
+</body>
+</html>

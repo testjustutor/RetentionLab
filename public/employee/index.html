@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="employee">
+  <title>Employee — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="max-w-6xl mx-auto p-6">    <div id="header-placeholder"></div>
+<section class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div class="card">
+        <h2 class="text-xl font-semibold mb-3">Profile</h2>
+        <dl class="info-dl">
+          <div><dt>Name</dt><dd id="userName">—</dd></div>
+          <div><dt>Email</dt><dd id="userEmail">—</dd></div>
+          <div><dt>Role</dt><dd id="userRole">—</dd></div>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h2 class="text-xl font-semibold mb-3">Quick actions</h2>
+        <div class="flex flex-col gap-3">
+          <a href="/calendar-accounts.html" class="block rounded-xl bg-slate-900 px-4 py-3">Schedule intelligence</a>
+          <a href="/archives.html" class="block rounded-xl bg-slate-900 px-4 py-3">Archives</a>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="/js/auth.js"></script>
+  <script src="../js/load-components.js"></script>
+</body>
+</html>

@@ -1,17 +1,29 @@
+/**
+ * root/server.js
+ *
+ */
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const path = require('path');
+// path already required above
+const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const cors = express.json(); // Simple CORS
+const fs = require('fs');
+const path = require('path');
 const TranscriptModel = require('./models/transcriptModel');
 const { logger } = require('./utils/logger');
 const { initDB } = require('./database/db');
+const { runSeeder } = require('./database');
 const botManager = require('./services/shared/botManager');
+
+// --- HEADER CONFIG DB MODEL ---
+const HeaderConfigModel = require('./models/HeaderConfigModel');
 
 // --- HELPER IMPORTS FOR AUTO-SYNC ---
 const MeetingModel = require('./models/MeetingModel');
 const CalendarUsersModel = require('./models/CalendarUsersModel');
+const CalendarVerificationModel = require('./models/CalendarVerificationModel');
 const MultiUserCalendarService = require('./services/calendar/MultiUserCalendarService');
 
 const app = express();
@@ -19,11 +31,16 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors);
 app.use(express.json());
-app.use(express.static('public'));
+app.use(cookieParser());
+app.use('/', require('./routes'));
+
 app.use(
   '/storage',
   express.static(path.join(__dirname, 'storage'))
 );
+
+// Serve public static assets after alias handling
+app.use(express.static('public'));
 
 // -------------------------------------------------------------------------
 // NEW: BACKGROUND SYNC HELPERS (Keeps logic consistent with calendar.js)
@@ -225,101 +242,7 @@ async function backgroundSyncAllUsers() {
   }
 }
 
-// -------------------------------------------------------------------------
-// EXISTING ROUTES (Unchanged)
-// -------------------------------------------------------------------------
 
-app.get('/storage/stats', async (req, res) => {
-  try {
-    const storageDir = './storage';
-    let totalSize = 0;
-    const fs = require('fs');
-    const path = require('path');
-    
-    if (fs.existsSync(storageDir)) {
-      function scanDir(dir) {
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          const fullPath = path.join(dir, file);
-          const stat = fs.statSync(fullPath);
-          if (stat.isFile()) {
-            totalSize += stat.size;
-          } else if (stat.isDirectory()) {
-            scanDir(fullPath);
-          }
-        }
-      }
-      scanDir(storageDir);
-    }
-
-    const totalKB = Math.round(totalSize / 1024);
-    const totalMB = (totalKB / 1024).toFixed(1);
-    res.json({
-      total: totalMB > 1 ? `${totalMB} MB` : `${totalKB} KB`,
-      bytes: totalSize
-    });
-  } catch (err) {
-    logger.error('(ServerJS File): Storage stats error:', err);
-    res.status(500).json({ total: '0 KB' });
-  }
-});
-
-app.use('/api/bot', require('./routes/bot'));
-
-app.get('/auth/google/callback', async (req, res) => {
-  try {
-    const { code, error, state: account = 'default' } = req.query;
-    
-    // --- DYNAMIC URL DETECTION ---
-    // Detect if we are using https (common on live servers/ngrok) or http
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    // Get the current host (e.g., your-ngrok-url.ngrok-free.app or localhost:3000)
-    const host = req.headers.host;
-    const dynamicBaseUrl = `${protocol}://${host}`;
-
-    if (error) {
-      logger.error('(ServerJS File): Google OAuth error:', error);
-      return res.status(400).send(`<h2>OAuth Error: ${error}</h2>`);
-    }
-
-    // Call the internal API using the dynamic URL instead of localhost:3000
-    const response = await fetch(`${dynamicBaseUrl}/api/calendar/callback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, account })
-    });
-
-    const result = await response.json();
-    
-    if (response.ok) {
-      res.send(`
-        <!DOCTYPE html>
-        <html><head><title>Success</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: green;">✅ Google Calendar Authorized!</h2>
-          <p>Account: <strong>${account}</strong></p>
-          <script>setTimeout(() => window.close(), 3000);</script>
-        </body></html>
-      `);
-    } else {
-      res.status(500).send(`<h2>❌ Authorization Failed</h2><p>${result.message || 'Unknown error'}</p>`);
-    }
-  } catch (err) {
-    logger.error('(ServerJS File): Callback error:', err);
-    res.status(500).send(`<h2>Server Error</h2><p>${err.message}</p>`);
-  }
-});
-
-app.use('/api/calendar', require('./routes/calendar'));
-app.use('/api/meetings', require('./routes/meetings'));
-app.use('/api/db', require('./routes/db-admin'));
-
-app.use('/api/transcripts', require('./routes/transcripts'));
-app.use('/api/audit', require('./routes/audit'));
-app.use('/api/assets', require('./routes/assets'));
-app.use('/api/archives', require('./routes/archives'));
-
-app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 
 
 const httpServer = http.createServer(app);
@@ -383,9 +306,10 @@ setInterval(async () => {
 // -------------------------------------------------------------------------
 // SERVER STARTUP WITH INITIAL GLOBAL SYNC
 // -------------------------------------------------------------------------
-CalendarUsersModel.createTable()
-  .catch(err => logger.warn('(ServerJS File): Users table creation failed:', err))
-  .then(() => initDB())
+initDB()
+  .then(() => runSeeder())
+  .then(() => HeaderConfigModel.seedForAllRoles())
+  .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
   .then(async () => {
     // 🚀 FIREFLIES LOGIC: Run Global Sync immediately on server start
     await backgroundSyncAllUsers();
@@ -393,9 +317,7 @@ CalendarUsersModel.createTable()
     // 🔄 Sync every 30 minutes to capture new calendar invites
     setInterval(backgroundSyncAllUsers, 30 * 60 * 1000);
 
-    // At the very bottom of server.js, replace the httpServer.listen block:
     httpServer.listen(PORT, () => {
-      // This will log the actual port being used
       logger.info(`(ServerJS File): Bot Server is LIVE on Port: ${PORT}`);
       logger.info(`(ServerJS File): Auto-Sync (1min) and Polling (30s) are now ACTIVE.`);
     });

@@ -1,3 +1,6 @@
+/**
+ * root/models/MeetingParticipantSessionModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
@@ -10,7 +13,7 @@ class MeetingParticipantSessionModel {
     return new Promise((resolve, reject) => {
       // First, get the next join_sequence number for this participant
       db.get(
-        `SELECT MAX(join_sequence) as max_seq FROM meeting_participant_sessions 
+        `SELECT MAX(join_sequence) as max_seq FROM participant_sessions 
          WHERE meeting_id = ? AND participant_name = ?`,
         [meetingId, participantName],
         (err, row) => {
@@ -23,7 +26,7 @@ class MeetingParticipantSessionModel {
 
           // Insert new row for this join
           const stmt = db.prepare(`
-            INSERT INTO meeting_participant_sessions (
+            INSERT INTO participant_sessions (
               meeting_id, session_id, participant_name, join_sequence, 
               joined_at, participant_count_at_join, session_status, 
               created_at, updated_at
@@ -69,7 +72,7 @@ class MeetingParticipantSessionModel {
     return new Promise((resolve, reject) => {
       // Get the latest active session for this participant
       db.get(
-        `SELECT * FROM meeting_participant_sessions 
+        `SELECT * FROM participant_sessions 
          WHERE meeting_id = ? AND participant_name = ? AND session_status = 'active'
          ORDER BY join_sequence DESC LIMIT 1`,
         [meetingId, participantName],
@@ -88,7 +91,7 @@ class MeetingParticipantSessionModel {
 
           // Calculate session duration in seconds
           db.all(
-            `SELECT datetime(joined_at) as joined_dt FROM meeting_participant_sessions 
+            `SELECT datetime(joined_at) as joined_dt FROM participant_sessions 
              WHERE id = ?`,
             [row.id],
             (timeErr, timeRows) => {
@@ -99,7 +102,7 @@ class MeetingParticipantSessionModel {
 
               // Get all previous session durations for this participant
               db.all(
-                `SELECT session_duration_seconds FROM meeting_participant_sessions 
+                `SELECT session_duration_seconds FROM participant_sessions 
                  WHERE meeting_id = ? AND participant_name = ? AND session_status = 'left'
                  ORDER BY join_sequence ASC`,
                 [meetingId, participantName],
@@ -123,7 +126,7 @@ class MeetingParticipantSessionModel {
                   const sessionDuration = Math.floor((now - joinedAt) / 1000);
 
                   const updateStmt = db.prepare(`
-                    UPDATE meeting_participant_sessions
+                    UPDATE participant_sessions
                     SET 
                       left_at = ?,
                       session_duration_seconds = ?,
@@ -172,7 +175,7 @@ class MeetingParticipantSessionModel {
   static getParticipantSessions(meetingId, participantName) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meeting_participant_sessions 
+        `SELECT * FROM participant_sessions 
          WHERE meeting_id = ? AND participant_name = ?
          ORDER BY join_sequence ASC`,
         [meetingId, participantName],
@@ -194,7 +197,7 @@ class MeetingParticipantSessionModel {
   static getMeetingParticipantSessions(meetingId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meeting_participant_sessions 
+        `SELECT * FROM participant_sessions 
          WHERE meeting_id = ?
          ORDER BY participant_name, join_sequence ASC`,
         [meetingId],
@@ -224,7 +227,7 @@ class MeetingParticipantSessionModel {
           MIN(joined_at) as first_joined_at,
           MAX(left_at) as last_left_at,
           GROUP_CONCAT(join_sequence) as join_sequences
-         FROM meeting_participant_sessions
+         FROM participant_sessions
          WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL
          GROUP BY participant_name`,
         [meetingId, participantName],
@@ -253,7 +256,7 @@ class MeetingParticipantSessionModel {
           MAX(total_meeting_duration_seconds) as cumulative_meeting_duration,
           MIN(joined_at) as first_joined_at,
           MAX(left_at) as last_left_at
-         FROM meeting_participant_sessions
+         FROM participant_sessions
          WHERE meeting_id = ? AND deleted_at IS NULL
          GROUP BY participant_name
          ORDER BY participant_name`,
@@ -276,7 +279,7 @@ class MeetingParticipantSessionModel {
   static deleteParticipantSession(sessionId) {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
-        UPDATE meeting_participant_sessions
+        UPDATE participant_sessions
         SET 
           session_status = 'deleted',
           deleted_at = CURRENT_TIMESTAMP,
@@ -303,7 +306,7 @@ class MeetingParticipantSessionModel {
   static updateParticipantCountAtJoin(sessionId, participantCount) {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
-        UPDATE meeting_participant_sessions
+        UPDATE participant_sessions
         SET 
           participant_count_at_join = ?,
           updated_at = CURRENT_TIMESTAMP

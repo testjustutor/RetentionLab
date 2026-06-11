@@ -1,3 +1,6 @@
+/**
+ * root/models/ParticipantModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 const MeetingParticipantSessionModel = require('./MeetingParticipantSessionModel');
@@ -9,7 +12,7 @@ const MeetingParticipantSessionModel = require('./MeetingParticipantSessionModel
 class ParticipantModel {
   /**
    * Record a participant joining for the first time
-   * Creates a new entry in meeting_participants table
+   * Creates a new entry in participants table
    */
   static recordParticipantJoin(meetingId, sessionId, participantName, joinedAt = new Date()) {
     return new Promise((resolve, reject) => {
@@ -18,7 +21,7 @@ class ParticipantModel {
       }
 
       const sql = `
-        INSERT OR IGNORE INTO meeting_participants (
+        INSERT OR IGNORE INTO participants (
           meeting_id, session_id, participant_name, first_joined_at, 
           participant_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, 'joined', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -37,7 +40,7 @@ class ParticipantModel {
             reject(err);
           } else {
             db.get(
-              `SELECT id FROM meeting_participants
+              `SELECT id FROM participants
                WHERE meeting_id = ?
                  AND session_id = ?
                  AND participant_name = ?
@@ -88,7 +91,7 @@ class ParticipantModel {
   static ensureAttendanceSession(meetingId, participantId, sessionNumber, joinedAt = new Date()) {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
-        INSERT OR IGNORE INTO meeting_participant_attendance_sessions (
+        INSERT OR IGNORE INTO participant_attendance_sessions (
           meeting_id, participant_id, session_number, joined_at,
           attendance_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -119,7 +122,7 @@ class ParticipantModel {
     return new Promise((resolve, reject) => {
       // Get current participant record to calculate duration
       db.get(
-        `SELECT id, first_joined_at, total_duration_seconds FROM meeting_participants 
+        `SELECT id, first_joined_at, total_duration_seconds FROM participants 
          WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL`,
         [meetingId, participantName],
         (err, row) => {
@@ -141,7 +144,7 @@ class ParticipantModel {
 
           // Update participant record
           const updateSql = `
-            UPDATE meeting_participants 
+            UPDATE participants 
             SET last_left_at = ?, 
                 total_duration_seconds = ?,
                 participant_status = 'left',
@@ -192,7 +195,7 @@ class ParticipantModel {
   static closeLatestAttendanceSession(participantId, leftAt = new Date()) {
     return new Promise((resolve, reject) => {
       db.get(
-        `SELECT id, joined_at FROM meeting_participant_attendance_sessions
+        `SELECT id, joined_at FROM participant_attendance_sessions
          WHERE participant_id = ? AND attendance_status = 'active' AND deleted_at IS NULL
          ORDER BY session_number DESC LIMIT 1`,
         [participantId],
@@ -207,7 +210,7 @@ class ParticipantModel {
 
           const duration = Math.floor((new Date(leftAt) - new Date(row.joined_at)) / 1000);
           db.run(
-            `UPDATE meeting_participant_attendance_sessions
+            `UPDATE participant_attendance_sessions
              SET left_at = ?,
                  duration_seconds = ?,
                  attendance_status = 'left',
@@ -229,13 +232,13 @@ class ParticipantModel {
 
   /**
    * Record a participant rejoining (after leaving)
-   * Creates a new entry in meeting_participant_attendance_sessions table
+   * Creates a new entry in participant_attendance_sessions table
    */
   static recordParticipantRejoin(meetingId, participantId, rejoinedAt = new Date()) {
     return new Promise((resolve, reject) => {
       // Get the participant to find highest session number
       db.get(
-        `SELECT MAX(session_number) as max_session FROM meeting_participant_attendance_sessions 
+        `SELECT MAX(session_number) as max_session FROM participant_attendance_sessions 
          WHERE participant_id = ?`,
         [participantId],
         (err, sessionRow) => {
@@ -248,7 +251,7 @@ class ParticipantModel {
 
               // Get participant details for session tracking
               db.get(
-            `SELECT meeting_id, session_id, participant_name FROM meeting_participants WHERE id = ?`,
+            `SELECT meeting_id, session_id, participant_name FROM participants WHERE id = ?`,
             [participantId],
             (err, participantRow) => {
               if (err) {
@@ -261,7 +264,7 @@ class ParticipantModel {
               }
 
               const sql = `
-                INSERT INTO meeting_participant_attendance_sessions (
+                INSERT INTO participant_attendance_sessions (
                   meeting_id, participant_id, session_number, joined_at, 
                   attendance_status, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -281,7 +284,7 @@ class ParticipantModel {
                   } else {
                     // Update main participant record status
                     db.run(
-                      `UPDATE meeting_participants 
+                      `UPDATE participants 
                        SET participant_status = 'joined', updated_at = CURRENT_TIMESTAMP 
                        WHERE id = ?`,
                       [participantId],
@@ -336,8 +339,8 @@ class ParticipantModel {
            mpas.joined_at,
            mp.meeting_id,
            mp.participant_name
-         FROM meeting_participant_attendance_sessions mpas
-         JOIN meeting_participants mp ON mp.id = mpas.participant_id
+         FROM participant_attendance_sessions mpas
+         JOIN participants mp ON mp.id = mpas.participant_id
          WHERE mpas.id = ? AND mpas.deleted_at IS NULL`,
         [sessionId],
         (err, row) => {
@@ -358,7 +361,7 @@ class ParticipantModel {
 
           // Update session record
           const updateSql = `
-            UPDATE meeting_participant_attendance_sessions 
+            UPDATE participant_attendance_sessions 
             SET left_at = ?, 
                 duration_seconds = ?,
                 attendance_status = 'left',
@@ -379,14 +382,14 @@ class ParticipantModel {
               } else {
                 // Update total duration in main participant record
                 db.get(
-                  `SELECT SUM(duration_seconds) as total FROM meeting_participant_attendance_sessions 
+                  `SELECT SUM(duration_seconds) as total FROM participant_attendance_sessions 
                    WHERE participant_id = ? AND deleted_at IS NULL AND attendance_status = 'left'`,
                   [row.participant_id],
                   (sumErr, sumRow) => {
                     if (!sumErr && sumRow) {
                       const totalSessionsDuration = sumRow.total || 0;
                       db.run(
-                        `UPDATE meeting_participants 
+                        `UPDATE participants 
                          SET total_duration_seconds = total_duration_seconds + ?
                          WHERE id = ?`,
                         [duration, row.participant_id],
@@ -431,7 +434,7 @@ class ParticipantModel {
   static getParticipant(meetingId, participantName) {
     return new Promise((resolve, reject) => {
       db.get(
-        `SELECT * FROM meeting_participants 
+        `SELECT * FROM participants 
          WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL`,
         [meetingId, participantName],
         (err, row) => {
@@ -448,7 +451,7 @@ class ParticipantModel {
   static getMeetingParticipants(meetingId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meeting_participants 
+        `SELECT * FROM participants 
          WHERE meeting_id = ? AND deleted_at IS NULL 
          ORDER BY created_at ASC`,
         [meetingId],
@@ -466,7 +469,7 @@ class ParticipantModel {
   static getParticipantSessions(participantId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meeting_participant_attendance_sessions 
+        `SELECT * FROM participant_attendance_sessions 
          WHERE participant_id = ? AND deleted_at IS NULL 
          ORDER BY session_number ASC`,
         [participantId],
@@ -492,8 +495,8 @@ class ParticipantModel {
           mp.total_duration_seconds,
           mp.participant_status,
           COUNT(mpas.id) as rejoin_count
-         FROM meeting_participants mp
-         LEFT JOIN meeting_participant_attendance_sessions mpas ON mp.id = mpas.participant_id AND mpas.deleted_at IS NULL
+         FROM participants mp
+         LEFT JOIN participant_attendance_sessions mpas ON mp.id = mpas.participant_id AND mpas.deleted_at IS NULL
          WHERE mp.meeting_id = ? AND mp.deleted_at IS NULL
          GROUP BY mp.id
          ORDER BY mp.first_joined_at ASC`,
@@ -516,7 +519,7 @@ class ParticipantModel {
   static deleteParticipant(participantId) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE meeting_participants SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE participants SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [participantId],
         function(err) {
           if (err) {

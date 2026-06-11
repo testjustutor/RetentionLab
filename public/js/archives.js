@@ -1,6 +1,10 @@
+/**
+ * root/public/js/archives.js
+*/
 let meetingsData = [];
 let activeMeetingId = null;
 
+// Initialize layout handlers on DOM load
 document.addEventListener('DOMContentLoaded', () => {
     // initialize date inputs to today if empty so user can change them
     const fromEl = document.getElementById('fromDate');
@@ -18,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    const debouncedLoadMeetings = debounce(loadMeetings, 300);
+    const debouncedLoadMeetings = debounce(() => window.loadMeetings(), 300);
 
     // If flatpickr available, initialize calendar pickers and wire onchange to reload (debounced)
     if (window.flatpickr) {
@@ -30,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    loadMeetings();
+    // Run initial workspace fetch
+    window.loadMeetings();
 
     // Search functionality (transcripts)
     document.getElementById('searchTranscript')?.addEventListener('input', (e) => {
@@ -47,16 +52,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Search + filters (meetings list)
-    document.getElementById('meetingSearch')?.addEventListener('input', () => loadMeetings());
+    document.getElementById('meetingSearch')?.addEventListener('input', () => window.loadMeetings());
+    
     const fromDateEl = document.getElementById('fromDate');
     const toDateEl = document.getElementById('toDate');
     if (fromDateEl) {
-        fromDateEl.addEventListener('change', () => loadMeetings());
-        fromDateEl.addEventListener('input', () => loadMeetings());
+        fromDateEl.addEventListener('change', () => window.loadMeetings());
+        fromDateEl.addEventListener('input', () => window.loadMeetings());
     }
     if (toDateEl) {
-        toDateEl.addEventListener('change', () => loadMeetings());
-        toDateEl.addEventListener('input', () => loadMeetings());
+        toDateEl.addEventListener('change', () => window.loadMeetings());
+        toDateEl.addEventListener('input', () => window.loadMeetings());
     }
 });
 
@@ -92,8 +98,8 @@ function readFilters() {
     };
 }
 
-
-async function loadMeetings() {
+// Promoted to window level so header refresh markup can hit it natively
+window.loadMeetings = async function() {
     const listEl = document.getElementById('meetingsList');
     const loadingEl = document.getElementById('loadingMeetings');
     const countEl = document.getElementById('meetingCount');
@@ -137,17 +143,18 @@ async function loadMeetings() {
         renderMeetingsList();
     } catch (err) {
         console.error("Error in render process:", err);
-        listEl.innerHTML = `<p style="color:red">Render Error: ${err.message}</p>`;
+        listEl.innerHTML = `<p style="color:red" class="text-xs p-4">Render Error: ${err.message}</p>`;
         loadingEl.classList.add('hidden');
         listEl.classList.remove('hidden');
     }
-}
+};
 
 function renderMeetingsList() {
     const listEl = document.getElementById('meetingsList');
 
     if (meetingsData.length === 0) {
-        listEl.innerHTML = `<div class="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-800 rounded-lg opacity-60">
+        listEl.innerHTML = `
+            <div class="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-800 rounded-lg opacity-60">
                 <p class="text-[11px] text-slate-400 font-medium">No completed meetings found</p>
             </div>`;
         return;
@@ -163,10 +170,18 @@ function renderMeetingsList() {
         const platformRaw = (meeting.platform || 'unknown').toLowerCase();
         let platformLabel = platformRaw, platformColors = '';
 
-        if (platformRaw === 'zoom') { platformLabel = 'Zoom'; platformColors = 'text-blue-400 bg-blue-500/10 border-blue-500/20'; }
-        else if (platformRaw === 'teams') { platformLabel = 'Teams'; platformColors = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'; }
-        else if (platformRaw === 'google-meet' || platformRaw === 'google') { platformLabel = 'G-Meet'; platformColors = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'; }
-        else { platformColors = 'text-slate-400 bg-slate-500/10 border-slate-500/20'; }
+        if (platformRaw === 'zoom') { 
+            platformLabel = 'Zoom'; 
+            platformColors = 'text-blue-400 bg-blue-500/10 border-blue-500/20'; 
+        } else if (platformRaw === 'teams') { 
+            platformLabel = 'Teams'; 
+            platformColors = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'; 
+        } else if (platformRaw === 'google-meet' || platformRaw === 'google') { 
+            platformLabel = 'G-Meet'; 
+            platformColors = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'; 
+        } else { 
+            platformColors = 'text-slate-400 bg-slate-500/10 border-slate-500/20'; 
+        }
 
         html += `
             <div onclick="selectMeeting('${meeting.id}')" class="bg-slate-950/40 border ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'} rounded-lg p-3 transition duration-200 cursor-pointer group">
@@ -217,13 +232,14 @@ window.selectMeeting = async function(id) {
 
     document.getElementById('searchTranscript').value = '';
 
-    console.log(meeting.transcripts);
-    const rawText = await fetch(meeting.transcripts).then(r => r.text());
-    const transcripts = parseTranscript(rawText);
-
-    renderTranscripts(transcripts);
-
-    // renderTranscripts(meeting.transcripts || []);
+    try {
+        const rawText = await fetch(meeting.transcripts).then(r => r.text());
+        const transcripts = parseTranscript(rawText);
+        renderTranscripts(transcripts);
+    } catch (err) {
+        console.error("Failed to parse transcripts source", err);
+        renderTranscripts([]);
+    }
 };
 
 function getColor(speaker) {
@@ -231,16 +247,13 @@ function getColor(speaker) {
     for (let i = 0; i < speaker.length; i++) {
         hash += speaker.charCodeAt(i);
     }
-
     const colors = ['emerald', 'blue', 'indigo', 'orange', 'fuchsia'];
     return colors[hash % colors.length];
 }
 
 function parseTranscript(text) {
     const lines = text.split('\n');
-
     const result = [];
-
     const regex = /^\[(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s(.+)$/;
 
     for (const line of lines) {
@@ -257,7 +270,6 @@ function parseTranscript(text) {
             color: getColor(speaker)
         });
     }
-
     return result;
 }
 
@@ -275,7 +287,6 @@ function renderTranscripts(transcripts) {
     }
 
     let html = '';
-
     transcripts.forEach((t) => {
         if (t.isSystem) {
             html += `
@@ -319,7 +330,5 @@ function renderTranscripts(transcripts) {
             `;
         }
     });
-
     listEl.innerHTML = html;
 }
-

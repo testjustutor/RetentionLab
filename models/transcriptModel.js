@@ -1,3 +1,6 @@
+/**
+ * root/models/transcriptModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
