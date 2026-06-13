@@ -30,7 +30,7 @@ class AudioExtractor:
                 "wav_audio"
             ],
 
-            f"{self.context.base_id}.wav"
+            f"WAV_{self.context.base_id}.wav"
         )
 
         command = [

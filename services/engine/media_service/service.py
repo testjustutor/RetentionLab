@@ -8,10 +8,6 @@ from services.engine.media_service.audio_extractor import (
     AudioExtractor
 )
 
-from services.engine.media_service.audio_normalizer import (
-    AudioNormalizer
-)
-
 
 class MediaService:
 
@@ -58,23 +54,6 @@ class MediaService:
             validated
         )
 
-        normalized_path = os.path.join(
-            self.context.storage_paths[
-                "wav_audio"
-            ],
-            f"WAV_{self.context.base_id}.wav"
-        )
-
-        normalized_audio = (
-            AudioNormalizer.normalize(
-                wav_audio,
-                normalized_path
-            )
-        )
-
         return {
-
-            "audio_path": (
-                normalized_audio
-            )
+            "audio_path": wav_audio
         }
