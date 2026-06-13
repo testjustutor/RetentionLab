@@ -82,9 +82,9 @@ class SocraticBot {
       );
 
       this.browserManager = await new BrowserManager().init({
-        userDataDir: uniqueProfileDir
+        userDataDir: uniqueProfileDir,
+        deleteProfileOnClose: true,
       });
-
 
       const joiner = this.createJoiner();
       this.joiner = joiner;
@@ -341,6 +341,19 @@ class SocraticBot {
       this.audioRecorder.stop();
       await this.screenRecorder.stop();
 
+      // ADD at the end of stop(), after the catch block
+      try {
+        if (this.browserManager) {
+          await this.browserManager.close();
+          logger.info('DefaultAdapter(SocraticBot): Browser closed and profile cleanup triggered');
+        }
+      } catch (err) {
+        logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
+      } finally {
+        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
+        // process.exit(0);
+      }
+      
       try {
         const finalAudioPath = this.audioRecorder.audioPath;
         
@@ -385,18 +398,6 @@ class SocraticBot {
         }
       } catch (err) {
         logger.error('DefaultAdapter(SocraticBot): Final transcription/audit failed', err);
-      }
-      // ADD at the end of stop(), after the catch block
-      try {
-        if (this.browserManager && this.browserManager.browser) {
-          await this.browserManager.browser.close();
-          logger.info('DefaultAdapter(SocraticBot): Browser closed');
-        }
-      } catch (err) {
-        logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
-      } finally {
-        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
-        // process.exit(0);
       }
     }
   }

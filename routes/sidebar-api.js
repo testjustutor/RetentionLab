@@ -9,13 +9,85 @@
  * - Can be integrated with sidebar-controller.js to fetch menu from backend
  * - Allows dynamic menu management without code changes
  */
+const { HeaderConfigModel } = require('../models/HeaderConfigModel');
 
-module.exports = (req, res) => {
+function getLabel(item, fallback) {
+  return item?.label || item?.labelKey || fallback;
+}
+
+function buildMenuFromNav(nav = {}) {
+  if (Array.isArray(nav.menuItems) && nav.menuItems.length) {
+    return { menuItems: nav.menuItems };
+  }
+
+  if (Array.isArray(nav.sidebar?.menuItems) && nav.sidebar.menuItems.length) {
+    return { menuItems: nav.sidebar.menuItems };
+  }
+
+  const items = [];
+  if (nav.home) {
+    items.push({
+      id: 'dashboard',
+      label: getLabel(nav.home, 'Dashboard'),
+      icon: 'grid',
+      href: nav.home.href,
+      submenu: null
+    });
+  }
+  if (nav.events) {
+    items.push({
+      id: 'events',
+      label: getLabel(nav.events, 'Events'),
+      icon: 'calendar',
+      href: nav.events.href,
+      submenu: null
+    });
+  }
+  if (nav.archives) {
+    items.push({
+      id: 'archives',
+      label: getLabel(nav.archives, 'Archives'),
+      icon: 'folder',
+      href: nav.archives.href,
+      submenu: null
+    });
+  }
+  if (nav.profile) {
+    items.push({
+      id: 'profile',
+      label: getLabel(nav.profile, 'Profile'),
+      icon: 'user',
+      href: nav.profile.href,
+      submenu: null
+    });
+  }
+  if (nav.settings) {
+    items.push({
+      id: 'settings',
+      label: getLabel(nav.settings, 'Settings'),
+      icon: 'settings',
+      href: nav.settings.href,
+      submenu: null
+    });
+  }
+
+  return { menuItems: items };
+}
+
+module.exports = async (req, res) => {
   try {
-    // Get user role from session/auth
     const userRole = req.user?.role_name || 'employee';
-    
-    // Menu structure by role
+    let menu = null;
+
+    try {
+      const navConfig = await HeaderConfigModel.getNavByRoleName(userRole);
+      if (navConfig?.nav) {
+        menu = buildMenuFromNav(navConfig.nav);
+      }
+    } catch (err) {
+      console.error('sidebar-api: failed to load menu from DB:', err);
+    }
+
     const menuByRole = {
       super_admin: {
         menuItems: [
@@ -180,12 +252,14 @@ module.exports = (req, res) => {
     };
 
     // Get menu for user's role
-    const menu = menuByRole[userRole] || menuByRole.employee;
+    if (!menu || !Array.isArray(menu.menuItems) || !menu.menuItems.length) {
+      menu = menuByRole[userRole] || menuByRole.employee;
+    }
 
     res.json({
       success: true,
       role: userRole,
-      menu: menu
+      menu
     });
   } catch (error) {
     console.error('Error fetching sidebar menu:', error);

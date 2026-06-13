@@ -200,11 +200,33 @@ class TeamsJoiner {
       // ✅ Small settle delay — Teams re-renders after popup closes
       await new Promise(r => setTimeout(r, 1000));
 
-      // Clear + type bot name
+      // Clear the field properly
       await this.page.click(nameInputSelector, { clickCount: 3 });
       await this.page.keyboard.press('Backspace');
-      await this.page.type(nameInputSelector, this.botName, { delay: 80 });
 
+      // Wait for it to actually be empty
+      await this.page.waitForFunction(
+        (sel) => document.querySelector(sel)?.value === '',
+        {},
+        nameInputSelector
+      );
+
+      await this.page.type(nameInputSelector, this.botName, { delay: 60 });
+
+      // Verify final value, retry if mismatched
+      const finalValue = await this.page.$eval(nameInputSelector, el => el.value);
+      if (finalValue !== this.botName) {
+        logger.info(`Name mismatch ("${finalValue}"), retrying with fill...`);
+        await this.page.$eval(nameInputSelector, (el, name) => {
+          el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.value = name;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, this.botName);
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
       logger.info(`TeamsAdapter(teamJoiner): Set bot name to: ${this.botName}`);
 
       // ✅ Wait for Join button to become enabled, then click

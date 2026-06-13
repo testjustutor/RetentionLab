@@ -6,6 +6,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../utils/logger');
+const { requireAuth } = require('../middleware/auth');
 
 // Serve page routes
 router.use('/', require('./pages'));
@@ -103,7 +104,7 @@ router.use('/api/auth', require('./auth'));
 router.use('/api/dashboard', require('./dashboard'));
 
 // Sidebar navigation API
-router.get('/api/sidebar/menu', require('./sidebar-api'));
+router.get('/api/sidebar/menu', requireAuth, require('./sidebar-api'));
 
 // Header config API
 router.use('/api/header-config', require('./header-config'));

@@ -52,11 +52,36 @@
         </div>
       </div>
 
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 md:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-base font-semibold text-white">Sidebar Menu Config</h2>
+            <p class="text-xs text-slate-500">Edit the stored sidebar JSON for a selected role.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-300">Role</label>
+            <select id="sidebarConfigRole" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 outline-none">
+              <option value="super_admin">super_admin</option>
+              <option value="admin">admin</option>
+              <option value="reviewer">reviewer</option>
+              <option value="employee">employee</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="sidebarConfigJson" class="w-full min-h-[320px] bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 outline-none resize-none" spellcheck="false"></textarea>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button id="sidebarConfigLoad" class="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 transition text-white text-sm">Load</button>
+          <button id="sidebarConfigSave" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 transition text-white text-sm">Save</button>
+          <div id="sidebarConfigStatus" class="text-xs text-slate-400 self-center"></div>
+        </div>
+      </div>
+
     </section>
   </div>
 
   <script type="module" src="../js/auth.js"></script>
   <script type="module" src="/js/header-role-common.js"></script>
+  <script type="module" src="../js/sidebar-config-editor.js"></script>
   <script>
     window.addEventListener('load', function () {
       if (typeof window.initRoleHeaderCommon === 'function') {

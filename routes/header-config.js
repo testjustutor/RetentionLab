@@ -5,6 +5,7 @@ const express = require('express');
 const router  = express.Router();
 
 const { HeaderConfigModel } = require('../models/HeaderConfigModel');
+const RolesModel             = require('../models/RolesModel');
 const { requireAuth }       = require('../middleware/auth');
 
 // ─── Shared response helpers ──────────────────────────────────────────────────
@@ -26,6 +27,19 @@ function parseRoleId(raw) {
 
 /** All routes require a valid session. */
 router.use(requireAuth);
+
+/**
+ * GET /header-config/roles
+ * Returns the list of available roles and their IDs.
+ */
+router.get('/roles', async (req, res) => {
+  try {
+    const roles = await RolesModel.getAllRoles();
+    return ok(res, { roles });
+  } catch (err) {
+    return serverErr(res, err, 'getRoles');
+  }
+});
 
 
 // ══════════════════════════════════════════════════════════════════════════════

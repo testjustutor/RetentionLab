@@ -97,8 +97,12 @@ function extractMeetingId(link, platform, description = '', location = '') {
     // ✅ Teams ORG (teams.microsoft.com)
     const orgMatch = link.match(/meetup-join\/([^/?]+)/);
     if (orgMatch) {
+      const decoded = decodeURIComponent(orgMatch[1]);
+
+      // Extract only meeting_xxx part
+      const meetingMatch = decoded.match(/(meeting_[^@]+)/);
       return {
-        meetingId: decodeURIComponent(orgMatch[1]),
+        meetingId: meetingMatch ? meetingMatch[1] : decoded,
         passcode
       };
     }

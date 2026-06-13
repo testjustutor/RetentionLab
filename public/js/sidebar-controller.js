@@ -4,8 +4,7 @@
 /**
  * Sidebar Controller (ES module)
  * Responsibilities:
- *  - detect current role
- *  - load sidebar-config.js
+ *  - fetch dynamic menu from backend DB
  *  - render menu items with submenus
  *  - handle submenu expand/collapse
  *  - manage sidebar collapse/expand state
@@ -16,10 +15,31 @@
  *  - No global variables
  */
 
-import sidebarConfig from './sidebar-config.js';
-
 function $(id) {
   return document.getElementById(id);
+}
+
+async function fetchSidebarMenu() {
+  try {
+    const res = await fetch('/api/sidebar/menu', {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Sidebar API returned status ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (!data?.success || !data.menu) {
+      throw new Error('Invalid sidebar API response');
+    }
+
+    return data.menu;
+  } catch (err) {
+    console.error('Failed to fetch sidebar menu:', err);
+    return null;
+  }
 }
 
 function getIconSvg(iconName) {
@@ -41,17 +61,9 @@ function normalizeRole(role) {
 }
 
 function detectRoleFromMetaOrPath() {
-  // 1) meta tag (preferred)
   const meta = document.querySelector('meta[name="dashboard-role"]');
   const metaRole = meta?.getAttribute('content');
-  if (metaRole) return normalizeRole(metaRole);
-
-  // 2) path segment
-  const parts = (window.location.pathname || '').split('/').filter(Boolean);
-  const maybeRole = parts[0];
-  if (maybeRole && sidebarConfig?.roles?.[maybeRole]) return maybeRole;
-
-  return null;
+  return metaRole ? normalizeRole(metaRole) : null;
 }
 
 function detectCurrentPageId() {
@@ -181,16 +193,15 @@ async function populateSidebar() {
   const menuList = $('sidebarMenuList');
   if (!menuList) return;
 
-  const role = detectRoleFromMetaOrPath();
   const currentPageId = detectCurrentPageId();
+  const menu = await fetchSidebarMenu();
 
-  if (!role || !sidebarConfig.roles?.[role]) {
+  if (!menu || !Array.isArray(menu.menuItems) || !menu.menuItems.length) {
     menuList.innerHTML = '<li class="menu-error">Menu not available</li>';
     return;
   }
 
-  const roleConfig = sidebarConfig.roles[role];
-  const menuHtml = renderMenuItems(roleConfig.menuItems, currentPageId);
+  const menuHtml = renderMenuItems(menu.menuItems, currentPageId);
 
   menuList.parentNode.replaceChild(menuHtml, menuList);
 

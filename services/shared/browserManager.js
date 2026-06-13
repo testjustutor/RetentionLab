@@ -6,11 +6,16 @@ const puppeteer = require('puppeteer');
 const { logger } = require('../../utils/logger');
 const settings = require('../../config/settings');
 const fs = require('fs');
+const { promisify } = require('util');
+const { exec: execCb } = require('child_process');
+const exec = promisify(execCb);
 
 class BrowserManager {
   constructor() {
     this.browser = null;
     this.page = null;
+    this.profileDir = null;
+    this.deleteProfileOnClose = false;
   }
 
   async init(config = {}) {
@@ -30,6 +35,8 @@ class BrowserManager {
       }
 
       launchOptions.userDataDir = profileDir;
+      this.profileDir = profileDir;
+      this.deleteProfileOnClose = config.deleteProfileOnClose ?? false;
 
       logger.info(
         `Shared(browserManager): INIT: Using Chrome profile -> ${profileDir}`
@@ -113,6 +120,59 @@ class BrowserManager {
       this.browser = null;
       this.page = null;
       logger.info('Shared(browserManager): Browser session closed.');
+    }
+
+    if (this.deleteProfileOnClose && this.profileDir) {
+      await this.cleanupProfileDir();
+    }
+  }
+
+  async cleanupProfileDir() {
+    const profileDir = this.profileDir;
+    if (!profileDir || !fs.existsSync(profileDir)) {
+      return;
+    }
+
+    logger.info(`Shared(browserManager): Cleaning up Chrome profile directory -> ${profileDir}`);
+
+    try {
+      await this.waitForNoChromeLock(profileDir);
+      await fs.promises.rm(profileDir, { recursive: true, force: true });
+      logger.info(`Shared(browserManager): Removed Chrome profile directory -> ${profileDir}`);
+    } catch (err) {
+      logger.error(`Shared(browserManager): Failed to remove Chrome profile directory -> ${profileDir}`, err);
+    }
+  }
+
+  async waitForNoChromeLock(profileDir) {
+    const maxAttempts = 5;
+    const delayMs = 1000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const running = await this.isChromeUsingProfile(profileDir);
+      if (!running) {
+        return;
+      }
+
+      logger.warn(
+        `Shared(browserManager): Chrome profile still in use, waiting before deletion (attempt ${attempt}/${maxAttempts})`
+      );
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error('Chrome profile directory still in use after waiting.');
+  }
+
+  async isChromeUsingProfile(profileDir) {
+    const normalizedProfileDir = profileDir.replace(/\\/g, '/');
+    const command = `wmic process where "CommandLine like '%--user-data-dir=${normalizedProfileDir}%'" get ProcessId`;
+
+    try {
+      const { stdout } = await exec(command, { windowsHide: true });
+      return stdout.trim().split(/\r?\n/).some(line => /\d+/.test(line));
+    } catch (err) {
+      logger.warn('Shared(browserManager): Failed to query Chrome processes for profile lock, assuming no lock.', err);
+      return false;
     }
   }
 }
