@@ -1,7 +1,9 @@
+#  root/services/engine/ai_audit_service/service.py
 from services.engine.ai_audit_service.audit_worker import (
     AuditWorker,
     AiAuditService
 )
+from services.shared.ai_config import load_settings_ai, build_ai_config
 import os
 
 
@@ -18,21 +20,14 @@ class AuditService:
         self.worker = AuditWorker()
         self.ai_worker = None
 
-        groq_key = os.getenv("GROQ_API_KEY")
-        provider = os.getenv("AI_PROVIDER", "groq").lower()
+        try:
+            ai_settings = load_settings_ai()
+        except Exception:
+            ai_settings = {}
 
-        if groq_key:
-            ai_config = {
-                "provider": provider,
-                "groqApiKey": groq_key,
-                "openaiApiKey": os.getenv("OPENAI_API_KEY"),
-                "xaiApiKey": os.getenv("XAI_API_KEY"),
-                "ollamaUrl": os.getenv("OLLAMA_URL", "http://localhost:11434/v1"),
-                "ollamaModel": os.getenv("OLLAMA_MODEL", "llama3.1"),
-                "geminiApiKey": os.getenv("GEMINI_API_KEY"),
-                "geminiModel": os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-            }
+        ai_config = build_ai_config(ai_settings)
 
+        if ai_config:
             db_path = os.path.abspath(
                 os.path.join(
                     os.path.dirname(__file__),
@@ -42,11 +37,7 @@ class AuditService:
                     "retention_lab.db"
                 )
             )
-
-            self.ai_worker = AiAuditService(
-                db_path,
-                ai_config
-            )
+            self.ai_worker = AiAuditService(db_path, ai_config)
 
     # ==========================================
     # EVALUATE

@@ -86,7 +86,7 @@ def run_audit_task(context):
 
         log_with_type("info", "Engine(task > audit > audit_task) : Audit task completed", "TASK")
 
-    except Exception:
+    except Exception as e:
 
         context.mark_task_failed(
             "audit"

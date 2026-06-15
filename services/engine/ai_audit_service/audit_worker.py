@@ -56,7 +56,7 @@ class AiAuditService:
         self.ai_api = AiApiService(ai_config)
 
     def _load_rubric_schema(self):
-        print("[AUDIT MICROSERVICE] Status: Opening local database stream...", flush=True)
+        print(f"[AUDIT MICROSERVICE] Status: Opening local database stream...", file=sys.stderr, flush=True)
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row

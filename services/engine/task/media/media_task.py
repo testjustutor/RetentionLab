@@ -52,7 +52,7 @@ def run_media_task(context):
         )
         log_with_type("info", "Engine(task > media > media_task) : Media task completed", "TASK")
 
-    except Exception:
+    except Exception as e:
 
         context.mark_task_failed(
             "media"

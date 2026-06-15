@@ -168,9 +168,9 @@ module.exports = {
   HF_TOKEN: process.env.HF_TOKEN,
 
   ai: {
-    provider: "groq",
+    provider: "gemini",
     geminiApiKey: process.env.GEMINI_API_KEY,
-    geminiModel: "gemini-2.0-flash",
+    geminiModel: "gemini-2.5-flash",
     openaiApiKey: process.env.OPENAI_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
     xaiApiKey: process.env.XAI_API_KEY,
