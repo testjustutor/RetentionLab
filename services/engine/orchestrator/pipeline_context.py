@@ -98,6 +98,14 @@ class PipelineContext:
         }
 
         # ==========================================
+        # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
+        # Resolved at startup from storage/transcripts
+        # using base_id (strip trailing chunk suffix)
+        # ==========================================
+        self.captions_trans_path = self._resolve_captions_trans_path()
+        self.meeting_start = None   # set by transcription_task after parsing header
+
+        # ==========================================
         # TASK EXECUTION STATUS
         # ==========================================
         self.task_status = {
@@ -127,6 +135,39 @@ class PipelineContext:
             return val.lower() in ("true", "1", "yes")
 
         return default
+
+    def _resolve_captions_trans_path(self):
+        """
+        Locates the platform captions transcript (TRANS_*.txt) for this session.
+
+        The TRANS file is written by the bot (Teams / Zoom / Google Meet) and
+        stored in storage/transcripts. Its filename mirrors base_id but without
+        the trailing chunk suffix (_2, _3, etc.).
+
+        Example:
+            base_id   : meeting_<id>_Sess28_2026-06-12_16-01_2
+            TRANS file: TRANS_meeting_<id>_Sess28_2026-06-12_16-01.txt
+        """
+        import re
+
+        # Strip trailing chunk number (_2, _3 …) to get the session-level stem
+        trans_stem = re.sub(r"_\d+$", "", self.base_id)
+        trans_filename = f"TRANS_{trans_stem}.txt"
+
+        # Search directories in priority order
+        search_dirs = [
+            os.path.join(self.project_root, "storage", "transcripts"),
+            os.path.join(self.project_root, "storage", "cache_captions_raw"),
+            os.path.join(self.project_root, "storage"),
+        ]
+
+        for directory in search_dirs:
+            candidate = os.path.join(directory, trans_filename)
+            if os.path.exists(candidate):
+                return candidate
+
+        # Not found — diarization will proceed with SPEAKER_XX labels
+        return None
 
     def _setup_directories(self):
         storage_base = os.path.join(

@@ -18,6 +18,8 @@ const DEFAULT_NAV_BY_ROLE = {
     sidebar: {
       menuItems: [
         { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/index.html', submenu: null },
+        { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management.html', submenu: null },
+        { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management.html', submenu: null },
         { id: 'operations', label: 'Operations', icon: 'settings', href: null, submenu: [
           { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts.html' },
           { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events.html' },
@@ -28,10 +30,16 @@ const DEFAULT_NAV_BY_ROLE = {
           { id: 'assets', label: 'Assets', href: '/super_admin/assets.html' },
           { id: 'audit', label: 'Audit Log', href: '/super_admin/audit.html' }
         ]},
+        { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
+          { id: 'add-user', label: 'Add User', href: '/super_admin/add-user.html' },
+          { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users.html' },
+          { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access.html' }
+        ]},
         { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
           { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot.html' },
           { id: 'settings', label: 'Settings', href: '/super_admin/settings.html' },
-          { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' }
+          { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' },
+          { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings.html' }
         ]}
       ]
     }
@@ -115,7 +123,13 @@ const DEFAULT_PAGES = {
   bot:              { title: 'Bot Engine Console', description: 'Monitor real-time orchestrator instances and active bots.', roleTitle: 'Console', showStats: false, buttons: [] },
   assets:           { title: 'Media Assets',       description: 'View partitioned audio chunks and raw exports.',            roleTitle: 'Console', showStats: false, buttons: [] },
   audit:            { title: 'Audit Timeline',     description: 'Review system audit logs and compliance tracking.',         roleTitle: 'Console', showStats: false, buttons: [] },
-  dataArchitecture: { title: 'Data Architecture',  description: 'Inspect schema models, retention flows, and topology.',    roleTitle: 'Console', showStats: false, buttons: [] }
+  dataArchitecture: { title: 'Data Architecture',  description: 'Inspect schema models, retention flows, and topology.',    roleTitle: 'Console', showStats: false, buttons: [] },
+  addUser:          { title: 'Add User',           description: 'Create new users and assign roles.',                         roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  manageUsers:      { title: 'Manage Users',       description: 'View, update, and delete user accounts.',                   roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  rolesAccess:      { title: 'Roles & Access',      description: 'Define and manage user roles and permissions.',             roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  userSettings:     { title: 'User Settings',      description: 'Configure global user-related settings.',                  roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  rubricManagement: { title: 'Rubric Management',   description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] }
 };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -132,12 +146,18 @@ function hydrateNavRow(row) {
   return {
     id:          row.id,
     roleId:      row.role_id,
-    roleName:    row.role_name,         // ← from JOIN with roles
+    roleName:    row.role_name,
     isActive:    !!row.is_active,
     createdAt:   row.created_at,
     updatedAt:   row.updated_at,
     deletedAt:   row.deleted_at,
-    nav:         safeParseJson(row.nav_json, {})
+    nav: {
+      home:     { labelKey: 'nav.home',     href: row.home_href,      label: row.home_label },
+      events:   { labelKey: 'nav.events',   href: row.events_href,    label: row.events_label },
+      archives: { labelKey: 'nav.archives', href: row.archives_href,  label: row.archives_label },
+      profile:  { labelKey: 'nav.profile',  href: row.profile_href,   label: row.profile_label },
+      settings: { labelKey: 'nav.settings', href: row.settings_href,  label: row.settings_label }
+    }
   };
 }
 
@@ -189,7 +209,7 @@ class HeaderConfigModel {
    * Fails if a (non-deleted) row already exists for that role_id.
    *
    * @param {number} roleId
-   * @param {object} nav         - e.g. { home: { labelKey, href, target }, ... }
+   * @param {object} nav         - e.g. { home: { href, label }, ... }
    * @param {object} [opts]
    * @param {number} [opts.createdBy]
    * @returns {Promise<{ id: number, roleId: number }>}
@@ -197,9 +217,25 @@ class HeaderConfigModel {
   static createNav(roleId, nav, { createdBy = null } = {}) {
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO header_role_configs (role_id, nav_json, created_by, updated_by)
-         VALUES (?, ?, ?, ?)`,
-        [roleId, JSON.stringify(nav), createdBy, createdBy],
+        `INSERT INTO header_role_configs 
+         (role_id, home_href, home_label, events_href, events_label, archives_href, archives_label, 
+          profile_href, profile_label, settings_href, settings_label, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          roleId,
+          nav.home?.href || '/dashboard.html',
+          nav.home?.label || 'Home',
+          nav.events?.href || '/events.html',
+          nav.events?.label || 'Events',
+          nav.archives?.href || '/archives.html',
+          nav.archives?.label || 'Archives',
+          nav.profile?.href || '/profile.html',
+          nav.profile?.label || 'Profile',
+          nav.settings?.href || '/settings.html',
+          nav.settings?.label || 'Settings',
+          createdBy,
+          createdBy
+        ],
         function (err) {
           if (err) { logger.error('HeaderConfigModel.createNav:', err); return reject(err); }
           resolve({ id: this.lastID, roleId });
@@ -274,9 +310,6 @@ class HeaderConfigModel {
    * @param {number} roleId
    * @param {object} fields  - any of { nav, isActive, updatedBy }
    * @returns {Promise<{ changes: number }>}
-   *
-   * @example
-   * await HeaderConfigModel.updateNav(2, { nav: { home: { href: '/admin/home.html', ... } } });
    */
   static updateNav(roleId, fields = {}) {
     return new Promise((resolve, reject) => {
@@ -284,8 +317,20 @@ class HeaderConfigModel {
       const params     = [];
 
       if ('nav' in fields) {
-        setClauses.push('nav_json = ?');
-        params.push(JSON.stringify(fields.nav));
+        const nav = fields.nav;
+        setClauses.push('home_href = ?, home_label = ?, events_href = ?, events_label = ?, archives_href = ?, archives_label = ?, profile_href = ?, profile_label = ?, settings_href = ?, settings_label = ?');
+        params.push(
+          nav.home?.href || '/dashboard.html',
+          nav.home?.label || 'Home',
+          nav.events?.href || '/events.html',
+          nav.events?.label || 'Events',
+          nav.archives?.href || '/archives.html',
+          nav.archives?.label || 'Archives',
+          nav.profile?.href || '/profile.html',
+          nav.profile?.label || 'Profile',
+          nav.settings?.href || '/settings.html',
+          nav.settings?.label || 'Settings'
+        );
       }
       if ('isActive' in fields) {
         setClauses.push('is_active = ?');
@@ -325,14 +370,39 @@ class HeaderConfigModel {
   static upsertNav(roleId, nav, { userId = null } = {}) {
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO header_role_configs (role_id, nav_json, created_by, updated_by)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO header_role_configs 
+         (role_id, home_href, home_label, events_href, events_label, archives_href, archives_label,
+          profile_href, profile_label, settings_href, settings_label, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(role_id) DO UPDATE SET
-           nav_json   = excluded.nav_json,
+           home_href = excluded.home_href,
+           home_label = excluded.home_label,
+           events_href = excluded.events_href,
+           events_label = excluded.events_label,
+           archives_href = excluded.archives_href,
+           archives_label = excluded.archives_label,
+           profile_href = excluded.profile_href,
+           profile_label = excluded.profile_label,
+           settings_href = excluded.settings_href,
+           settings_label = excluded.settings_label,
            updated_by = excluded.updated_by,
            updated_at = CURRENT_TIMESTAMP,
            deleted_at = NULL`,
-        [roleId, JSON.stringify(nav), userId, userId],
+        [
+          roleId,
+          nav.home?.href || '/dashboard.html',
+          nav.home?.label || 'Home',
+          nav.events?.href || '/events.html',
+          nav.events?.label || 'Events',
+          nav.archives?.href || '/archives.html',
+          nav.archives?.label || 'Archives',
+          nav.profile?.href || '/profile.html',
+          nav.profile?.label || 'Profile',
+          nav.settings?.href || '/settings.html',
+          nav.settings?.label || 'Settings',
+          userId,
+          userId
+        ],
         function (err) {
           if (err) { logger.error('HeaderConfigModel.upsertNav:', err); return reject(err); }
           resolve({ changes: this.changes, lastID: this.lastID });
@@ -672,6 +742,221 @@ class HeaderConfigModel {
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // MENU ITEMS  — fetch sidebar menu structure from header_menu_items table
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get sidebar menu items for a role, rebuilding the nested structure.
+   *
+   * @param {number} roleId
+   * @returns {Promise<Array>}  - array of menuItems with submenu structure
+   */
+  static async getMenuItemsByRoleId(roleId) {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT id, menu_id, parent_id, label, icon, href, display_order, is_active
+         FROM header_menu_items
+         WHERE role_id = ? AND deleted_at IS NULL
+         ORDER BY display_order ASC`,
+        [roleId],
+        (err, rows) => {
+          if (err) return reject(err);
+
+          // Build tree structure
+          const items = {};
+          const roots = [];
+
+          for (const row of rows || []) {
+            items[row.menu_id] = {
+              id: row.menu_id,
+              label: row.label,
+              icon: row.icon,
+              href: row.href,
+              submenu: null,
+              isActive: !!row.is_active
+            };
+          }
+
+          // Link children to parents
+          for (const row of rows || []) {
+            if (row.parent_id) {
+              if (!items[row.parent_id]) {
+                items[row.parent_id] = { id: row.parent_id, submenu: [] };
+              }
+              if (!items[row.parent_id].submenu) {
+                items[row.parent_id].submenu = [];
+              }
+              items[row.parent_id].submenu.push(items[row.menu_id]);
+            } else {
+              roots.push(items[row.menu_id]);
+            }
+          }
+
+          resolve(roots);
+        }
+      );
+    });
+  }
+
+  /**
+   * Get all menu items flat (including submenus with parent info) for a role.
+   * Returns flat rows with parent_id for ease of editing.
+   */
+  static getMenuItemsFlatByRoleId(roleId) {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT id, menu_id, parent_id, label, icon, href, display_order, is_active
+         FROM header_menu_items
+         WHERE role_id = ? AND deleted_at IS NULL
+         ORDER BY display_order ASC`,
+        [roleId],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        }
+      );
+    });
+  }
+
+  /**
+   * Insert a single menu item for a role.
+   */
+  static insertMenuItem(roleId, item) {
+    return new Promise((resolve, reject) => {
+      const { menu_id, parent_id = null, label, icon = null, href = null, display_order = 0, is_active = 1 } = item;
+      if (!menu_id || !label) return reject(new Error('menu_id and label are required'));
+      db.run(
+        `INSERT INTO header_menu_items (role_id, menu_id, parent_id, label, icon, href, display_order, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [roleId, menu_id, parent_id, label, icon, href, display_order, is_active ? 1 : 0],
+        function(err) {
+          if (err) {
+            if (err.message?.includes('UNIQUE')) return reject(new Error('A menu item with id "' + menu_id + '" already exists for this role'));
+            return reject(err);
+          }
+          resolve({ id: this.lastID, menu_id });
+        }
+      );
+    });
+  }
+
+  /**
+   * Update a single menu item by its DB id.
+   */
+  static updateMenuItemById(id, updates) {
+    return new Promise((resolve, reject) => {
+      const fields = [];
+      const params = [];
+      if (updates.label !== undefined) { fields.push('label = ?'); params.push(updates.label); }
+      if (updates.icon !== undefined) { fields.push('icon = ?'); params.push(updates.icon); }
+      if (updates.href !== undefined) { fields.push('href = ?'); params.push(updates.href); }
+      if (updates.parent_id !== undefined) { fields.push('parent_id = ?'); params.push(updates.parent_id); }
+      if (updates.display_order !== undefined) { fields.push('display_order = ?'); params.push(updates.display_order); }
+      if (updates.is_active !== undefined) { fields.push('is_active = ?'); params.push(updates.is_active ? 1 : 0); }
+      if (fields.length === 0) return resolve({ updated: false });
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      params.push(id);
+      db.run(`UPDATE header_menu_items SET ${fields.join(', ')} WHERE id = ?`, params, function(err) {
+        if (err) return reject(err);
+        resolve({ updated: this.changes > 0 });
+      });
+    });
+  }
+
+  /**
+   * Delete a single menu item by its DB id.
+   * Also deletes any children (submenu items) that reference it as parent.
+   */
+  static deleteMenuItemById(id) {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        // Get menu_id of the item
+        db.get('SELECT menu_id, parent_id FROM header_menu_items WHERE id = ?', [id], (err, row) => {
+          if (err) return reject(err);
+          if (!row) return resolve({ deleted: false });
+          // Delete children that reference this menu_id as parent_id
+          db.run('DELETE FROM header_menu_items WHERE parent_id = ?', [row.menu_id]);
+          // Delete the item itself
+          db.run('DELETE FROM header_menu_items WHERE id = ?', [id], function(err2) {
+            if (err2) return reject(err2);
+            resolve({ deleted: this.changes > 0 });
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Get all roles with their IDs
+   */
+  static getAllRoles() {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT id, role_name, description FROM roles ORDER BY role_name ASC', [], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+  }
+
+  /**
+   * Seed menu items for a role from the sidebar menuItems structure.
+   * Clears existing menu items and inserts new ones.
+   *
+   * @param {number} roleId
+   * @param {Array} menuItems - array of { id, label, icon, href, submenu }
+   * @returns {Promise<void>}
+   */
+  static async seedMenuItems(roleId, menuItems = []) {
+    return new Promise((resolve, reject) => {
+      // Delete existing menu items for this role
+      const db_ref = require('../database/db').db;
+      db_ref.run(
+        `DELETE FROM header_menu_items WHERE role_id = ?`,
+        [roleId],
+        async (err) => {
+          if (err) return reject(err);
+
+          // Insert new menu items
+          const insertAsync = (sql, params) => new Promise((res, rej) => {
+            db_ref.run(sql, params, function(e) {
+              if (e) return rej(e);
+              res(this);
+            });
+          });
+
+          try {
+            let order = 0;
+            for (const item of menuItems) {
+              await insertAsync(
+                `INSERT INTO header_menu_items 
+                 (role_id, menu_id, parent_id, label, icon, href, display_order, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+                [roleId, item.id, null, item.label, item.icon || null, item.href || null, order++]
+              );
+
+              // Insert submenu items
+              if (item.submenu && Array.isArray(item.submenu)) {
+                let subOrder = 0;
+                for (const subItem of item.submenu) {
+                  await insertAsync(
+                    `INSERT INTO header_menu_items 
+                     (role_id, menu_id, parent_id, label, icon, href, display_order, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+                    [roleId, subItem.id, item.id, subItem.label, null, subItem.href || null, subOrder++]
+                  );
+                }
+              }
+            }
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }
+      );
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // SEED  — idempotent, runs once on startup after roles are seeded
   // ══════════════════════════════════════════════════════════════════════════════
 
@@ -691,7 +976,7 @@ class HeaderConfigModel {
     });
 
     const seeded  = [];
-    const skipped = [];
+    const updated = [];
 
     for (const role of roles) {
       // Check if nav config already exists (including soft-deleted — avoid UNIQUE violation)
@@ -703,26 +988,31 @@ class HeaderConfigModel {
         );
       });
 
-      if (existing) {
-        skipped.push(role.role_name);
-        continue;
-      }
-
       const nav = DEFAULT_NAV_BY_ROLE[role.role_name] || DEFAULT_NAV_BY_ROLE.employee;
 
+      // Always upsert nav to pick up updated menu structures
       await HeaderConfigModel.upsertNav(role.id, nav);
+
+      // Seed menu items
+      if (nav.sidebar?.menuItems) {
+        await HeaderConfigModel.seedMenuItems(role.id, nav.sidebar.menuItems);
+      }
 
       for (const [pageKey, pageData] of Object.entries(DEFAULT_PAGES)) {
         await HeaderConfigModel.upsertPage(role.id, pageKey, pageData);
       }
 
-      seeded.push(role.role_name);
+      if (!existing) {
+        seeded.push(role.role_name);
+      } else {
+        updated.push(role.role_name);
+      }
     }
 
     if (seeded.length)  logger.info(`HeaderConfigModel.seedForAllRoles: seeded  → [${seeded.join(', ')}]`);
-    if (skipped.length) logger.info(`HeaderConfigModel.seedForAllRoles: skipped → [${skipped.join(', ')}]`);
+    if (updated.length) logger.info(`HeaderConfigModel.seedForAllRoles: updated existing roles → [${updated.join(', ')}]`);
 
-    return { seeded, skipped };
+    return { seeded, updated };
   }
 }
 

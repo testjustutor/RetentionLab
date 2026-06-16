@@ -135,10 +135,6 @@ async function loadStats() {
     console.warn('API error, stats could not be loaded', e);
     const el = document.getElementById('stats');
     el.innerHTML = `
-      <div class="bg-indigo-500/10 backdrop-blur-md border border-indigo-500/20 shadow-md rounded-xl p-4 flex flex-col gap-1 mx-auto col-span-full">
-        <div class="text-[12px] uppercase tracking-wide text-indigo-400 font-semibold text-center mt-2 mb-2">No Data Available</div>
-        <div class="text-[11px] text-slate-400 text-center font-mono">System disconnected from underlying database layer or API is under construction.</div>
-      </div>
     `;
   }
 }

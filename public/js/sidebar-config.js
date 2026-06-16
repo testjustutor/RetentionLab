@@ -134,6 +134,19 @@ const sidebarConfig = {
           ]
         },
         {
+          id: 'user-management',
+          label: 'User Management',
+          icon: 'user',
+          href: null,
+          submenu: [
+            {
+              id: 'add-user',
+              label: 'Add Reviewer',
+              href: '/admin/add-user.html'
+            }
+          ]
+        },
+        {
           id: 'account',
           label: 'Account',
           icon: 'user',

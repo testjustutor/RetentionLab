@@ -1,8 +1,19 @@
 /**
  * root/models/UserModel.js
  */
+const crypto = require('crypto');
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
+
+function hashPassword(password, salt = null) {
+  salt = salt || crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${derived}`;
+}
+
+function isHashedPassword(value) {
+  return typeof value === 'string' && value.includes(':') && value.split(':').length === 2;
+}
 
 class UsersModel {
   static _ensureAdminOrSuper(user) {
@@ -34,14 +45,30 @@ class UsersModel {
       created_by: user ? user.id : null
     };
 
-    // If attempting to create an 'admin' role, ensure a company_id is provided
+    if (user && user.role_name === 'admin') {
+      insertData.company_id = user.company_id;
+    }
+
+    // If attempting to create an 'admin' or 'reviewer' role, enforce creator restrictions.
     if (insertData.role_id) {
       const roleRow = await new Promise((resolve, reject) => {
         db.get(`SELECT role_name FROM roles WHERE id = ?`, [insertData.role_id], (err, row) => err ? reject(err) : resolve(row || null));
       });
-      if (roleRow && roleRow.role_name === 'admin' && !insertData.company_id) {
-        throw new Error('Admin users must be associated with a company (company_id required)');
+      if (roleRow) {
+        if (user?.role_name === 'super_admin' && roleRow.role_name !== 'admin') {
+          throw new Error('Super admin may only create admin accounts');
+        }
+        if (user?.role_name === 'admin' && roleRow.role_name !== 'reviewer') {
+          throw new Error('Admin may only create reviewer accounts');
+        }
+        if (roleRow.role_name === 'admin' && !insertData.company_id) {
+          throw new Error('Admin users must be associated with a company (company_id required)');
+        }
       }
+    }
+
+    if (insertData.password_hash && !isHashedPassword(insertData.password_hash)) {
+      insertData.password_hash = hashPassword(insertData.password_hash);
     }
 
     return new Promise((resolve, reject) => {

@@ -143,6 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Sidebar controller
     if (!globalThis[initKeySidebar]) {
       globalThis[initKeySidebar] = true;
+      // Wait for sidebar to be loaded before initializing controller
+      await waitFor(() => !!document.getElementById('sidebarMenuList'), 3000);
       try {
         const sidebarMod = await import('/js/sidebar-controller.js');
         if (typeof sidebarMod?.init === 'function') {

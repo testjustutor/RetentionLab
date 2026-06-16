@@ -103,8 +103,20 @@ async function fetchCurrentUserRoleFromApi() {
 // ─── Page detection ───────────────────────────────────────────────────────────
 
 /**
- * Resolve the current page key.
+ * Resolve the current page key used to look up header_page_configs
+ * in the database (which uses camelCase page keys).
+ * 
  * Priority: <meta name="header-page" content="..."> → path fallback.
+ * Uses generic kebab-case to camelCase conversion so any new page
+ * added to the DB with matching page_key will automatically work.
+ *
+ * Examples:
+ *   'sidebar-menu-management.html' → 'sidebarMenuManagement'
+ *   'rubric-management.html'       → 'rubricManagement'
+ *   'calendar-accounts.html'       → 'calendarAccounts'
+ *   'add-user.html'                → 'addUser'
+ *   'index.html'                   → 'dashboard'
+ *   '' / '/'                       → 'dashboard'
  */
 function detectPageId() {
   const meta = document.querySelector('meta[name="header-page"]');
@@ -115,19 +127,17 @@ function detectPageId() {
   const last = path.split('/').filter(Boolean).pop() || '';
   if (!last) return 'dashboard';
 
-  const file = last.toLowerCase();
-  if (file.includes('profile'))           return 'profile';
-  if (file.includes('settings'))          return 'settings';
-  if (file.includes('archives'))          return 'archives';
-  if (file.includes('calendar-accounts')) return 'calendarAccounts';
-  if (file.includes('calendar') || file.includes('events')) return 'events';
-  if (file.includes('bot'))               return 'bot';
-  if (file.includes('asset'))             return 'assets';
-  if (file.includes('audit'))             return 'audit';
-  if (file.includes('architecture'))      return 'dataArchitecture';
-  if (file.includes('dashboard') || file.includes('index')) return 'dashboard';
+  // Strip .html extension
+  const baseName = last.replace(/\.\w+$/, '');
 
-  return 'dashboard';
+  // Index or dashboard → dashboard
+  if (baseName === 'index' || baseName.includes('index')) return 'dashboard';
+
+  // Convert kebab-case to camelCase:  "sidebar-menu-management" → "sidebarMenuManagement"
+  // This matches the page_key values stored in header_page_configs table.
+  const camelKey = baseName.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+
+  return camelKey || 'dashboard';
 }
 
 // ─── DOM population ───────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ from utils.logger_util import log_with_type
 
 import os
 from .pyannote_diarizer import PyannoteDiarizer
+from .speaker_resolver import SpeakerResolver
 
 
 class DiarizationEngine:
@@ -75,10 +76,14 @@ class DiarizationEngine:
 
         log_with_type("info", "Engine(transcription_service > diarization_engine) : Assigning speaker labels", "SERVICE")
 
-        return self._assign_labels_to_segments(
+        labeled = self._assign_labels_to_segments(
             segments,
             diarization_segments
         )
+
+        labeled = self._resolve_speaker_names(labeled)
+
+        return labeled
 
     def _build_fallback_diarization(
         self,
@@ -103,7 +108,45 @@ class DiarizationEngine:
 
         log_with_type("info", f"Engine(transcription_service > diarization_engine) : Fallback diarization built count={len(diarization)}", "SERVICE")
 
+        diarization = self._resolve_speaker_names(diarization)
+
         return diarization
+
+    def _resolve_speaker_names(
+        self,
+        labeled
+    ):
+        """
+        Resolves generic SPEAKER_XX labels to real speaker names using the
+        platform captions transcript (TRANS_*.txt) stored in context.
+
+        If no captions transcript is available, the labeled segments are
+        returned unchanged and a warning is logged.
+        """
+
+        trans_path = getattr(self.context, "captions_trans_path", None)
+
+        if not trans_path or not os.path.exists(trans_path):
+            log_with_type("warning", "Engine(transcription_service > diarization_engine) : No captions transcript found — keeping SPEAKER_XX labels", "SERVICE")
+            return labeled
+
+        try:
+            meeting_start = getattr(self.context, "meeting_start", None)
+
+            resolver = SpeakerResolver(
+                teams_trans_path=trans_path,
+                meeting_start=meeting_start,
+                verbose=False
+            )
+
+            labeled = resolver.resolve(labeled)
+
+            log_with_type("info", f"Engine(transcription_service > diarization_engine) : Speaker names resolved mapping={resolver.speaker_map}", "SERVICE")
+
+        except Exception as error:
+            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : Speaker resolution failed keeping SPEAKER_XX labels error={str(error)}", "SERVICE")
+
+        return labeled
 
     def _assign_labels_to_segments(
         self,

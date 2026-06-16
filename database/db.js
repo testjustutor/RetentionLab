@@ -217,11 +217,13 @@ const initDB = () => {
                         )
                     `);
 
+                    // ─── MASTER RUBRIC TABLES (Super Admin maintains these) ──────────
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS rubric_categories (
                             category_id TEXT PRIMARY KEY,
                             name TEXT NOT NULL,
-                            weight REAL NOT NULL
+                            weight REAL NOT NULL DEFAULT 0,
+                            company_id INTEGER DEFAULT 0
                         )
                     `);
 
@@ -232,7 +234,71 @@ const initDB = () => {
                             name TEXT NOT NULL,
                             type TEXT CHECK(type IN ('AI', 'HUMAN')),
                             is_gate BOOLEAN DEFAULT 0,
+                            value REAL DEFAULT 1,
+                            company_id INTEGER DEFAULT 0,
                             FOREIGN KEY (category_id) REFERENCES rubric_categories(category_id)
+                        )
+                    `);
+
+                    // ─── ADMIN RUBRIC ASSIGNMENT TABLES ─────────────────────────────
+                    // When Super Admin assigns categories/indicators to an Admin,
+                    // copies are created here with admin_id for data isolation.
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS rubric_assignments (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            category_id TEXT NOT NULL,
+                            admin_user_id INTEGER NOT NULL,
+                            created_by INTEGER,
+                            assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (category_id) REFERENCES rubric_categories(category_id),
+                            FOREIGN KEY (admin_user_id) REFERENCES users(id),
+                            FOREIGN KEY (created_by) REFERENCES users(id),
+                            UNIQUE(category_id, admin_user_id)
+                        )
+                    `);
+
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS admin_rubric_categories (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            original_category_id TEXT NOT NULL,
+                            admin_user_id INTEGER NOT NULL,
+                            name TEXT NOT NULL,
+                            weight REAL NOT NULL DEFAULT 0,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(original_category_id, admin_user_id)
+                        )
+                    `);
+
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS admin_rubric_indicators (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            original_indicator_id TEXT NOT NULL,
+                            original_category_id TEXT NOT NULL,
+                            admin_user_id INTEGER NOT NULL,
+                            name TEXT NOT NULL,
+                            type TEXT CHECK(type IN ('AI', 'HUMAN')) DEFAULT 'HUMAN',
+                            is_gate BOOLEAN DEFAULT 0,
+                            value REAL DEFAULT 1,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(original_indicator_id, admin_user_id)
+                        )
+                    `);
+
+                    // ─── AUDIT LOG TABLE ───────────────────────────────────────────────
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS rubric_audit_log (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            action TEXT NOT NULL,
+                            entity_type TEXT NOT NULL,
+                            entity_id TEXT,
+                            admin_user_id INTEGER,
+                            performed_by INTEGER NOT NULL,
+                            old_values TEXT,
+                            new_values TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (performed_by) REFERENCES users(id)
                         )
                     `);
 
@@ -307,15 +373,40 @@ const initDB = () => {
                         )
                     `);
 
+                    // ─── Granular Session-Level Scores Table ──────────────────────────
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS meeting_session_scores (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            session_id INTEGER NOT NULL,
+                            indicator_id TEXT NOT NULL,
+                            reviewer_id INTEGER,
+                            score INTEGER DEFAULT 0,
+                            score_type TEXT CHECK(score_type IN ('AI', 'MANUAL')) DEFAULT 'AI',
+                            comment TEXT,
+                            scored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meeting_sessions(meeting_id),
+                            FOREIGN KEY (indicator_id) REFERENCES rubric_indicators(indicator_id),
+                            FOREIGN KEY (reviewer_id) REFERENCES users(id),
+                            UNIQUE(meeting_id, session_id, indicator_id)
+                        )
+                    `);
+
                     // ─── header_role_configs ──────────────────────────────────────────
-                    // One row per role: stores the nav-link map (home/events/archives/
-                    // profile/settings) for that role. nav_json is a JSON object keyed
-                    // by nav item name, each value: { labelKey, href, target }.
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS header_role_configs (
                             id          INTEGER PRIMARY KEY AUTOINCREMENT,
                             role_id     INTEGER NOT NULL UNIQUE,
-                            nav_json    TEXT    NOT NULL DEFAULT '{}',
+                            home_href   TEXT    DEFAULT '/dashboard.html',
+                            home_label  TEXT    DEFAULT 'Home',
+                            events_href TEXT    DEFAULT '/events.html',
+                            events_label TEXT   DEFAULT 'Events',
+                            archives_href TEXT  DEFAULT '/archives.html',
+                            archives_label TEXT DEFAULT 'Archives',
+                            profile_href TEXT  DEFAULT '/profile.html',
+                            profile_label TEXT DEFAULT 'Profile',
+                            settings_href TEXT DEFAULT '/settings.html',
+                            settings_label TEXT DEFAULT 'Settings',
                             is_active   INTEGER NOT NULL DEFAULT 1,
                             created_by  INTEGER,
                             updated_by  INTEGER,
@@ -328,9 +419,31 @@ const initDB = () => {
                         )
                     `);
 
+                    // ─── header_menu_items ────────────────────────────────────────────
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS header_menu_items (
+                            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                            role_id     INTEGER NOT NULL,
+                            menu_id     TEXT    NOT NULL,
+                            parent_id   TEXT,
+                            label       TEXT    NOT NULL,
+                            icon        TEXT,
+                            href        TEXT,
+                            display_order INTEGER NOT NULL DEFAULT 0,
+                            is_active   INTEGER NOT NULL DEFAULT 1,
+                            created_by  INTEGER,
+                            updated_by  INTEGER,
+                            created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            deleted_at  DATETIME,
+                            UNIQUE(role_id, menu_id),
+                            FOREIGN KEY (role_id)    REFERENCES roles(id),
+                            FOREIGN KEY (created_by) REFERENCES users(id),
+                            FOREIGN KEY (updated_by) REFERENCES users(id)
+                        )
+                    `);
+
                     // ─── header_page_configs ──────────────────────────────────────────
-                    // One row per (role × page): page-level display settings scoped to
-                    // a specific role. page_key matches the keys in DEFAULT_HEADER_CONFIG.pages.
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS header_page_configs (
                             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -368,9 +481,16 @@ const initDB = () => {
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_status ON participant_attendance_sessions(attendance_status)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_role_configs_role_id   ON header_role_configs(role_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_role_configs_is_active  ON header_role_configs(is_active)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_menu_items_role_id    ON header_menu_items(role_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_menu_items_parent_id  ON header_menu_items(parent_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_page_configs_role_id    ON header_page_configs(role_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_page_configs_page_key   ON header_page_configs(page_key)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_header_page_configs_role_page  ON header_page_configs(role_id, page_key)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_session_scores_lookup         ON meeting_session_scores(meeting_id, session_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_admin_rubric_categories_admin ON admin_rubric_categories(admin_user_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_admin_rubric_indicators_admin ON admin_rubric_indicators(admin_user_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_rubric_audit_log_performed    ON rubric_audit_log(performed_by)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_rubric_audit_log_entity       ON rubric_audit_log(entity_type, entity_id)`);
 
                     resolve();
                 } catch (err) {
@@ -379,6 +499,47 @@ const initDB = () => {
             })();
         });
     });
+};
+
+// ─── 2. Migration Helper: Add columns if they don't exist ──────────────────────
+
+const migrateDB = async () => {
+    try {
+        // Add 'value' column to rubric_indicators if not exists
+        const indTableInfo = await allAsync("PRAGMA table_info(rubric_indicators)");
+        if (!indTableInfo.some(col => col.name === 'value')) {
+            await runAsync("ALTER TABLE rubric_indicators ADD COLUMN value REAL DEFAULT 1");
+            console.log('[DB] Added value column to rubric_indicators');
+        }
+
+        // Add 'company_id' column to rubric_categories if not exists
+        const catTableInfo = await allAsync("PRAGMA table_info(rubric_categories)");
+        if (!catTableInfo.some(col => col.name === 'company_id')) {
+            await runAsync("ALTER TABLE rubric_categories ADD COLUMN company_id INTEGER DEFAULT 0");
+            console.log('[DB] Added company_id column to rubric_categories');
+        }
+
+        // Add 'company_id' column to rubric_indicators if not exists
+        if (!indTableInfo.some(col => col.name === 'company_id')) {
+            await runAsync("ALTER TABLE rubric_indicators ADD COLUMN company_id INTEGER DEFAULT 0");
+            console.log('[DB] Added company_id column to rubric_indicators');
+        }
+
+        // Add 'value' column to admin_rubric_indicators if not exists
+        const adminIndTableInfo = await allAsync("PRAGMA table_info(admin_rubric_indicators)");
+        if (!adminIndTableInfo.some(col => col.name === 'value')) {
+            try {
+                await runAsync("ALTER TABLE admin_rubric_indicators ADD COLUMN value REAL DEFAULT 1");
+                console.log('[DB] Added value column to admin_rubric_indicators');
+            } catch (e) {
+                // table might not exist yet, that's fine
+            }
+        }
+
+        console.log('[DB] Migrations completed successfully');
+    } catch (err) {
+        console.error('[DB] Migration error:', err.message);
+    }
 };
 
 // ─── 3. Utilities ──────────────────────────────────────────────────────────────
@@ -392,4 +553,4 @@ const closeDB = () => {
     });
 };
 
-module.exports = { db, initDB, closeDB, runAsync, allAsync, getAsync };
+module.exports = { db, initDB, closeDB, runAsync, allAsync, getAsync, migrateDB };

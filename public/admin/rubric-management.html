@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rubric Management — Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css" />
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <div class="max-w-6xl mx-auto">
+          <h2 class="text-2xl font-bold text-white mb-4">My Assigned Rubric</h2>
+          <p class="text-slate-400 mb-6">View and manage the rubric categories and indicators assigned to you. Changes you make here only affect your account.</p>
+
+          <!-- Status Messages -->
+          <div id="statusBar" class="hidden mb-4 p-3 rounded-lg text-sm font-medium"></div>
+
+          <!-- Categories & Indicators Overview -->
+          <div id="rubricContainer">
+            <p class="text-slate-400">Loading your assigned rubric...</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/load-components.js"></script>
+  <script>
+    let currentAdminUserId = null;
+    let rubricData = { categories: [], indicators: [] };
+    let hasUnsavedChanges = false;
+
+    // ─── Initialization ──────────────────────────────────────────────────────
+    async function init() {
+      try {
+        // Get current user info
+        const userResp = await fetch('/api/auth/me');
+        if (!userResp.ok) throw new Error('Not authenticated');
+        const userData = await userResp.json();
+        currentAdminUserId = userData.id;
+
+        await loadRubric();
+      } catch (err) {
+        document.getElementById('rubricContainer').innerHTML = 
+          '<p class="text-red-400">Error: ' + err.message + '</p>';
+      }
+    }
+
+    async function loadRubric() {
+      const container = document.getElementById('rubricContainer');
+      try {
+        // Load admin-specific rubric data
+        const resp = await fetch('/api/rubric-admin/full/' + currentAdminUserId);
+        if (!resp.ok) throw new Error('Failed to load rubric');
+        const result = await resp.json();
+        rubricData = result;
+        
+        if (!rubricData.categories || rubricData.categories.length === 0) {
+          container.innerHTML = `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+              <p class="text-slate-400 text-lg">No rubric assigned yet.</p>
+              <p class="text-slate-500 mt-2">Please contact your Super Admin to assign rubric categories to you.</p>
+            </div>
+          `;
+          return;
+        }
+
+        renderRubric();
+      } catch (err) {
+        container.innerHTML = '<p class="text-red-400">Error: ' + err.message + '</p>';
+      }
+    }
+
+    // ─── Render Rubric ───────────────────────────────────────────────────────
+    function renderRubric() {
+      const container = document.getElementById('rubricContainer');
+      let html = '';
+
+      // Summary cards
+      html += `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
+            <p class="text-indigo-300 text-sm font-medium">Assigned Categories</p>
+            <p class="text-white text-2xl font-bold mt-1">${rubricData.categories.length}</p>
+          </div>
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
+            <p class="text-indigo-300 text-sm font-medium">Assigned Indicators</p>
+            <p class="text-white text-2xl font-bold mt-1">${rubricData.indicators.length}</p>
+          </div>
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
+            <p class="text-indigo-300 text-sm font-medium">Status</p>
+            <p class="text-green-400 text-sm font-bold mt-1">${hasUnsavedChanges ? 'Unsaved Changes' : 'All Saved'}</p>
+          </div>
+        </div>
+      `;
+
+      // Save button bar
+      html += `
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-semibold text-white">Categories & Indicators</h3>
+          <button id="saveAllBtn" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors ${hasUnsavedChanges ? '' : 'opacity-50 cursor-not-allowed'}" 
+                  onclick="saveAllChanges()" ${hasUnsavedChanges ? '' : 'disabled'}>
+            Save All Changes
+          </button>
+        </div>
+      `;
+
+      // Render each category
+      rubricData.categories.forEach(cat => {
+        const catIndicators = rubricData.indicators.filter(ind => ind.original_category_id === cat.original_category_id);
+        html += `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-4">
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="text-lg font-semibold text-white">${cat.name}</h4>
+              <div class="flex items-center gap-2">
+                <label class="text-sm text-slate-400">Category Weight:</label>
+                <input type="number" class="w-20 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 category-weight-input" 
+                       value="${cat.weight}" min="0" max="100" step="0.1"
+                       data-category-id="${cat.original_category_id}"
+                       onchange="onCategoryWeightChange('${cat.original_category_id}', this.value)" />
+                <span class="text-slate-400 text-sm">%</span>
+              </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-700">
+                <thead>
+                  <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Indicator</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Gate</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Value / Weightage</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                  ${catIndicators.length === 0 ? 
+                    '<tr><td colspan="4" class="px-4 py-3 text-sm text-slate-500 text-center">No indicators in this category.</td></tr>' :
+                    catIndicators.map(ind => `
+                      <tr>
+                        <td class="px-4 py-3 text-sm font-medium text-white">${ind.name}</td>
+                        <td class="px-4 py-3 text-sm text-slate-300">${ind.type || 'HUMAN'}</td>
+                        <td class="px-4 py-3 text-sm text-slate-300">${ind.is_gate ? 'Yes' : 'No'}</td>
+                        <td class="px-4 py-3 text-sm">
+                          <input type="number" class="w-24 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 indicator-value-input" 
+                                 value="${ind.value !== undefined ? ind.value : 1}" min="0" max="100" step="0.1"
+                                 data-indicator-id="${ind.original_indicator_id}"
+                                 onchange="onIndicatorValueChange('${ind.original_indicator_id}', this.value)" />
+                        </td>
+                      </tr>
+                    `).join('')
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ─── Change Tracking ─────────────────────────────────────────────────────
+    let pendingCategoryChanges = {};
+    let pendingIndicatorChanges = {};
+
+    function onCategoryWeightChange(categoryId, weight) {
+      pendingCategoryChanges[categoryId] = parseFloat(weight) || 0;
+      hasUnsavedChanges = true;
+      updateSaveButton();
+    }
+
+    function onIndicatorValueChange(indicatorId, value) {
+      pendingIndicatorChanges[indicatorId] = parseFloat(value) || 0;
+      hasUnsavedChanges = true;
+      updateSaveButton();
+    }
+
+    function updateSaveButton() {
+      const btn = document.getElementById('saveAllBtn');
+      if (btn) {
+        btn.disabled = !hasUnsavedChanges;
+        btn.className = hasUnsavedChanges 
+          ? 'px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors'
+          : 'px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md opacity-50 cursor-not-allowed';
+      }
+      // Update status
+      const statusText = document.querySelector('.text-green-400');
+      if (statusText) {
+        statusText.textContent = hasUnsavedChanges ? 'Unsaved Changes' : 'All Saved';
+        statusText.className = hasUnsavedChanges ? 'text-yellow-400 text-sm font-bold mt-1' : 'text-green-400 text-sm font-bold mt-1';
+      }
+    }
+
+    // ─── Save Changes ────────────────────────────────────────────────────────
+    async function saveAllChanges() {
+      const statusBar = document.getElementById('statusBar');
+      statusBar.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-yellow-900/50 text-yellow-200 border border-yellow-800';
+      statusBar.textContent = 'Saving changes...';
+      statusBar.classList.remove('hidden');
+
+      try {
+        const results = { categories: 0, indicators: 0 };
+        const catKeys = Object.keys(pendingCategoryChanges);
+        const indKeys = Object.keys(pendingIndicatorChanges);
+
+        // Save category weight changes
+        if (catKeys.length > 0) {
+          const catPayload = catKeys.map(id => ({
+            original_category_id: id,
+            weight: pendingCategoryChanges[id]
+          }));
+          const catResp = await fetch('/api/rubric-admin/admin-categories/bulk/' + currentAdminUserId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ categories: catPayload })
+          });
+          if (catResp.ok) {
+            const catResult = await catResp.json();
+            results.categories = catResult.updated;
+          }
+        }
+
+        // Save indicator value changes
+        if (indKeys.length > 0) {
+          const indPayload = indKeys.map(id => ({
+            original_indicator_id: id,
+            value: pendingIndicatorChanges[id]
+          }));
+          const indResp = await fetch('/api/rubric-admin/admin-indicators/bulk/' + currentAdminUserId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indicators: indPayload })
+          });
+          if (indResp.ok) {
+            const indResult = await indResp.json();
+            results.indicators = indResult.updated;
+          }
+        }
+
+        // Clear pending changes
+        pendingCategoryChanges = {};
+        pendingIndicatorChanges = {};
+        hasUnsavedChanges = false;
+        updateSaveButton();
+
+        // Update local data
+        for (const catId of catKeys) {
+          const cat = rubricData.categories.find(c => c.original_category_id === catId);
+          if (cat) cat.weight = pendingCategoryChanges[catId] || cat.weight;
+        }
+        for (const indId of indKeys) {
+          const ind = rubricData.indicators.find(i => i.original_indicator_id === indId);
+          if (ind) ind.value = pendingIndicatorChanges[indId] || ind.value;
+        }
+
+        statusBar.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-green-900/50 text-green-200 border border-green-800';
+        statusBar.textContent = `Saved! ${results.categories} categories and ${results.indicators} indicators updated.`;
+        
+        setTimeout(() => {
+          statusBar.classList.add('hidden');
+        }, 3000);
+
+      } catch (err) {
+        statusBar.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-red-900/50 text-red-200 border border-red-800';
+        statusBar.textContent = 'Error saving changes: ' + err.message;
+      }
+    }
+
+    // ─── Start ───────────────────────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>

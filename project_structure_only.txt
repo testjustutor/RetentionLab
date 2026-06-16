@@ -18,16 +18,47 @@ project_root/
 |   `-- settings.js
 |-- database
 |   |-- db.js
+|   |-- db-header-config.js
+|   |-- index.js
+|   |-- roles.js
+|   |-- seeder.js
+|   |-- seedHelpers.js
+|   |-- settingsSeeder.js
+|   |-- superAdmin.js
 |   `-- rubricSeeder.js
+|-- logs
+|   |-- image
+|-- middleware
+|   |-- auth.js
 |-- models
+|   |-- AdminModel.js
+|   |-- ArchivesModel.js
+|   |-- AuthModel.js
 |   |-- CalendarUsersModel.js
+|   |-- CalendarVerificationModel.js
+|   |-- CompaniesModel.js
+|   |-- HeaderConfigModel.js
 |   |-- MeetingAssetsModel.js
 |   |-- MeetingModel.js
-|   `-- MeetingParticipantSessionModel.js
-|   `-- ParticipantModel.js
+|   |-- MeetingParticipantSessionModel.js
+|   |-- MeetingReviewersModel.js
+|   |-- MeetingScoresModel.js
+|   |-- MeetingSessionScoresModel.js
+|   |-- ParticipantModel.js
+|   |-- RolesModel.js
 |   |-- RubricModel.js
+|   |-- SystemSettingsModel.js
+|   |-- UserSettingsModel.js
+|   |-- UsersModel.js
 |   `-- transcriptModel.js
 |-- public
+|   |-- admin
+|   |   |-- archives.html
+|   |   |-- calendar-accounts.html
+|   |   |-- calendar-events.html
+|   |   |-- index.html
+|   |   |-- profile.html
+|   |   |-- settings.html
 |   |-- css
 |   |   |-- admin.css
 |   |   |-- archives.css
@@ -35,52 +66,76 @@ project_root/
 |   |   |-- audit.css
 |   |   |-- bot.css
 |   |   |-- calendar.css
+|   |   |-- shared.css
+|   |   |-- sidebar.css
+|   |-- employee
+|   |   |-- index.html
 |   |-- js
 |   |   |-- admin.js
 |   |   |-- admin.react.js
 |   |   |-- archives.js
+|   |   |-- assets.bundle.js
 |   |   |-- assets.js
 |   |   |-- audit.js
+|   |   |-- auth.js
 |   |   |-- bot.js
 |   |   |-- calendar.js
-|   |-- data
-|   |   |-- archives.json
-|   |   |-- assets.json
+|   |   |-- dashboard.js
+|   |   |-- db-admin.js
+|   |   |-- header-config-api.js
+|   |   |-- header-controller.js
+|   |   |-- header-role-common.js
+|   |   |-- load-components.js
+|   |   |-- login.js
+|   |   |-- page-metadata.js
+|   |   |-- register.js
+|   |   |-- sidebar-config.js
+|   |   |-- sidebar-config-editor.js
+|   |   |-- sidebar-controller.js
+|   |   |-- super_admin_ui.js
+|   |   |-- user-profile-api.js
+|   |   |-- users.js
+|   |-- reviewer
+|   |   |-- index.html
+|   |-- super_admin
+|   |   |-- archives.html
+|   |   |-- assets.html
 |   |   |-- audit.json
 |   |   |-- bot.json
-|   |-- archives.html
-|   |-- assets.html
-|   |-- audit.html
-|   |-- bot.html
-|   |-- data-architecture.html
+|   |   |-- calendar-accounts.json
+|   |   |-- calendar-events.json
+|   |   |-- data-architecture.json
+|   |   |-- index.json
+|   |   |-- profile.json
+|   |   |-- settings.json
+|   |-- header.html
+|   |-- index.html
+|   |-- login.html
+|   |-- register.html
+|   |-- sidebar.html
 |   |-- favicon.ico
-|   |-- schedule-intelligence.html
 |-- routes
+|   |-- archives.js
 |   |-- assets.js
 |   |-- audit.js
+|   |-- auth.js
 |   |-- bot.js
 |   |-- calendar.js
+|   |-- dashboard.js
 |   |-- db-admin.js
+|   |-- header-config.js
+|   |-- index.js
 |   |-- meetings.js
+|   |-- pages.js
+|   |-- reviewers.js
+|   |-- roles.js
+|   |-- scores.js
+|   |-- sidebar-api.js
+|   |-- users.js
 |   `-- transcripts.js
-|-- storage
-|   |-- cache_audio_transcripts
-|   |-- cache_audits
-|   |-- cache_captions_raw
-|   |-- cache_chat_logs
-|   |-- cache_diarization
-|   |-- cache_embeddings
-|   |-- cache_llm_prompts
-|   |-- cache_screenshots
-|   |-- cache_topic_trackers
-|   |-- cache_voice_activity
-|   |-- cache_voiceprints
-|   |-- cache_wav_audio
-|   |-- cache_whisper
-|   |-- intel
-|   |-- recordings
-|   |-- summaries
-|   |-- transcripts
+|-- scripts
+|   |-- patch_shared_header.js
+|   |-- verify_shared_header.js
 |-- services
 |   |-- calendar
 |   |   |-- auth
@@ -322,48 +377,75 @@ project_root/
 |   |   |   |-- participantTracker.js
 |   |   |-- teams
 |   |   |   |-- audioRecorderBot.js
-|   |   |   |-- GoogleMeetAdapter.js
 |   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- monitor.js
-|   |   |   |-- reactiveJoinFlow.js
 |   |   |   |-- participantCapture.js
 |   |   |   |-- participantTracker.js
+|   |   |   |-- reactiveJoinFlow.js
 |   |   |   |-- TeamsAdapter.js
 |   |   |   `-- teamsJoiner.js
 |   |   |-- zoom
 |   |   |   |-- audioRecorderBot.js
-|   |   |   |-- GoogleMeetAdapter.js
 |   |   |   |-- captionListener.js
+|   |   |   |-- captionMonitor.js
 |   |   |   |-- monitor.js
-|   |   |   |-- reactiveJoinFlow.js
-|   |   |   |-- ZoomAdapter.js
 |   |   |   |-- participantCapture.js
 |   |   |   |-- participantTracker.js
+|   |   |   |-- reactiveJoinFlow.js
+|   |   |   |-- ZoomAdapter.js
 |   |   |   `-- zoomJoiner.js
 |   |   `-- platformFactory.js
 |   |-- shared
+|   |   |-- config
+|   |   |   |-- __init__.py
+|   |   |   |-- database_config.py
+|   |   |-- database
+|   |   |   |-- __init__.py
+|   |   |   |-- connection_manager.py
+|   |   |   |-- session_scores_repository.py
+|   |   |-- ai_config.py
 |   |   |-- botManager.js
 |   |   |-- browserManager.js
 |   |   `-- pythonBridge.js
 |   |-- __init__.py
 |   |-- audioRecorder.js
 |   `-- socraticbot.js
+|-- storage
+|   |-- cache_audio_transcripts
+|   |-- cache_audits
+|   |-- cache_captions_raw
+|   |-- cache_chat_logs
+|   |-- cache_diarization
+|   |-- cache_embeddings
+|   |-- cache_llm_prompts
+|   |-- cache_screenshots
+|   |-- cache_topic_trackers
+|   |-- cache_voice_activity
+|   |-- cache_voiceprints
+|   |-- cache_wav_audio
+|   |-- cache_whisper
+|   |-- chrome-profiles
+|   |-- intel
+|   |-- recordings
+|   |-- screen-recordings
+|   |-- summaries
+|   |-- transcripts
 |-- uploads
 |	|-- google-calendar-json
 |	|	|-- credentials_multi.json
 |-- utils
 |   |-- __init__.py
+|   |-- calendarLinkToken.js
 |   |-- export.js
 |   |-- logger.js
 |   |-- logger_util.py
+|   |-- mailer.py
 |   `-- transcriptUtils.js
 |-- .env
 |-- .env.example
 |-- .gitignore
-|-- check_db.js
-|-- db-query.js
 |-- index.js
-|-- list-tables.js
 |-- package.json
 |-- package-lock.json
 |-- project_process_documentation.txt
@@ -372,7 +454,6 @@ project_root/
 |-- requirements.txt
 |-- retention_lab.db
 |-- server.js
-|-- setup-db.js
 |-- test-engine.js
 `-- TODO.md
 ```

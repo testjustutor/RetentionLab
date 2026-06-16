@@ -66,25 +66,35 @@ function detectRoleFromMetaOrPath() {
   return metaRole ? normalizeRole(metaRole) : null;
 }
 
+/**
+ * Detect the current page ID from the URL path.
+ * Returns the filename without extension (kebab-case), which directly
+ * matches the `menu_id` values stored in the database (header_menu_items).
+ * Falls back to 'dashboard' for index/root paths.
+ *
+ * Examples:
+ *   '/super_admin/sidebar-menu-management.html' → 'sidebar-menu-management'
+ *   '/super_admin/rubric-management.html'       → 'rubric-management'
+ *   '/super_admin/calendar-accounts.html'       → 'calendar-accounts'
+ *   '/super_admin/add-user.html'                → 'add-user'
+ *   '/super_admin/index.html'                   → 'dashboard'
+ *   '/super_admin/' or '/'                      → 'dashboard'
+ *
+ * This matches the menu_id values in header_menu_items so sidebar
+ * active-highlighting works automatically for any new page added.
+ */
 function detectCurrentPageId() {
   const path = window.location.pathname || '';
   const parts = path.split('/').filter(Boolean);
   const fileName = parts[parts.length - 1] || '';
 
-  // Root or role-root (e.g. "/", "/admin", "/admin/") → dashboard
-  if (!fileName || fileName.includes('index')) return 'dashboard';
+  // Root or index → dashboard
+  if (!fileName || fileName === 'index.html' || fileName.includes('index')) return 'dashboard';
 
-  if (fileName.includes('profile')) return 'profile';
-  if (fileName.includes('settings')) return 'settings';
-  if (fileName.includes('archives')) return 'archives';
-  if (fileName.includes('calendar-accounts')) return 'calendar-accounts';
-  if (fileName.includes('calendar-events')) return 'calendar-events';
-  if (fileName.includes('data-architecture')) return 'data-architecture';
-  if (fileName.includes('assets')) return 'assets';
-  if (fileName.includes('audit')) return 'audit';
-  if (fileName.includes('bot')) return 'bot-management';
+  // Strip .html extension (or any extension), keep kebab-case
+  const baseName = fileName.replace(/\.\w+$/, '');
 
-  return null;
+  return baseName || 'dashboard';
 }
 
 function renderMenuItems(menuItems, currentPageId) {
@@ -191,7 +201,10 @@ async function populateSidebar() {
   if (sidebarInitialized) return;
 
   const menuList = $('sidebarMenuList');
-  if (!menuList) return;
+  if (!menuList) {
+    console.warn('Sidebar menu list not found');
+    return;
+  }
 
   const currentPageId = detectCurrentPageId();
   const menu = await fetchSidebarMenu();
@@ -203,7 +216,13 @@ async function populateSidebar() {
 
   const menuHtml = renderMenuItems(menu.menuItems, currentPageId);
 
-  menuList.parentNode.replaceChild(menuHtml, menuList);
+  // Clear existing menu and append new menu items
+  menuList.innerHTML = '';
+  if (menuHtml && menuHtml.children) {
+    Array.from(menuHtml.children).forEach(child => {
+      menuList.appendChild(child);
+    });
+  }
 
   // Setup sidebar toggle functionality
   setupSidebarToggle();
@@ -236,6 +255,11 @@ function setupSidebarCollapse() {
 
 export async function init() {
   await populateSidebar();
+}
+
+// Expose a compatibility alias for legacy page scripts.
+if (typeof window !== 'undefined') {
+  window.initSidebar = init;
 }
 
 // Auto-init on DOM ready

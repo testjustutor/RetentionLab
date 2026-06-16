@@ -36,6 +36,17 @@ def run_transcription_task(context):
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : TranscriptionService initialized", "TASK")
 
+        # ==========================================
+        # RESOLVE MEETING START FROM CAPTIONS FILE
+        # Needed by SpeakerResolver for timestamp
+        # alignment inside DiarizationEngine.
+        # ==========================================
+        if context.captions_trans_path and os.path.exists(context.captions_trans_path):
+            context.meeting_start = _parse_meeting_start(context.captions_trans_path)
+            log_with_type("info", f"Engine(task > transcription > transcription_task) : Meeting start resolved={context.meeting_start}", "TASK")
+        else:
+            log_with_type("warning", "Engine(task > transcription > transcription_task) : No captions transcript — speaker names will use SPEAKER_XX labels", "TASK")
+
         result = service.transcribe(
             context.audio_path
         )
@@ -157,3 +168,43 @@ def run_transcription_task(context):
         log_with_type("error", f"Engine(task > transcription > transcription_task) : Transcription failed error={str(e)}", "TASK")
 
         raise
+
+
+# ==========================================
+# HELPERS
+# ==========================================
+
+def _parse_meeting_start(trans_path):
+    """
+    Extracts the meeting wall-clock start time from the TRANS_*.txt header.
+
+    Expected header line (all platforms — Teams, Zoom, Google Meet):
+        Date       : 6/12/2026, 4:01:53 PM
+
+    Returns a datetime object or None if not found / unparseable.
+    """
+    import re
+    from datetime import datetime
+
+    HEADER_DATE_RE = re.compile(
+        r"Date\s*:\s*(\d+/\d+/\d+),?\s+(\d+:\d+:\d+\s+[AP]M)",
+        re.IGNORECASE
+    )
+
+    try:
+        with open(trans_path, encoding="utf-8") as f:
+            # Only scan the header — first 20 lines is enough
+            for _ in range(20):
+                line = f.readline()
+                if not line:
+                    break
+                match = HEADER_DATE_RE.search(line)
+                if match:
+                    return datetime.strptime(
+                        f"{match.group(1)} {match.group(2)}",
+                        "%m/%d/%Y %I:%M:%S %p"
+                    )
+    except Exception:
+        pass
+
+    return None

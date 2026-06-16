@@ -8,9 +8,6 @@ const path = require('path');
 const { logger } = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 
-// Serve page routes
-router.use('/', require('./pages'));
-
 // Top-level stats and health
 router.get('/storage/stats', async (req, res) => {
   try {
@@ -95,6 +92,7 @@ router.use('/api/meetings', require('./meetings'));
 router.use('/api/db', require('./db-admin'));
 
 // Professional admin routes
+router.use('/api/companies', require('./companies'));
 router.use('/api/roles', require('./roles'));
 router.use('/api/users', require('./users'));
 router.use('/api/reviewers', require('./reviewers'));
@@ -113,5 +111,14 @@ router.use('/api/transcripts', require('./transcripts'));
 router.use('/api/audit', require('./audit'));
 router.use('/api/assets', require('./assets'));
 router.use('/api/archives', require('./archives'));
+
+// Rubric management (super admin)
+router.use('/api/rubric-admin', require('./rubric-admin'));
+
+// Sidebar menu management (super admin)
+router.use('/api/sidebar-menu-admin', require('./sidebar-menu-admin'));
+
+// Serve page routes (must be after API routes to avoid intercepting API calls)
+router.use('/', require('./pages'));
 
 module.exports = router;

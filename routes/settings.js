@@ -26,6 +26,26 @@ router.post('/system/:companyId', async (req, res) => {
   }
 });
 
+// Global system settings (company_id = 0 for system-level)
+router.get('/global/:key', async (req, res) => {
+  try {
+    const row = await SystemSettingsModel.getSetting(0, req.params.key);
+    res.json(row || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/global', async (req, res) => {
+  try {
+    const { key, value, type } = req.body;
+    const r = await SystemSettingsModel.upsertSetting(0, key, value, type || 'string');
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // User settings
 router.get('/user/:userId/:key', async (req, res) => {
   try {

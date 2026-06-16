@@ -13,12 +13,12 @@ const fs = require('fs');
 const path = require('path');
 const TranscriptModel = require('./models/transcriptModel');
 const { logger } = require('./utils/logger');
-const { initDB } = require('./database/db');
+const { initDB, migrateDB } = require('./database/db');
 const { runSeeder } = require('./database');
 const botManager = require('./services/shared/botManager');
 
 // --- HEADER CONFIG DB MODEL ---
-const HeaderConfigModel = require('./models/HeaderConfigModel');
+const { HeaderConfigModel } = require('./models/HeaderConfigModel');
 
 // --- HELPER IMPORTS FOR AUTO-SYNC ---
 const MeetingModel = require('./models/MeetingModel');
@@ -307,6 +307,7 @@ setInterval(async () => {
 // SERVER STARTUP WITH INITIAL GLOBAL SYNC
 // -------------------------------------------------------------------------
 initDB()
+  .then(() => migrateDB())
   .then(() => runSeeder())
   .then(() => HeaderConfigModel.seedForAllRoles())
   .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
