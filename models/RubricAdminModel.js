@@ -1003,6 +1003,132 @@ class RubricAdminModel {
   }
 
   // ====================================================================
+  // PERMISSION VALIDATION
+  // ====================================================================
+
+  /**
+   * Calculate weighted score for a meeting using admin-specific data
+   * Returns score breakdown by category and overall weighted score
+   */
+  static async calculateAdminWeightedScore(meetingId, admin_user_id) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Get meeting scores
+        const scoreRows = await new Promise((res, rej) => {
+          db.all(
+            `SELECT indicator_id, score FROM meeting_session_scores 
+             WHERE meeting_id = ? 
+             UNION ALL 
+             SELECT indicator_id, score FROM meeting_scores 
+             WHERE meeting_id = ?`,
+            [meetingId, meetingId],
+            (err, rows) => {
+              if (err) rej(err);
+              else res(rows || []);
+            }
+          );
+        });
+
+        // Get admin's rubric structure
+        const categories = await RubricAdminModel.getAdminCategories(admin_user_id);
+        const indicators = await RubricAdminModel.getAdminIndicators(admin_user_id);
+
+        // Build score map
+        const scoreMap = {};
+        scoreRows.forEach(row => {
+          scoreMap[row.indicator_id] = row.score || 0;
+        });
+
+        // Calculate category scores
+        const categoryScores = [];
+        let totalWeightedScore = 0;
+
+        for (const cat of categories) {
+          const catIndicators = indicators.filter(ind => ind.original_category_id === cat.original_category_id);
+          
+          // Calculate average indicator score for this category
+          let categoryTotalScore = 0;
+          let categoryIndicatorCount = 0;
+          
+          for (const ind of catIndicators) {
+            const score = scoreMap[ind.original_indicator_id] || 0;
+            categoryTotalScore += score * (ind.value || 1);  // Weight by indicator value
+            categoryIndicatorCount += (ind.value || 1);
+          }
+
+          const categoryAverageScore = categoryIndicatorCount > 0 
+            ? categoryTotalScore / categoryIndicatorCount 
+            : 0;
+
+          // Apply category weight to get weighted contribution
+          const weightedCategoryScore = categoryAverageScore * (cat.weight || 0) / 100;
+          totalWeightedScore += weightedCategoryScore;
+
+          categoryScores.push({
+            category_id: cat.original_category_id,
+            category_name: cat.name,
+            category_weight: cat.weight,
+            indicator_count: catIndicators.length,
+            average_score: Math.round(categoryAverageScore * 100) / 100,
+            weighted_contribution: Math.round(weightedCategoryScore * 100) / 100
+          });
+        }
+
+        resolve({
+          meeting_id: meetingId,
+          admin_user_id,
+          overall_weighted_score: Math.round(totalWeightedScore * 100) / 100,
+          category_breakdown: categoryScores,
+          total_categories: categories.length,
+          total_indicators: indicators.length
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // ====================================================================
+  // PERMISSION VALIDATION
+  // ====================================================================
+
+  /**
+   * Verify if an admin has access to a specific rubric category
+   * Used to enforce data isolation when retrieving reports
+   */
+  static async hasAdminAccessToCategory(admin_user_id, original_category_id) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT COUNT(*) as count FROM admin_rubric_categories 
+         WHERE admin_user_id = ? AND original_category_id = ?`,
+        [admin_user_id, original_category_id],
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row && row.count > 0);
+        }
+      );
+    });
+  }
+
+  /**
+   * Get all categories an admin has been assigned
+   * Used for permission checks
+   */
+  static async getAdminAssignedCategoryIds(admin_user_id) {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT original_category_id FROM admin_rubric_categories 
+         WHERE admin_user_id = ? ORDER BY original_category_id ASC`,
+        [admin_user_id],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve((rows || []).map(r => r.original_category_id));
+        }
+      );
+    });
+  }
+
+  // ====================================================================
   // AUDIT LOG RETRIEVAL
   // ====================================================================
 

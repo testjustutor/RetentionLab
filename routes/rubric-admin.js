@@ -12,6 +12,12 @@ const express = require('express');
 const router = express.Router();
 const RubricAdminModel = require('../models/RubricAdminModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const {
+  requireAdminRubricOwnership,
+  requireAdminCategoryOwnership,
+  requireAdminIndicatorOwnership,
+  requireRubricAssignmentPrivilege
+} = require('../middleware/adminRubricAuth');
 
 // Initialize scoped tables on first load
 RubricAdminModel.initTables().catch(err => {
@@ -191,8 +197,9 @@ router.delete('/indicators/:indicator_id', requireAuth, requireRole('super_admin
  * POST /api/rubric-admin/assign
  * Assign a rubric category to an admin user.
  * Creates admin-specific copies of the category and all its indicators.
+ * Super Admin only: Data isolation at assignment level.
  */
-router.post('/assign', requireAuth, requireRole('super_admin'), async (req, res) => {
+router.post('/assign', requireAuth, requireRole('super_admin'), requireRubricAssignmentPrivilege, async (req, res) => {
   try {
     const { category_id, admin_user_id } = req.body;
     if (!category_id || !admin_user_id) {
@@ -208,8 +215,9 @@ router.post('/assign', requireAuth, requireRole('super_admin'), async (req, res)
 /**
  * DELETE /api/rubric-admin/assign
  * Remove assignment. Deletes admin-specific copies too.
+ * Super Admin only: Data isolation enforced at assignment removal.
  */
-router.delete('/assign', requireAuth, requireRole('super_admin'), async (req, res) => {
+router.delete('/assign', requireAuth, requireRole('super_admin'), requireRubricAssignmentPrivilege, async (req, res) => {
   try {
     const { category_id, admin_user_id } = req.query;
     if (!category_id || !admin_user_id) {
@@ -247,8 +255,9 @@ router.get('/assignments', requireAuth, requireRole('super_admin'), async (req, 
 /**
  * GET /api/rubric-admin/admin-categories/:admin_user_id
  * Get admin-specific rubric categories (their assigned copies)
+ * Only admins can access their own data; super admins can access any admin's data.
  */
-router.get('/admin-categories/:admin_user_id', requireAuth, async (req, res) => {
+router.get('/admin-categories/:admin_user_id', requireAuth, requireAdminRubricOwnership, async (req, res) => {
   try {
     const rows = await RubricAdminModel.getAdminCategories(parseInt(req.params.admin_user_id));
     res.json({ count: rows.length, data: rows });
@@ -260,8 +269,9 @@ router.get('/admin-categories/:admin_user_id', requireAuth, async (req, res) => 
 /**
  * GET /api/rubric-admin/admin-indicators/:admin_user_id
  * Get admin-specific rubric indicators
+ * Only admins can access their own data; super admins can access any admin's data.
  */
-router.get('/admin-indicators/:admin_user_id', requireAuth, async (req, res) => {
+router.get('/admin-indicators/:admin_user_id', requireAuth, requireAdminRubricOwnership, async (req, res) => {
   try {
     let rows;
     if (req.query.category_id) {
@@ -279,8 +289,9 @@ router.get('/admin-indicators/:admin_user_id', requireAuth, async (req, res) => 
  * PUT /api/rubric-admin/admin-categories/:admin_user_id/:original_category_id
  * Update admin-specific category weight (only admin's own copy)
  * Body: { weight }
+ * Data isolation: Admins can only modify their own; super admins can modify any.
  */
-router.put('/admin-categories/:admin_user_id/:original_category_id', requireAuth, async (req, res) => {
+router.put('/admin-categories/:admin_user_id/:original_category_id', requireAuth, requireAdminCategoryOwnership, async (req, res) => {
   try {
     const { weight } = req.body;
     if (weight === undefined) {
@@ -302,8 +313,9 @@ router.put('/admin-categories/:admin_user_id/:original_category_id', requireAuth
  * PUT /api/rubric-admin/admin-indicators/:admin_user_id/:original_indicator_id
  * Update admin-specific indicator value (only admin's own copy)
  * Body: { value }
+ * Data isolation: Admins can only modify their own; super admins can modify any.
  */
-router.put('/admin-indicators/:admin_user_id/:original_indicator_id', requireAuth, async (req, res) => {
+router.put('/admin-indicators/:admin_user_id/:original_indicator_id', requireAuth, requireAdminIndicatorOwnership, async (req, res) => {
   try {
     const { value } = req.body;
     if (value === undefined) {
@@ -325,8 +337,9 @@ router.put('/admin-indicators/:admin_user_id/:original_indicator_id', requireAut
  * POST /api/rubric-admin/admin-categories/bulk/:admin_user_id
  * Bulk update admin-specific category weights
  * Body: { categories: [{ original_category_id, weight }] }
+ * Data isolation: Admins can only update their own; super admins can update any.
  */
-router.post('/admin-categories/bulk/:admin_user_id', requireAuth, async (req, res) => {
+router.post('/admin-categories/bulk/:admin_user_id', requireAuth, requireAdminCategoryOwnership, async (req, res) => {
   try {
     const { categories } = req.body;
     if (!categories || !Array.isArray(categories)) {
@@ -347,8 +360,9 @@ router.post('/admin-categories/bulk/:admin_user_id', requireAuth, async (req, re
  * POST /api/rubric-admin/admin-indicators/bulk/:admin_user_id
  * Bulk update admin-specific indicator values
  * Body: { indicators: [{ original_indicator_id, value }] }
+ * Data isolation: Admins can only update their own; super admins can update any.
  */
-router.post('/admin-indicators/bulk/:admin_user_id', requireAuth, async (req, res) => {
+router.post('/admin-indicators/bulk/:admin_user_id', requireAuth, requireAdminIndicatorOwnership, async (req, res) => {
   try {
     const { indicators } = req.body;
     if (!indicators || !Array.isArray(indicators)) {
@@ -368,8 +382,9 @@ router.post('/admin-indicators/bulk/:admin_user_id', requireAuth, async (req, re
 /**
  * GET /api/rubric-admin/admin-summary/:admin_user_id
  * Get admin category summary with weighted calculations
+ * Data isolation: Each admin can only see their own summary.
  */
-router.get('/admin-summary/:admin_user_id', requireAuth, async (req, res) => {
+router.get('/admin-summary/:admin_user_id', requireAuth, requireAdminRubricOwnership, async (req, res) => {
   try {
     const rows = await RubricAdminModel.getAdminCategorySummary(parseInt(req.params.admin_user_id));
     res.json({ count: rows.length, data: rows });
@@ -400,8 +415,9 @@ router.post('/sync-admin/:admin_user_id', requireAuth, requireRole('super_admin'
  * GET /api/rubric-admin/full/:admin_user_id
  * Get the complete admin-specific rubric structure (categories + indicators)
  * Returns admin's copies with their custom weight/value settings
+ * Data isolation: Each admin can only retrieve their own rubric.
  */
-router.get('/full/:admin_user_id', requireAuth, async (req, res) => {
+router.get('/full/:admin_user_id', requireAuth, requireAdminRubricOwnership, async (req, res) => {
   try {
     const result = await RubricAdminModel.getFullRubricForAdmin(parseInt(req.params.admin_user_id));
     res.json(result);
@@ -428,10 +444,36 @@ router.get('/master-full', requireAuth, async (req, res) => {
 /**
  * GET /api/rubric-admin/meeting-report/:meetingId
  * Get meeting report with optional admin_id query param for admin-specific data
+ * 
+ * Permission logic:
+ * - Super Admin: can query any admin's report by passing admin_id or get master report
+ * - Admin: uses their own ID automatically, cannot query other admins' reports
+ * - If admin_id is not provided, uses master rubric data
  */
 router.get('/meeting-report/:meetingId', requireAuth, async (req, res) => {
   try {
-    const adminUserId = req.query.admin_id ? parseInt(req.query.admin_id) : null;
+    let adminUserId = null;
+    const currentUserId = req.user?.id;
+    const currentUserRole = req.user?.role_name;
+    const queryAdminId = req.query.admin_id ? parseInt(req.query.admin_id) : null;
+
+    // Permission check
+    if (queryAdminId) {
+      // If admin_id is specified in query
+      if (currentUserRole === 'admin' && currentUserId !== queryAdminId) {
+        // Regular admin trying to access another admin's report
+        return res.status(403).json({
+          error: 'Forbidden: You can only access your own meeting reports'
+        });
+      }
+      // Super admin can access any admin's data, regular admin can access their own
+      adminUserId = queryAdminId;
+    } else if (currentUserRole === 'admin') {
+      // If no admin_id provided and user is admin, use their own ID
+      adminUserId = currentUserId;
+    }
+    // If super admin and no admin_id, adminUserId stays null (uses master data)
+
     const rows = await RubricAdminModel.getMeetingReportWithAdmin(req.params.meetingId, adminUserId);
     res.json({ count: rows.length, data: rows });
   } catch (err) {
@@ -439,7 +481,43 @@ router.get('/meeting-report/:meetingId', requireAuth, async (req, res) => {
   }
 });
 
-// ─── AUDIT LOGS ────────────────────────────────────────────────────────────
+/**
+ * GET /api/rubric-admin/weighted-score/:meetingId
+ * Calculate weighted score for a meeting using admin-specific rubric data
+ * Query param: admin_id (optional - uses current admin if not provided)
+ */
+router.get('/weighted-score/:meetingId', requireAuth, async (req, res) => {
+  try {
+    let adminUserId = null;
+    const currentUserId = req.user?.id;
+    const currentUserRole = req.user?.role_name;
+    const queryAdminId = req.query.admin_id ? parseInt(req.query.admin_id) : null;
+
+    // Permission check (same as meeting-report)
+    if (queryAdminId) {
+      if (currentUserRole === 'admin' && currentUserId !== queryAdminId) {
+        return res.status(403).json({
+          error: 'Forbidden: You can only calculate scores for your own rubric'
+        });
+      }
+      adminUserId = queryAdminId;
+    } else if (currentUserRole === 'admin') {
+      adminUserId = currentUserId;
+    }
+
+    // If super admin without admin_id, we can't calculate (need a specific admin context)
+    if (!adminUserId) {
+      return res.status(400).json({
+        error: 'admin_id is required for super admins to calculate scores'
+      });
+    }
+
+    const result = await RubricAdminModel.calculateAdminWeightedScore(req.params.meetingId, adminUserId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /**
  * GET /api/rubric-admin/audit-logs

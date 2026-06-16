@@ -146,9 +146,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Wait for sidebar to be loaded before initializing controller
       await waitFor(() => !!document.getElementById('sidebarMenuList'), 3000);
       try {
-        const sidebarMod = await import('/js/sidebar-controller.js');
+        const sidebarMod = await import('/js/sidebar-controller.js?v=' + Math.random());
         if (typeof sidebarMod?.init === 'function') {
           await sidebarMod.init();
+        } else if (typeof globalThis.populateSidebar === 'function') {
+          await globalThis.populateSidebar();
         }
       } catch (err) {
         console.error('Failed to initialize sidebar-controller:', err);
