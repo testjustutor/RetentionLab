@@ -33,6 +33,7 @@ const DEFAULT_MENU_BY_ROLE = {
   ],
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/admin/index.html', submenu: null },
+    { id: 'rubric-management', label: 'My Rubric', icon: 'clipboard', href: '/admin/rubric-management.html', submenu: null },
     { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
       { id: 'calendar-accounts', label: 'Accounts', href: '/admin/calendar-accounts.html' },
       { id: 'calendar-events', label: 'Events', href: '/admin/calendar-events.html' }

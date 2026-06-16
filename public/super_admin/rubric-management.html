@@ -14,11 +14,9 @@
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
         <div class="max-w-6xl mx-auto">
-          <h2 class="text-2xl font-bold text-white mb-4">Rubric Management</h2>
-          <p class="text-slate-400 mb-6">Create and manage rubric categories and indicators. Assign rubrics to admin users so they can use them.</p>
 
           <!-- Tab Navigation -->
-          <div class="flex gap-2 mb-6 border-b border-slate-800 pb-2 flex-wrap">
+          <div class="flex gap-2 mb-2 border-b border-slate-800 pb-0 flex-wrap">
             <button id="tabCategories" class="px-4 py-2 bg-indigo-600 text-white rounded-t-lg font-medium" onclick="showTab('categories')">Categories</button>
             <button id="tabIndicators" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-t-lg font-medium hover:bg-slate-700" onclick="showTab('indicators')">Indicators</button>
             <button id="tabAssignments" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-t-lg font-medium hover:bg-slate-700" onclick="showTab('assignments')">Assign to Admins</button>
@@ -28,7 +26,7 @@
 
           <!-- Categories Tab -->
           <div id="panelCategories" class="block">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-2">
               <h3 class="text-xl font-semibold text-white">Rubric Categories</h3>
               <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="showCategoryForm()">+ Add Category</button>
             </div>
@@ -41,7 +39,7 @@
 
           <!-- Indicators Tab -->
           <div id="panelIndicators" class="hidden">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-2">
               <h3 class="text-xl font-semibold text-white">Rubric Indicators</h3>
               <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="showIndicatorForm()">+ Add Indicator</button>
             </div>
@@ -55,7 +53,7 @@
           <!-- Assign Tab -->
           <div id="panelAssignments" class="hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <h3 class="text-xl font-semibold text-white mb-4">Assign Rubric to Admin User</h3>
+              <h3 class="text-xl font-semibold text-white mb-2">Assign Rubric to Admin User</h3>
               <form id="assignForm" class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium text-slate-300 mb-1">Select Category</label>
@@ -78,7 +76,7 @@
           <!-- View Assignments Tab -->
           <div id="panelViewAssignments" class="hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <h3 class="text-xl font-semibold text-white mb-4">Current Rubric Assignments</h3>
+              <h3 class="text-xl font-semibold text-white mb-2">Current Rubric Assignments</h3>
               <div id="viewAssignmentsContainer">
                 <p class="text-slate-400">Loading assignments...</p>
               </div>
@@ -88,8 +86,8 @@
           <!-- Audit Logs Tab -->
           <div id="panelAuditLogs" class="hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <h3 class="text-xl font-semibold text-white mb-4">Rubric Audit Logs</h3>
-              <div class="mb-4 flex gap-4 flex-wrap">
+              <h3 class="text-xl font-semibold text-white mb-2">Rubric Audit Logs</h3>
+              <div class="mb-2 flex gap-4 flex-wrap">
                 <select id="auditEntityFilter" class="rounded-md bg-slate-800 border-transparent text-white p-2" onchange="loadAuditLogs()">
                   <option value="">All Entity Types</option>
                   <option value="master_category">Master Category</option>
@@ -109,7 +107,7 @@
           <!-- Modal overlay for add/edit forms -->
           <div id="modalOverlay" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-lg mx-4 shadow-2xl">
-              <h3 id="modalTitle" class="text-xl font-bold text-white mb-4">Add Category</h3>
+              <h3 id="modalTitle" class="text-xl font-bold text-white mb-2">Add Category</h3>
               <form id="modalForm" class="space-y-4">
                 <input type="hidden" id="modalMode" value="category" />
                 <input type="hidden" id="modalEditId" value="" />

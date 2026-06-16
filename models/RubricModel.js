@@ -1,5 +1,8 @@
 /**
- * root/models/RubicModel.js
+ * root/models/RubricModel.js
+ * 
+ * Handles rubric definitions, meeting scoring, and reports.
+ * Updated to support admin-specific rubric data for calculations.
  */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
@@ -24,13 +27,13 @@ class RubricModel {
         });
 
         // Upsert Indicators
-        const indSql = `INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate) 
-                        VALUES (?, ?, ?, ?, ?) 
+        const indSql = `INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
+                        VALUES (?, ?, ?, ?, ?, ?) 
                         ON CONFLICT(indicator_id) DO UPDATE SET 
-                        name=excluded.name, type=excluded.type, is_gate=excluded.is_gate`;
+                        name=excluded.name, type=excluded.type, is_gate=excluded.is_gate, value=excluded.value`;
 
         indicators.forEach(ind => {
-          db.run(indSql, [ind.indicator_id, ind.category_id, ind.name, ind.type, ind.is_gate || 0]);
+          db.run(indSql, [ind.indicator_id, ind.category_id, ind.name, ind.type, ind.is_gate || 0, ind.value || 1]);
         });
 
         db.run('COMMIT', (err) => {
@@ -80,26 +83,53 @@ class RubricModel {
 
   /**
    * 3. Retrieval
-   * Gets a complete report for a meeting including category names and weights
+   * Gets a complete report for a meeting including category names and weights.
+   * If admin_user_id is provided, uses admin-specific rubric data.
    */
-  static getMeetingReport(meetingId) {
+  static getMeetingReport(meetingId, admin_user_id = null) {
     return new Promise((resolve, reject) => {
-      const sql = `
-        SELECT 
-          rc.name as category_name, 
-          rc.weight as category_weight,
-          ri.name as indicator_name,
-          ri.indicator_id,
-          ms.score,
-          ms.comment,
-          ms.scored_at
-        FROM meeting_scores ms
-        JOIN rubric_indicators ri ON ms.indicator_id = ri.indicator_id
-        JOIN rubric_categories rc ON ri.category_id = rc.category_id
-        WHERE ms.meeting_id = ?
-      `;
+      let sql;
+      let params;
 
-      db.all(sql, [meetingId], (err, rows) => {
+      if (admin_user_id) {
+        // Use admin-specific rubric data
+        sql = `
+          SELECT 
+            arc.name as category_name, 
+            arc.weight as category_weight,
+            ari.name as indicator_name,
+            ari.original_indicator_id as indicator_id,
+            ari.value as indicator_value,
+            ms.score,
+            ms.comment,
+            ms.scored_at
+          FROM meeting_scores ms
+          LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.original_indicator_id AND ari.admin_user_id = ?
+          LEFT JOIN admin_rubric_categories arc ON ari.original_category_id = arc.original_category_id AND arc.admin_user_id = ?
+          WHERE ms.meeting_id = ?
+        `;
+        params = [admin_user_id, admin_user_id, meetingId];
+      } else {
+        // Use master rubric data
+        sql = `
+          SELECT 
+            rc.name as category_name, 
+            rc.weight as category_weight,
+            ri.name as indicator_name,
+            ri.indicator_id,
+            ri.value as indicator_value,
+            ms.score,
+            ms.comment,
+            ms.scored_at
+          FROM meeting_scores ms
+          JOIN rubric_indicators ri ON ms.indicator_id = ri.indicator_id
+          JOIN rubric_categories rc ON ri.category_id = rc.category_id
+          WHERE ms.meeting_id = ?
+        `;
+        params = [meetingId];
+      }
+
+      db.all(sql, params, (err, rows) => {
         if (err) {
           logger.error(`[RubricModel] Report Error: ${err.message}`);
           reject(err);
@@ -111,7 +141,7 @@ class RubricModel {
   }
 
   /**
-   * Gets all rubric definitions
+   * Gets all rubric definitions (master data)
    */
   static getFullRubric() {
     return new Promise((resolve, reject) => {
@@ -121,6 +151,24 @@ class RubricModel {
         JOIN rubric_categories rc ON ri.category_id = rc.category_id
       `;
       db.all(sql, [], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }
+
+  /**
+   * Gets full rubric for a specific admin (admin-specific copies)
+   */
+  static getFullRubricForAdmin(admin_user_id) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT arc.name as category, ari.* 
+        FROM admin_rubric_indicators ari 
+        JOIN admin_rubric_categories arc ON ari.original_category_id = arc.original_category_id AND ari.admin_user_id = arc.admin_user_id
+        WHERE ari.admin_user_id = ?
+      `;
+      db.all(sql, [admin_user_id], (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
       });

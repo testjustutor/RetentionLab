@@ -29,11 +29,11 @@
     <link rel="stylesheet" href="../css/bot.css">
     <script src="../js/bot.js"></script>
 </head>
-<body class="antialiased font-sans p-2 sm:p-4">
+<body class="antialiased font-sans p-2 sm:p-0">
     <div class="mx-auto flex flex-col gap-4">
         <!-- Header -->    <div id="header-placeholder"></div>
 <!-- KPI Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0 pl-4 pr-4">
             <div class="bg-slate-900/60 backdrop-blur-md rounded-xl p-4 border border-indigo-500/30 shadow-md shadow-indigo-500/5 flex items-center justify-between">
                 <div>
                     <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-1">Status</p>
@@ -79,7 +79,7 @@
         </div>
 
         <!-- Terminal & Active Bots -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[550px] lg:h-[calc(100vh-220px)]">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[550px] lg:h-[calc(100vh-220px)] pl-4 pr-4">
             <!-- Left: Live Terminal -->
             <div class="lg:col-span-8 bg-black/80 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md flex flex-col h-full overflow-hidden relative group">
                 <div class="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none opacity-50"></div>

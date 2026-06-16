@@ -128,18 +128,18 @@
   </style>
 </head>
 <body>
-  <div class="mx-auto p-4 lg:p-4">
+  <div class="mx-auto p-0 lg:p-0">
 
     <!-- Header -->    <div id="header-placeholder"></div>
 <!-- Main layout -->
-    <div class="flex gap-5 items-start">
+    <div class="flex gap-5 items-start p-4">
 
       <!-- LEFT SIDEBAR: Add User only -->
       <aside class="sidebar space-y-4">
 
         <!-- Add user form -->
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <div class="flex items-center gap-2 mb-4">
+          <div class="flex items-center gap-2 mb-2">
             <div class="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </div>
@@ -193,7 +193,7 @@
       <div class="flex-1 min-w-0">
 
         <!-- Grid header -->
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
             <h2 class="text-sm font-semibold text-slate-300">Active Identities</h2>
             <span id="userCountBadge" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400">0</span>
@@ -207,9 +207,9 @@
         <!-- Cards grid -->
         <div id="userGrid" class="user-grid">
           <!-- Skeleton loaders -->
-          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-4"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
-          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-4"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
-          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-4"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
+          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-2"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
+          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-2"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
+          <div class="user-card"><div class="skeleton h-4 w-3/4 mb-3"></div><div class="skeleton h-3 w-1/2 mb-2"></div><div class="flex gap-2"><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div><div class="skeleton h-14 flex-1 rounded-xl"></div></div></div>
         </div>
 
       </div>
@@ -289,7 +289,7 @@
         <div class="user-card" data-email="${u.email}" data-connected="${connected}">
 
           <!-- Card header -->
-          <div class="flex items-start justify-between mb-4">
+          <div class="flex items-start justify-between mb-2">
             <div class="flex items-center gap-3">
               <div class="avatar ${av}">${ini}</div>
               <div class="min-w-0">
@@ -307,13 +307,13 @@
           </div>
 
           <!-- Role + last seen -->
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center justify-between mb-2">
             <span class="text-xs text-slate-500">${u.role_name || 'employee'}</span>
             <span class="text-xs text-slate-600">Last: ${timeAgo(lastMeeting)}</span>
           </div>
 
           <!-- Stats row -->
-          <div class="flex gap-2 mb-4">
+          <div class="flex gap-2 mb-2">
             <div class="stat-box">
               <div class="stat-label">Meetings</div>
               <div class="stat-value">${totalMeetings}</div>

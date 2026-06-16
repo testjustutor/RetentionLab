@@ -21,19 +21,18 @@
       <!-- Main Content -->
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
         <div class="max-w-4xl mx-auto">
-          <h2 class="text-2xl font-bold text-white mb-4">User Settings</h2>
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <p class="text-slate-300 mb-4">This page will allow super administrators to configure global user-related settings.</p>
+            <p class="text-slate-300 mb-2">This page will allow super administrators to configure global user-related settings.</p>
             <!-- User settings form will be loaded dynamically -->
             <form id="userSettingsForm">
-              <div class="mb-4">
+              <div class="mb-2">
                 <label for="defaultRole" class="block text-sm font-medium text-slate-300">Default New User Role</label>
                 <select id="defaultRole" name="defaultRole" class="mt-1 block w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white">
                   <!-- Roles will be loaded dynamically from DB -->
                   <option value="">Select a default role</option>
                 </select>
               </div>
-              <div class="mb-4">
+              <div class="mb-2">
                 <label for="allowRegistration" class="inline-flex items-center">
                   <input type="checkbox" id="allowRegistration" name="allowRegistration" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
                   <span class="ml-2 text-sm text-slate-300">Allow New User Registration</span>

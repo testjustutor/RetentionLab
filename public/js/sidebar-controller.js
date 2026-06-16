@@ -102,6 +102,9 @@ function renderMenuItems(menuItems, currentPageId) {
   ul.className = 'menu-list';
 
   for (const item of menuItems) {
+    if (item.isActive === false) {
+      continue;
+    }
     const li = document.createElement('li');
     li.className = 'menu-item';
 
