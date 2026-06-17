@@ -131,6 +131,19 @@ const initDB = () => {
                     `);
 
                     await runAsync(`
+                        CREATE TABLE IF NOT EXISTS calendar_verifications (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            email TEXT UNIQUE NOT NULL,
+                            token TEXT UNIQUE NOT NULL,
+                            status TEXT DEFAULT 'pending',
+                            expires_at DATETIME NOT NULL,
+                            verified_at DATETIME,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+
+                    await runAsync(`
                         CREATE TABLE IF NOT EXISTS meeting_reviewers (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             meeting_id TEXT,
@@ -373,14 +386,41 @@ const initDB = () => {
                         )
                     `);
 
+                    // ─── AI AUDIT RESULTS TABLE ─────────────────────────────────────────
+                    // Stores per-indicator AI audit scores after AI evaluation
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS ai_audit_results (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            session_id INTEGER NOT NULL,
+                            category_id TEXT NOT NULL,
+                            indicator_id TEXT NOT NULL,
+                            ai_score REAL DEFAULT 0,
+                            ai_max_score REAL DEFAULT 2,
+                            ai_raw_response TEXT,
+                            oqi_score REAL DEFAULT 0,
+                            evidence_quote TEXT,
+                            talk_ratio TEXT,
+                            scored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meeting_assets(meeting_id),
+                            FOREIGN KEY (session_id) REFERENCES meeting_sessions(id),
+                            UNIQUE(meeting_id, session_id, indicator_id)
+                        )
+                    `);
+
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting ON ai_audit_results(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_session ON ai_audit_results(session_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting_session ON ai_audit_results(meeting_id, session_id)`);
+
                     // ─── Granular Session-Level Scores Table ──────────────────────────
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS meeting_session_scores (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             meeting_id TEXT NOT NULL,
                             session_id INTEGER NOT NULL,
+                            category_id TEXT NOT NULL,
                             indicator_id TEXT NOT NULL,
-                            reviewer_id INTEGER,
+                            reviewer_id INTEGER NULL,
                             score INTEGER DEFAULT 0,
                             score_type TEXT CHECK(score_type IN ('AI', 'MANUAL')) DEFAULT 'AI',
                             comment TEXT,

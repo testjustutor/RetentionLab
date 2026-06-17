@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from threading import Lock
 
@@ -29,6 +30,10 @@ class PipelineContext:
             if filename_no_ext.startswith("REC_")
             else filename_no_ext
         )
+
+        # Backwards-compatibility aliases used by audit and other task handlers.
+        self.meeting_id = self.base_id
+        self.session_id = self._resolve_session_id(filename_no_ext)
 
         self.storage_paths = self._setup_directories()
 
@@ -167,6 +172,12 @@ class PipelineContext:
                 return candidate
 
         # Not found — diarization will proceed with SPEAKER_XX labels
+        return None
+
+    def _resolve_session_id(self, filename_no_ext):
+        match = re.search(r"_Sess(\d+)(?:_|$)", filename_no_ext)
+        if match:
+            return int(match.group(1))
         return None
 
     def _setup_directories(self):

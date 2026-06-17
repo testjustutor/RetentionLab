@@ -1,3 +1,5 @@
+# root/services/engine/database/analytics_writer.py
+
 import sqlite3
 import json
 

@@ -14,7 +14,7 @@ import json
 # Get base directories
 SERVICES_DIR = Path(__file__).parent.parent.parent
 PROJECT_ROOT = SERVICES_DIR.parent
-DB_DIR = PROJECT_ROOT / 'database'
+DB_DIR = PROJECT_ROOT
 
 # Environment variables with defaults
 DEFAULT_DB_PATH = str(DB_DIR / 'retention_lab.db')

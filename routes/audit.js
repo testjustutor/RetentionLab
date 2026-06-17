@@ -34,8 +34,9 @@ router.post('/process/:meetingId', async (req, res) => {
         logger.info(`[Engine] Initiating full audit for Meeting: ${meetingId}`);
 
         // 2. Execute Python Bridge
-        // Command: python3 audit_bridge.py "filename.mp4"
-        exec(`python3 "${bridgePath}" "${videoFileName}"`, async (error, stdout, stderr) => {
+        // Command: python3 audit_bridge.py "filename.mp4" [meeting_id]
+        const meetingArg = meetingId || '';
+        exec(`python3 "${bridgePath}" "${videoFileName}" ${meetingArg}`, async (error, stdout, stderr) => {
             if (error) {
                 logger.error(`[Engine] Execution Error: ${stderr}`);
                 return res.status(500).json({ 
@@ -76,6 +77,70 @@ router.post('/process/:meetingId', async (req, res) => {
 
     } catch (err) {
         logger.error(`[Route:Audit] Internal Error: ${err.message}`);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
+/**
+ * @route   GET /api/audit/db-results/:meetingId
+ * @desc    Retrieves per-indicator AI audit results from the database
+ */
+router.get('/db-results/:meetingId', async (req, res) => {
+    try {
+        const { meetingId } = req.params;
+        const { db } = require('../database/db');
+
+        let sql = 'SELECT aar.id, aar.meeting_id, aar.session_id, aar.category_id, aar.indicator_id, aar.ai_score, aar.ai_max_score, aar.ai_raw_response, aar.oqi_score, aar.evidence_quote, aar.talk_ratio, rc.category_name, rc.category_weight, ri.indicator_name, ri.indicator_type, ri.indicator_value FROM ai_audit_results aar JOIN rubric_categories rc ON aar.category_id = rc.id JOIN rubric_indicators ri  ON aar.indicator_id = ri.id WHERE aar.meeting_id = ? ORDER BY rc.category_name, ri.indicator_name';
+
+        const params = [meetingId];
+
+        const results = await new Promise((resolve, reject) => {
+            db.all(sql, params, (err, rows) => {
+                if (err) return reject(err);
+                resolve(rows || []);
+            });
+        });
+
+        if (results.length === 0) {
+            return res.status(404).json({ 
+                status: 'error', 
+                message: 'No audit results found for this meeting.' 
+            });
+        }
+
+        // Group by category for cleaner response
+        const grouped = {};
+        for (const row of results) {
+            if (!grouped[row.category_name]) {
+                grouped[row.category_name] = {
+                    category_name: row.category_name,
+                    category_weight: row.category_weight,
+                    oqi_score: row.oqi_score,
+                    evidence_quote: row.evidence_quote,
+                    indicators: []
+                };
+            }
+            grouped[row.category_name].indicators.push({
+                indicator_name: row.indicator_name,
+                indicator_type: row.indicator_type,
+                indicator_value: row.indicator_value,
+                ai_score: row.ai_score,
+                ai_max_score: row.ai_max_score
+            });
+        }
+
+        res.json({
+            status: 'success',
+            data: {
+                meeting_id: meetingId,
+                oqi_score: results[0]?.oqi_score || 0,
+                evidence_quote: results[0]?.evidence_quote || '',
+                categories: Object.values(grouped),
+                total_indicators: results.length
+            }
+        });
+    } catch (err) {
+        logger.error('Route(audit): Error fetching DB audit results:', err);
         res.status(500).json({ status: 'error', message: err.message });
     }
 });

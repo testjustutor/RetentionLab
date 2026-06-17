@@ -61,7 +61,6 @@ function extractMeetingLink(description) {
       }
     }
   }
-  return null;
 }
 
 function detectPlatform(link = '', location = '') {
@@ -313,8 +312,22 @@ initDB()
   .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
   .then(async () => {
     // 🚀 FIREFLIES LOGIC: Run Global Sync immediately on server start
+    // Ensure calendar_verifications table exists before any calendar operations
+    try {
+      await CalendarVerificationModel.createTable();
+      logger.info('(ServerJS File): calendar_verifications table ensured');
+    } catch (e) {
+      logger.warn('(ServerJS File): Failed to ensure calendar_verifications table:', e.message);
+    }
+    try {
+      await CalendarUsersModel.createTable();
+      logger.info('(ServerJS File): calendar_integrations table ensured');
+    } catch (e) {
+      logger.warn('(ServerJS File): Failed to ensure calendar_integrations table:', e.message);
+    }
+
     await backgroundSyncAllUsers();
-    
+
     // 🔄 Sync every 30 minutes to capture new calendar invites
     setInterval(backgroundSyncAllUsers, 30 * 60 * 1000);
 

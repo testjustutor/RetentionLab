@@ -2,6 +2,7 @@
  * root/services/shared/browserManager.js
  *
  */
+const path = require('path');
 const puppeteer = require('puppeteer');
 const { logger } = require('../../utils/logger');
 const settings = require('../../config/settings');
@@ -141,6 +142,13 @@ class BrowserManager {
       logger.info(`Shared(browserManager): Removed Chrome profile directory -> ${profileDir}`);
     } catch (err) {
       logger.error(`Shared(browserManager): Failed to remove Chrome profile directory -> ${profileDir}`, err);
+      await this.forceTerminateChromeProcesses(profileDir);
+      try {
+        await fs.promises.rm(profileDir, { recursive: true, force: true });
+        logger.info(`Shared(browserManager): Removed Chrome profile directory after forced termination -> ${profileDir}`);
+      } catch (innerErr) {
+        logger.error(`Shared(browserManager): Still failed to remove Chrome profile directory -> ${profileDir}`, innerErr);
+      }
     }
   }
 
@@ -173,6 +181,31 @@ class BrowserManager {
     } catch (err) {
       logger.warn('Shared(browserManager): Failed to query Chrome processes for profile lock, assuming no lock.', err);
       return false;
+    }
+  }
+
+  async forceTerminateChromeProcesses(profileDir) {
+    const normalizedProfileDir = profileDir.replace(/\\/g, '/');
+    const command = `wmic process where "CommandLine like '%--user-data-dir=${normalizedProfileDir}%'" get ProcessId`;
+
+    try {
+      const { stdout } = await exec(command, { windowsHide: true });
+      const pids = stdout
+        .trim()
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => /^\d+$/.test(line));
+
+      for (const pid of pids) {
+        try {
+          await exec(`taskkill /PID ${pid} /F`, { windowsHide: true });
+          logger.info(`Shared(browserManager): Force killed Chrome process PID=${pid}`);
+        } catch (killErr) {
+          logger.warn(`Shared(browserManager): Failed to kill Chrome process PID=${pid}`, killErr);
+        }
+      }
+    } catch (err) {
+      logger.warn('Shared(browserManager): Failed to query Chrome processes for forced termination.', err);
     }
   }
 }

@@ -26,12 +26,13 @@ def run_audit_task(context):
         service = AuditService()
 
         log_with_type("info", "Engine(task > audit > audit_task) : AuditService initialized", "TASK")
-
+        
         result = service.evaluate(
 
             context.labeled_transcript,
-
-            context.talk_ratio
+            context.talk_ratio,
+            meeting_id=context.meeting_id,
+            session_id=context.session_id
         )
 
         log_with_type("info", "Engine(task > audit > audit_task) : Evaluation completed", "TASK")

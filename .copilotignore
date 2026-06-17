@@ -1,0 +1,26 @@
+node_modules/
+.env
+.venv/
+.vscode/
+
+# Logs
+logs/*.log
+
+# Keep image folder structure
+logs/image/*
+!logs/image/.gitkeep
+
+# Storage - ignore contents
+storage/**/*
+
+# Keep folder structure
+!storage/**/
+!storage/**/.gitkeep
+
+# SQLite database
+retention_lab.db
+.test-engine.lock
+package-lock.json
+
+__pycache__/
+*.pyc

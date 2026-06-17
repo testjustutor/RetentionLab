@@ -168,10 +168,11 @@ module.exports = {
   HF_TOKEN: process.env.HF_TOKEN,
 
   ai: {
-    provider: "gemini",
+    provider: "groq",
     geminiApiKey: process.env.GEMINI_API_KEY,
     geminiModel: "gemini-2.5-flash",
     openaiApiKey: process.env.OPENAI_API_KEY,
+    openaiModel: "gpt-4o-mini",
     groqApiKey: process.env.GROQ_API_KEY,
     xaiApiKey: process.env.XAI_API_KEY,
     ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434/v1",

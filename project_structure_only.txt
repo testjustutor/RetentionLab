@@ -17,18 +17,24 @@ project_root/
 |-- config
 |   `-- settings.js
 |-- database
-|   |-- db.js
+|   |-- adminUserSeeder.js
+|   |-- companiesSeeder.js
 |   |-- db-header-config.js
+|   |-- db.js
+|   |-- headerMenuItemsSeeder.js
+|   |-- headerPageConfigsSeeder.js
+|   |-- headerRoleConfigSeeder.js
 |   |-- index.js
 |   |-- roles.js
+|   |-- rubricSeeder.js
 |   |-- seeder.js
 |   |-- seedHelpers.js
 |   |-- settingsSeeder.js
-|   |-- superAdmin.js
-|   `-- rubricSeeder.js
+|   `-- superAdmin.js
 |-- logs
 |   |-- image
 |-- middleware
+|   |-- adminRubricAuth.js
 |   |-- auth.js
 |-- models
 |   |-- AdminModel.js
@@ -48,16 +54,18 @@ project_root/
 |   |-- RolesModel.js
 |   |-- RubricModel.js
 |   |-- SystemSettingsModel.js
+|   |-- transcriptModel.js
 |   |-- UserSettingsModel.js
-|   |-- UsersModel.js
-|   `-- transcriptModel.js
+|   `-- UsersModel.js
 |-- public
 |   |-- admin
+|   |   |-- add-user.html
 |   |   |-- archives.html
 |   |   |-- calendar-accounts.html
 |   |   |-- calendar-events.html
 |   |   |-- index.html
 |   |   |-- profile.html
+|   |   |-- rubric-management.html
 |   |   |-- settings.html
 |   |-- css
 |   |   |-- admin.css
@@ -97,17 +105,24 @@ project_root/
 |   |   |-- users.js
 |   |-- reviewer
 |   |   |-- index.html
+|   |   |-- score.html
 |   |-- super_admin
+|   |   |-- add-user.html
 |   |   |-- archives.html
 |   |   |-- assets.html
-|   |   |-- audit.json
-|   |   |-- bot.json
-|   |   |-- calendar-accounts.json
-|   |   |-- calendar-events.json
-|   |   |-- data-architecture.json
-|   |   |-- index.json
-|   |   |-- profile.json
-|   |   |-- settings.json
+|   |   |-- audit.html
+|   |   |-- bot.html
+|   |   |-- calendar-accounts.html
+|   |   |-- calendar-events.html
+|   |   |-- data-architecture.html
+|   |   |-- index.html
+|   |   |-- manage-users.html
+|   |   |-- profile.html
+|   |   |-- roles-access.html
+|   |   |-- rubric-management.html
+|   |   |-- settings.html
+|   |   |-- sidebar-menu-management.html
+|   |   |-- user-settings.html
 |   |-- header.html
 |   |-- index.html
 |   |-- login.html

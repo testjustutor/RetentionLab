@@ -81,11 +81,25 @@ class PythonBridge {
           return reject(new Error(`Engine execution crashed with exit code ${code}`));
         }
 
-        // Extracts trailing structural standard JSON blocks safely from general print outputs
+        // Extracts the last valid JSON payload from mixed stdout text.
         const extractTrailingJsonContext = (text) => {
           if (!text) return '';
-          const matches = text.match(/\{[\s\S]*\}\s*$/);
-          return matches && matches[0] ? matches[0].trim() : '';
+          const trimmed = text.trim();
+          if (!trimmed) return '';
+
+          // Attempt parse from the last opening brace backwards until we find valid JSON
+          let index = trimmed.lastIndexOf('{');
+          while (index !== -1) {
+            const candidate = trimmed.slice(index).trim();
+            try {
+              JSON.parse(candidate);
+              return candidate;
+            } catch (_err) {
+              index = trimmed.lastIndexOf('{', index - 1);
+            }
+          }
+
+          return '';
         };
 
         const jsonPayload = extractTrailingJsonContext(standardOutCleaned);
@@ -128,6 +142,11 @@ class PythonBridge {
       const standardJsonOutput = await this.runStage('engine_main.py', [fileName, stringifiedConfig]);
       
       // 3. Unpack complete analytical payload block
+      
+      logger.error('========== JSON PAYLOAD START ==========');
+      logger.error(standardJsonOutput);
+      logger.error('========== JSON PAYLOAD END ==========');
+
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Pipeline Orchestrator] Execution data package parsed successfully.`);
 
@@ -165,8 +184,11 @@ class PythonBridge {
       };
 
     } catch (error) {
-      logger.error(`[Pipeline Orchestrator Error] Structural collapse at ${meetingId}: ${error.message}`);
-      
+      logger.error(
+        `[Pipeline Orchestrator Error] Structural collapse at ${meetingId}: ${
+          error.stack || error.message
+        }`
+      );
       // Safely mark the failure flag in database storage
       try {
         await MeetingAssetsModel.updateAssets(meetingId, { status: 'Error' });

@@ -1,3 +1,5 @@
+# root/services/engine/database/audit_writer.py
+
 import sqlite3
 import json
 

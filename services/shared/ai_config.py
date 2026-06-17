@@ -54,5 +54,5 @@ def build_ai_config(ai_settings: dict):
         "ollamaUrl": ai_settings.get("ollamaUrl", "http://localhost:11434/v1"),
         "ollamaModel": ai_settings.get("ollamaModel", "llama3.1"),
         "geminiApiKey": ai_settings.get("geminiApiKey"),
-        "geminiModel": ai_settings.get("geminiModel", "gemini-2.5-flash"),
+        "geminiModel": ai_settings.get("geminiModel"),
     }
