@@ -118,6 +118,10 @@ router.use('/api/rubric-admin', require('./rubric-admin'));
 // Sidebar menu management (super admin)
 router.use('/api/sidebar-menu-admin', require('./sidebar-menu-admin'));
 
+// Tutoring/session-quality endpoints
+router.use('/api/tutoring', require('./tutoring'));
+router.use('/api/participants', require('./participants'));
+
 // Serve page routes (must be after API routes to avoid intercepting API calls)
 router.use('/', require('./pages'));
 

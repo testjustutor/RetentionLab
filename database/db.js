@@ -408,10 +408,6 @@ const initDB = () => {
                         )
                     `);
 
-                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting ON ai_audit_results(meeting_id)`);
-                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_session ON ai_audit_results(session_id)`);
-                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting_session ON ai_audit_results(meeting_id, session_id)`);
-
                     // ─── Granular Session-Level Scores Table ──────────────────────────
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS meeting_session_scores (
@@ -507,7 +503,201 @@ const initDB = () => {
                         )
                     `);
 
-                    // Indexes
+                    // ═══════════════════════════════════════════════════════════════════
+                    // ─── NEW: TUTORING SESSION QUALITY TABLES (JustTutors.com) ─────────
+                    // ═══════════════════════════════════════════════════════════════════
+
+                    // ─── 1. SESSION METADATA ──────────────────────────────────────────
+                    // Stores tutoring-specific context per session (grade, curriculum, etc.)
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_metadata (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL UNIQUE,
+                            student_grade TEXT,
+                            curriculum TEXT,
+                            student_location TEXT,
+                            subject TEXT,
+                            topic TEXT,
+                            session_objective TEXT,
+                            session_type TEXT DEFAULT 'one-to-one',
+                            teacher_user_id INTEGER,
+                            student_name TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id),
+                            FOREIGN KEY (teacher_user_id) REFERENCES users(id)
+                        )
+                    `);
+
+                    // ─── 2. SESSION QUALITY REPORTS ───────────────────────────────────
+                    // Master report record: overall scores, ratings, executive summary
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_quality_reports (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL UNIQUE,
+                            overall_score REAL DEFAULT 0,
+                            max_possible_score REAL DEFAULT 0,
+                            percentage_score REAL DEFAULT 0,
+                            overall_rating TEXT,
+                            student_engagement TEXT,
+                            learning_impact TEXT,
+                            parent_shareability TEXT,
+                            confidence_level TEXT CHECK(confidence_level IN ('High', 'Medium', 'Low')),
+                            confidence_reason TEXT,
+                            executive_summary TEXT,
+                            generated_by TEXT DEFAULT 'AI',
+                            generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 3. SESSION ANALYSIS ──────────────────────────────────────────
+                    // Stores strengths, improvement areas, and missed opportunities
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_analysis (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            analysis_type TEXT CHECK(analysis_type IN (
+                                'strength', 'improvement', 'missed_opportunity'
+                            )) NOT NULL,
+                            description TEXT NOT NULL,
+                            evidence TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 4. STUDENT LEARNING IMPACT ───────────────────────────────────
+                    // Per-area impact tracking (concept understanding, confidence, etc.)
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS student_learning_impact (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            impact_area TEXT NOT NULL,
+                            observation TEXT,
+                            evidence TEXT,
+                            impact_level TEXT CHECK(impact_level IN (
+                                'Strong', 'Moderate', 'Limited', 'Not evident'
+                            )),
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 5. PARENT SUMMARY ────────────────────────────────────────────
+                    // Parent-friendly report section per session
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_parent_summary (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL UNIQUE,
+                            what_was_covered TEXT,
+                            how_student_participated TEXT,
+                            progress_noticed TEXT,
+                            needs_more_practice TEXT,
+                            home_support_suggestions TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 6. TEACHER COACHING FEEDBACK ────────────────────────────────
+                    // Stores individual strength and improvement feedback items per session
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS teacher_coaching_feedback (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            feedback_type TEXT CHECK(feedback_type IN ('strength', 'improvement')) NOT NULL,
+                            area TEXT NOT NULL,
+                            evidence TEXT,
+                            why_it_matters TEXT,
+                            recommended_action TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 7. TEACHER BETTER ALTERNATIVES ──────────────────────────────
+                    // Suggested better language or teaching moves for the teacher
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS teacher_better_alternatives (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            transcript_situation TEXT NOT NULL,
+                            current_approach TEXT,
+                            better_alternative TEXT,
+                            purpose TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 8. NEXT SESSION PLAN ─────────────────────────────────────────
+                    // Recommended next session plan based on transcript gaps and rubric findings
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS next_session_plan (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL UNIQUE,
+                            recap_warmup TEXT,
+                            concept_reinforcement TEXT,
+                            guided_practice TEXT,
+                            independent_practice TEXT,
+                            review_homework TEXT,
+                            priority_focus TEXT,
+                            concepts_to_revise TEXT,
+                            suggested_practice_questions TEXT,
+                            suggested_homework TEXT,
+                            misconception_to_address TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 9. SESSION QUALITY FLAGS ─────────────────────────────────────
+                    // Flags with severity levels raised against a session
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_quality_flags (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL,
+                            flag_description TEXT NOT NULL,
+                            severity TEXT CHECK(severity IN ('High', 'Medium', 'Low')) NOT NULL,
+                            evidence TEXT,
+                            recommended_fix TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ─── 10. SESSION FINAL EVALUATION ─────────────────────────────────
+                    // AQ team's final evaluation summary per session
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS session_final_evaluation (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            meeting_id TEXT NOT NULL UNIQUE,
+                            overall_session_rating TEXT,
+                            teacher_performance TEXT,
+                            student_engagement TEXT,
+                            learning_impact TEXT,
+                            parent_communication_readiness TEXT,
+                            recommended_action TEXT CHECK(recommended_action IN (
+                                'Continue', 'Minor Coaching', 'Moderate Coaching', 'Intensive Support'
+                            )),
+                            aq_team_summary TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id)
+                        )
+                    `);
+
+                    // ═══════════════════════════════════════════════════════════════════
+                    // ─── EXISTING INDEXES ─────────────────────────────────────────────
+                    // ═══════════════════════════════════════════════════════════════════
+
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting ON ai_audit_results(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_session ON ai_audit_results(session_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_ai_audit_results_meeting_session ON ai_audit_results(meeting_id, session_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_calendar_integrations_user_id ON calendar_integrations(user_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_meeting_reviewers_meeting_id ON meeting_reviewers(meeting_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_participant_sessions_meeting_id ON participant_sessions(meeting_id)`);
@@ -531,6 +721,27 @@ const initDB = () => {
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_admin_rubric_indicators_admin ON admin_rubric_indicators(admin_user_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_rubric_audit_log_performed    ON rubric_audit_log(performed_by)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_rubric_audit_log_entity       ON rubric_audit_log(entity_type, entity_id)`);
+
+                    // ═══════════════════════════════════════════════════════════════════
+                    // ─── NEW INDEXES: TUTORING SESSION QUALITY TABLES ──────────────────
+                    // ═══════════════════════════════════════════════════════════════════
+
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_session_metadata_meeting        ON session_metadata(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_session_metadata_teacher         ON session_metadata(teacher_user_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_quality_reports_meeting          ON session_quality_reports(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_session_analysis_meeting         ON session_analysis(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_session_analysis_type            ON session_analysis(analysis_type)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_learning_impact_meeting          ON student_learning_impact(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_learning_impact_level            ON student_learning_impact(impact_level)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_parent_summary_meeting           ON session_parent_summary(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_coaching_feedback_meeting        ON teacher_coaching_feedback(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_coaching_feedback_type           ON teacher_coaching_feedback(feedback_type)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_better_alternatives_meeting      ON teacher_better_alternatives(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_next_session_plan_meeting        ON next_session_plan(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_quality_flags_meeting            ON session_quality_flags(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_quality_flags_severity           ON session_quality_flags(severity)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_final_evaluation_meeting         ON session_final_evaluation(meeting_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_final_evaluation_action          ON session_final_evaluation(recommended_action)`);
 
                     resolve();
                 } catch (err) {

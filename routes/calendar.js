@@ -269,13 +269,38 @@ router.post('/multi/link-token', async (req, res) => {
 
 router.get('/resolve-user', async (req, res) => {
   try {
-    const { token } = req.query;
+    let { token } = req.query;
+
+    // Allow token from cookie (set by POST open endpoint)
+    if (!token && req.cookies && req.cookies.rl_calendar_token) {
+      token = req.cookies.rl_calendar_token;
+    }
+
     if (!token) return res.status(400).json({ status: 'error', message: 'token required' });
     const payload = verifyCalendarLink(token);
     if (!payload) return res.status(400).json({ status: 'error', message: 'invalid token' });
     res.json({ status: 'success', email: payload.email, userId: payload.userId || null });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// Accept a token via POST (form) and set an HttpOnly cookie, then redirect
+router.post('/open', async (req, res) => {
+  try {
+    const { token, target } = req.body || {};
+    if (!token) return res.status(400).send('Missing token');
+    const payload = verifyCalendarLink(token);
+    if (!payload || !payload.email) return res.status(400).send('Invalid or expired token');
+
+    // Set short-lived HttpOnly cookie so the opened page can resolve the user without token in URL
+    res.cookie('rl_calendar_token', token, { httpOnly: true, maxAge: 5 * 60 * 1000, sameSite: 'lax' });
+
+    const redirectTo = target === 'archives' ? '/admin/archives.html' : '/admin/calendar-events.html';
+    return res.redirect(302, redirectTo);
+  } catch (err) {
+    logger.error('Route(calendar): open token error', err);
+    return res.status(500).send('Server error');
   }
 });
 
@@ -307,17 +332,26 @@ router.get('/multi/verify', async (req, res) => {
 
 // This MUST match the path in your Google Console and the error URL
 router.get('/callback', async (req, res) => {
-  const { code, state } = req.query; // state is your email: shyam.charan@ncreduservices.com
+  const { code, state } = req.query; // state is a signed token containing the email
 
   if (!code) {
     return res.status(400).send('No code provided from Google.');
   }
 
+  if (!state) {
+    return res.status(400).send('Missing state token from OAuth flow.');
+  }
+
   try {
+    const payload = verifyCalendarLink(state);
+    if (!payload || !payload.email) return res.status(400).send('Invalid or expired state token.');
+
+    const email = payload.email;
+
     const service = new MultiUserCalendarService();
     
     // 1. Initialize the service with the email sent back in 'state'
-    await service.initialize(state);
+    await service.initialize(email);
     
     // 2. Exchange the code for tokens and save to DB
     await service.authorize(code);
@@ -327,7 +361,7 @@ router.get('/callback', async (req, res) => {
       <html>
         <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
           <h1 style="color: #28a745;">✅ Success!</h1>
-          <p>Account <strong>${state}</strong> connected successfully.</p>
+          <p>Account <strong>${email}</strong> connected successfully.</p>
           <p>You can close this window now.</p>
           <script>
             setTimeout(() => window.close(), 3000);
@@ -346,17 +380,22 @@ router.post('/multi/callback', async (req, res) => {
     const { code, state } = req.query;
 
     if (!code || !state) {
-      return res.status(400).json({ status: 'error', message: 'code and email required' });
+      return res.status(400).json({ status: 'error', message: 'code and state token required' });
     }
 
+    const payload = verifyCalendarLink(state);
+    if (!payload || !payload.email) return res.status(400).json({ status: 'error', message: 'invalid state token' });
+
+    const email = payload.email;
+
     const service = new MultiUserCalendarService();
-    await service.initialize(state);
+    await service.initialize(email);
     const tokens = await service.authorize(code);
 
     res.json({
       status: 'success',
-      message: `Authorized ${state}`,
-      data: { email: state, expiry: tokens.expiry_date }
+      message: `Authorized ${email}`,
+      data: { email, expiry: tokens.expiry_date }
     });
   } catch (err) {
     logger.error('Route(calendar): ',err);
