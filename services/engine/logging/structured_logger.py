@@ -1,3 +1,5 @@
+# services/engine/logging/structured_logger.py
+
 import logging
 import json
 

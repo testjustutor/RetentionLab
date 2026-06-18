@@ -1,3 +1,5 @@
+# services/engine/transcription_service/pyannote_diarizer.py
+
 from pyannote.audio import Pipeline
 try:
     from pyannote.audio.utils import ProgressHook

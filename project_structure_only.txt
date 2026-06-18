@@ -78,6 +78,24 @@ project_root/
 |   |   |-- sidebar.css
 |   |-- employee
 |   |   |-- index.html
+|   |-- marketing
+|   |   |-- css
+|   |   |   |-- 
+|   |   |-- js
+|   |   |   |-- common.js
+|   |   |-- partials
+|   |   |   |-- footer.html
+|   |   |   |-- header.html
+|   |   |-- 404.html
+|   |   |-- about.html
+|   |   |-- blog.html
+|   |   |-- contact.html
+|   |   |-- data.js
+|   |   |-- faq.html
+|   |   |-- index.html
+|   |   |-- privacy.html
+|   |   |-- services.html
+|   |   |-- terms.html
 |   |-- js
 |   |   |-- admin.js
 |   |   |-- admin.react.js

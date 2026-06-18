@@ -63,8 +63,53 @@ router.get('/register', (req, res) => {
   serveHTML(req, res, 'register.html');
 });
 
-// Redirect root
-router.get('/', (req, res) => res.redirect('/dashboard'));
+// ---------------------------------------------------------
+// PUBLIC MARKETING PAGES (UNPROTECTED)
+// ---------------------------------------------------------
+// IMPORTANT: These routes are intentionally outside auth/pageAuth
+// so the marketing site is accessible without logging in.
+router.get('/', (req, res) => {
+  serveHTML(req, res, 'marketing/index.html');
+});
+
+router.get('/about', (req, res) => {
+  serveHTML(req, res, 'marketing/about.html');
+});
+
+router.get('/services', (req, res) => {
+  serveHTML(req, res, 'marketing/services.html');
+});
+
+router.get('/blog', (req, res) => {
+  serveHTML(req, res, 'marketing/blog.html');
+});
+
+router.get('/faq', (req, res) => {
+  serveHTML(req, res, 'marketing/faq.html');
+});
+
+router.get('/contact', (req, res) => {
+  serveHTML(req, res, 'marketing/contact.html');
+});
+
+router.get('/privacy-policy', (req, res) => {
+  serveHTML(req, res, 'marketing/privacy.html');
+});
+
+router.get('/terms-conditions', (req, res) => {
+  serveHTML(req, res, 'marketing/terms.html');
+});
+
+// Friendly marketing 404 page
+router.get('/404', (req, res) => {
+  serveHTML(req, res, 'marketing/404.html');
+});
+
+// Redirect root (fallback for legacy auth app landing)
+// Note: When user is logged in and wants app, they can navigate to /dashboard.
+// We keep the redirect logic only for the auth app; marketing home is now '/'.
+// router.get('/', (req, res) => res.redirect('/dashboard'));
+
 
 // ---------------------------------------------------------
 // PROTECTED DYNAMIC DASHBOARD ALIAS
@@ -115,8 +160,16 @@ router.get('/employee/:page?', pageAuth, requirePageRole('employee', 'reviewer',
   serveHTML(req, res, `employee/${page}.html`);
 });
 
+// Marketing catch-all 404 for unknown public marketing paths
+// (Only triggers when the path is NOT one of the known protected app routes)
+router.get('*', (req, res, next) => {
+  // Let express static or other routers handle their own assets first.
+  next();
+});
+
 // General protected pages (in public root)
 router.get('/:page', pageAuth, (req, res, next) => {
+
   let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
   

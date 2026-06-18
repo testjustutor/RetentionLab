@@ -1,3 +1,5 @@
+# services/engine/voiceprints/speaker_memory.py
+
 import os
 
 from services.engine.shared.json_store import (

@@ -1,3 +1,5 @@
+# services/engine/intelligence/interruption_detector.py
+
 class InterruptionDetector:
 
     """

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Insights & Articles - Vortex Innovations</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;750&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      background-color: #07090e;
+      font-family: "Inter", sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #020408;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #232a3c;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #312e81;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500/30 selection:text-white custom-scrollbar">
+
+  <!-- NAVIGATION BAR -->
+  <nav id="vortex-nav" class="fixed top-0 inset-x-0 z-50 transition-all duration-300 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800/80 py-3.5 shadow-xl shadow-slate-950/20"></nav>
+
+  <!-- MAIN SCENICAL PAGE -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 md:px-8 pb-12 pt-32">
+    <div id="blog-view" class="space-y-16 pb-16 animate-fadeIn">
+      
+      <!-- Headline pitch -->
+      <section class="max-w-4xl mx-auto text-center space-y-6 px-4">
+        <div class="inline-flex items-center gap-1.5 bg-indigo-950/45 border border-indigo-900/60 rounded-full py-1.5 px-4 text-xs font-mono font-bold tracking-tight text-indigo-300">
+          <i data-lucide="newspaper" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>Vortex Intelligence &middot; 2026</span>
+        </div>
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+          Systems Insights, Technical <br />
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">
+            Blueprints &amp; Strategy
+          </span>
+        </h1>
+        <p class="text-slate-400 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto font-normal">
+          Explore structured paradigms, database optimization schedules, and core performance growth briefings authored directly by our operating partners.
+        </p>
+      </section>
+
+      <!-- Advanced Filters Grid -->
+      <section class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center bg-slate-950/30 p-6 border border-slate-900 rounded-2xl">
+        
+        <!-- Search bar (Col 5) -->
+        <div class="md:col-span-5 relative">
+          <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500"></i>
+          <input type="text" id="blog-search-box" placeholder="Search insights by title or summary..." oninput="handleSearchChange(this.value)" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm text-white rounded-xl py-2.5 pl-11 pr-4 outline-none transition-all placeholder:text-slate-600">
+        </div>
+
+        <!-- Categories (Col 7) -->
+        <div class="md:col-span-7 flex flex-wrap gap-2 justify-start md:justify-end" id="category-pills-container">
+          <!-- Populated from JS -->
+        </div>
+
+      </section>
+
+      <!-- Articles dynamic listing grid -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-8" id="blog-grid-mount">
+        <!-- Dyn contents -->
+      </section>
+
+    </div>
+  </main>
+
+  <!-- MODAL ELEMENT INJECTION FOR SINGLE VIEW -->
+  <div id="blog-modal-mask" class="hidden fixed inset-0 z-100 bg-[#020306]/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div id="blog-modal-card" class="bg-[#090d16] border border-slate-800/80 rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto custom-scrollbar relative p-6 sm:p-10 shadow-2xl animate-fadeIn space-y-8">
+      <!-- Injected modal content -->
+    </div>
+  </div>
+
+  <!-- GLOBAL FOOTER -->
+  <footer id="global-footer" class="bg-[#05080e] border-t border-slate-900 pt-16 pb-12 text-slate-400"></footer>
+
+  <!-- DATA & SCRIPTS -->
+  <script src="marketing/data.js"></script>
+  <script src="marketing/js/common.js"></script>
+  
+  <script>
+    let activeCategory = "All";
+    let searchQuery = "";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderCategoryPills();
+      renderBlogPosts();
+    });
+
+    const CATEGORIES = ["All", "Technology", "Design", "Marketing", "Innovation"];
+
+    function renderCategoryPills() {
+      const parent = document.getElementById("category-pills-container");
+      if (!parent) return;
+
+      parent.innerHTML = CATEGORIES.map(cat => {
+        const isActive = activeCategory === cat;
+        const classes = isActive 
+          ? "px-4 py-2 font-semibold text-xs tracking-wide bg-indigo-600/25 border border-indigo-500/40 rounded-xl text-white select-none transition-all cursor-pointer"
+          : "px-4 py-2 font-semibold text-xs tracking-wide bg-slate-950 border border-slate-850 rounded-xl text-slate-400 hover:text-white select-none transition-all cursor-pointer";
+        return `<button onclick="filterCategory('${cat}')" class="${classes}">${cat}</button>`;
+      }).join('');
+    }
+
+    function renderBlogPosts() {
+      const grid = document.getElementById("blog-grid-mount");
+      if (!grid || !window.BLOG_POSTS) return;
+
+      // Filter
+      const list = window.BLOG_POSTS.filter(post => {
+        const matchesCat = activeCategory === "All" || post.category === activeCategory;
+        const sLower = searchQuery.toLowerCase().trim();
+        const matchesSearch = !sLower || 
+          post.title.toLowerCase().includes(sLower) || 
+          post.summary.toLowerCase().includes(sLower);
+        return matchesCat && matchesSearch;
+      });
+
+      if (list.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-16 text-center space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-center text-slate-500 mx-auto">
+              <i data-lucide="inbox" class="w-8 h-8"></i>
+            </div>
+            <div class="space-y-1">
+              <h4 class="text-base font-bold text-white tracking-tight">No Matching Articles</h4>
+              <p class="text-xs text-slate-500 leading-relaxed font-normal">No technical bulletins correspond to your keyword filters. Try adjusting queries.</p>
+            </div>
+          </div>
+        `;
+        if (typeof lucide !== "undefined") lucide.createIcons();
+        return;
+      }
+
+      grid.innerHTML = list.map(post => `
+        <article class="bg-slate-900/25 border border-slate-800/80 rounded-2xl overflow-hidden flex flex-col justify-between group hover:border-slate-700/85 transition-all duration-300 shadow-xl shadow-slate-950/10 hover:scale-[1.005]">
+          <div>
+            <div class="h-56 overflow-hidden relative">
+              <img src="${post.image}" alt="${post.title}" class="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" referrerpolicy="no-referrer" />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent"></div>
+              <span class="absolute bottom-4 left-4 bg-indigo-650 text-white font-bold text-[10px] tracking-wider uppercase font-mono px-3 py-1 rounded-md border border-indigo-500/40 shadow-sm">${post.category}</span>
+            </div>
+            
+            <div class="p-6 sm:p-8 space-y-4">
+              <div class="flex items-center gap-2.5 text-[11px] font-mono text-slate-500 font-semibold uppercase tracking-wider">
+                <span>${post.date}</span>
+                <span>&bull;</span>
+                <span>${post.readTime}</span>
+              </div>
+              <h3 class="text-lg sm:text-xl font-bold tracking-tight text-white group-hover:text-indigo-400 transition-colors leading-snug">
+                ${post.title}
+              </h3>
+              <p class="text-xs sm:text-sm text-slate-400 leading-relaxed font-normal">
+                ${post.summary}
+              </p>
+            </div>
+          </div>
+
+          <div class="px-6 pb-6 sm:px-8 sm:pb-8 flex justify-between items-center pt-4 border-t border-slate-850/50">
+            <div class="flex items-center gap-3">
+              <img src="${post.author.avatar}" alt="${post.author.name}" class="w-8.5 h-8.5 rounded-full object-cover border border-slate-800" referrerpolicy="no-referrer" />
+              <div>
+                <span class="block text-xs font-bold text-slate-205 leading-none">${post.author.name}</span>
+                <span class="block text-[10px] text-slate-500 leading-none mt-1 font-normal">${post.author.role}</span>
+              </div>
+            </div>
+            
+            <button onclick="openArticleModal('${post.id}')" class="text-xs font-bold text-indigo-400 hover:text-indigo-305 flex items-center gap-1 cursor-pointer select-none">
+              <span>Read article</span>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </article>
+      `).join('');
+
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+
+    window.filterCategory = (cat) => {
+      activeCategory = cat;
+      renderCategoryPills();
+      renderBlogPosts();
+    };
+
+    window.handleSearchChange = (val) => {
+      searchQuery = val;
+      renderBlogPosts();
+    };
+
+    // Article Modal logic
+    window.openArticleModal = (id) => {
+      const post = window.BLOG_POSTS.find(p => p.id === id);
+      if (!post) return;
+
+      const mask = document.getElementById("blog-modal-mask");
+      const card = document.getElementById("blog-modal-card");
+      if (!mask || !card) return;
+
+      // Populate card HTML
+      card.innerHTML = `
+        <!-- Close CTA -->
+        <button onclick="closeArticleModal()" class="sticky top-0 float-right -mt-2 -mr-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer z-50 hover:bg-slate-900" title="Close details">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="space-y-6">
+          <div class="space-y-4">
+            <span class="inline-block text-xs font-semibold font-mono bg-indigo-950/50 border border-indigo-905/60 rounded-full py-1 px-3 text-indigo-300 uppercase">${post.category}</span>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">${post.title}</h2>
+            
+            <div class="flex items-center gap-4 border-y border-slate-850 py-4 mt-6">
+              <img src="${post.author.avatar}" alt="${post.author.name}" class="w-10 h-10 rounded-full object-cover border border-slate-800 shrink-0" referrerpolicy="no-referrer" />
+              <div>
+                <span class="block text-sm font-bold text-white">${post.author.name}</span>
+                <span class="block text-xs font-mono text-slate-550 mt-0.5">${post.author.role}</span>
+              </div>
+              <div class="ml-auto text-right text-xs text-slate-500 font-mono">
+                <div>${post.date}</div>
+                <div class="mt-0.5">${post.readTime}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl overflow-hidden max-h-80 w-full relative">
+            <img src="${post.image}" alt="${post.title}" class="w-full h-full object-cover" referrerpolicy="no-referrer" />
+          </div>
+
+          <!-- Content block -->
+          <div class="text-sm text-slate-300 leading-relaxed font-normal space-y-4 pt-4 border-t border-slate-850/50">
+            ${post.content.split('\n\n').map(pText => `<p>${pText.replace(/\\n/g, '<br/>')}</p>`).join('')}
+          </div>
+        </div>
+      `;
+
+      mask.classList.remove("hidden");
+      document.body.style.overflow = "hidden"; // disable background scroll
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    };
+
+    window.closeArticleModal = () => {
+      const mask = document.getElementById("blog-modal-mask");
+      if (mask) {
+        mask.classList.add("hidden");
+      }
+      document.body.style.overflow = ""; // restore background scroll
+    };
+
+    // Close click on mask background
+    document.getElementById("blog-modal-mask").addEventListener("click", (e) => {
+      if (e.target.id === "blog-modal-mask") {
+        closeArticleModal();
+      }
+    });
+  </script>
+</body>
+</html>
