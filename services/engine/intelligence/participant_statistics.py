@@ -1,3 +1,5 @@
+# services/engine/intelligence/participant_statistics.py
+
 class ParticipantStatistics:
 
     """

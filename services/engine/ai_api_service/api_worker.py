@@ -1,6 +1,6 @@
 # services/engine/ai_api_service/api_worker.py
 import os
-from openai import OpenAI  # Used for OpenAI, Groq, xAI, and Ollama
+from openai import OpenAI
 
 class AiApiService:
     def __init__(self, ai_config):
@@ -17,7 +17,7 @@ class AiApiService:
         elif self.provider == "gemini":
             import google.generativeai as genai
             genai.configure(api_key=self.config.get("geminiApiKey"))
-            return genai.GenerativeModel(self.config.get("geminiModel", "gemini-2.0-flash"))
+            return genai.GenerativeModel(self.config.get("geminiModel"))
         elif self.provider == "xai":
             return OpenAI(
                 api_key=self.config.get("xaiApiKey"),
@@ -40,7 +40,7 @@ class AiApiService:
 
             model_map = {
                 "groq": "llama-3.3-70b-versatile",
-                "openai": "gpt-4o-mini",
+                "openai": self.config.get("openaiModel"),
                 "xai": "grok-beta",
                 "ollama": self.config.get("ollamaModel")
             }

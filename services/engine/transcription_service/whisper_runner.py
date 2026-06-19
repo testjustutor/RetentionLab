@@ -1,3 +1,7 @@
+# root/services/engine/transcription_service/whisper_runner.py
+
+from utils.logger_util import log_with_type
+
 class WhisperRunner:
 
     """
@@ -10,6 +14,7 @@ class WhisperRunner:
     ):
 
         self.context = context
+        log_with_type("info", "Engine(transcription_service > whisper_runner) : WhisperRunner initialized", "SERVICE")
 
     # ==========================================
     # RUN INFERENCE
@@ -21,11 +26,13 @@ class WhisperRunner:
         audio_path
     ):
 
+        log_with_type("info", f"Engine(transcription_service > whisper_runner) : Transcription started audio_path={audio_path}", "SERVICE")
+
         result = model.transcribe(
-
             audio_path,
-
             verbose=False
         )
+
+        log_with_type("info", "Engine(transcription_service > whisper_runner) : Transcription completed", "SERVICE")
 
         return result

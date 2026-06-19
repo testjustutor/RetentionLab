@@ -1,3 +1,7 @@
+/**
+ * root/services/socraticbot.js
+ *
+ */
 const BrowserManager = require('./shared/browserManager');
 
 // Platform-specific joiners
@@ -9,10 +13,6 @@ const TeamsJoiner = require('./platforms/teams/teamsJoiner');
 const ZoomMonitor = require('./platforms/zoom/monitor');
 const TeamsMonitor = require('./platforms/teams/monitor');
 const GoogleMeetMonitor = require('./platforms/google-meet/monitor');
-
-const ZoomReactiveJoinFlow = require('./platforms/zoom/reactiveJoinFlow');
-const TeamsReactiveJoinFlow = require('./platforms/teams/reactiveJoinFlow');
-const GoogleMeetReactiveJoinFlow = require('./platforms/google-meet/reactiveJoinFlow');
 
 const ZoomAudioRecorderBot = require('./platforms/zoom/audioRecorderBot');
 const TeamsAudioRecorderBot = require('./platforms/teams/audioRecorderBot');
@@ -27,8 +27,10 @@ const TeamsParticipantTracker = require('./platforms/teams/participantTracker');
 const GoogleParticipantTracker = require('./platforms/google-meet/participantTracker');
 
 const AudioRecorder = require('./audioRecorder');
-const MeetingModel = require('../models/MeetingModel');
+const ScreenRecorder = require('./screenRecorder');
+
 const MeetingAssetsModel = require('../models/MeetingAssetsModel');
+const MeetingModel = require('../models/MeetingModel');
 
 const PythonBridge = require('./shared/pythonBridge');
 
@@ -39,15 +41,18 @@ const { logger } = require('../utils/logger');
 
 class SocraticBot {
   constructor(config = {}) {
-    this.meetingUrl = config.meetingUrl || process.env.ZOOM_MEETING_LINK;
+    this.meetingUrl = config.meetingUrl;
     this.botName = config.botName;
     this.passcode = config.passcode || process.env.ZOOM_PASSCODE || '';
-    this.sessionId = config.sessionId || 0;
-    this.platform = config.platform || 'zoom';
-    this.meetingId = config.meetingId || null;
+    this.sessionId = config.sessionId;
+    this.platform = config.platform;
+    this.meetingId = config.meetingId;
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
     this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
+
+    const screenStorageDir = path.resolve(__dirname, '..', 'storage', 'screen-recordings');
+    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingId);
 
     // Initialize platform-specific transcription service
     this.transcriptionService = this.createTranscriptionService();
@@ -63,12 +68,22 @@ class SocraticBot {
   // -------------------------
   async run() {
     try {
-    
-      const uniqueProfileDir = path.resolve(__dirname, '..', 'storage', 'chrome-profiles', `profile_${this.meetingId || this.sessionId}`);
+      
+      // this.browserManager = await new BrowserManager().init();
 
-      // PASS IT TO THE BROWSER MANAGER
+      const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
+      
+      const uniqueProfileDir = path.resolve(
+        __dirname,
+        '..',
+        'storage',
+        'chrome-profiles',
+        `profile_${safeId}`
+      );
+
       this.browserManager = await new BrowserManager().init({
-        userDataDir: uniqueProfileDir
+        userDataDir: uniqueProfileDir,
+        deleteProfileOnClose: true,
       });
 
       const joiner = this.createJoiner();
@@ -82,6 +97,7 @@ class SocraticBot {
       // START AUDIO RECORDING
       logger.info('DefaultAdapter(SocraticBot): Triggering FFmpeg recording...');
       await this.audioRecorder.start();
+      this.screenRecorder.start();
 
       // PLATFORM FEATURES
       await this.handlePlatformFeatures(joiner);
@@ -120,7 +136,8 @@ class SocraticBot {
         return new TeamsJoiner(
           this.browserManager.page,
           this.botName,
-          this.meetingUrl
+          this.meetingUrl,
+          this.passcode
         );
 
       default:
@@ -165,6 +182,15 @@ class SocraticBot {
 
         this.captionMonitor.startPolling();
 
+        const participantTracker = new ZoomParticipantTracker(
+          this.meetingId,
+          this.sessionId
+        );
+
+        if (joiner.setParticipantTracker) {
+          joiner.setParticipantTracker(participantTracker);
+        }
+
         const active = await joiner.checkCaptionsEnabled();
 
         if (!active && joiner.sendChatRequest) {
@@ -174,6 +200,21 @@ class SocraticBot {
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
         }
+
+        ZoomMonitor.monitorMeeting(
+          this.browserManager.page,
+          this.meetingId,
+          this.botName,
+          this.sessionId,
+          participantTracker
+        )
+          .then(() => this.stop())
+          .catch(err =>
+            logger.error(
+              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
+              err
+            )
+          );
         break;
       }
 
@@ -191,19 +232,17 @@ class SocraticBot {
 
         this.captionMonitor.startPolling();
 
-        if (joiner.enableCaptionsIfPossible) {
-          await joiner.enableCaptionsIfPossible();
-        }
-        
         const participantTracker = new GoogleParticipantTracker(
           this.meetingId,
           this.sessionId
         );
 
+        // Inject dependencies using setters for proper state initialization
+        joiner.setCaptionMonitor(this.captionMonitor);
         joiner.setParticipantTracker(participantTracker);
 
         if (joiner.startTranscriptMonitor) {
-          await joiner.startTranscriptMonitor(this.captionMonitor);
+          await joiner.startTranscriptMonitor();
         }
 
         // Start the Google Meet monitor loop (handles "bot alone" exit condition).
@@ -211,12 +250,13 @@ class SocraticBot {
             this.browserManager.page,
             this.meetingId,
             this.botName,
-            this.sessionId
+            this.sessionId,
+            participantTracker
           )
             .then(() => this.stop())
             .catch(err =>
               logger.error(
-                'GoogleMeetAdapter(monitor): Monitor loop crashed:',
+                'DefaultAdapter(SocraticBot): Monitor loop crashed:',
                 err
               )
             );
@@ -242,9 +282,32 @@ class SocraticBot {
           await joiner.enableCaptionsIfPossible();
         }
 
+        // const participantTracker = new TeamsParticipantTracker(
+        //   this.meetingId,
+        //   this.sessionId
+        // );
+
+        // if (joiner.setParticipantTracker) {
+        //   joiner.setParticipantTracker(participantTracker);
+        // }
+
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
         }
+
+        TeamsMonitor.monitorMeeting(
+          this.browserManager.page,
+          this.meetingId,
+          this.botName,
+          this.sessionId
+        )
+          .then(() => this.stop())
+          .catch(err =>
+            logger.error(
+              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
+              err
+            )
+          );
         break;
       }
     
@@ -265,13 +328,32 @@ class SocraticBot {
     }
 
     if (this.joiner && typeof this.joiner.stopTranscriptMonitor === 'function') {
-      this.joiner.stopTranscriptMonitor();
+      await this.joiner.stopTranscriptMonitor();
     }
+
+    // // ✅ Mark all still-active participants as left
+    // if (this.participantTracker) {
+    //   await this.participantTracker.reset(new Date());
+    // }
 
     // stop recording + transcribe
     if (this.audioRecorder) {
       this.audioRecorder.stop();
+      await this.screenRecorder.stop();
 
+      // ADD at the end of stop(), after the catch block
+      try {
+        if (this.browserManager) {
+          await this.browserManager.close();
+          logger.info('DefaultAdapter(SocraticBot): Browser closed and profile cleanup triggered');
+        }
+      } catch (err) {
+        logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
+      } finally {
+        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
+        // process.exit(0);
+      }
+      
       try {
         const finalAudioPath = this.audioRecorder.audioPath;
         
@@ -308,24 +390,16 @@ class SocraticBot {
 
 
               if (auditResults) {
-                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi_score}`);
-              }              
-              
+                await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
+              }
             }
           }
-        } else {
-          logger.warn(`DefaultAdapter(SocraticBot): Audio file not available, skipping transcription: ${finalAudioPath}`);
         }
       } catch (err) {
-        logger.error('DefaultAdapter(SocraticBot): Transcription/Matching failed during shutdown', err);
+        logger.error('DefaultAdapter(SocraticBot): Final transcription/audit failed', err);
       }
     }
-
-    if (this.browserManager) {
-      await this.browserManager.close();
-    }
-
-    logger.info('DefaultAdapter(SocraticBot): SocraticBot stopped.');
   }
 }
 

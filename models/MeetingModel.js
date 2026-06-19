@@ -1,3 +1,6 @@
+/**
+ * root/models/MeetingModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
@@ -5,24 +8,28 @@ class MeetingModel {
   static createMeeting(meetingData) {
     return new Promise((resolve, reject) => {
 const stmt = db.prepare(`
-INSERT INTO calendar_meetings (meeting_id, platform, passcode, event_id, calendar_account, 
-        meeting_link, timezone, start_time, end_time, title, 
-        status, session_id, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,CURRENT_TIMESTAMP)
+INSERT INTO meetings (meeting_id, platform, passcode, event_id, calendar_account, 
+  meeting_link, timezone, start_time, end_time, title, 
+  status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) 
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
 stmt.run(
-        meetingData.meetingId,
-        meetingData.platform,
-        meetingData.passcode || null,
-        meetingData.eventId,
-        meetingData.account,
-        meetingData.meetingLink,
-        meetingData.timezone || null,
-        meetingData.startTime,
-        meetingData.endTime || null,
-        meetingData.title,
-        'joining',
-        meetingData.sessionId || null,
+  meetingData.meetingId,
+  meetingData.platform,
+  meetingData.passcode || null,
+  meetingData.eventId,
+  meetingData.account,
+  meetingData.meetingLink,
+  meetingData.timezone || null,
+  meetingData.startTime,
+  meetingData.endTime || null,
+  meetingData.title,
+  'joining',
+  meetingData.sessionId || null,
+  meetingData.company_id || null,
+  meetingData.owner_user_id || null,
+  meetingData.reviewer_id || null,
+  meetingData.created_by_user_id || null,
         function(err) {
           stmt.finalize();
           if (err) {
@@ -44,7 +51,7 @@ stmt.run(
   static getMeetingByIdOrCreate(meetingData) {
     return new Promise((resolve, reject) => {
       // First check if exists
-      db.get('SELECT * FROM calendar_meetings WHERE meeting_id = ?', [meetingData.meetingId], (err, row) => {
+      db.get('SELECT * FROM meetings WHERE meeting_id = ?', [meetingData.meetingId], (err, row) => {
         if (err) {
           logger.error('Model(MeetingModel): Error checking meeting existence:', err);
           return reject(err);
@@ -67,7 +74,7 @@ stmt.run(
           if (failedStatuses.includes(row.status)) {
             // Reset failed to queued
             db.run(
-              `UPDATE calendar_meetings 
+              `UPDATE meetings 
                SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP 
                WHERE meeting_id = ?`,
               [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.meetingId],
@@ -87,12 +94,12 @@ stmt.run(
         } else {
           // Create new
           const stmt = db.prepare(`
-            INSERT INTO calendar_meetings (
+            INSERT INTO meetings (
               meeting_id, platform, passcode, event_id, calendar_account, 
               meeting_link, start_time, title, end_time, 
-              timezone, status, session_id, created_at
+              timezone, status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at
             ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           `);
 
           stmt.run(
@@ -107,6 +114,10 @@ stmt.run(
             meetingData.endTime || null,  // 9
             meetingData.timezone || null, // 10
             meetingData.sessionId || null,// 11 (maps to the '?' after status)
+            meetingData.company_id || null,
+            meetingData.owner_user_id || null,
+            meetingData.reviewer_id || null,
+            meetingData.created_by_user_id || null,
             function(err) {
               stmt.finalize();
               if (err) {
@@ -122,27 +133,10 @@ stmt.run(
       });
     });
   }
-
-  static updateMeetingStatus(meetingId, status, sessionId = null) {
-    return new Promise((resolve, reject) => {
-      let query = 'UPDATE calendar_meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ?';
-      let params = [status, sessionId, meetingId];
-      
-      db.run(query, params, function(err) {
-        if (err) {
-          logger.error('Model(MeetingModel): Error updating meeting status:', err);
-          reject(err);
-        } else {
-          logger.info(`Model(MeetingModel): Meeting ${meetingId} status updated to: ${status}`);
-          resolve({ changes: this.changes, meetingId });
-        }
-      });
-    });
-  }
-
+  
   static getUpcomingMeetings(account = null, limit = 20) {
     return new Promise((resolve, reject) => {
-      let query = 'SELECT * FROM calendar_meetings WHERE status IN ("joining", "active")';
+      let query = 'SELECT * FROM meetings WHERE status IN ("joining", "active")';
       let params = [];
       
       if (account) {
@@ -167,7 +161,7 @@ stmt.run(
   static getMeetingHistory(account = null, limit = 50) {
     return new Promise((resolve, reject) => {
       let query = `
-        SELECT * FROM calendar_meetings 
+        SELECT * FROM meetings 
         WHERE status IN ('completed', 'failed', 'cancelled')
       `;
       let params = [];
@@ -193,7 +187,7 @@ stmt.run(
 
   static getMeetingById(meetingId) {
     return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM calendar_meetings WHERE meeting_id = ?', [meetingId], (err, row) => {
+      db.get('SELECT * FROM meetings WHERE meeting_id = ?', [meetingId], (err, row) => {
         if (err) {
           logger.error('Model(MeetingModel): Error fetching meeting by ID:', err);
           reject(err);
@@ -208,7 +202,7 @@ stmt.run(
   static getQueuedMeetings() {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT * FROM calendar_meetings 
+        SELECT * FROM meetings 
         WHERE status = 'queued'
         AND datetime(start_time) <= datetime('now', '+1 minute')
         ORDER BY start_time ASC
@@ -229,16 +223,32 @@ stmt.run(
   // NEW: Update status (enhanced for batch tracking)
   static updateMeetingStatus(meetingId, status, sessionId = null) {
     return new Promise((resolve, reject) => {
-      let query = 'UPDATE calendar_meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ?';
-      let params = [status, sessionId, meetingId];
-      
-      db.run(query, params, function(err) {
+      const query = `
+        UPDATE meetings
+        SET status = ?,
+            session_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE meeting_id = ?
+          AND status IN ('queued', 'launching')
+      `;
+
+      const params = [status, sessionId, meetingId];
+
+      db.run(query, params, function (err) {
         if (err) {
           logger.error('Model(MeetingModel): Error updating meeting status:', err);
           reject(err);
         } else {
-          logger.info(`Model(MeetingModel): Meeting ${meetingId} status → ${status} (changes: ${this.changes})`);
-          resolve({ changes: this.changes, meetingId });
+          logger.info(
+            `Model(MeetingModel): Meeting ${meetingId} status → ${status} (changes: ${this.changes})`
+          );
+
+          resolve({
+            success: true,
+            updated: this.changes > 0,
+            changes: this.changes,
+            meetingId
+          });
         }
       });
     });
@@ -248,11 +258,11 @@ stmt.run(
   static deleteRemovedMeetings(email, activeEventIds) {
       return new Promise((resolve, reject) => {
           if (!activeEventIds || activeEventIds.length === 0) {
-              const sql = `DELETE FROM calendar_meetings WHERE calendar_account = ? AND status = 'queued'`;
+              const sql = `DELETE FROM meetings WHERE calendar_account = ? AND status = 'queued'`;
               db.run(sql, [email], (err) => err ? reject(err) : resolve());
           } else {
               const placeholders = activeEventIds.map(() => '?').join(',');
-              const sql = `DELETE FROM calendar_meetings 
+              const sql = `DELETE FROM meetings 
                            WHERE calendar_account = ? 
                            AND status = 'queued' 
                            AND event_id NOT IN (${placeholders})`;
@@ -269,7 +279,7 @@ stmt.run(
   static getBatchHistory(limit = 50) {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT * FROM calendar_meetings 
+        SELECT * FROM meetings 
         WHERE platform LIKE '%batch%'
         AND status != 'queued'
         ORDER BY created_at DESC 
@@ -286,7 +296,58 @@ stmt.run(
     });
   }
 
+  static getUserStats() {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT
+          ci.id,
+          ci.email,
+          ci.provider,
+          ci.token_expiry,
+          ci.status,
+          ci.created_at,
+          ci.updated_at,
+          u.id        AS user_id,
+          r.role_name,
+          COUNT(m.id) AS total_meetings,
+          SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings,
+          COALESCE(SUM(
+            CASE
+              WHEN m.status = 'completed'
+               AND m.start_time IS NOT NULL
+               AND m.end_time   IS NOT NULL
+              THEN CAST((julianday(m.end_time) - julianday(m.start_time)) * 86400 AS INTEGER)
+              ELSE 0
+            END
+          ), 0) AS total_duration_seconds,
+          (
+            SELECT m2.platform
+            FROM   meetings m2
+            WHERE  m2.calendar_account = ci.email AND m2.platform IS NOT NULL
+            GROUP  BY m2.platform
+            ORDER  BY COUNT(*) DESC
+            LIMIT  1
+          ) AS top_platform,
+          MAX(CASE WHEN m.status = 'completed' THEN m.end_time ELSE NULL END) AS last_meeting_at
+        FROM  calendar_integrations ci
+        LEFT JOIN users    u ON u.id  = ci.user_id
+        LEFT JOIN roles    r ON r.id  = u.role_id
+        LEFT JOIN meetings m ON m.calendar_account = ci.email
+        GROUP BY ci.id
+        ORDER BY ci.email ASC
+      `;
+
+      db.all(sql, [], (err, rows) => {
+        if (err) {
+          logger.error('Model(MeetingModel): Error fetching user stats:', err);
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
+  }
+
 }
 
 module.exports = MeetingModel;
-

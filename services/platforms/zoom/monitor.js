@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/zoom/monitor.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');
@@ -5,18 +9,106 @@ const path = require('path');
 
 let keepAliveInterval = null;
 
-async function startKeepAlive(page) {
-  keepAliveInterval = setInterval(async () => {
-    try {
-      if (!page.isClosed()) {
-        await page.mouse.move(Math.random() * 300, Math.random() * 300);
+// async function debugParticipantDOM(frame) {
+//   const info = await frame.evaluate(() => {
+//     const result = { allClassesWithName: [] };
+//     document.querySelectorAll('[class*="name"], [class*="Name"], [class*="user"], [class*="User"], [class*="avatar"], [class*="participant"]')
+//       .forEach(el => {
+//         const text = (el.innerText || '').trim();
+//         const cls = el.className || '';
+//         if (text && text.length > 1 && text.length < 60) {
+//           result.allClassesWithName.push({ class: cls.substring(0, 80), text });
+//         }
+//       });
+//     return result;
+//   });
+//   logger.info('ZoomAdapter(monitor): DOM DUMP: ' + JSON.stringify(info.allClassesWithName.slice(0, 20)));
+// }
+
+
+async function getCurrentParticipantNames(frame, botName) {
+  try {
+    const names = await frame.evaluate((bot) => {
+      const botNameLower = (bot || '').trim().toLowerCase();
+      const participants = new Set();
+
+      const cleanName = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+      const isValid = (name) => {
+        if (!name || name.length < 2 || name.length > 100) return false;
+        if (!/[a-zA-Z]/.test(name)) return false;
+        if (name.toLowerCase() === botNameLower) return false;
+        const blocked = ['participants', 'attendees', 'mute all', 'more', 'chat', 'reactions'];
+        if (blocked.includes(name.toLowerCase())) return false;
+        return true;
+      };
+
+      const addName = (value) => {
+        const name = cleanName(value);
+        if (isValid(name)) participants.add(name);
+      };
+
+      // PASS 1: class contains avatar-name / avatar-footer / avatar-title
+      document.querySelectorAll('[class*="avatar-name"], [class*="avatar-footer"], [class*="avatar-title"]')
+        .forEach(el => addName(el.innerText));
+
+      // PASS 2: display-name variants
+      if (participants.size === 0) {
+        document.querySelectorAll('[class*="display-name"], [class*="displayName"], [class*="displayname"]')
+          .forEach(el => addName(el.innerText));
       }
-    } catch (e) {}
-  }, 2000);
+
+      // PASS 3: aria-label on video/tile/avatar elements
+      if (participants.size === 0) {
+        document.querySelectorAll('[aria-label][class*="video"], [aria-label][class*="tile"], [aria-label][class*="avatar"]')
+          .forEach(el => addName(el.getAttribute('aria-label')));
+      }
+
+      // PASS 4: data attributes
+      if (participants.size === 0) {
+        document.querySelectorAll('[data-name], [data-username], [data-display-name]')
+          .forEach(el => addName(
+            el.getAttribute('data-name') ||
+            el.getAttribute('data-username') ||
+            el.getAttribute('data-display-name')
+          ));
+      }
+
+      return Array.from(participants);
+    }, botName);
+
+    logger.info(`ZoomAdapter(monitor): Extracted ${names.length} names: ${names}`);
+    return names;
+  } catch (err) {
+    logger.error(`ZoomAdapter(monitor): Error extracting participant names: ${err.message}`);
+    return [];
+  }
 }
 
-async function monitorMeeting(page, meetingId) {
+async function trackAttendanceChanges(frame, botName, participantTracker, previousParticipants) {
+  const currentParticipants = await getCurrentParticipantNames(frame, botName);
+
+  for (const name of currentParticipants) {
+    if (!previousParticipants.includes(name)) {
+      await participantTracker.handleParticipantJoin(name);
+    }
+  }
+
+  for (const name of previousParticipants) {
+    if (!currentParticipants.includes(name)) {
+      await participantTracker.handleParticipantLeave(name);
+    }
+  }
+
+  return currentParticipants;
+}
+
+async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker) {
   logger.info('ZoomAdapter(monitor): MONITOR: Stay-Alive loop started');
+
+  let previousParticipants = [];
+  let lastParticipantCheckTime = Date.now();
+  const PARTICIPANT_CHECK_INTERVAL = 5000;
 
   let loopCount = 0;
   const endPhrases = [
@@ -40,8 +132,11 @@ async function monitorMeeting(page, meetingId) {
       }
 
       const url = page.url();
-      if (!url.includes('/wc/') && !url.includes('/j/')) {
-        logger.info("ZoomAdapter(monitor): EXIT: Redirected away from Zoom → Exporting");
+      const isNotZoom = !url.includes('/wc/') && !url.includes('/j/');
+      const isZoomDashboardPage = url.endsWith('/wc') || url.endsWith('/wc/');
+
+      if (isNotZoom || isZoomDashboardPage) {
+        logger.info(`ZoomAdapter(monitor): EXIT: Meeting ended (Redirected to ${url}) → Exporting`);
         await exportMeetingTranscript(meetingId);
         break;
       }
@@ -52,6 +147,8 @@ async function monitorMeeting(page, meetingId) {
         await exportMeetingTranscript(meetingId);
         break;
       }
+
+      // if (loopCount === 0) await debugParticipantDOM(frame);
 
       const pageText = await page.evaluate(() => document.body.innerText.toLowerCase());
       if (pageText.includes('meeting ended by host') || pageText.includes('host ended')) {
@@ -92,6 +189,16 @@ async function monitorMeeting(page, meetingId) {
         logger.info("ZoomAdapter(monitor): Waiting room detected");
       }
 
+      const now = Date.now();
+      if (now - lastParticipantCheckTime >= PARTICIPANT_CHECK_INTERVAL) {
+        try {
+          previousParticipants = await trackAttendanceChanges(frame, botName, participantTracker, previousParticipants);
+          lastParticipantCheckTime = now;
+        } catch (err) {
+          logger.error(`ZoomAdapter(monitor): Attendance tracking error: ${err.message}`);
+        }
+      }
+
       await new Promise(r => setTimeout(r, 10000));
       loopCount++;
       if (loopCount % 6 === 0) {
@@ -108,14 +215,23 @@ async function monitorMeeting(page, meetingId) {
 
 async function exportMeetingTranscript(meetingId) {
   try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-    logger.info(`ZoomAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
     const exports = await exportBoth(meetingId, 'storage');
     logger.info(`ZoomAdapter(monitor): SAVED to storage/: ${exports.json}, ${exports.txt}`);
   } catch (err) {
     logger.error('ZoomAdapter(monitor): Export fail:', err);
   }
 }
+
+async function startKeepAlive(page) {
+  keepAliveInterval = setInterval(async () => {
+    try {
+      if (!page.isClosed()) {
+        await page.mouse.move(Math.random() * 300, Math.random() * 300);
+      }
+    } catch (e) {}
+  }, 2000);
+}
+
 
 module.exports = {
   startKeepAlive,

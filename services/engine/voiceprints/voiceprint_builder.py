@@ -1,3 +1,7 @@
+# root/services/engine/voiceprints/voiceprints_builder.py
+
+from utils.logger_util import log_with_type
+
 from services.engine.shared.json_store import (
     JsonStore
 )

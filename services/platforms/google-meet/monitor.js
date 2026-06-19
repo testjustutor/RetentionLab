@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/google-meet/monitor.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
 const TranscriptModel = require('../../../models/transcriptModel');
@@ -167,11 +171,10 @@ async function getCurrentParticipantNames(page) {
   }
 }
 
-async function monitorMeeting(page, meetingId, botName, sessionId) {
+async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker) {
   logger.info('GoogleMeetAdapter(monitor): MONITOR: Stay-Alive loop started');
 
-  // Initialize participant tracker
-  const participantTracker = new ParticipantTracker(meetingId, sessionId);
+  const tracker = participantTracker || new ParticipantTracker(meetingId, sessionId);
   let previousParticipants = [];
   let lastParticipantCheckTime = Date.now();
   const PARTICIPANT_CHECK_INTERVAL = 5000; // Check every 5 seconds
@@ -244,14 +247,14 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
           // Detect joins (new participants)
           for (const name of currentParticipants) {
             if (!previousParticipants.includes(name)) {
-              await participantTracker.handleParticipantJoin(name);
+              await tracker.handleParticipantJoin(name);
             }
           }
           
           // Detect leaves (participants no longer in list)
           for (const name of previousParticipants) {
             if (!currentParticipants.includes(name)) {
-              await participantTracker.handleParticipantLeave(name);
+              await tracker.handleParticipantLeave(name);
             }
           }
           
@@ -350,9 +353,6 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
 
 async function exportMeetingTranscript(meetingId) {
   try {
-    const transcripts = await TranscriptModel.getTranscriptsByMeeting(meetingId);
-
-    logger.info(`GoogleMeetAdapter(monitor): EXPORT: ${meetingId} - ${transcripts.length} captions detected`);
 
     const exports = await exportBoth(meetingId, 'storage');
 

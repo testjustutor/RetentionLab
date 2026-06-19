@@ -1,3 +1,5 @@
+# services/engine/transcription_service/timestamp_aligner.py
+
 class TimestampAligner:
 
     """

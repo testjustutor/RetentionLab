@@ -1,3 +1,7 @@
+/**
+ * root/services/calendar/events/EventService.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 
 class EventService {

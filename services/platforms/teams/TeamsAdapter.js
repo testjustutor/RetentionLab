@@ -1,4 +1,8 @@
 /**
+ * root/services/platforms/teams/TeamsAdapter.js
+ *
+ */
+ /**
  * Microsoft Teams Platform Adapter
  * Basic implementation using Puppeteer for Teams meetings
  */

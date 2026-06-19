@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="reviewer">
+  <title>Review Scores</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="mx-auto p-4 max-w-6xl">
+    <div id="header-placeholder"></div>
+
+    <section class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 mt-6">
+      <aside class="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-sm">
+        <h1 class="text-2xl font-semibold text-white mb-2">Review Scores</h1>
+        <p class="text-slate-400 text-sm leading-relaxed">Use this page to save session-level rubric scores. The values are stored in the session score table via the Node.js route.</p>
+        <div class="mt-6 space-y-4 text-sm text-slate-300">
+          <div>
+            <strong>Note:</strong> Use <code>meeting_id</code> and <code>session_id</code> to store in <code>meeting_session_scores</code>.
+          </div>
+          <div>
+            The API endpoint is <code>POST /api/scores/session</code>.
+          </div>
+          <div>
+            You can also fetch session data by meeting and session id.
+          </div>
+        </div>
+      </aside>
+
+      <main class="space-y-6">
+        <section class="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-sm">
+          <h2 class="text-xl font-semibold text-white mb-4">Store Session Score</h2>
+          <form id="scoreForm" class="grid gap-4">
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="meetingId">Meeting ID</label>
+              <input id="meetingId" name="meetingId" class="input-field" placeholder="meeting_uuid_here" required>
+            </div>
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="sessionId">Session ID</label>
+              <input id="sessionId" name="sessionId" type="number" class="input-field" placeholder="1" required>
+            </div>
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="indicatorId">Indicator ID</label>
+              <input id="indicatorId" name="indicatorId" class="input-field" placeholder="engagement" required>
+            </div>
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="score">Score</label>
+              <input id="score" name="score" type="number" min="0" max="100" class="input-field" placeholder="85" required>
+            </div>
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="comment">Comment</label>
+              <textarea id="comment" name="comment" rows="3" class="input-field" placeholder="Optional feedback"></textarea>
+            </div>
+            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-500 transition">Save Session Score</button>
+          </form>
+          <div id="saveStatus" class="mt-4 text-sm"></div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 class="text-xl font-semibold text-white">Lookup Session Scores</h2>
+            <button id="refreshScores" class="rounded-xl bg-slate-800 px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 transition">Refresh</button>
+          </div>
+          <form id="lookupForm" class="grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="lookupMeetingId">Meeting ID</label>
+              <input id="lookupMeetingId" class="input-field" placeholder="meeting_uuid_here">
+            </div>
+            <div class="grid gap-2">
+              <label class="text-slate-300 text-sm" for="lookupSessionId">Session ID</label>
+              <input id="lookupSessionId" type="number" class="input-field" placeholder="1">
+            </div>
+          </form>
+          <div id="loader" class="mt-4 text-sm text-slate-400 hidden">Loading scores…</div>
+          <div id="scoresResult" class="mt-4 space-y-4"></div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script type="module" src="/js/auth.js"></script>
+  <script src="/js/load-components.js"></script>
+  <script type="module" src="/reviewer/js/score.js"></script>
+</body>
+</html>

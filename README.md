@@ -109,26 +109,111 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
 
 🎉 Ready for any meeting!
 
-deactivate
-Remove-Item -Recurse -Force .venv
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
+## To install npm 
+
+    npm install -g npm
+
+
+## To install Seeder data
+
+    npm run db:init
+    npm run db:seed
+
+## Mail setup for calendar verification
+
+To send calendar verification emails, add SMTP values to `.env`.
+
+### Gmail / Google Workspace
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=yourname@gmail.com
+SMTP_PASS=your_google_app_password
+MAIL_FROM="Retention Lab <yourname@gmail.com>"
+```
+
+### Outlook / Microsoft 365
+```env
+SMTP_HOST=smtp-mail.outlook.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=yourname@outlook.com
+SMTP_PASS=your_mailbox_password_or_app_password
+MAIL_FROM="Retention Lab <yourname@outlook.com>"
+```
+
+### Custom domain mail
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+MAIL_FROM="Retention Lab <no-reply@yourdomain.com>"
+```
+
+If you use port `465`, set `SMTP_SECURE=true`.
+
+## To vertal environment of pythone new
+
+    deactivate
+    Remove-Item -Recurse -Force .venv
+    python -m venv .venv
+    .venv\Scripts\activate
+    python -m pip install --upgrade pip
 
 ## To test is my python engine code correct
-python -c "import services.engine.engine_main as m; print('import_ok')"
-python -c "import importlib; importlib.import_module('services.engine.engine_main'); print('import_ok')"
+
+    python -c "import services.engine.engine_main as m; print('import_ok')"
+    python -c "import importlib; importlib.import_module('services.engine.engine_main'); print('import_ok')"
 
 ## To test pyannote
-python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
+    python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
 
 # To test node file code is correct
-    node --check services\platforms\google-meet\meetJoiner.js
+    node --check services\platforms\google-meet\monitor.js
 
 ## To test dummy audio file
-Remove-Item .test-engine.lock -Force
-node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
+    del .test-engine.lock
+    Remove-Item .test-engine.lock -Force
+    node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
 
 
 ## FFMPEG
 ffmpeg -hide_banner -devices
+
+
+
+Step 1 : git clone https://github.com/testjustutor/RetentionLab.git
+
+Step 2 : git checkout development (temporary for development)
+
+Step 3 : npm install
+
+Step 4 :   if already have old .venv 
+            deactivate
+            Remove-Item -Recurse -Force .venv
+
+Step 5 :    & "C:\Users\shyam.charan\AppData\Local\Programs\Python\Python310\python.exe" -m venv .venv
+
+Step 6 : .\.venv\Scripts\Activate.ps1
+
+Step 7 : python -m pip install --upgrade pip
+
+Step 8 :    pip install pyannote.audio
+            pip install openai-whisper
+            pip install openai
+            pip install sentence-transformers
+
+Step 8 : Copy paste .dll file from ffmppeg (8.1.1-full_build-shared) to C://ffmpeg/bin/
+
+
+Step 10 : npm start
+
+            For Account Join & Manual meeting launch -> schedule-intelligence.html
+            For database -> data-architecture.html
+            For old Meetings -> archives.html
+            For Storage -> assets.html
+            For Logs -> audit.html
+            For Bot Tracking -> bot.html

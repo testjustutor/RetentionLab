@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - Vortex Innovations</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;750&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      background-color: #07090e;
+      font-family: "Inter", sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #020408;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #232a3c;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #312e81;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500/30 selection:text-white custom-scrollbar">
+
+  <!-- NAVIGATION BAR -->
+  <nav id="vortex-nav" class="fixed top-0 inset-x-0 z-50 transition-all duration-300 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800/80 py-3.5 shadow-xl shadow-slate-950/20"></nav>
+
+  <!-- MAIN SCENICAL PAGE -->
+  <main class="flex-grow max-w-4xl mx-auto w-full px-4 md:px-8 pb-12 pt-32">
+    <div id="terms-view" class="space-y-8 pb-16 animate-fadeIn">
+      
+      <div class="space-y-4 border-b border-slate-900 pb-6">
+        <span class="text-xs font-mono font-bold uppercase tracking-widest text-[#6366f1]">Last Updated: June 18, 2026</span>
+        <h1 class="text-3xl font-extrabold text-white tracking-tight">Terms of Service</h1>
+        <p class="text-slate-400 text-sm leading-relaxed font-normal">
+          By accessing the static files, frameworks, calculators, or consultation materials hosted by Vortex Innovations (&ldquo;the system&rdquo;, &ldquo;the agency products&rdquo;), you agree to comply with the terms of support outlined below.
+        </p>
+      </div>
+
+      <div class="space-y-6 text-sm text-slate-350 leading-relaxed font-normal">
+        
+        <div class="space-y-2">
+          <h3 class="text-base font-bold text-white tracking-tight">1. Services Scope and Delivery Estimates</h3>
+          <p>
+            Vortex Innovations provides high-fidelity code systems and project estimators. Budget quotes generated through our computational sliders are illustrative, baseline estimates and do not represent formal, legally binding contract agreements.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-base font-bold text-white tracking-tight">2. Proprietary Custody &amp; Code Ownership</h3>
+          <p>
+            The software, layout codes, visual frameworks, CSS/JS configurations, and logos in this repository belong exclusively to Vortex. Upon formal contract settlements and invoices execution, custom source assets are transferred cleanly to the client.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-base font-bold text-white tracking-tight">3. Warranty Disclaimer</h3>
+          <p>
+            Vortex implements state-of-the-art software systems, but cannot warrant that every third-party cloud container or router will maintain 100.00% operational uptime without interruption. Our services are supplied &ldquo;as is&rdquo;, with extensive SLA maintenance packages available as specified in project estimators.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="text-base font-bold text-white tracking-tight">4. Governing Law</h3>
+          <p>
+            These guidelines and active contracts are governed under the jurisdictional lines of California, United States. Any disputes or contract assertions will be addressed in arbitration councils inside San Francisco, CA.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- GLOBAL FOOTER -->
+  <footer id="global-footer" class="bg-[#05080e] border-t border-slate-900 pt-16 pb-12 text-slate-400"></footer>
+
+  <!-- DATA & SCRIPTS -->
+  <script src="marketing/data.js"></script>
+  <script src="marketing/js/common.js"></script>
+</body>
+</html>

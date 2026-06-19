@@ -1,3 +1,7 @@
+/**
+ * root/services/shared/botManager.js
+ *
+ */
 const { logger } = require('../../utils/logger');
 const SocraticBot = require('../socraticbot');
 const TranscriptModel = require('../../models/transcriptModel');
@@ -30,7 +34,7 @@ class BotManager {
     }));
   }
 
-  buildMeetingLink(platform, meetingId, passcode = '') {
+  buildMeetingLink(platform, meetingId, passcode = '', meetingUrl = '') {
     const platformConfig = settings.platforms[platform];
 
     if (!platformConfig) {
@@ -54,7 +58,7 @@ class BotManager {
     else if (platform === 'teams') {
       link = `${platformConfig.baseUrl}${meetingId}`;
       try {
-        link = this.prepareTeamsUrl(link);
+        link = this.prepareTeamsUrl(link, meetingUrl);
       } catch {}
     }
 
@@ -71,7 +75,13 @@ class BotManager {
       const platform = meetingRecord.platform;
       const passcode = meetingRecord.passcode || '';
 
-      logger.info(`🚀 Launching queued ${meetingId}`);
+      const existing = this.instances.get(meetingId);
+      if (existing && ['running', 'joining', 'starting', 'launching', 'live'].includes(existing.status)) {
+        logger.info(`Shared(botManager): Skipping queued launch for ${meetingId}; bot already ${existing.status}.`);
+        return { success: true, meetingId, status: existing.status, skipped: true };
+      }
+
+      logger.info(`Shared(botManager): Launching queued ${meetingId}`);
 
       // Update DB status
       await MeetingModel.updateMeetingStatus(meetingId, 'launching');
@@ -83,7 +93,7 @@ class BotManager {
       // 🔥 BUILD YOUR OWN LINK (NOT FROM DB)
       const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
 
-      logger.info(`🚀 meetingLink meetingLink ${meetingLink}`);
+      logger.info(`Shared(botManager): meetingLink meetingLink ${meetingLink}`);
 
       const platformConfig = settings.platforms[platform];
 
@@ -115,7 +125,7 @@ class BotManager {
           MeetingModel.updateMeetingStatus(meetingId, 'completed');
         })
         .catch(err => {
-          logger.error(`Launch error ${meetingId}:`, err);
+          logger.error(`Shared(botManager): Launch error ${meetingId}:`, err);
           this.instances.get(meetingId).status = 'error';
           MeetingModel.updateMeetingStatus(meetingId, 'error');
         });
@@ -123,7 +133,7 @@ class BotManager {
       return { success: true, meetingId };
 
     } catch (err) {
-      logger.error('Launch from DB failed:', err);
+      logger.error('Shared(botManager): Launch from DB failed:', err);
       await MeetingModel.updateMeetingStatus(meetingRecord.meeting_id, 'failed');
       return { success: false };
     }
@@ -143,7 +153,7 @@ class BotManager {
       }
 
       const instance = this.instances.get(meetingId);
-      logger.info(`🛑 Stopping bot for meeting ${meetingId}`);
+      logger.info(`Shared(botManager):  Stopping bot for meeting ${meetingId}`);
 
       if (instance.bot && typeof instance.bot.stop === 'function') {
         await instance.bot.stop();
@@ -158,7 +168,7 @@ class BotManager {
         status: 'stopped'
       };
     } catch (err) {
-      logger.error('Error stopping bot:', err);
+      logger.error('Shared(botManager): Error stopping bot:', err);
       return {
         success: false,
         error: err.message,
@@ -234,7 +244,12 @@ class BotManager {
     return this.instances.get(meetingId);
   }
 
-  prepareTeamsUrl(url) {
+  prepareTeamsUrl(url, meetingUrl = null) {
+
+    if (meetingUrl && meetingUrl.includes('teams.microsoft.com')) {
+      return meetingUrl;
+    }
+    
     const teamsUrl = new URL(url);
     // These parameters force Teams to bypass the "Open App" popup
     teamsUrl.searchParams.set('msLaunch', 'false');
@@ -258,7 +273,7 @@ class BotManager {
       // Check already running
       if (this.instances.has(meetingId)) {
         const instance = this.instances.get(meetingId);
-        if (instance.status === 'running' || instance.status === 'joining' || instance.status === 'starting') {
+        if (['running', 'joining', 'starting', 'launching', 'live'].includes(instance.status)) {
           return { success: false, error: `Bot already ${instance.status} for ${meetingId}` };
         }
       }
@@ -268,13 +283,13 @@ class BotManager {
         throw new Error(`Unsupported platform: ${platform}`);
       }
 
-      const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
+      const meetingLink = this.buildMeetingLink(platform, meetingId, passcode, meetingUrl);
 
-      logger.info(`⚡ IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
+      logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
 
       // Create transcript session
       const session = await TranscriptModel.createSession(meetingId);
-      logger.info(`📝 Session created: ${session.id} for immediate ${meetingId}`);
+      logger.info(`Shared(botManager): Session created: ${session.id} for immediate ${meetingId}`);
 
       // Create SocraticBot
       const bot = new SocraticBot({
@@ -293,17 +308,17 @@ class BotManager {
         bot,
         status: 'starting',
         startedAt: Date.now(),
-        config: { meetingId, passcode: !!passcode, webhookUrl: !!webhookUrl },
+        config: { meetingId, platform, passcode: !!passcode, webhookUrl: !!webhookUrl },
         sessionId: session.id,
         type: 'immediate' // Mark as immediate (no DB record)
       });
 
       // Launch async
       bot.run().then(() => {
-        logger.info(`✅ Immediate ${meetingId} completed`);
+        logger.info(`Shared(botManager): Immediate ${meetingId} completed`);
         this.instances.get(meetingId).status = 'completed';
       }).catch(err => {
-        logger.error(`❌ Immediate ${meetingId} failed:`, err);
+        logger.error(`Shared(botManager): Immediate ${meetingId} failed:`, err);
         this.instances.get(meetingId).status = 'error';
       });
 
@@ -316,7 +331,7 @@ class BotManager {
         link: meetingLink
       };
     } catch (err) {
-      logger.error('🚨 Immediate launch failed:', err);
+      logger.error('Shared(botManager): Immediate launch failed:', err);
       return { success: false, error: err.message, meetingId };
     }
   }

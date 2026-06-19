@@ -1,0 +1,50 @@
+<header class="rlm-header" role="banner">
+  <div class="rlm-container rlm-header-inner">
+    <a class="rlm-brand" href="/" aria-label="RetentionLab Home">
+      <span class="rlm-brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 12a8 8 0 1 1-16 0a8 8 0 0 1 16 0Z"></path>
+          <path d="M12 8v4l2 2"></path>
+        </svg>
+      </span>
+      <span class="rlm-brand-name">RetentionLab</span>
+    </a>
+
+    <button class="rlm-burger" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="rlm-nav">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav class="rlm-nav" id="rlm-nav" aria-label="Primary">
+      <a class="rlm-nav-link" href="/about">About</a>
+      <a class="rlm-nav-link" href="/services">Services</a>
+      <a class="rlm-nav-link" href="/blog">Blog</a>
+      <a class="rlm-nav-link" href="/faq">FAQ</a>
+      <a class="rlm-nav-link" href="/contact">Contact</a>
+    </nav>
+
+    <div class="rlm-header-actions">
+      <a class="rlm-link" href="/login">Log in</a>
+      <a class="rlm-btn rlm-btn-primary" href="/contact">Get a demo</a>
+    </div>
+  </div>
+</header>
+<script>
+  // Mobile menu toggle (kept inline so each page remains standalone)
+  (function(){
+    const burger = document.querySelector('.rlm-burger');
+    const nav = document.getElementById('rlm-nav');
+    if(!burger || !nav) return;
+    burger.addEventListener('click', () => {
+      const expanded = burger.getAttribute('aria-expanded') === 'true';
+      burger.setAttribute('aria-expanded', String(!expanded));
+      nav.classList.toggle('is-open');
+    });
+    nav.querySelectorAll('a').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        burger.setAttribute('aria-expanded','false');
+        nav.classList.remove('is-open');
+      });
+    });
+  })();
+</script>
+

@@ -1,4 +1,5 @@
 # services/engine/summary_service/summary_worker.py
+
 import sys
 import time
 
@@ -44,7 +45,7 @@ class SummaryService:
             return "Summary generation skipped: The session transcript data is empty."
 
         total_words = len(transcript_text.split())
-        print(f"[SUMMARY MICROSERVICE] Status: Digesting transcript data array ({total_words} words)...", flush=True)
+        print(f"[SUMMARY MICROSERVICE] Status: Digesting transcript data array ({total_words} words)...", file=sys.stderr, flush=True)
         
         system_instruction = (
             "You are a narrative serialization summary microservice. Analyze the input conversation transcript and "

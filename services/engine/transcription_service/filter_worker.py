@@ -1,4 +1,5 @@
 # services/engine/transcription_service/filter_worker.py
+
 class FilterWorker:
     @staticmethod
     def clean_text(processed_script):

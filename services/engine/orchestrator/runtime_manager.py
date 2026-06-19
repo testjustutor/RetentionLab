@@ -1,3 +1,7 @@
+# root/services/engine/orchestrator/runtime_manager.py
+
+from utils.logger_util import log_with_type
+
 import time
 import traceback
 
@@ -24,6 +28,8 @@ class RuntimeManager:
 
         self.active_tasks = {}
 
+        log_with_type("info", "Engine(orchestrator > runtime_manager) : RuntimeManager initialized", "RUNTIME")
+
     # ==========================================
     # TASK STARTED
     # ==========================================
@@ -41,10 +47,7 @@ class RuntimeManager:
             task_name
         )
 
-        print(
-            f"[RUNTIME] Started: {task_name}",
-            flush=True
-        )
+        log_with_type("info", f"Engine(orchestrator > runtime_manager) : Task started={task_name}", "RUNTIME")
 
     # ==========================================
     # TASK COMPLETED
@@ -81,11 +84,7 @@ class RuntimeManager:
             "duration_seconds": duration
         })
 
-        print(
-            f"[RUNTIME] Completed: {task_name} "
-            f"({duration}s)",
-            flush=True
-        )
+        log_with_type("info", f"Engine(orchestrator > runtime_manager) : Task completed={task_name} duration={duration}s", "RUNTIME")
 
     # ==========================================
     # TASK FAILED
@@ -112,10 +111,7 @@ class RuntimeManager:
             "traceback": traceback.format_exc()
         })
 
-        print(
-            f"[RUNTIME] Failed: {task_name}",
-            flush=True
-        )
+        log_with_type("error", f"Engine(orchestrator > runtime_manager) : Task failed={task_name} error={str(error)}", "RUNTIME")
 
     # ==========================================
     # PIPELINE COMPLETE
@@ -135,8 +131,4 @@ class RuntimeManager:
             "pipeline_duration_seconds"
         ] = total_duration
 
-        print(
-            f"[RUNTIME] Pipeline completed "
-            f"in {total_duration}s",
-            flush=True
-        )
+        log_with_type("info", f"Engine(orchestrator > runtime_manager) : Pipeline completed duration={total_duration}s", "RUNTIME")

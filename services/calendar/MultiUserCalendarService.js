@@ -1,8 +1,20 @@
+/**
+ * root/services/calendar/MultiUserCalendarService.js
+ *
+ */
 const { google } = require('googleapis');
+const crypto = require('crypto');
 const { logger } = require('../../utils/logger');
 const CalendarUsersModel = require('../../models/CalendarUsersModel');
+const UsersModel = require('../../models/UsersModel');
 const path = require('path');
 const fs = require('fs/promises');
+
+function hashPassword(password, salt = null) {
+  salt = salt || crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${derived}`;
+}
 
 class MultiUserCalendarService {
   constructor() {
@@ -125,7 +137,7 @@ class MultiUserCalendarService {
       'https://www.googleapis.com/auth/calendar.readonly',
       'https://www.googleapis.com/auth/calendar.events'
       ],
-      state: this.currentEmail // This is CRITICAL. It passes the email to the callback.
+      state: this.currentEmail
     });
   }
 
@@ -138,11 +150,30 @@ class MultiUserCalendarService {
     this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 
     // 3. Store in Database (This satisfies the NOT NULL constraint)
+    let user = await UsersModel.getUserByEmail(this.currentEmail);
+
+    if (!user) {
+      const created = await UsersModel.createUser({
+        user_uuid: this.currentEmail,
+        email: this.currentEmail,
+        role_id: 3,
+        first_name: null,
+        last_name: null,
+        password_hash: hashPassword(this.currentEmail),
+        status: 'active',
+        company_id: null,
+      });
+      user = { id: created.id, ...created };
+    } else if (user.role_id !== 3) {
+      await UsersModel.updateUser(user.id, { role_id: 3 });
+      user.role_id = 3;
+    }
+
     await CalendarUsersModel.createOrUpdateUser(this.currentEmail, {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date
-    });
+    }, user.id);
 
     return tokens;
   }

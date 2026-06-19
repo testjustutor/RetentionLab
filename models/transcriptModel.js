@@ -1,50 +1,10 @@
+/**
+ * root/models/transcriptModel.js
+ */
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
 class TranscriptModel {
-  static createTranscript(sessionId, speaker, text, timestamp) {
-    return new Promise((resolve, reject) => {
-      const stmt = db.prepare('INSERT INTO transcripts (meeting_session_id, speaker, text, timestamp) VALUES (?, ?, ?, ?)');
-      stmt.run(sessionId, speaker || 'Unknown', text.trim(), timestamp, function(err) {
-        stmt.finalize();
-        if (err) {
-          logger.error('Model(transcriptModel): Error creating transcript:', err);
-          reject(err);
-        } else {
-          logger.info(`Model(transcriptModel): Transcript saved: ${speaker || 'Unknown'} - ${text.substring(0, 50)}...`);
-          resolve({ id: this.lastID, speaker, text, timestamp });
-        }
-      });
-    });
-  }
-
-  static getTranscriptsBySession(sessionId) {
-    return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM transcripts WHERE meeting_session_id = ? ORDER BY timestamp ASC', [sessionId], (err, rows) => {
-        if (err) {
-          logger.error('Model(transcriptModel): Error fetching transcripts:', err);
-          reject(err);
-        } else {
-          resolve(rows);
-        }
-      });
-    });
-  }
-
-  static getTranscriptsByMeeting(meetingId) {
-    return new Promise((resolve, reject) => {
-      db.all(`
-        SELECT t.*, s.meeting_id 
-        FROM transcripts t 
-        JOIN meeting_sessions s ON t.meeting_session_id = s.id 
-        WHERE s.meeting_id = ? 
-        ORDER BY t.timestamp ASC
-      `, [meetingId], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-  }
 
   static createSession(meetingId) {
     return new Promise((resolve, reject) => {
@@ -127,26 +87,11 @@ class TranscriptModel {
     });
   }
 
-  static getAllTranscripts() {
-    return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM transcripts ORDER BY timestamp DESC', (err, rows) => {
-        if (err) {
-          logger.error('Error fetching all transcripts:', err);
-          reject(err);
-        } else {
-          resolve(rows || []);
-        }
-      });
-    });
-  }
-
   static getSessionByMeetingId(meetingId) {
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT s.id, s.meeting_id, s.transcript_file_name, s.audio_file_name, s.start_time, s.end_time, 
-               COUNT(t.id) as transcript_count
+        SELECT s.id, s.meeting_id, s.transcript_file_name, s.audio_file_name, s.start_time, s.end_time
         FROM meeting_sessions s
-        LEFT JOIN transcripts t ON s.id = t.meeting_session_id
         WHERE s.meeting_id = ?
         GROUP BY s.id
         ORDER BY s.id DESC
@@ -165,10 +110,8 @@ class TranscriptModel {
   static getSessionById(sessionId) {
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT s.id, s.meeting_id, s.transcript_file_name, s.start_time, s.end_time,
-               COUNT(t.id) as transcript_count
+        SELECT s.id, s.meeting_id, s.transcript_file_name, s.start_time, s.end_time
         FROM meeting_sessions s
-        LEFT JOIN transcripts t ON s.id = t.meeting_session_id
         WHERE s.id = ?
         GROUP BY s.id
       `, [sessionId], (err, row) => {

@@ -1,0 +1,153 @@
+<!-- root/public/super_admin/profile.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="super_admin">
+  <title>Super Admin — My Profile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="mx-auto p-0">    
+    <div id="header-placeholder"></div>
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col items-center text-center justify-center">
+        <div id="bigAvatar" class="w-20 h-20 rounded-2xl bg-violet-500/10 border-2 border-violet-500/30 flex items-center justify-center text-violet-400 font-bold text-2xl shadow-[0_0_30px_rgba(139,92,246,0.1)] mb-2 select-none">
+          RL
+        </div>
+        <h2 id="cardName" class="text-lg font-bold text-white mb-0.5">Admin</h2>
+        <p id="cardEmail" class="text-slate-400 text-xs mb-2">admin@local</p>
+        <div class="px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[10px] font-semibold uppercase tracking-wider">
+          System Administrator
+        </div>
+      </div>
+
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="text-base font-semibold text-white mb-2 flex items-center gap-2">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 m1 1L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            Personal Details
+        </h2>
+        
+        <form id="profileForm" onsubmit="saveProfile(event)" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-slate-400 text-xs font-medium mb-1.5">Full Name</label>
+              <input type="text" id="inputName" required class="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none transition-colors">
+            </div>
+            <div>
+              <label class="block text-slate-400 text-xs font-medium mb-1.5">Email Address</label>
+              <input type="email" id="inputEmail" required class="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none transition-colors">
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg px-4 py-2 text-xs transition-colors shadow-lg shadow-violet-600/10">
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="text-base font-semibold text-white mb-3">Recent Activity Logs</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-2 font-medium">Event</th>
+                <th class="py-2 font-medium">IP Address</th>
+                <th class="py-2 font-medium">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody class="text-slate-300 divide-y divide-slate-800/50">
+              <tr>
+                <td class="py-2.5 font-mono text-violet-400">auth.login_success</td>
+                <td class="py-2.5">127.0.0.1</td>
+                <td class="py-2.5 text-slate-500">Just Now</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-mono text-violet-400">dashboard.resource_export</td>
+                <td class="py-2.5">192.168.1.45</td>
+                <td class="py-2.5 text-slate-500">2 hours ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+  <script>
+    function toggleProfileMenu() {
+      const menu    = document.getElementById('profileMenu');
+      const chevron = document.getElementById('profileChevron');
+      const isOpen  = !menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', isOpen);
+      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
+
+    document.addEventListener('click', function(e) {
+      const wrap = document.getElementById('profileMenuWrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('profileMenu').classList.add('hidden');
+        document.getElementById('profileChevron').style.transform = '';
+      }
+    });
+
+    function initProfileMenu() {
+      try {
+        const raw  = localStorage.getItem('rl_user') || sessionStorage.getItem('rl_user');
+        const user = raw ? JSON.parse(raw) : null;
+        if (user) {
+          const name     = user.name  || user.email?.split('@')[0] || 'Admin';
+          const email    = user.email || 'admin@local';
+          const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+          
+          // Header setup
+          ['profileAvatar', 'bigAvatar'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = initials; });
+          ['profileName','dropdownName', 'cardName'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = name; });
+          ['profileEmail','dropdownEmail', 'cardEmail'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = email; });
+          
+          // Pre-populate input fields
+          const inName = document.getElementById('inputName');
+          const inEmail = document.getElementById('inputEmail');
+          if(inName) inName.value = name;
+          if(inEmail) inEmail.value = email;
+        }
+      } catch(_) {}
+    }
+
+    function saveProfile(e) {
+      e.preventDefault();
+      const name = document.getElementById('inputName').value;
+      const email = document.getElementById('inputEmail').value;
+      
+      const raw = localStorage.getItem('rl_user') || sessionStorage.getItem('rl_user');
+      let user = raw ? JSON.parse(raw) : {};
+      user.name = name;
+      user.email = email;
+      
+      if(localStorage.getItem('rl_user')) localStorage.setItem('rl_user', JSON.stringify(user));
+      else sessionStorage.setItem('rl_user', JSON.stringify(user));
+      
+      initProfileMenu();
+      alert('Profile updated configuration successfully!');
+    }
+
+    async function handleLogout() {
+      localStorage.removeItem('rl_user');
+      localStorage.removeItem('rl_token');
+      sessionStorage.clear();
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(_) {}
+      window.location.href = '/login.html';
+    }
+
+    window.addEventListener('load', () => { if (typeof initProfileMenu === 'function') initProfileMenu(); });
+  </script>
+  <script src="../js/load-components.js"></script>
+</body>
+</html>

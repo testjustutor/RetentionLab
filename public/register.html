@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; }
+    .card { max-width: 420px; margin: 72px auto; padding: 32px; border-radius: 22px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.12); box-shadow: 0 40px 120px rgba(15, 23, 42, 0.55); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 class="text-3xl font-bold mb-4 text-white">Create account</h1>
+    <p class="text-sm text-slate-400 mb-6">Register with email, password and basic profile details.</p>
+    <form id="registerForm" class="space-y-4">
+      <div>
+        <label class="block text-sm text-slate-300 mb-2" for="registerEmail">Email</label>
+        <input id="registerEmail" type="email" required class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-300 mb-2" for="registerPassword">Password</label>
+        <input id="registerPassword" type="password" required class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-300 mb-2" for="registerName">Full name</label>
+        <input id="registerName" type="text" class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20">
+      </div>
+      <div id="registerError" class="text-sm text-red-400 min-h-[1.25rem]"></div>
+      <button type="submit" class="w-full rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-400 transition">Register</button>
+    </form>
+    <p class="text-xs text-slate-500 mt-5">Already have an account? <a href="/login.html" class="text-violet-400 hover:text-violet-300 underline">Sign in</a></p>
+  </div>
+  <script type="module" src="/js/auth.js"></script>
+  <script type="module" src="/js/register.js"></script>
+</body>
+</html>

@@ -1,4 +1,7 @@
+# root/services/engine/orchestrator/pipeline_context.py
+
 import os
+import re
 import json
 from threading import Lock
 
@@ -29,6 +32,10 @@ class PipelineContext:
             if filename_no_ext.startswith("REC_")
             else filename_no_ext
         )
+
+        # Backwards-compatibility aliases used by audit and other task handlers.
+        self.meeting_id = self.base_id
+        self.session_id = self._resolve_session_id(filename_no_ext)
 
         self.storage_paths = self._setup_directories()
 
@@ -98,6 +105,14 @@ class PipelineContext:
         }
 
         # ==========================================
+        # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
+        # Resolved at startup from storage/transcripts
+        # using base_id (strip trailing chunk suffix)
+        # ==========================================
+        self.captions_trans_path = self._resolve_captions_trans_path()
+        self.meeting_start = None   # set by transcription_task after parsing header
+
+        # ==========================================
         # TASK EXECUTION STATUS
         # ==========================================
         self.task_status = {
@@ -127,6 +142,45 @@ class PipelineContext:
             return val.lower() in ("true", "1", "yes")
 
         return default
+
+    def _resolve_captions_trans_path(self):
+        """
+        Locates the platform captions transcript (TRANS_*.txt) for this session.
+
+        The TRANS file is written by the bot (Teams / Zoom / Google Meet) and
+        stored in storage/transcripts. Its filename mirrors base_id but without
+        the trailing chunk suffix (_2, _3, etc.).
+
+        Example:
+            base_id   : meeting_<id>_Sess28_2026-06-12_16-01_2
+            TRANS file: TRANS_meeting_<id>_Sess28_2026-06-12_16-01.txt
+        """
+        import re
+
+        # Strip trailing chunk number (_2, _3 …) to get the session-level stem
+        trans_stem = re.sub(r"_\d+$", "", self.base_id)
+        trans_filename = f"TRANS_{trans_stem}.txt"
+
+        # Search directories in priority order
+        search_dirs = [
+            os.path.join(self.project_root, "storage", "transcripts"),
+            os.path.join(self.project_root, "storage", "cache_captions_raw"),
+            os.path.join(self.project_root, "storage"),
+        ]
+
+        for directory in search_dirs:
+            candidate = os.path.join(directory, trans_filename)
+            if os.path.exists(candidate):
+                return candidate
+
+        # Not found — diarization will proceed with SPEAKER_XX labels
+        return None
+
+    def _resolve_session_id(self, filename_no_ext):
+        match = re.search(r"_Sess(\d+)(?:_|$)", filename_no_ext)
+        if match:
+            return int(match.group(1))
+        return None
 
     def _setup_directories(self):
         storage_base = os.path.join(
@@ -187,11 +241,6 @@ class PipelineContext:
             "cache_screenshots": os.path.join(
                 storage_base,
                 "cache_screenshots"
-            ),
-
-            "transcripts": os.path.join(
-                storage_base,
-                "cache_audio_transcripts"
             ),
 
             "cache_audio_transcripts": os.path.join(

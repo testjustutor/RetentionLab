@@ -1,3 +1,7 @@
+# root/services/engine/transcription_service/transcript_builder.py
+
+from utils.logger_util import log_with_type
+
 import os
 
 from services.engine.shared.file_store import (
@@ -18,6 +22,8 @@ class TranscriptBuilder:
 
         self.context = context
 
+        log_with_type("info", "Engine(transcription_service > transcript_builder) : Initialized", "TRANSCRIPTION")
+
     # ==========================================
     # BUILD TRANSCRIPT
     # ==========================================
@@ -27,6 +33,8 @@ class TranscriptBuilder:
         whisper_result,
         diarization
     ):
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Build started segments={len(whisper_result.get('segments', []))}", "TRANSCRIPTION")
 
         segments = whisper_result.get(
             "segments",
@@ -93,13 +101,15 @@ class TranscriptBuilder:
             lines
         )
 
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Transcript generated lines={len(lines)}", "TRANSCRIPTION")
+
         transcript_path = os.path.join(
 
             self.context.storage_paths[
-                "transcripts"
+                "cache_audio_transcripts"
             ],
 
-            f"{self.context.base_id}.txt"
+            f"AUDIO_TRANS_{self.context.base_id}.txt"
         )
 
         FileStore.save_text(
@@ -108,6 +118,8 @@ class TranscriptBuilder:
 
             transcript
         )
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Transcript saved path={transcript_path}", "TRANSCRIPTION")
 
         total = sum(
             speaker_stats.values()
@@ -129,6 +141,8 @@ class TranscriptBuilder:
 
                     2
                 )
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Talk ratio computed speakers={len(talk_ratio)}", "TRANSCRIPTION")
 
         return {
 

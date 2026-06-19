@@ -1,3 +1,7 @@
+# root/services/engine/orchestrator/dependency_graph.py
+
+from utils.logger_util import log_with_type
+
 from services.engine.orchestrator.task_registry import (
     TASK_REGISTRY
 )
@@ -32,6 +36,8 @@ class DependencyGraph:
 
         self.registry = TASK_REGISTRY
 
+        log_with_type("info", "Engine(orchestrator > dependency_graph) : DependencyGraph initialized", "GRAPH")
+
     # ==========================================
     # PUBLIC GRAPH BUILD
     # ==========================================
@@ -39,6 +45,8 @@ class DependencyGraph:
     def build(self):
 
         executable_tasks = []
+
+        log_with_type("info", "Engine(orchestrator > dependency_graph) : Building executable task graph", "GRAPH")
 
         for task_name, metadata in self.registry.items():
 
@@ -55,7 +63,7 @@ class DependencyGraph:
                 feature_flag,
                 False
             ):
-
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Skipping task={task_name} (feature disabled)", "GRAPH")
                 continue
 
             executable_tasks.append({
@@ -75,6 +83,10 @@ class DependencyGraph:
                 )
             })
 
+            log_with_type("info", f"Engine(orchestrator > dependency_graph) : Task added={task_name}", "GRAPH")
+
+        log_with_type("info", f"Engine(orchestrator > dependency_graph) : Build complete total_tasks={len(executable_tasks)}", "GRAPH")
+
         return executable_tasks
 
     # ==========================================
@@ -86,6 +98,8 @@ class DependencyGraph:
         completed_tasks
     ):
 
+        log_with_type("info", f"Engine(orchestrator > dependency_graph) : Resolving ready tasks completed_count={len(completed_tasks)}", "GRAPH")
+
         ready_tasks = []
 
         for task in self.build():
@@ -94,7 +108,7 @@ class DependencyGraph:
 
             # already executed
             if task_name in completed_tasks:
-
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Skipping already executed task={task_name}", "GRAPH")
                 continue
 
             dependencies = task.get(
@@ -119,6 +133,12 @@ class DependencyGraph:
                     task
                 )
 
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Ready task={task_name}", "GRAPH")
+            else:
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Waiting task={task_name} unmet_dependencies={dependencies}", "GRAPH")
+
+        log_with_type("info", f"Engine(orchestrator > dependency_graph) : Ready tasks resolved count={len(ready_tasks)}", "GRAPH")
+
         return ready_tasks
 
     # ==========================================
@@ -129,8 +149,9 @@ class DependencyGraph:
     def split_parallel_tasks(tasks):
 
         sequential = []
-
         parallel = []
+
+        log_with_type("info", f"Engine(orchestrator > dependency_graph) : Splitting tasks total={len(tasks)}", "GRAPH")
 
         for task in tasks:
 
@@ -139,11 +160,15 @@ class DependencyGraph:
                 parallel.append(
                     task
                 )
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Parallel task={task['task_name']}", "GRAPH")
 
             else:
 
                 sequential.append(
                     task
                 )
+                log_with_type("info", f"Engine(orchestrator > dependency_graph) : Sequential task={task['task_name']}", "GRAPH")
+
+        log_with_type("info", f"Engine(orchestrator > dependency_graph) : Split done sequential={len(sequential)} parallel={len(parallel)}", "GRAPH")
 
         return sequential, parallel

@@ -1,4 +1,5 @@
 # services/engine/transcription_service/token_processor.py
+
 import os
 import json
 import whisperx
@@ -15,7 +16,7 @@ class TokenProcessor:
         
         # Initialize the WhisperX Diarization wrapper (uses Pyannote inside)
         diarize_model = whisperx.DiarizationPipeline(
-            use_auth_token=hf_token if hf_token else True, 
+            token=hf_token if hf_token else True, 
             device=device
         )
         

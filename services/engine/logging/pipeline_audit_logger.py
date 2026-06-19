@@ -1,3 +1,5 @@
+# services/engine/logging/pipeline_audit_logger.py
+
 from services.engine.shared.json_store import (
     JsonStore
 )

@@ -1,3 +1,7 @@
+/**
+ * root/services/platforms/zoom/participantCapture.js
+ *
+ */
 const { logger } = require('../../../utils/logger');
 
 /**
@@ -30,7 +34,7 @@ class ParticipantCapture {
           if (element) {
             await element.click();
             opened = true;
-            logger.info('GoogleMeetAdapter(participantCapture): People panel opened');
+            logger.info('ZoomAdapter(participantCapture): People panel opened');
             break;
           }
         } catch (_) {
@@ -45,7 +49,7 @@ class ParticipantCapture {
 
       return opened;
     } catch (err) {
-      logger.warn('GoogleMeetAdapter(participantCapture): Failed to open people panel:', err.message);
+      logger.warn('ZoomAdapter(participantCapture): Failed to open people panel:', err.message);
       return false;
     }
   }
@@ -134,7 +138,7 @@ class ParticipantCapture {
 
       return participants;
     } catch (err) {
-      logger.error('GoogleMeetAdapter(participantCapture): Error extracting names:', err.message);
+      logger.error('ZoomAdapter(participantCapture): Error extracting names:', err.message);
       return [];
     }
   }
@@ -144,7 +148,7 @@ class ParticipantCapture {
    */
   async captureParticipants() {
     try {
-      logger.info('GoogleMeetAdapter(participantCapture): Starting participant capture');
+      logger.info('ZoomAdapter(participantCapture): Starting participant capture');
 
       // Open people panel
       const panelOpened = await this.openPeoplePanel();
@@ -153,7 +157,7 @@ class ParticipantCapture {
       const participants = await this.extractParticipantNames();
 
       logger.info(
-        `GoogleMeetAdapter(participantCapture): Captured ${participants.length} participants: ${participants.join(', ')}`
+        `ZoomAdapter(participantCapture): Captured ${participants.length} participants: ${participants.join(', ')}`
       );
 
       return {
@@ -164,7 +168,7 @@ class ParticipantCapture {
         timestamp: new Date().toISOString()
       };
     } catch (err) {
-      logger.error('GoogleMeetAdapter(participantCapture): Capture failed:', err.message);
+      logger.error('ZoomAdapter(participantCapture): Capture failed:', err.message);
       return {
         success: false,
         count: 0,
