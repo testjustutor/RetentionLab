@@ -7,8 +7,8 @@ const { logger } = require('../utils/logger');
 class CompaniesModel {
   static createCompany(data) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO companies (company_uuid, company_name, company_code, domain, logo_url, status, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-      db.run(sql, [data.company_uuid, data.company_name, data.company_code, data.domain || null, data.logo_url || null, data.status || 'active'], function(err) {
+      const sql = `INSERT INTO companies (company_uuid, company_name, company_code, domain, logo_url, status, company_type, subscription_plan, subscription_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      db.run(sql, [data.company_uuid, data.company_name, data.company_code, data.domain || null, data.logo_url || null, data.status || 'active', data.company_type || 'organization', data.subscription_plan || 'free', data.subscription_status || 'active'], function(err) {
         if (err) {
           logger.error('Model(CompaniesModel): Create error', err);
           return reject(err);
@@ -50,6 +50,18 @@ class CompaniesModel {
         if (err) return reject(err);
         resolve({ deleted: this.changes > 0 });
       });
+    });
+  }
+
+  static getCompanyByUuid(uuid) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM companies WHERE company_uuid = ? AND deleted_at IS NULL', [uuid], (err, row) => err ? reject(err) : resolve(row || null));
+    });
+  }
+
+  static getCompanyByCode(code) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM companies WHERE company_code = ? AND deleted_at IS NULL', [code], (err, row) => err ? reject(err) : resolve(row || null));
     });
   }
 }

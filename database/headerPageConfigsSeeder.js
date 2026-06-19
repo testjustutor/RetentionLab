@@ -20,7 +20,8 @@ const DEFAULT_PAGES = {
   manageUsers:       { title: 'Manage Users',          description: 'Edit, deactivate, and manage user accounts.',                   roleTitle: 'User Management', showStats: false, buttons: [] },
   rolesAccess:       { title: 'Roles & Access',        description: 'Manage user roles and access permissions.',                     roleTitle: 'User Management', showStats: false, buttons: [] },
   rubricManagement:  { title: 'Rubric Management',     description: 'Create, manage, and assign rubric categories and indicators.',   roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] }
+  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  myWorkspace:       { title: 'My Workspace',          description: 'Your personal dashboard — meetings, reports, and calendar.',      roleTitle: 'My Workspace', showStats: true, buttons: [] }
 };
 
 const seedHeaderPageConfigs = async () => {

@@ -10,6 +10,7 @@ const { seedSuperAdmin } = require('./superAdmin');
 const { seedAdminUser } = require('./adminUserSeeder');
 const { seedRubric } = require('./rubricSeeder');
 const { seedSettings } = require('./settingsSeeder');
+const { seedPermissions } = require('./permissionsSeeder');
 
 const runSeeder = async () => {
     await seedRoles();
@@ -21,17 +22,21 @@ const runSeeder = async () => {
     await seedAdminUser();
     await seedRubric();
     await seedSettings();
+    // Must run after seedRoles (needs role ids) and after seedSuperAdmin/
+    // seedAdminUser if you later seed user-level overrides here too.
+    await seedPermissions();
 };
 
-module.exports = { 
-    runSeeder, 
-    seedRoles, 
+module.exports = {
+    runSeeder,
+    seedRoles,
     seedCompanies,
     seedHeaderRoleConfigs,
     seedHeaderMenuItems,
     seedHeaderPageConfigs,
     seedSuperAdmin,
     seedAdminUser,
-    seedRubric, 
-    seedSettings 
+    seedRubric,
+    seedSettings,
+    seedPermissions,
 };

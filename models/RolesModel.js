@@ -17,6 +17,12 @@ class RolesModel {
     });
   }
 
+  static getRoleById(id) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM roles WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row || null));
+    });
+  }
+
   static createRole(role_name, description) {
     return new Promise((resolve, reject) => {
       db.run('INSERT OR IGNORE INTO roles (role_name, description, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [role_name, description || null], function(err) {

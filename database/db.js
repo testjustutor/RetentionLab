@@ -48,6 +48,9 @@ const initDB = () => {
                             domain TEXT,
                             logo_url TEXT,
                             status TEXT DEFAULT 'active',
+                            company_type TEXT DEFAULT 'organization',
+                            subscription_plan TEXT DEFAULT 'free',
+                            subscription_status TEXT DEFAULT 'active',
                             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             deleted_at DATETIME
@@ -79,6 +82,7 @@ const initDB = () => {
                             status TEXT DEFAULT 'active',
                             last_login_at DATETIME,
                             created_by INTEGER,
+                            is_company_owner INTEGER NOT NULL DEFAULT 0,
                             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             deleted_at DATETIME,
@@ -140,6 +144,21 @@ const initDB = () => {
                             verified_at DATETIME,
                             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS subscriptions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            company_id INTEGER,
+                            plan_name TEXT,
+                            billing_cycle TEXT,
+                            amount REAL,
+                            start_date DATETIME,
+                            end_date DATETIME,
+                            status TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (company_id) REFERENCES companies(id)
                         )
                     `);
 
@@ -255,16 +274,20 @@ const initDB = () => {
 
                     // ─── ADMIN RUBRIC ASSIGNMENT TABLES ─────────────────────────────
                     // When Super Admin assigns categories/indicators to an Admin,
-                    // copies are created here with admin_id for data isolation.
+                    // copies are created here. company_id is carried alongside
+                    // admin_user_id so these rows are directly company-scoped
+                    // (not just reachable via a join through users.company_id).
                     await runAsync(`
                         CREATE TABLE IF NOT EXISTS rubric_assignments (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             category_id TEXT NOT NULL,
                             admin_user_id INTEGER NOT NULL,
+                            company_id INTEGER,
                             created_by INTEGER,
                             assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY (category_id) REFERENCES rubric_categories(category_id),
                             FOREIGN KEY (admin_user_id) REFERENCES users(id),
+                            FOREIGN KEY (company_id) REFERENCES companies(id),
                             FOREIGN KEY (created_by) REFERENCES users(id),
                             UNIQUE(category_id, admin_user_id)
                         )
@@ -275,6 +298,7 @@ const initDB = () => {
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             original_category_id TEXT NOT NULL,
                             admin_user_id INTEGER NOT NULL,
+                            company_id INTEGER,
                             name TEXT NOT NULL,
                             weight REAL NOT NULL DEFAULT 0,
                             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -289,6 +313,7 @@ const initDB = () => {
                             original_indicator_id TEXT NOT NULL,
                             original_category_id TEXT NOT NULL,
                             admin_user_id INTEGER NOT NULL,
+                            company_id INTEGER,
                             name TEXT NOT NULL,
                             type TEXT CHECK(type IN ('AI', 'HUMAN')) DEFAULT 'HUMAN',
                             is_gate BOOLEAN DEFAULT 0,
@@ -500,6 +525,81 @@ const initDB = () => {
                             FOREIGN KEY (role_id)    REFERENCES roles(id),
                             FOREIGN KEY (created_by) REFERENCES users(id),
                             FOREIGN KEY (updated_by) REFERENCES users(id)
+                        )
+                    `);
+
+                    // ═══════════════════════════════════════════════════════════════════
+                    // ─── NEW: PERMISSIONS & INVITATIONS SYSTEM ─────────────────────────
+                    // ═══════════════════════════════════════════════════════════════════
+
+                    // ─── permissions ──────────────────────────────────────────────────
+                    // Master catalog of every grantable permission in the platform.
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS permissions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            permission_key TEXT UNIQUE NOT NULL,
+                            label TEXT NOT NULL,
+                            category TEXT NOT NULL,
+                            description TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+
+                    // ─── role_permissions ─────────────────────────────────────────────
+                    // company_id NULL  = applies to this role globally (system roles)
+                    // company_id set   = company-specific customization of a role
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS role_permissions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            role_id INTEGER NOT NULL,
+                            permission_id INTEGER NOT NULL,
+                            company_id INTEGER,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (role_id) REFERENCES roles(id),
+                            FOREIGN KEY (permission_id) REFERENCES permissions(id),
+                            FOREIGN KEY (company_id) REFERENCES companies(id),
+                            UNIQUE(role_id, permission_id, company_id)
+                        )
+                    `);
+
+                    // ─── user_permissions ─────────────────────────────────────────────
+                    // Per-user grant/deny overrides on top of role_permissions.
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS user_permissions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            permission_id INTEGER NOT NULL,
+                            company_id INTEGER NOT NULL,
+                            effect TEXT CHECK(effect IN ('grant','deny')) DEFAULT 'grant',
+                            granted_by INTEGER,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users(id),
+                            FOREIGN KEY (permission_id) REFERENCES permissions(id),
+                            FOREIGN KEY (company_id) REFERENCES companies(id),
+                            FOREIGN KEY (granted_by) REFERENCES users(id),
+                            UNIQUE(user_id, permission_id, company_id)
+                        )
+                    `);
+
+                    // ─── user_invitations ─────────────────────────────────────────────
+                    await runAsync(`
+                        CREATE TABLE IF NOT EXISTS user_invitations (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            company_id INTEGER NOT NULL,
+                            email TEXT NOT NULL,
+                            role_id INTEGER NOT NULL,
+                            token TEXT UNIQUE NOT NULL,
+                            status TEXT CHECK(status IN ('pending','accepted','expired','revoked')) DEFAULT 'pending',
+                            invited_by INTEGER NOT NULL,
+                            accepted_by INTEGER,
+                            expires_at DATETIME NOT NULL,
+                            accepted_at DATETIME,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (company_id) REFERENCES companies(id),
+                            FOREIGN KEY (role_id) REFERENCES roles(id),
+                            FOREIGN KEY (invited_by) REFERENCES users(id),
+                            FOREIGN KEY (accepted_by) REFERENCES users(id),
+                            UNIQUE(company_id, email, status)
                         )
                     `);
 
@@ -743,6 +843,23 @@ const initDB = () => {
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_final_evaluation_meeting         ON session_final_evaluation(meeting_id)`);
                     await runAsync(`CREATE INDEX IF NOT EXISTS idx_final_evaluation_action          ON session_final_evaluation(recommended_action)`);
 
+                    // ═══════════════════════════════════════════════════════════════════
+                    // ─── NEW INDEXES: PERMISSIONS & INVITATIONS ────────────────────────
+                    // ═══════════════════════════════════════════════════════════════════
+
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_role_permissions_role     ON role_permissions(role_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_role_permissions_perm     ON role_permissions(permission_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_role_permissions_company  ON role_permissions(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_user_permissions_user     ON user_permissions(user_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_user_permissions_company  ON user_permissions(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_invitations_company       ON user_invitations(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_invitations_email         ON user_invitations(email)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_invitations_token         ON user_invitations(token)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_admin_rubric_categories_company ON admin_rubric_categories(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_admin_rubric_indicators_company ON admin_rubric_indicators(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_rubric_assignments_company      ON rubric_assignments(company_id)`);
+                    await runAsync(`CREATE INDEX IF NOT EXISTS idx_subscriptions_company           ON subscriptions(company_id)`);
+
                     resolve();
                 } catch (err) {
                     reject(err);
@@ -785,6 +902,84 @@ const migrateDB = async () => {
             } catch (e) {
                 // table might not exist yet, that's fine
             }
+        }
+
+        // ─── NEW: is_company_owner on users ───────────────────────────────────
+        const userTableInfo = await allAsync("PRAGMA table_info(users)");
+        if (!userTableInfo.some(col => col.name === 'is_company_owner')) {
+            await runAsync("ALTER TABLE users ADD COLUMN is_company_owner INTEGER NOT NULL DEFAULT 0");
+            console.log('[DB] Added is_company_owner column to users');
+        }
+        // Enforce at most one owner per company. Safe/no-op if it already exists.
+        // Run AFTER the column-add above so this works whether the DB is fresh
+        // (column already present from initDB) or pre-existing (just patched).
+        await runAsync(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_company_owner
+            ON users(company_id)
+            WHERE is_company_owner = 1
+        `);
+
+        // ─── NEW: company_id on admin_rubric_categories ───────────────────────
+        const adminCatTableInfo = await allAsync("PRAGMA table_info(admin_rubric_categories)");
+        if (!adminCatTableInfo.some(col => col.name === 'company_id')) {
+            await runAsync("ALTER TABLE admin_rubric_categories ADD COLUMN company_id INTEGER");
+            console.log('[DB] Added company_id column to admin_rubric_categories');
+        }
+        // Backfill from the owning admin's company. Safe to re-run (only fills NULLs).
+        await runAsync(`
+            UPDATE admin_rubric_categories
+            SET company_id = (SELECT u.company_id FROM users u WHERE u.id = admin_rubric_categories.admin_user_id)
+            WHERE company_id IS NULL
+        `);
+
+        // ─── NEW: company_id on admin_rubric_indicators ───────────────────────
+        if (!adminIndTableInfo.some(col => col.name === 'company_id')) {
+            await runAsync("ALTER TABLE admin_rubric_indicators ADD COLUMN company_id INTEGER");
+            console.log('[DB] Added company_id column to admin_rubric_indicators');
+        }
+        await runAsync(`
+            UPDATE admin_rubric_indicators
+            SET company_id = (SELECT u.company_id FROM users u WHERE u.id = admin_rubric_indicators.admin_user_id)
+            WHERE company_id IS NULL
+        `);
+
+        // ─── NEW: company_id on rubric_assignments ────────────────────────────
+        const assignTableInfo = await allAsync("PRAGMA table_info(rubric_assignments)");
+        if (!assignTableInfo.some(col => col.name === 'company_id')) {
+            await runAsync("ALTER TABLE rubric_assignments ADD COLUMN company_id INTEGER");
+            console.log('[DB] Added company_id column to rubric_assignments');
+        }
+        await runAsync(`
+            UPDATE rubric_assignments
+            SET company_id = (SELECT u.company_id FROM users u WHERE u.id = rubric_assignments.admin_user_id)
+            WHERE company_id IS NULL
+        `);
+
+        // ─── NEW: rename legacy 'employee' role to 'instructor' if present ────
+        // Safe to run every startup: no-op once the rename has happened once.
+        await runAsync(`UPDATE roles SET role_name = 'instructor' WHERE role_name = 'employee'`);
+
+        // ─── NEW: ensure solo_instructor role exists ───────────────────────────
+        // seedRoles() skips entirely when roles table is non-empty, so existing
+        // databases need this explicit upsert to pick up the new role.
+        await runAsync(`
+            INSERT OR IGNORE INTO roles (role_name, description)
+            VALUES ('solo_instructor', 'Self-registered individual instructor with their own workspace')
+        `);
+
+        // ─── NEW: company_type, subscription_plan, subscription_status on companies ──
+        const companiesTableInfo = await allAsync("PRAGMA table_info(companies)");
+        if (!companiesTableInfo.some(col => col.name === 'company_type')) {
+            await runAsync("ALTER TABLE companies ADD COLUMN company_type TEXT DEFAULT 'organization'");
+            console.log('[DB] Added company_type column to companies');
+        }
+        if (!companiesTableInfo.some(col => col.name === 'subscription_plan')) {
+            await runAsync("ALTER TABLE companies ADD COLUMN subscription_plan TEXT DEFAULT 'free'");
+            console.log('[DB] Added subscription_plan column to companies');
+        }
+        if (!companiesTableInfo.some(col => col.name === 'subscription_status')) {
+            await runAsync("ALTER TABLE companies ADD COLUMN subscription_status TEXT DEFAULT 'active'");
+            console.log('[DB] Added subscription_status column to companies');
         }
 
         console.log('[DB] Migrations completed successfully');

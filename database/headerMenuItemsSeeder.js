@@ -61,16 +61,29 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'settings', label: 'Settings', href: '/reviewer/settings.html' }
     ]}
   ],
-  employee: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/employee/index.html', submenu: null },
+  instructor: [
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', submenu: null },
     { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-      { id: 'calendar-accounts', label: 'My Calendar', href: '/employee/calendar-accounts.html' },
-      { id: 'calendar-events', label: 'Events', href: '/employee/calendar-events.html' }
+      { id: 'calendar-accounts', label: 'My Calendar', href: '/instructor/calendar-accounts.html' },
+      { id: 'calendar-events', label: 'Events', href: '/instructor/calendar-events.html' }
     ]},
-    { id: 'content', label: 'Archives', icon: 'folder', href: '/employee/archives.html', submenu: null },
+    { id: 'content', label: 'Archives', icon: 'folder', href: '/instructor/archives.html', submenu: null },
     { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-      { id: 'profile', label: 'Profile', href: '/employee/profile.html' },
-      { id: 'settings', label: 'Settings', href: '/employee/settings.html' }
+      { id: 'profile', label: 'Profile', href: '/instructor/profile.html' },
+      { id: 'settings', label: 'Settings', href: '/instructor/settings.html' }
+    ]}
+  ],
+  solo_instructor: [
+    { id: 'dashboard', label: 'My Workspace', icon: 'grid', href: '/my-workspace/index.html', submenu: null },
+    { id: 'schedules', label: 'My Meetings', icon: 'calendar', href: null, submenu: [
+      { id: 'calendar-accounts', label: 'Connect Calendar', href: '/my-workspace/calendar-accounts.html' },
+      { id: 'calendar-events', label: 'My Events', href: '/my-workspace/calendar-events.html' }
+    ]},
+    { id: 'content', label: 'My Archives', icon: 'folder', href: '/my-workspace/archives.html', submenu: null },
+    { id: 'reports', label: 'My Reports', icon: 'bar-chart', href: '/my-workspace/reports.html', submenu: null },
+    { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
+      { id: 'profile', label: 'Profile', href: '/my-workspace/profile.html' },
+      { id: 'settings', label: 'Settings', href: '/my-workspace/settings.html' }
     ]}
   ]
 };
@@ -88,6 +101,9 @@ const seedHeaderMenuItems = async () => {
 
     for (const role of roles) {
         const menuItems = DEFAULT_MENU_BY_ROLE[role.role_name] || [];
+        if (!DEFAULT_MENU_BY_ROLE[role.role_name]) {
+            console.warn(`[Seed] headerMenuItemsSeeder: no menu defined for role "${role.role_name}", skipping.`);
+        }
 
         let displayOrder = 0;
         for (const item of menuItems) {

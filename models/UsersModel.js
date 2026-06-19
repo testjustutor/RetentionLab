@@ -42,6 +42,7 @@ class UsersModel {
       phone: data.phone || null,
       profile_image: data.profile_image || null,
       status: data.status || 'active',
+      is_company_owner: data.is_company_owner ? 1 : 0,
       created_by: user ? user.id : null
     };
 
@@ -55,14 +56,21 @@ class UsersModel {
         db.get(`SELECT role_name FROM roles WHERE id = ?`, [insertData.role_id], (err, row) => err ? reject(err) : resolve(row || null));
       });
       if (roleRow) {
-        if (user?.role_name === 'super_admin' && roleRow.role_name !== 'admin') {
-          throw new Error('Super admin may only create admin accounts');
+        // Self-registration path (no authenticated user): allow solo_instructor only
+        if (!user && !['solo_instructor', 'instructor'].includes(roleRow.role_name)) {
+          throw new Error('Self-registration is only available for instructor roles');
         }
-        if (user?.role_name === 'admin' && roleRow.role_name !== 'reviewer') {
+        // Super admin can create any role
+        if (user?.role_name === 'super_admin') {
+          // Super admin can create any role — no restriction
+        }
+        // Admin can only create reviewer accounts
+        else if (user?.role_name === 'admin' && roleRow.role_name !== 'reviewer') {
           throw new Error('Admin may only create reviewer accounts');
         }
-        if (roleRow.role_name === 'admin' && !insertData.company_id) {
-          throw new Error('Admin users must be associated with a company (company_id required)');
+        // Require company_id for roles that need it
+        if (['admin', 'reviewer', 'instructor'].includes(roleRow.role_name) && !insertData.company_id) {
+          throw new Error(`${roleRow.role_name} users must be associated with a company (company_id required)`);
         }
       }
     }
@@ -72,8 +80,8 @@ class UsersModel {
     }
 
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-      db.run(sql, [insertData.user_uuid, insertData.company_id, insertData.role_id, insertData.first_name, insertData.last_name, insertData.email, insertData.password_hash, insertData.phone, insertData.profile_image, insertData.status, insertData.created_by], function(err) {
+      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, is_company_owner, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      db.run(sql, [insertData.user_uuid, insertData.company_id, insertData.role_id, insertData.first_name, insertData.last_name, insertData.email, insertData.password_hash, insertData.phone, insertData.profile_image, insertData.status, insertData.is_company_owner, insertData.created_by], function(err) {
         if (err) {
           logger.error('Model(UsersModel): Create error', err);
           return reject(err);

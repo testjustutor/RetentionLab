@@ -26,12 +26,19 @@ const DEFAULT_NAV_BY_ROLE = {
     profile: { label: 'Profile', href: '/reviewer/profile.html' },
     settings: { label: 'Settings', href: '/reviewer/settings.html' }
   },
-  employee: {
-    home: { label: 'Dashboard', href: '/employee/index.html' },
-    events: { label: 'Events', href: '/employee/calendar-events.html' },
-    archives: { label: 'Archives', href: '/employee/archives.html' },
-    profile: { label: 'Profile', href: '/employee/profile.html' },
-    settings: { label: 'Settings', href: '/employee/settings.html' }
+  instructor: {
+    home: { label: 'Dashboard', href: '/instructor/index.html' },
+    events: { label: 'Events', href: '/instructor/calendar-events.html' },
+    archives: { label: 'Archives', href: '/instructor/archives.html' },
+    profile: { label: 'Profile', href: '/instructor/profile.html' },
+    settings: { label: 'Settings', href: '/instructor/settings.html' }
+  },
+  solo_instructor: {
+    home: { label: 'My Workspace', href: '/my-workspace/index.html' },
+    events: { label: 'My Meetings', href: '/my-workspace/calendar-events.html' },
+    archives: { label: 'My Archives', href: '/my-workspace/archives.html' },
+    profile: { label: 'Profile', href: '/my-workspace/profile.html' },
+    settings: { label: 'Settings', href: '/my-workspace/settings.html' }
   }
 };
 
@@ -47,7 +54,10 @@ const seedHeaderRoleConfigs = async () => {
     });
 
     for (const role of roles) {
-        const nav = DEFAULT_NAV_BY_ROLE[role.role_name] || DEFAULT_NAV_BY_ROLE.employee;
+        const nav = DEFAULT_NAV_BY_ROLE[role.role_name] || DEFAULT_NAV_BY_ROLE.instructor;
+        if (!DEFAULT_NAV_BY_ROLE[role.role_name]) {
+            console.warn(`[Seed] headerRoleConfigSeeder: no nav config for role "${role.role_name}", falling back to instructor defaults.`);
+        }
 
         await runAsync(
             `INSERT OR IGNORE INTO header_role_configs 

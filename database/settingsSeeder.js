@@ -1,5 +1,5 @@
 /**
- * root/database/seetingsSeeder.js
+ * root/database/settingsSeeder.js
  */
 const { runAsync, getAsync, allAsync } = require('./seedHelpers');
 const appConfig = require('../config/settings');
@@ -82,7 +82,7 @@ const SETTINGS_BY_GROUP = {
     { setting_key: 'support_phone', setting_value: '' },
   ],
   access_control: [
-    { setting_key: 'allow_employee_self_registration', setting_value: 'true' },
+    { setting_key: 'allow_instructor_self_registration', setting_value: 'true' },
     { setting_key: 'allow_guest_access', setting_value: 'false' },
     { setting_key: 'allow_reviewer_assignment', setting_value: 'true' },
     { setting_key: 'allow_score_editing_after_submit', setting_value: 'false' },
@@ -192,7 +192,7 @@ const ROLE_DEFAULTS = {
     { setting_key: 'privacy_mode', setting_value: 'strict' },
     { setting_key: 'captions_enabled', setting_value: 'true' },
   ],
-  employee: [
+  instructor: [
     { setting_key: 'default_dashboard_view', setting_value: 'overview' },
     { setting_key: 'default_items_per_page', setting_value: '10' },
     { setting_key: 'privacy_mode', setting_value: 'strict' },

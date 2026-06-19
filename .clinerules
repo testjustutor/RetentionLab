@@ -1,0 +1,18 @@
+Project Goal:
+Build reliable software with clear, maintainable code.
+
+Development Rules:
+- Understand the existing codebase before making changes.
+- Explain significant changes before implementing them.
+- Preserve existing project structure when possible.
+- Prefer simple solutions over complex ones.
+
+Code Quality:
+- Write modular, readable code.
+- Avoid unnecessary dependencies.
+- Add comments only when they improve understanding.
+- Follow existing coding conventions.
+
+Testing:
+- Check for errors before marking tasks complete.
+- Verify that requested requirements were implemented.
