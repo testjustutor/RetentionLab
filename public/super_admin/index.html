@@ -1,4 +1,3 @@
-<!-- root/public/super_admin/index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -8,197 +7,151 @@
   <title>Super Admin — Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../css/shared.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
-  <div class="mx-auto flex flex-col gap-4">    
-    <div id="header-placeholder"></div>
-<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2 p-4 pb-0">
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Active Schedules</p>
-        <h3 class="text-2xl font-bold text-white mt-1">1,248</h3>
-        <p class="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-          +12% vs last week
-        </p>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">System Load</p>
-        <h3 class="text-2xl font-bold text-violet-400 mt-1">24.2%</h3>
-        <div class="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden">
-          <div class="bg-violet-500 h-full w-[24.2%] rounded-full"></div>
-        </div>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">API Requests</p>
-        <h3 class="text-2xl font-bold text-white mt-1">42.1k</h3>
-        <p class="text-[10px] text-slate-500 mt-1">Measured within last 24h</p>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Gateway Flags</p>
-        <h3 class="text-2xl font-bold text-amber-400 mt-1">2</h3>
-        <p class="text-[10px] text-amber-500 font-medium mt-1">Requires system validation</p>
-      </div>
-    </section>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-2 p-4 pb-0">
-      
-      <div class="space-y-6 lg:col-span-1">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <h2 class="text-sm font-semibold tracking-tight text-white mb-3 flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Active Super Admin Session
-          </h2>
-          <dl class="space-y-2.5 text-xs">
-            <div class="flex justify-between border-b border-slate-800/60 pb-2">
-              <dt class="text-slate-400">Identity Context</dt>
-              <dd id="userName" class="text-slate-200 font-medium">—</dd>
-            </div>
-            <div class="flex justify-between border-b border-slate-800/60 pb-2">
-              <dt class="text-slate-400">Scope Routing</dt>
-              <dd id="userEmail" class="text-slate-200 font-mono text-[11px]">—</dd>
-            </div>
-            <div class="flex justify-between pb-1">
-              <dt class="text-slate-400">Internal Role</dt>
-              <dd id="userRole" class="text-violet-400 font-semibold uppercase text-[10px] bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded">Administrator</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <h2 class="text-sm font-semibold tracking-tight text-white mb-3">Company Tools</h2>
-          <div class="flex flex-col gap-2.5 text-xs font-medium">
-            <a href="/super_admin/index.html" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
-              <span class="text-slate-200 group-hover:text-white">Platform admin</span>
-              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
-            <a href="/super_admin/archives.html" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
-              <span class="text-slate-200 group-hover:text-white">Archives Matrix</span>
-              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-xl font-bold text-white">Platform Overview</h1><p class="text-xs text-slate-400 mt-0.5">Real-time platform intelligence</p></div>
+          <div class="flex gap-2">
+            <select id="timeRange" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-white text-xs">
+              <option value="24h">Last 24h</option>
+              <option value="7d" selected>Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
+            <button onclick="refreshDashboard()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold">Refresh</button>
           </div>
         </div>
-      </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 shadow-sm">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-          <div>
-            <h2 class="text-sm font-semibold tracking-tight text-white">System Deployment Queue</h2>
-            <p class="text-[11px] text-slate-500">Live infrastructure records and build deployments</p>
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Active Companies</p>
+            <h3 class="text-2xl font-bold text-white mt-1" id="activeCompanies">-</h3>
+            <p class="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+              <span id="companyGrowth">+0% vs last period</span>
+            </p>
           </div>
-          <button class="shrink-0 bg-violet-600 hover:bg-violet-500 transition-colors text-white text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-md shadow-violet-600/10">
-            Provision Cluster
-          </button>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Total Users</p>
+            <h3 class="text-2xl font-bold text-white mt-1" id="totalUsers">-</h3>
+            <p class="text-[10px] text-blue-400 mt-1">Across all companies</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Active Meetings</p>
+            <h3 class="text-2xl font-bold text-white mt-1" id="activeMeetings">-</h3>
+            <p class="text-[10px] text-amber-400 mt-1">Currently in progress</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Storage Used</p>
+            <h3 class="text-2xl font-bold text-white mt-1" id="storageUsed">-</h3>
+            <p class="text-[10px] text-violet-400 mt-1">Recordings & transcripts</p>
+          </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-slate-800 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
-                <th class="pb-2.5">Identifier</th>
-                <th class="pb-2.5">Environment</th>
-                <th class="pb-2.5">Data Metric</th>
-                <th class="pb-2.5 text-right">Routing Status</th>
-              </tr>
-            </thead>
-            <tbody class="text-slate-300 divide-y divide-slate-800/40">
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-prod-01a</td>
-                <td class="py-3">US-East Gateway</td>
-                <td class="py-3 text-slate-400">99.98% SLA</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Operational</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-stage-04</td>
-                <td class="py-3">EU-Central Hub</td>
-                <td class="py-3 text-slate-400">84.1% Sync</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">Syncing</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">cron-intel-sync</td>
-                <td class="py-3">Virtual Cluster</td>
-                <td class="py-3 text-slate-400">Idle Pipeline</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">Suspended</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">api-mesh-router</td>
-                <td class="py-3">Global Edge CDN</td>
-                <td class="py-3 text-slate-400">14.1k req/s</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <h3 class="text-xs font-semibold text-white mb-2">Meeting Trends</h3>
+            <div class="h-48"><canvas id="meetingTrendsChart"></canvas></div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <h3 class="text-xs font-semibold text-white mb-2">Company Distribution</h3>
+            <div class="h-48"><canvas id="companyChart"></canvas></div>
+          </div>
         </div>
-      </div>
 
+        <!-- Recent Companies Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+          <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="text-xs font-semibold text-white">Recent Companies</h3>
+            <a href="/super_admin/companies.html" class="text-[10px] text-violet-400 hover:text-violet-300">View All</a>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead><tr class="border-b border-slate-800 bg-slate-800/30">
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Name</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Status</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Users</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Created</th>
+              </tr></thead>
+              <tbody class="divide-y divide-slate-800" id="companyTableBody">
+                <tr><td colspan="4" class="py-6 text-center text-slate-500">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
-
-
-  <script>
-    /* ── Common header: profile dropdown ──────────────── */
-    function toggleProfileMenu() {
-      const menu    = document.getElementById('profileMenu');
-      const chevron = document.getElementById('profileChevron');
-      const isOpen  = !menu.classList.contains('hidden');
-      menu.classList.toggle('hidden', isOpen);
-      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-    }
-
-    document.addEventListener('click', function(e) {
-      const wrap = document.getElementById('profileMenuWrap');
-      if (wrap && !wrap.contains(e.target)) {
-        document.getElementById('profileMenu').classList.add('hidden');
-        document.getElementById('profileChevron').style.transform = '';
-      }
-    });
-
-    function initProfileMenu() {
-      try {
-        const raw  = localStorage.getItem('rl_user') || sessionStorage.getItem('rl_user');
-        const user = raw ? JSON.parse(raw) : null;
-        if (user) {
-          const name     = user.name  || user.email?.split('@')[0] || 'Admin';
-          const email    = user.email || 'admin@local';
-          const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-          ['profileAvatar'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = initials; });
-          ['profileName','dropdownName'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = name; });
-          ['profileEmail','dropdownEmail'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = email; });
-          
-          // Hydrate the view model info keys safely
-          const uName  = document.getElementById('userName');
-          const uEmail = document.getElementById('userEmail');
-          if (uName)  uName.textContent  = name;
-          if (uEmail) uEmail.textContent = email;
-        }
-      } catch(_) {}
-    }
-
-    async function handleLogout() {
-      localStorage.removeItem('rl_user');
-      localStorage.removeItem('rl_token');
-      sessionStorage.clear();
-      try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-      } catch(_) {}
-      window.location.href = '/login.html';
-    }
-
-    // Wire legacy components
-    window.addEventListener('load', function() {
-      initProfileMenu();
-      const legacyBtn = document.getElementById('logoutButton');
-      if (legacyBtn) legacyBtn.addEventListener('click', handleLogout);
-    });
-  </script>
-  <script type="module" src="/js/auth.js"></script>
+  <script type="module" src="../js/auth.js"></script>
   <script src="../js/load-components.js"></script>
-</body>
-</html>
+  <script>
+    let companies = [], users = [], meetings = [];
+
+    async function refreshDashboard() {
+      await Promise.all([loadCompanies(), loadUsers(), loadMeetings(), loadStorage()]);
+      renderStats();
+      renderCharts();
+      renderTable();
+    }
+
+    async function loadCompanies() {
+      try { const d = await apiFetch('/api/companies'); companies = d.data || d.companies || []; } catch(e){}
+    }
+    async function loadUsers() {
+      try { const d = await apiFetch('/api/users'); users = d.users || d.data || []; } catch(e){}
+    }
+    async function loadMeetings() {
+      try { const d = await apiFetch('/api/meetings/list?days=7'); meetings = d.meetings || []; } catch(e){}
+    }
+    async function loadStorage() {
+      try { const d = await apiFetch('/storage/stats'); document.getElementById('storageUsed').textContent = d.total || '-'; } catch(e){}
+    }
+
+    function renderStats() {
+      const active = companies.filter(c => c.status === 'active').length;
+      document.getElementById('activeCompanies').textContent = active;
+      document.getElementById('totalUsers').textContent = users.length;
+      document.getElementById('activeMeetings').textContent = meetings.filter(m => m.status === 'in_progress' || m.status === 'joining').length;
+    }
+
+    function renderCharts() {
+      const mc = document.getElementById('meetingTrendsChart');
+      if (mc) {
+        const byDate = {};
+        meetings.forEach(m => {
+          const d = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'Unknown';
+          byDate[d] = (byDate[d]||0)+1;
+        });
+        new Chart(mc, {type:'bar', data:{labels:Object.keys(byDate), datasets:[{label:'Meetings', data:Object.values(byDate), backgroundColor:'rgba(139,92,246,0.3)', borderColor:'rgba(139,92,246,1)', borderWidth:1}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#e2e8f0'}}}, scales:{x:{ticks:{color:'#94a3b8'}, grid:{color:'#334155'}}, y:{beginAtZero:true, ticks:{color:'#94a3b8'}, grid:{color:'#334155'}}}}});
+      }
+      const cc = document.getElementById('companyChart');
+      if (cc) {
+        const active = companies.filter(c=>c.status==='active').length;
+        const suspended = companies.filter(c=>c.status==='suspended').length;
+        new Chart(cc, {type:'doughnut', data:{labels:['Active','Suspended'], datasets:[{data:[active, suspended], backgroundColor:['rgba(34,197,94,0.6)','rgba(239,68,68,0.6)'], borderColor:['rgba(34,197,94,1)','rgba(239,68,68,1)'], borderWidth:2}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{color:'#e2e8f0'}}}}});
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('companyTableBody');
+      if (!companies.length) { tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500">No companies</td></tr>'; return; }
+      tbody.innerHTML = companies.slice(0,5).map(c => {
+        const userCount = users.filter(u => u.company_id === c.id).length;
+        return `<tr class="hover:bg-slate-800/30"><td class="py-2 px-3 text-white">${escapeHtml(c.company_name||c.name||'Unnamed')}</td>
+          <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${c.status==='active'?'bg-emerald-500/10 text-emerald-400':'bg-red-500/10 text-red-400'}">${c.status||'unknown'}</span></td>
+          <td class="py-2 px-3 text-white">${userCount}</td>
+          <td class="py-2 px-3 text-[10px] text-slate-400">${c.created_at?new Date(c.created_at).toLocaleDateString():'-'}</td></tr>`;
+      }).join('');
+    }
+
+    function escapeHtml(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+    refreshDashboard();
+  </script>
+</body></html>

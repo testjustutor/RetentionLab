@@ -7,7 +7,7 @@ const { logger } = require('../utils/logger');
 class MeetingScoresModel {
   static upsertScore({ meeting_id, indicator_id, reviewer_id, score = 0, comment = null, score_type = 'MANUAL' }) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO meeting_scores (meeting_id, indicator_id, reviewer_id, score, comment, score_type, scored_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(meeting_id, indicator_id) DO UPDATE SET score=excluded.score, comment=excluded.comment, reviewer_id=excluded.reviewer_id, scored_at=CURRENT_TIMESTAMP`;
+      const sql = `INSERT INTO meeting_scores (meeting_id, indicator_id, reviewer_id, score, comment, score_type, scored_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE score=VALUES(score), comment=VALUES(comment), reviewer_id=VALUES(reviewer_id), scored_at=CURRENT_TIMESTAMP`;
       db.run(sql, [meeting_id, indicator_id, reviewer_id, score, comment, score_type], function(err) {
         if (err) {
           logger.error('[MeetingScoresModel] upsert error', err);

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <title>Teams | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div><h1 class="text-xl font-bold text-white">Departments</h1><p class="text-xs text-slate-400 mt-1">Create and manage departments with users</p></div>
+          <button id="openDeptModalBtn" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors">Create Department</button>
+        </div>
+
+        <!-- Department Modal -->
+        <div id="deptModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div class="bg-slate-900 border border-slate-700 rounded-lg p-4 w-full max-w-md mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-bold text-white" id="deptModalTitle">Create Department</h2>
+              <button id="closeDeptModalBtn" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+            <form id="deptForm" class="space-y-2">
+              <input type="hidden" id="editDeptId">
+              <div><label class="block text-xs text-slate-300 mb-1">Name</label>
+                <input id="deptName" type="text" required class="w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="e.g. Engineering">
+              </div>
+              <div><label class="block text-xs text-slate-300 mb-1">Description</label>
+                <input id="deptDesc" type="text" class="w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="Optional description">
+              </div>
+              <div id="deptFormMsg" class="text-xs min-h-[1.25rem]"></div>
+              <div class="flex justify-end gap-2">
+                <button type="button" id="cancelDeptModalBtn" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" id="deptSubmitBtn" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add Member Modal -->
+        <div id="memberModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div class="bg-slate-900 border border-slate-700 rounded-lg p-4 w-full max-w-md mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-bold text-white">Add Member</h2>
+              <button id="closeMemberModalBtn" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+            <div class="space-y-2">
+              <input type="hidden" id="addMemberDeptId">
+              <div><label class="block text-xs text-slate-300 mb-1">Select User</label>
+                <select id="memberUserSelect" class="w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:border-violet-500 outline-none">
+                  <option value="">Loading users...</option>
+                </select>
+              </div>
+              <div class="flex justify-end gap-2">
+                <button id="cancelMemberModalBtn" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-white transition-colors">Cancel</button>
+                <button onclick="addMember()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Departments List -->
+        <div class="space-y-3" id="deptsContainer">
+          <div class="py-8 text-center text-slate-500">Loading departments...</div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script>
+    let allDepts = [];
+    const COLORS = ['violet', 'emerald', 'amber', 'rose', 'blue'];
+
+    setupModal('deptModal', 'openDeptModalBtn', ['closeDeptModalBtn', 'cancelDeptModalBtn']);
+    setupModal('memberModal', null, ['closeMemberModalBtn', 'cancelMemberModalBtn']);
+
+    async function loadDepts() {
+      const c = document.getElementById('deptsContainer');
+      try {
+        const json = await apiFetch('/api/departments');
+        allDepts = json.data || [];
+        if (!allDepts.length) { c.innerHTML = '<div class="py-8 text-center text-slate-500">No departments yet. Create one!</div>'; return; }
+        c.innerHTML = allDepts.map((d,i) => {
+          const color = COLORS[i % COLORS.length];
+          return '<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">' +
+            '<div class="p-3 flex items-center gap-3">' +
+              '<div class="w-8 h-8 rounded-md bg-' + color + '-500/10 border border-' + color + '-500/20 flex items-center justify-center text-' + color + '-400 font-bold text-xs">' + d.member_count + '</div>' +
+              '<div class="flex-1"><h3 class="text-xs font-semibold text-white">' + escHtml(d.name) + '</h3><p class="text-[10px] text-slate-500">' + escHtml(d.description || '') + ' &middot; ' + d.member_count + ' members</p></div>' +
+              '<div class="flex gap-1">' +
+                '<button onclick="openAddMember(' + d.id + ')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white transition-colors" title="Add Member">+Member</button>' +
+                '<button onclick="editDept(' + d.id + ')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-violet-400 hover:text-violet-300 transition-colors">Edit</button>' +
+                '<button onclick="deleteDept(' + d.id + ')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-red-400 hover:text-red-300 transition-colors">Delete</button>' +
+              '</div>' +
+              '<svg class="w-3.5 h-3.5 text-slate-500 chevron-icon flex-shrink-0 cursor-pointer" onclick="toggleMembers(this,' + d.id + ')" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>' +
+            '</div>' +
+            '<div class="hidden members-content border-t border-slate-800 px-3 py-1.5 bg-slate-900/50" id="members-' + d.id + '">' +
+              '<div class="text-[10px] text-slate-500 py-1.5">Click chevron to load members</div>' +
+            '</div></div>';
+        }).join('');
+      } catch (err) { c.innerHTML = '<div class="py-8 text-center text-red-400">Failed to load departments</div>'; }
+    }
+
+    async function toggleMembers(chevron, deptId) {
+      const content = document.getElementById('members-' + deptId);
+      const isHidden = content.classList.contains('hidden');
+      if (isHidden) {
+        content.classList.remove('hidden');
+        chevron.style.transform = 'rotate(180deg)';
+        // Load members
+        try {
+          const json = await apiFetch('/api/departments/' + deptId + '/members');
+          const members = json.data || [];
+          content.innerHTML = members.length
+            ? members.map(m => '<div class="flex items-center justify-between py-1.5 border-b border-slate-800/50 text-xs">' +
+                '<div><span class="text-white">' + escHtml(m.first_name || m.email) + '</span> <span class="text-slate-500">(' + escHtml(m.role_name || 'user') + ')</span></div>' +
+                '<button onclick="removeMember(' + deptId + ',' + m.id + ')" class="text-red-400 hover:text-red-300 text-[10px]">Remove</button>' +
+              '</div>').join('')
+            : '<div class="text-xs text-slate-500 py-2">No members</div>';
+        } catch { content.innerHTML = '<div class="text-xs text-red-400 py-2">Failed to load</div>'; }
+      } else {
+        content.classList.add('hidden');
+        chevron.style.transform = '';
+      }
+    }
+
+    // ── CRUD ──
+    window.editDept = function(id) {
+      const d = allDepts.find(x => x.id === id);
+      if (!d) return;
+      document.getElementById('editDeptId').value = d.id;
+      document.getElementById('deptName').value = d.name;
+      document.getElementById('deptDesc').value = d.description || '';
+      document.getElementById('deptModalTitle').textContent = 'Edit Department';
+      document.getElementById('deptSubmitBtn').textContent = 'Update';
+      openModal('deptModal');
+    };
+
+    window.deleteDept = async function(id) {
+      if (!confirm('Delete this department?')) return;
+      try { await apiFetch('/api/departments/' + id, { method: 'DELETE' }); showToast('Department deleted'); loadDepts(); }
+      catch (e) { showToast(e.message, true); }
+    };
+
+    document.getElementById('deptForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('deptFormMsg');
+      msg.textContent = '';
+      const editId = document.getElementById('editDeptId').value;
+      const name = document.getElementById('deptName').value.trim();
+      const desc = document.getElementById('deptDesc').value.trim();
+      if (!name) { msg.textContent = 'Name required'; msg.className = 'text-sm text-red-400'; return; }
+      try {
+        if (editId) {
+          await apiFetch('/api/departments/' + editId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description: desc }) });
+        } else {
+          await apiFetch('/api/departments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description: desc }) });
+        }
+        document.getElementById('deptForm').reset();
+        document.getElementById('editDeptId').value = '';
+        document.getElementById('deptModalTitle').textContent = 'Create Department';
+        document.getElementById('deptSubmitBtn').textContent = 'Create';
+        closeModal('deptModal');
+        loadDepts();
+        showToast(editId ? 'Department updated' : 'Department created');
+      } catch (err) { msg.textContent = err.message; msg.className = 'text-sm text-red-400'; }
+    });
+
+    document.getElementById('openDeptModalBtn').addEventListener('click', () => {
+      document.getElementById('editDeptId').value = '';
+      document.getElementById('deptForm').reset();
+      document.getElementById('deptModalTitle').textContent = 'Create Department';
+      document.getElementById('deptSubmitBtn').textContent = 'Create';
+      document.getElementById('deptFormMsg').textContent = '';
+    });
+
+    // ── Members ──
+    window.openAddMember = async function(deptId) {
+      document.getElementById('addMemberDeptId').value = deptId;
+      const sel = document.getElementById('memberUserSelect');
+      sel.innerHTML = '<option value="">Loading...</option>';
+      openModal('memberModal');
+      try {
+        const [usersJson, meJson] = await Promise.all([apiFetch('/api/users'), apiFetch('/api/auth/me')]);
+        const myId = (meJson.user || meJson).id;
+        const users = (usersJson.data || []).filter(u => u.id !== myId);
+        sel.innerHTML = users.map(u => '<option value="' + u.id + '">' + escHtml(u.first_name || u.email) + ' (' + (u.role_name || 'user') + ')</option>').join('');
+      } catch { sel.innerHTML = '<option value="">Failed</option>'; }
+    };
+
+    window.addMember = async function() {
+      const deptId = document.getElementById('addMemberDeptId').value;
+      const userId = document.getElementById('memberUserSelect').value;
+      if (!userId) return showToast('Select a user', true);
+      try {
+        await apiFetch('/api/departments/' + deptId + '/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: parseInt(userId) }) });
+        closeModal('memberModal');
+        showToast('Member added');
+        loadDepts();
+      } catch (e) { showToast(e.message, true); }
+    };
+
+    window.removeMember = async function(deptId, userId) {
+      try {
+        await apiFetch('/api/departments/' + deptId + '/members/' + userId, { method: 'DELETE' });
+        showToast('Member removed');
+        loadDepts();
+        // Re-toggle members
+        const content = document.getElementById('members-' + deptId);
+        if (content) content.innerHTML = '<div class="text-xs text-slate-500 py-2">Reload to see members</div>';
+      } catch (e) { showToast(e.message, true); }
+    };
+
+    loadDepts();
+  </script>
+</body>
+</html>

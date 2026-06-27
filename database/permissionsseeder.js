@@ -94,7 +94,7 @@ const seedPermissions = async () => {
     // 1. Upsert the permission catalog
     for (const perm of PERMISSIONS) {
         await runAsync(
-            `INSERT OR IGNORE INTO permissions (permission_key, label, category, description)
+            `INSERT IGNORE INTO permissions (permission_key, label, category, description)
              VALUES (?, ?, ?, ?)`,
             [perm.key, perm.label, perm.category, perm.description]
         );
@@ -117,7 +117,7 @@ const seedPermissions = async () => {
             const permissionId = permIdByKey[key];
             if (!permissionId) continue;
             await runAsync(
-                `INSERT OR IGNORE INTO role_permissions (role_id, permission_id, company_id)
+                `INSERT IGNORE INTO role_permissions (role_id, permission_id, company_id)
                  VALUES (?, ?, NULL)`,
                 [role.id, permissionId]
             );

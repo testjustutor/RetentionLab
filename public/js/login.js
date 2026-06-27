@@ -8,7 +8,14 @@ const errorEl = document.getElementById('loginError');
 const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
 
 function routeByRole(role) {
-  return returnUrl || '/dashboard';
+  if (returnUrl) return returnUrl;
+  switch ((role || '').toLowerCase()) {
+    case 'super_admin': return '/super_admin/';
+    case 'admin': return '/admin/';
+    case 'reviewer': return '/reviewer/dashboard';
+    case 'solo_instructor': return '/dashboard';
+    default: return '/dashboard';
+  }
 }
 
 (async () => {
@@ -19,6 +26,16 @@ function routeByRole(role) {
     }
   } catch (err) {
     // not logged in
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('reset') === 'success') {
+    errorEl.className = 'text-sm text-emerald-400';
+    errorEl.textContent = 'Password reset successful. Please sign in.';
+  }
+  if (params.get('verified') === 'success') {
+    errorEl.className = 'text-sm text-emerald-400';
+    errorEl.textContent = 'Email verified. You can now log in.';
   }
 })();
 

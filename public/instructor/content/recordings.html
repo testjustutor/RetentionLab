@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="solo_instructor">
+    <title>Recordings - Instructor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#141E33', 900: '#0F172A', 950: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="../../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <div id="header-placeholder"></div>
+        <div class="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-slate-950">
+            <div class="flex-1 overflow-auto custom-scrollbar relative">
+                <div class="p-6">
+                    <h1 class="text-2xl font-bold text-white mb-4">Recordings</h1>
+                    <p class="text-slate-400 mb-6">Access meeting recordings.</p>
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
+                        <p class="text-slate-400 text-sm">No recordings available</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/js/auth.js"></script>
+    <script src="../../js/load-components.js"></script>
+</body>
+</html>

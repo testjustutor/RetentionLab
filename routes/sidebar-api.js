@@ -10,7 +10,7 @@ const { HeaderConfigModel } = require('../models/HeaderConfigModel');
 module.exports = async (req, res) => {
   try {
     const roleId = req.user?.role_id;
-    const userRole = req.user?.role_name || 'employee';
+    const userRole = req.user?.role_name || 'instructor';
 
     // Fetch menu from database
     let menuItems = null;

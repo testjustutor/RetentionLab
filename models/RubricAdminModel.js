@@ -199,10 +199,10 @@ class RubricAdminModel {
       const sql = `
         INSERT INTO rubric_categories (category_id, name, weight, company_id)
         VALUES (?, ?, ?, ?)
-        ON CONFLICT(category_id) DO UPDATE SET
-          name = excluded.name,
-          weight = excluded.weight,
-          company_id = excluded.company_id
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          weight = VALUES(weight),
+          company_id = VALUES(company_id)
       `;
       db.run(sql, [category_id, name, parseFloat(weight), company_id], function(err) {
         if (err) return reject(err);
@@ -340,12 +340,12 @@ class RubricAdminModel {
       const sql = `
         INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value, company_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(indicator_id) DO UPDATE SET
-          name = excluded.name,
-          type = excluded.type,
-          is_gate = excluded.is_gate,
-          value = excluded.value,
-          company_id = excluded.company_id
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          type = VALUES(type),
+          is_gate = VALUES(is_gate),
+          value = VALUES(value),
+          company_id = VALUES(company_id)
       `;
       db.run(sql, [indicator_id, category_id, name, type, is_gate, parseFloat(value), company_id], function(err) {
         if (err) return reject(err);
@@ -501,7 +501,7 @@ class RubricAdminModel {
       // 3. Insert or ignore assignment record
       const assignResult = await new Promise((resolve, reject) => {
         db.run(
-          `INSERT OR IGNORE INTO rubric_assignments (category_id, admin_user_id, created_by)
+          `INSERT IGNORE INTO rubric_assignments (category_id, admin_user_id, created_by)
            VALUES (?, ?, ?)`,
           [category_id, admin_user_id, created_by],
           function(err) {
@@ -514,7 +514,7 @@ class RubricAdminModel {
       // 4. Create admin copy of the category (with master's weight)
       await new Promise((resolve, reject) => {
         db.run(
-          `INSERT OR IGNORE INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight)
+          `INSERT IGNORE INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight)
            VALUES (?, ?, ?, ?)`,
           [category_id, admin_user_id, category.name, category.weight || 0],
           function(err) {
@@ -528,7 +528,7 @@ class RubricAdminModel {
       for (const ind of indicators) {
         await new Promise((resolve, reject) => {
           db.run(
-            `INSERT OR IGNORE INTO admin_rubric_indicators 
+            `INSERT IGNORE INTO admin_rubric_indicators 
              (original_indicator_id, original_category_id, admin_user_id, name, type, is_gate, value)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [ind.indicator_id, category_id, admin_user_id, ind.name, ind.type || 'HUMAN', ind.is_gate || 0, ind.value || 1],

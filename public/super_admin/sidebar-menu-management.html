@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin">
   <title>Sidebar Menu Management — Super Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../css/shared.css" />
@@ -14,33 +15,33 @@
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
         <div class="max-w-6xl mx-auto">
-          <p class="text-slate-400 mb-2">Create, edit, and delete sidebar menu items for all roles. Changes take effect immediately.</p>
+          <p class="text-xs text-slate-400 mb-2">Create, edit, and delete sidebar menu items for all roles. Changes take effect immediately.</p>
 
           <!-- Role Selector -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-            <div class="flex items-end gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-2">
+            <div class="flex items-end gap-3">
               <div class="flex-1">
-                <label class="block text-sm font-medium text-slate-300 mb-1">Select Role</label>
-                <select id="roleSelector" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" onchange="loadMenuItems()">
+                <label class="block text-xs font-medium text-slate-300 mb-1">Select Role</label>
+                <select id="roleSelector" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-1.5 text-xs" onchange="loadMenuItems()">
                   <option value="">Loading roles...</option>
                 </select>
               </div>
-              <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="addMenuItem()">+ Add Menu Item</button>
-              <button class="px-4 py-2 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-500 transition-colors" onclick="reseedMenu()">Reset to Defaults</button>
+              <button class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="addMenuItem()">+ Add</button>
+              <button class="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-500 transition-colors" onclick="reseedMenu()">Reset</button>
             </div>
           </div>
 
           <!-- Tree View -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-            <h3 class="text-xl font-semibold text-white mb-2">Menu Structure (Tree View)</h3>
-            <div id="treeContainer" class="text-slate-400">Select a role to view menu items.</div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-2">
+            <h3 class="text-sm font-semibold text-white mb-1.5">Menu Structure (Tree View)</h3>
+            <div id="treeContainer" class="text-slate-400 text-xs">Select a role to view menu items.</div>
           </div>
 
           <!-- Flat Table View -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 class="text-xl font-semibold text-white mb-2">All Menu Items (Flat)</h3>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <h3 class="text-sm font-semibold text-white mb-1.5">All Menu Items (Flat)</h3>
             <div id="flatTableContainer">
-              <p class="text-slate-400">Select a role to view menu items.</p>
+              <p class="text-slate-400 text-xs">Select a role to view menu items.</p>
             </div>
           </div>
         </div>
@@ -50,8 +51,8 @@
 
   <!-- Modal -->
   <div id="modalOverlay" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-lg mx-4 shadow-2xl">
-      <h3 id="modalTitle" class="text-xl font-bold text-white mb-2">Add Menu Item</h3>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 w-full max-w-lg mx-4 shadow-2xl">
+      <h3 id="modalTitle" class="text-base font-bold text-white mb-1.5">Add Menu Item</h3>
       <form id="modalForm" class="space-y-4">
         <input type="hidden" id="modalEditId" value="" />
         
@@ -387,21 +388,21 @@
             { id: 'settings', label: 'Settings', href: '/reviewer/settings.html' }
           ]}
         ],
-        employee: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/employee/index.html', submenu: null },
+        instructor: [
+          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', submenu: null },
           { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-            { id: 'calendar-accounts', label: 'My Calendar', href: '/employee/calendar-accounts.html' },
-            { id: 'calendar-events', label: 'Events', href: '/employee/calendar-events.html' }
+            { id: 'calendar-accounts', label: 'My Calendar', href: '/instructor/calendar-accounts.html' },
+            { id: 'calendar-events', label: 'Events', href: '/instructor/calendar-events.html' }
           ]},
-          { id: 'content', label: 'Archives', icon: 'folder', href: '/employee/archives.html', submenu: null },
+          { id: 'content', label: 'Archives', icon: 'folder', href: '/instructor/archives.html', submenu: null },
           { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-            { id: 'profile', label: 'Profile', href: '/employee/profile.html' },
-            { id: 'settings', label: 'Settings', href: '/employee/settings.html' }
+            { id: 'profile', label: 'Profile', href: '/instructor/profile.html' },
+            { id: 'settings', label: 'Settings', href: '/instructor/settings.html' }
           ]}
         ]
       };
 
-      const menuItems = defaultMenus[role.role_name] || defaultMenus.employee;
+      const menuItems = defaultMenus[role.role_name] || defaultMenus.instructor;
       
       try {
         const resp = await fetch('/api/sidebar-menu-admin/reseed/' + currentRoleId, {

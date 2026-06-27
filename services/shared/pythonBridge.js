@@ -157,7 +157,7 @@ class PythonBridge {
       logger.info(`[Database Syncing] Flushing final transcript and audit matrix indicators...`);
       await MeetingAssetsModel.updateAssets(meetingId, {
         transcript_path: executionMatrix.transcript_path || null,
-        diarization_path: executionMatrix.transcript_path ? executionMatrix.transcript_path.replace('TRANS_', 'DIAR_').replace('.txt', '.json') : null,
+        diarization_path: executionMatrix.transcript_path ? executionMatrix.transcript_path.replace('AUDIO_TRANS', 'DIAR').replace('cache_audio_transcripts', 'cache_diarization').replace('.txt', '.json') : null,
         talk_ratio_json_path: executionMatrix.sentiment_path || null, // Map downstream analytics safely
         audit_json_path: executionMatrix.audit_json_path || null,
         summary_path: executionMatrix.summary_path || null,

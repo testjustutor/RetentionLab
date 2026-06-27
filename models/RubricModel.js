@@ -20,7 +20,7 @@ class RubricModel {
         // Upsert Categories
         const catSql = `INSERT INTO rubric_categories (category_id, name, weight) 
                         VALUES (?, ?, ?) 
-                        ON CONFLICT(category_id) DO UPDATE SET name=excluded.name, weight=excluded.weight`;
+                        ON DUPLICATE KEY UPDATE name=VALUES(name), weight=VALUES(weight)`;
         
         categories.forEach(cat => {
           db.run(catSql, [cat.category_id, cat.name, cat.weight]);
@@ -29,8 +29,8 @@ class RubricModel {
         // Upsert Indicators
         const indSql = `INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
                         VALUES (?, ?, ?, ?, ?, ?) 
-                        ON CONFLICT(indicator_id) DO UPDATE SET 
-                        name=excluded.name, type=excluded.type, is_gate=excluded.is_gate, value=excluded.value`;
+                        ON DUPLICATE KEY UPDATE 
+                        name=VALUES(name), type=VALUES(type), is_gate=VALUES(is_gate), value=VALUES(value)`;
 
         indicators.forEach(ind => {
           db.run(indSql, [ind.indicator_id, ind.category_id, ind.name, ind.type, ind.is_gate || 0, ind.value || 1]);
@@ -59,8 +59,8 @@ class RubricModel {
       db.serialize(() => {
         const sql = `INSERT INTO meeting_scores (meeting_id, indicator_id, score, comment) 
                      VALUES (?, ?, ?, ?) 
-                     ON CONFLICT(meeting_id, indicator_id) DO UPDATE SET 
-                     score=excluded.score, comment=excluded.comment, scored_at=CURRENT_TIMESTAMP`;
+                     ON DUPLICATE KEY UPDATE 
+                     score=VALUES(score), comment=VALUES(comment), scored_at=CURRENT_TIMESTAMP`;
 
         const stmt = db.prepare(sql);
         

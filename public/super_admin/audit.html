@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="super_admin">
     <title>System Audit Logs</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -31,19 +32,19 @@
     <script src="../js/audit.js"></script>
 </head>
 <body class="antialiased font-sans p-2 sm:p-0">
-    <div class="mx-auto flex flex-col gap-4">
+    <div class="mx-auto flex flex-col gap-3">
         <!-- Header -->    <div id="header-placeholder"></div>
 <!-- Main View -->
-        <div class="bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md h-[550px] lg:h-[calc(100vh-120px)] flex flex-col overflow-hidden  ml-4 mr-4">
+        <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md h-[450px] lg:h-[calc(100vh-100px)] flex flex-col overflow-hidden  p-4">
             
             <!-- Toolbar -->
-            <div class="px-4 py-3 border-b border-slate-800/60 bg-slate-800/20 flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0 ">
-                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                    <input id="auditSearchInput" type="text" placeholder="Search logs..." class="bg-slate-950/50 border border-slate-700/80 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-64">
-                    <input id="auditFromDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-40" title="From date">
-                    <input id="auditToDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-40" title="To date">
-                    <select id="auditLevelSelect" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-lg px-2 flex-1 py-1.5 text-xs focus:outline-none focus:border-amber-500/50">
-                        <option value="ALL">Level: ALL</option>
+            <div class="px-3 py-2 border-b border-slate-800/60 bg-slate-800/20 flex flex-col sm:flex-row gap-2 justify-between items-center shrink-0 ">
+                <div class="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+                    <input id="auditSearchInput" type="text" placeholder="Search..." class="bg-slate-950/50 border border-slate-700/80 text-white rounded-md px-2 py-1 text-[10px] focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-48">
+                    <input id="auditFromDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-md px-2 py-1 text-[10px] focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-32" title="From">
+                    <input id="auditToDate" type="date" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-md px-2 py-1 text-[10px] focus:outline-none focus:border-amber-500/50 transition-colors w-full sm:w-32" title="To">
+                    <select id="auditLevelSelect" class="bg-slate-950/50 border border-slate-700/80 text-slate-300 rounded-md px-2 flex-1 py-1 text-[10px] focus:outline-none focus:border-amber-500/50">
+                        <option value="ALL">All</option>
                         <option value="INFO">INFO</option>
                         <option value="WARN">WARN</option>
                         <option value="ERROR">ERROR</option>
@@ -51,7 +52,7 @@
                     </select>
                 </div>
                 <div class="flex items-center gap-2 text-slate-400">
-                    <span id="auditCountSummary" class="text-[10px] font-mono tracking-widest uppercase">Loading logs...</span>
+                    <span id="auditCountSummary" class="text-[10px] font-mono tracking-wider uppercase">Loading...</span>
                 </div>
             </div>
 
@@ -60,25 +61,25 @@
                 <table class="w-full text-left border-collapse min-w-[800px]">
                     <thead class="sticky top-0 bg-slate-850/95 backdrop-blur-sm z-10">
                         <tr class="text-[10px] font-mono uppercase tracking-wider text-slate-500 border-b border-slate-800">
-                            <th class="px-4 py-3 font-medium w-40">Timestamp</th>
-                            <th class="px-4 py-3 font-medium w-24">Level</th>
-                            <th class="px-4 py-3 font-medium w-32">Module</th>
-                            <th class="px-4 py-3 font-medium">Event Description</th>
-                            <th class="px-4 py-3 font-medium w-28">User/Actor</th>
+                            <th class="px-3 py-2 font-medium w-32">Timestamp</th>
+                            <th class="px-3 py-2 font-medium w-20">Level</th>
+                            <th class="px-3 py-2 font-medium w-28">Module</th>
+                            <th class="px-3 py-2 font-medium">Event</th>
+                            <th class="px-3 py-2 font-medium w-24">User</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-800/50 text-[#cbd5e1] font-mono text-[11px]" id="logTableBody">
+                    <tbody class="divide-y divide-slate-800/50 text-[#cbd5e1] font-mono text-[10px]" id="logTableBody">
                         <!-- Populated randomly for layout visualization -->
                     </tbody>
                 </table>
             </div>
 
             <!-- Pagination block -->
-            <div class="px-4 py-2 border-t border-slate-800/60 bg-slate-800/30 flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0">
+            <div class="px-3 py-1.5 border-t border-slate-800/60 bg-slate-800/30 flex flex-col sm:flex-row justify-between items-center gap-1.5 shrink-0">
                 <span id="auditBottomSummary" class="text-[10px] text-slate-500 font-mono">Showing all logs</span>
-                <div class="flex items-center gap-2">
-                    <button id="auditPrevBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition">Prev</button>
-                    <button id="auditNextBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition">Next</button>
+                <div class="flex items-center gap-1.5">
+                    <button id="auditPrevBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition text-[10px]">Prev</button>
+                    <button id="auditNextBtn" class="px-2 py-1 bg-slate-800 text-slate-400 rounded hover:bg-slate-700 transition text-[10px]">Next</button>
                 </div>
             </div>
         </div>

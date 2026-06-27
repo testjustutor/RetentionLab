@@ -224,13 +224,13 @@ const sidebarConfig = {
     },
 
     employee: {
-      label: 'Employee',
+      label: 'Instructor',
       menuItems: [
         {
           id: 'dashboard',
           label: 'Dashboard',
           icon: 'grid',
-          href: '/employee/index.html',
+          href: '/instructor/index.html',
           submenu: null
         },
         {
@@ -242,12 +242,12 @@ const sidebarConfig = {
             {
               id: 'calendar-accounts',
               label: 'My Calendar',
-              href: '/employee/calendar-accounts.html'
+              href: '/instructor/calendar-accounts.html'
             },
             {
               id: 'calendar-events',
               label: 'Events',
-              href: '/employee/calendar-events.html'
+              href: '/instructor/calendar-events.html'
             }
           ]
         },
@@ -255,7 +255,7 @@ const sidebarConfig = {
           id: 'content',
           label: 'Archives',
           icon: 'folder',
-          href: '/employee/archives.html',
+          href: '/instructor/archives.html',
           submenu: null
         },
         {
@@ -267,12 +267,12 @@ const sidebarConfig = {
             {
               id: 'profile',
               label: 'Profile',
-              href: '/employee/profile.html'
+              href: '/instructor/profile.html'
             },
             {
               id: 'settings',
               label: 'Settings',
-              href: '/employee/settings.html'
+              href: '/instructor/settings.html'
             }
           ]
         }

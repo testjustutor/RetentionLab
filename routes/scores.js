@@ -120,4 +120,35 @@ router.delete('/session/meeting/:meetingId', requireAuth, requireRole('super_adm
   }
 });
 
+/**
+ * GET /api/scores
+ * List all scores with joined meeting/reviewer details for reports
+ */
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const { db } = require('../database/db');
+    const days = parseInt(req.query.days) || 90;
+
+    const sql = `
+      SELECT ms.*, m.title as meeting_title, m.start_time as meeting_date,
+             u.first_name || ' ' || u.last_name as reviewer_name,
+             u.id as reviewer_id
+      FROM meeting_scores ms
+      LEFT JOIN meetings m ON m.meeting_id = ms.meeting_id
+      LEFT JOIN users u ON u.id = ms.reviewer_id
+      WHERE ms.scored_at >= datetime('now', '-' || ? || ' days')
+      ORDER BY ms.scored_at DESC
+      LIMIT 200
+    `;
+
+    const scores = await new Promise((resolve, reject) => {
+      db.all(sql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+
+    res.json({ scores });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

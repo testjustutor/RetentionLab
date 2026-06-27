@@ -17,23 +17,23 @@
 
     <!-- Header -->    <div id="header-placeholder"></div>
 <!-- Content -->
-    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 overflow-hidden  m-4">
-      <div class="p-4 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+    <div class="rounded-lg border border-slate-800 bg-slate-900/70 overflow-hidden  m-4">
+      <div class="p-3 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
         <div>
-          <h2 id="currentUserTitle" class="text-lg font-bold text-white">Select an email</h2>
-          <p class="text-xs text-slate-400 mt-1">This page only displays meeting data.</p>
+          <h2 id="currentUserTitle" class="text-base font-bold text-white">Select an email</h2>
+          <p class="text-[10px] text-slate-400 mt-0.5">Meeting data only.</p>
         </div>
         <div class="flex gap-2">
-          <select id="hoursAhead" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+          <select id="hoursAhead" class="bg-slate-950 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-200">
             <option value="24" selected>24 Hours</option>
             <option value="48">48 Hours</option>
             <option value="168">7 Days</option>
           </select>
-          <button onclick="fetchUserMeetings()" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 hover:bg-slate-700 transition-colors">Refresh</button>
+          <button onclick="fetchUserMeetings()" class="px-2.5 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-200 hover:bg-slate-700 transition-colors">Refresh</button>
         </div>
       </div>
-      <div id="meetingsList" class="p-4 space-y-3 min-h-[70vh] scroll overflow-y-auto">
-        <div class="text-slate-500 text-sm">No email provided. Use <code>?email=user@company.com</code> in the URL.</div>
+      <div id="meetingsList" class="p-3 space-y-2 min-h-[70vh] scroll overflow-y-auto">
+        <div class="text-slate-500 text-xs">No email. Use <code>?email=user@company.com</code></div>
       </div>
     </div>
 
@@ -81,22 +81,22 @@
       const timeStr = start ? start.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
 
       return `
-        <div id="${cardId}" class="flex items-start gap-4 p-4 rounded-2xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 transition-colors">
+        <div id="${cardId}" class="flex items-start gap-3 p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-slate-700 transition-colors">
 
           <!-- Left: meeting info -->
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-white font-semibold text-sm truncate">${m.title || 'Untitled Meeting'}</span>
+              <span class="text-white font-semibold text-xs truncate">${m.title || 'Untitled Meeting'}</span>
               <span style="background:${ps.bg};border:1px solid ${ps.border};color:${ps.text}" class="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0">${ps.label}</span>
             </div>
             <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span class="text-xs text-slate-400 flex items-center gap-1">
+              <span class="text-[10px] text-slate-400 flex items-center gap-1">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                 ${timeStr}
               </span>
               ${m.meetingId ? `<span class="text-[10px] text-slate-600 font-mono">ID: ${m.meetingId}</span>` : ''}
             </div>
-            ${m.link ? `<div class="text-[11px] text-slate-600 mt-1.5 truncate font-mono">${m.link}</div>` : ''}
+            ${m.link ? `<div class="text-[10px] text-slate-600 mt-1 truncate font-mono">${m.link}</div>` : ''}
             <!-- Per-card status message -->
             <div id="${statusId}" class="hidden mt-2"></div>
           </div>
@@ -106,7 +106,7 @@
             <button
               id="${btnId}"
               onclick="startBot(this, '${statusId}', ${JSON.stringify(m).replace(/</g,'\u003c').replace(/"/g,'&quot;')})"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold
+              class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold
                      bg-indigo-600 hover:bg-indigo-500 active:scale-95
                      text-white border border-indigo-500/50
                      transition-all duration-150 shadow-sm shadow-indigo-900/30"

@@ -23,8 +23,12 @@ const seedAdminUser = async () => {
 
     const password_hash = hashPassword(password);
     await runAsync(
-        `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        `INSERT INTO users (
+            user_uuid, company_id, role_id, first_name, last_name, email,
+            password_hash, phone, profile_image, status,
+            email_verified, email_verified_at,
+            created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
             crypto.randomUUID(),
             company.id,
@@ -36,6 +40,8 @@ const seedAdminUser = async () => {
             null,
             null,
             'active',
+            1,
+            new Date().toISOString(),
             null
         ]
     );

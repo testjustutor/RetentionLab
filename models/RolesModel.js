@@ -25,7 +25,7 @@ class RolesModel {
 
   static createRole(role_name, description) {
     return new Promise((resolve, reject) => {
-      db.run('INSERT OR IGNORE INTO roles (role_name, description, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [role_name, description || null], function(err) {
+      db.run('INSERT IGNORE INTO roles (role_name, description, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [role_name, description || null], function(err) {
         if (err) return reject(err);
         resolve({ id: this.lastID });
       });

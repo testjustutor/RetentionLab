@@ -20,18 +20,8 @@ const get = (sql, params = []) => new Promise((resolve, reject) => {
 
 class CalendarVerificationModel {
   static async createTable() {
-    await run(`
-      CREATE TABLE IF NOT EXISTS calendar_verifications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        token TEXT UNIQUE NOT NULL,
-        status TEXT DEFAULT 'pending',
-        expires_at DATETIME NOT NULL,
-        verified_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Tables already exist in MySQL - skip creation
+    return Promise.resolve();
   }
 
   static async create(email, ttlMinutes = 30) {
@@ -40,10 +30,10 @@ class CalendarVerificationModel {
     await run(
       `INSERT INTO calendar_verifications (email, token, status, expires_at, created_at, updated_at)
        VALUES (?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT(email) DO UPDATE SET
-         token = excluded.token,
+       ON DUPLICATE KEY UPDATE
+         token = VALUES(token),
          status = 'pending',
-         expires_at = excluded.expires_at,
+         expires_at = VALUES(expires_at),
          verified_at = NULL,
          updated_at = CURRENT_TIMESTAMP`,
       [email, token, expiresAt]

@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
+const { requireAuth } = require('../middleware/auth');
 const botManager = require('../services/shared/botManager');
 const TranscriptModel = require('../models/transcriptModel');
 const PlatformFactory = require('../services/platforms/platformFactory');
@@ -21,6 +22,36 @@ router.get('/', (req, res) => {
   } catch (err) {
     logger.error('Route(meeting): Error listing meetings:', err);
     res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+/**
+ * GET /api/meetings/list
+ * List all meetings from the database with their details for reports
+ */
+router.get('/list', requireAuth, async (req, res) => {
+  try {
+    const { db } = require('../database/db');
+    const days = parseInt(req.query.days) || 90;
+
+    const sql = `
+      SELECT m.*,
+             CONCAT(u.first_name, ' ', u.last_name) as owner_name,
+             u.email as owner_email
+      FROM meetings m
+      LEFT JOIN users u ON u.id = m.owner_user_id
+      WHERE m.start_time >= DATE_SUB(NOW(), INTERVAL ? DAY) OR m.start_time IS NULL
+      ORDER BY m.start_time DESC
+      LIMIT 100
+    `;
+
+    const meetings = await new Promise((resolve, reject) => {
+      db.all(sql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+
+    res.json({ meetings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

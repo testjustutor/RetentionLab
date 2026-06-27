@@ -42,101 +42,126 @@ function serveHTML(req, res, filename) {
   res.sendFile(path.join(__dirname, '../public', filename));
 }
 
+/**
+ * Redirect to the correct dashboard based on user role
+ */
+function redirectToDashboard(req, res) {
+  const role = req.user ? req.user.role_name : null;
+  if (role === 'super_admin') return res.redirect('/super_admin/index.html');
+  if (role === 'admin') return res.redirect('/admin/');
+  if (role === 'reviewer') return res.redirect('/reviewer/dashboard');
+  return res.redirect('/dashboard');
+}
+
 // ---------------------------------------------------------
 // PUBLIC ROUTES
 // ---------------------------------------------------------
 
 router.get('/login', (req, res) => {
-  // If already logged in, redirect to dashboard
+  // If already logged in, redirect to role-based dashboard
   const token = req.cookies?.auth_token;
-  if (token && verifyToken(token)) {
-    return res.redirect('/dashboard');
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      req.user = payload;
+      return redirectToDashboard(req, res);
+    }
   }
   serveHTML(req, res, 'login.html');
 });
 
+router.get('/login.html', (req, res) => {
+  res.redirect('/login');
+});
+
 router.get('/register', (req, res) => {
   const token = req.cookies?.auth_token;
-  if (token && verifyToken(token)) {
-    return res.redirect('/dashboard');
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      req.user = payload;
+      return redirectToDashboard(req, res);
+    }
   }
   serveHTML(req, res, 'register.html');
+});
+
+router.get('/register.html', (req, res) => {
+  res.redirect('/register');
+});
+
+router.get('/forgot-password', (req, res) => {
+  serveHTML(req, res, 'forgot-password.html');
+});
+
+router.get('/forgot-password.html', (req, res) => {
+  res.redirect('/forgot-password');
+});
+
+router.get('/reset-password', (req, res) => {
+  serveHTML(req, res, 'reset-password.html');
+});
+
+router.get('/reset-password.html', (req, res) => {
+  res.redirect('/reset-password');
+});
+
+router.get('/verify-email', (req, res) => {
+  serveHTML(req, res, 'verify-email.html');
+});
+
+router.get('/verify-email.html', (req, res) => {
+  res.redirect('/verify-email');
 });
 
 // ---------------------------------------------------------
 // PUBLIC MARKETING PAGES (UNPROTECTED)
 // ---------------------------------------------------------
-// IMPORTANT: These routes are intentionally outside auth/pageAuth
-// so the marketing site is accessible without logging in.
-router.get('/', (req, res) => {
-  serveHTML(req, res, 'marketing/index.html');
-});
-
-router.get('/about', (req, res) => {
-  serveHTML(req, res, 'marketing/about.html');
-});
-
-router.get('/services', (req, res) => {
-  serveHTML(req, res, 'marketing/services.html');
-});
-
-router.get('/blog', (req, res) => {
-  serveHTML(req, res, 'marketing/blog.html');
-});
-
-router.get('/faq', (req, res) => {
-  serveHTML(req, res, 'marketing/faq.html');
-});
-
-router.get('/contact', (req, res) => {
-  serveHTML(req, res, 'marketing/contact.html');
-});
-
-router.get('/privacy-policy', (req, res) => {
-  serveHTML(req, res, 'marketing/privacy.html');
-});
-
-router.get('/terms-conditions', (req, res) => {
-  serveHTML(req, res, 'marketing/terms.html');
-});
-
-// Friendly marketing 404 page
-router.get('/404', (req, res) => {
-  serveHTML(req, res, 'marketing/404.html');
-});
-
-// Redirect root (fallback for legacy auth app landing)
-// Note: When user is logged in and wants app, they can navigate to /dashboard.
-// We keep the redirect logic only for the auth app; marketing home is now '/'.
-// router.get('/', (req, res) => res.redirect('/dashboard'));
-
+router.get('/', (req, res) => { serveHTML(req, res, 'marketing/index.html'); });
+router.get('/about', (req, res) => { serveHTML(req, res, 'marketing/about.html'); });
+router.get('/services', (req, res) => { serveHTML(req, res, 'marketing/services.html'); });
+router.get('/blog', (req, res) => { serveHTML(req, res, 'marketing/blog.html'); });
+router.get('/faq', (req, res) => { serveHTML(req, res, 'marketing/faq.html'); });
+router.get('/contact', (req, res) => { serveHTML(req, res, 'marketing/contact.html'); });
+router.get('/privacy-policy', (req, res) => { serveHTML(req, res, 'marketing/privacy.html'); });
+router.get('/terms-conditions', (req, res) => { serveHTML(req, res, 'marketing/terms.html'); });
+router.get('/support', (req, res) => { serveHTML(req, res, 'marketing/support.html'); });
+router.get('/404', (req, res) => { serveHTML(req, res, 'marketing/404.html'); });
 
 // ---------------------------------------------------------
 // PROTECTED DYNAMIC DASHBOARD ALIAS
+// Redirects /dashboard to role-based URL so /dashboard never shows in the browser
 // ---------------------------------------------------------
 
 router.get('/dashboard', pageAuth, (req, res) => {
-  const role = req.user.role_name;
-  if (role === 'super_admin') {
-    serveHTML(req, res, 'super_admin/index.html');
-  } else if (role === 'admin') {
-    serveHTML(req, res, 'admin/index.html');
-  } else if (role === 'reviewer') {
-    serveHTML(req, res, 'reviewer/index.html');
-  } else {
-    serveHTML(req, res, 'employee/index.html');
-  }
+  redirectToDashboard(req, res);
 });
 
 // ---------------------------------------------------------
 // PROTECTED CLEAN URL ROUTES
 // ---------------------------------------------------------
 
-// Admin pages
-router.get('/admin/:page?', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
+// Admin - index
+router.get('/admin', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'admin/index.html');
+});
+
+// Admin - single level pages (e.g., /admin/profile, /admin/archives)
+router.get('/admin/:page', pageAuth, requirePageRole('admin', 'super_admin'), (req, res, next) => {
+  let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
+  // If this looks like a section directory, skip to nested handler
+  const sections = ['people', 'meetings', 'content', 'evaluation', 'insights', 'reports', 'settings'];
+  if (sections.includes(page)) return next();
   serveHTML(req, res, `admin/${page}.html`);
+});
+
+// Admin - nested pages (e.g., /admin/meetings/schedule, /admin/content/recordings)
+router.get('/admin/:section/:page', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
+  const section = req.params.section;
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `admin/${section}/${page}.html`);
 });
 
 // Super Admin pages
@@ -153,11 +178,11 @@ router.get('/reviewer/:page?', pageAuth, requirePageRole('reviewer', 'admin', 's
   serveHTML(req, res, `reviewer/${page}.html`);
 });
 
-// Employee pages
-router.get('/employee/:page?', pageAuth, requirePageRole('employee', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+// instructor pages
+router.get('/instructor/:page?', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
   let page = req.params.page || 'index';
   if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `employee/${page}.html`);
+  serveHTML(req, res, `instructor/${page}.html`);
 });
 
 // Marketing catch-all 404 for unknown public marketing paths

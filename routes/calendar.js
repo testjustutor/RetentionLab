@@ -332,7 +332,13 @@ router.get('/multi/verify', async (req, res) => {
 
 // This MUST match the path in your Google Console and the error URL
 router.get('/callback', async (req, res) => {
+  const reqId = `cb_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const { code, state } = req.query; // state is a signed token containing the email
+
+  logger.info(`Route(calendar): /callback hit reqId=${reqId}`, {
+    hasCode: Boolean(code),
+    hasState: Boolean(state)
+  });
 
   if (!code) {
     return res.status(400).send('No code provided from Google.');
@@ -342,22 +348,43 @@ router.get('/callback', async (req, res) => {
     return res.status(400).send('Missing state token from OAuth flow.');
   }
 
+  const timeoutMs = 15000; // prevent hanging forever in the browser
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`OAuth callback timed out after ${timeoutMs}ms (reqId=${reqId})`)),
+      timeoutMs
+    );
+  });
+
   try {
+    logger.info(`Route(calendar): /callback verifyCalendarLink start reqId=${reqId}`);
     const payload = verifyCalendarLink(state);
-    if (!payload || !payload.email) return res.status(400).send('Invalid or expired state token.');
+    if (!payload || !payload.email) {
+      logger.warn(`Route(calendar): /callback invalid/expired state token reqId=${reqId}`);
+      return res.status(400).send('Invalid or expired state token.');
+    }
 
     const email = payload.email;
-
     const service = new MultiUserCalendarService();
-    
-    // 1. Initialize the service with the email sent back in 'state'
-    await service.initialize(email);
-    
-    // 2. Exchange the code for tokens and save to DB
-    await service.authorize(code);
+
+    logger.info(`Route(calendar): /callback initializing service for ${email} reqId=${reqId}`);
+
+    await Promise.race([
+      (async () => {
+        // 1) Initialize
+        await service.initialize(email);
+        logger.info(`Route(calendar): /callback authorize start for ${email} reqId=${reqId}`);
+
+        // 2) Exchange code for tokens + save to DB
+        await service.authorize(code);
+
+        logger.info(`Route(calendar): /callback authorize success for ${email} reqId=${reqId}`);
+      })(),
+      timeoutPromise
+    ]);
 
     // 3. Success! Close the popup or redirect
-    res.send(`
+    return res.send(`
       <html>
         <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
           <h1 style="color: #28a745;">✅ Success!</h1>
@@ -370,8 +397,24 @@ router.get('/callback', async (req, res) => {
       </html>
     `);
   } catch (err) {
-    logger.error('Route(calendar): OAuth Callback Error:', err);
-    res.status(500).send('Authentication failed: ' + err.message);
+    logger.error(`Route(calendar): OAuth Callback Error reqId=${reqId}:`, {
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack,
+      responseStatus: err?.response?.status,
+      responseData: err?.response?.data
+    });
+
+    const msg = err?.message || 'Unknown error';
+    const hint =
+      msg.includes('invalid_grant')
+        ? ' (invalid_grant: use a fresh authorization code; verify the redirect URI in Google Console matches exactly your /api/calendar/callback URL)'
+        : '';
+
+    const isTimeout = msg.includes('timed out');
+    return res
+      .status(isTimeout ? 504 : 500)
+      .send('Authentication failed: ' + msg + hint + ` (reqId=${reqId})`);
   }
 });
 

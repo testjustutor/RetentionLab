@@ -9,6 +9,7 @@ const CalendarUsersModel = require('../../models/CalendarUsersModel');
 const UsersModel = require('../../models/UsersModel');
 const path = require('path');
 const fs = require('fs/promises');
+const { signCalendarLink } = require('../../utils/calendarLinkToken');
 
 function hashPassword(password, salt = null) {
   salt = salt || crypto.randomBytes(16).toString('hex');
@@ -21,9 +22,10 @@ class MultiUserCalendarService {
     this.oauth2Client = null;
     this.calendar = null;
     this.currentEmail = null;
+    this.redirectUri = null; // Will hold the correct redirect URI for this flow
   }
 
-  async initialize(email) {
+  async initialize(email, redirectUriOverride = null) {
     let user = await CalendarUsersModel.getUser(email);
 
     // if (!user) {
@@ -50,13 +52,14 @@ class MultiUserCalendarService {
     }
 
     const config = credentials.installed || credentials.web || credentials;
-    const redirectUri = config.redirect_uris[0];
+    // Use the override if provided, otherwise use the first URI in the file
+    this.redirectUri = redirectUriOverride || config.redirect_uris[0];
 
     this.oauth2Client = new google.auth.OAuth2(
       client_id,
       client_secret,
-      redirectUri 
-      );
+      this.redirectUri
+    );
 
     // Set tokens from DB
     // Set credentials only if real tokens exist (skip for newly registered)
@@ -130,6 +133,9 @@ class MultiUserCalendarService {
   async getAuthUrl() { 
     if (!this.currentEmail) throw new Error("Service must be initialized with an email first.");
 
+    // Sign the email as a JWT so the callback can verify it
+    const signedState = signCalendarLink({ email: this.currentEmail });
+
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
@@ -137,13 +143,17 @@ class MultiUserCalendarService {
       'https://www.googleapis.com/auth/calendar.readonly',
       'https://www.googleapis.com/auth/calendar.events'
       ],
-      state: this.currentEmail
+      state: signedState
     });
   }
 
   async authorize(code) {
-    // 1. Exchange code for tokens
-    const { tokens } = await this.oauth2Client.getToken(code);
+    // 1. Exchange code for tokens — explicitly pass redirect_uri to ensure it
+    //    matches what was used in the original auth URL (required by Google).
+    const { tokens } = await this.oauth2Client.getToken({
+      code,
+      redirect_uri: this.redirectUri
+    });
     
     // 2. Set them into the current client
     this.oauth2Client.setCredentials(tokens);

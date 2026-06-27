@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <title>Rubrics | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <div class="flex items-center justify-between mb-4">
+          <div><h1 class="text-xl font-bold text-white">Rubrics</h1><p class="text-xs text-slate-400 mt-1">Your evaluation framework</p></div>
+          <span class="text-[10px] text-slate-500" id="saveStatus"></span>
+        </div>
+        <div id="rubricsRoot">
+          <div class="animate-pulse space-y-3">
+            <div class="h-16 bg-slate-800/50 rounded-lg"></div>
+            <div class="h-16 bg-slate-800/50 rounded-lg"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script>
+    (async () => {
+      const root = document.getElementById('rubricsRoot');
+
+      // 1) authenticate & get own user id
+      let me, userId;
+      try { me = await apiFetch('/api/auth/me'); userId = (me.user||me).id; }
+      catch(e) { root.innerHTML = `<p class="text-red-400">Auth failed: ${e.message}</p>`; return; }
+
+      // 2) fetch admin rubric
+      let rubric;
+      try { rubric = await apiFetch('/api/rubrics/admin/'+userId); }
+      catch(e) { root.innerHTML = `<p class="text-red-400">Failed to load rubric: ${e.message}</p>`; return; }
+
+      const cats = rubric.categories || [];
+      const inds = rubric.indicators || [];
+
+      if (!cats.length) {
+        root.innerHTML = '<p class="text-slate-500 text-center py-16">No rubric assigned yet. Contact your admin.</p>';
+        return;
+      }
+
+      let dirty = false;
+
+      function render() {
+        let html = '<div class="space-y-3">';
+        cats.forEach((c,i) => {
+          const cId = c.original_category_id;
+          const cItems = inds.filter(x => x.original_category_id === cId);
+          const totalVal = cItems.reduce((s,x) => s + (+x.value||0), 0);
+          const colors = ['violet','emerald','amber','rose','sky','indigo','teal','cyan'];
+          const color = colors[i%colors.length];
+
+          html += `<div class="rounded-lg border border-slate-800 bg-slate-900 overflow-hidden">
+            <div class="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-${color}-500/5">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-md bg-${color}-500/10 border border-${color}-500/20 flex items-center justify-center text-${color}-400 font-bold text-[10px]">${i+1}</span>
+                <div><p class="text-xs font-semibold text-white">${escapeHtml(c.name)}</p><p class="text-[10px] text-slate-500">${cItems.length} indicator${cItems.length!==1?'s':''}</p></div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-slate-400">Wt:</span>
+                <input type="number" step="0.1" min="0" max="100" value="${+c.weight||0}" data-cat="${cId}"
+                  class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white text-center cat-weight focus:border-violet-500 outline-none" oninput="markDirty()">
+              </div>
+            </div>`;
+
+          if (cItems.length) {
+            html += `<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider">
+              <th class="py-2 px-3">Indicator</th>
+              <th class="py-2 px-3 w-16">Type</th>
+              <th class="py-2 px-3 w-12 text-center">Gate</th>
+              <th class="py-2 px-3 w-16 text-center">Value</th>
+              <th class="py-2 px-3 w-20 text-right">Wt %</th>
+            </tr></thead><tbody class="divide-y divide-slate-800/50">`;
+            cItems.forEach(ind => {
+              const pct = totalVal > 0 ? ((+ind.value||0)/totalVal*100).toFixed(1) : '0.0';
+              const typeColor = ind.type === 'AI' ? 'bg-violet-500/10 text-violet-400' : 'bg-emerald-500/10 text-emerald-400';
+              html += `<tr class="hover:bg-slate-800/30">
+                <td class="py-2 px-3 text-white">${escapeHtml(ind.name)}</td>
+                <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${typeColor}">${ind.type||'HUMAN'}</span></td>
+                <td class="py-2 px-3 text-center">${ind.is_gate ? '<span class="text-emerald-400 font-bold">&#x2713;</span>' : '<span class="text-slate-600">--</span>'}</td>
+                <td class="py-2 px-3 text-center"><input type="number" step="0.1" min="0" value="${+ind.value||1}" data-ind="${ind.original_indicator_id}"
+                  class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white text-center ind-value focus:border-violet-500 outline-none" oninput="markDirty()"></td>
+                <td class="py-2 px-3 text-right text-slate-500">${pct}%</td>
+              </tr>`;
+            });
+            html += '</tbody></table></div>';
+          }
+          html += '</div>';
+        });
+        html += '</div>';
+        // Save button
+        html += `<div class="flex justify-end mt-4 gap-2">
+          <button onclick="resetRubric()" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-white transition-colors">Reset</button>
+          <button onclick="saveRubric()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">Save</button>
+        </div>`;
+        root.innerHTML = html;
+      }
+
+      window.markDirty = function() {
+        dirty = true;
+        document.getElementById('saveStatus').textContent = '(unsaved changes)';
+        document.getElementById('saveStatus').classList.add('text-amber-400');
+      };
+
+      window.resetRubric = function() {
+        location.reload();
+      };
+
+      window.saveRubric = async function() {
+        const catEls = root.querySelectorAll('.cat-weight');
+        const indEls = root.querySelectorAll('.ind-value');
+        const catChanges = [], indChanges = [];
+
+        catEls.forEach(el => {
+          const id = el.getAttribute('data-cat');
+          const val = parseFloat(el.value)||0;
+          if (val !== +cats.find(c=>c.original_category_id===id)?.weight) catChanges.push({original_category_id:id, weight:val});
+        });
+        indEls.forEach(el => {
+          const id = el.getAttribute('data-ind');
+          const val = parseFloat(el.value)||0;
+          if (val !== +inds.find(x=>x.original_indicator_id===id)?.value) indChanges.push({original_indicator_id:id, value:val});
+        });
+
+        if (!catChanges.length && !indChanges.length) { showToast('No changes'); return; }
+
+        try {
+          await apiFetch('/api/rubrics/admin/'+userId+'/bulk', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ categories:catChanges.length ? catChanges : undefined, indicators:indChanges.length ? indChanges : undefined })
+          });
+          showToast('Rubric saved');
+          dirty = false;
+          document.getElementById('saveStatus').textContent = '';
+          rubric = await apiFetch('/api/rubrics/admin/'+userId);
+          // update cats/inds from fresh data
+          cats.length = 0; inds.length = 0;
+          (rubric.categories||[]).forEach(c=>cats.push(c));
+          (rubric.indicators||[]).forEach(i=>inds.push(i));
+          render();
+        } catch(e) { showToast(e.message, true); }
+      };
+
+      render();
+    })();
+
+    function escapeHtml(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  </script>
+</body></html>

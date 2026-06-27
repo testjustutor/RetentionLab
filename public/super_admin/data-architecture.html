@@ -61,27 +61,27 @@
     </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
-    <div class="mx-auto flex flex-col gap-2">
+        <div class="mx-auto flex flex-col gap-3">
         
         <!-- Header -->    <div id="header-placeholder"></div>
 <!-- Stats Grid -->
-        <div id="stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div id="stats" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <!-- Dynamic stats card rendered here by admin.js -->
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 pl-4 pr-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 p-4">
             
             <!-- Left Column: Controls -->
             <div class="lg:col-span-4 flex flex-col gap-4">
-                <div class="bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800/80 shadow-md overflow-hidden shrink-0">
-                    <div class="px-4 py-2 border-b border-slate-800/60 bg-slate-800/30">
-                        <h2 class="text-slate-200 font-semibold flex items-center gap-2 text-[11px] uppercase tracking-wide">
+                <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden shrink-0">
+                    <div class="px-3 py-2 border-b border-slate-800/60 bg-slate-800/30">
+                        <h2 class="text-slate-200 font-semibold flex items-center gap-2 text-[10px] uppercase tracking-wide">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                             Controls
                         </h2>
                     </div>
-                    <div class="p-3 flex flex-col gap-2">
-                        <select id="tableSelect" class="w-full bg-slate-950/50 border border-slate-700/80 text-white rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 shadow-inner">
+                    <div class="p-2.5 flex flex-col gap-1.5">
+                        <select id="tableSelect" class="w-full bg-slate-950/50 border border-slate-700/80 text-white rounded-md px-2 py-1.5 text-[10px] focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 shadow-inner">
                             <option value="">Select table</option>
                         </select>
                         <button onclick="refreshData()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg p-2 text-xs font-semibold transition-colors flex items-center justify-center gap-2">

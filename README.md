@@ -190,6 +190,7 @@ Step 1 : git clone https://github.com/testjustutor/RetentionLab.git
 Step 2 : git checkout development (temporary for development)
 
 Step 3 : npm install
+            npm install mysql2 dotenv
 
 Step 4 :   if already have old .venv 
             deactivate

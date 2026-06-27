@@ -42,6 +42,12 @@ class UsersModel {
       phone: data.phone || null,
       profile_image: data.profile_image || null,
       status: data.status || 'active',
+      email_verified: data.email_verified || 0,
+      email_verified_at: data.email_verified_at || null,
+      email_verification_token: data.email_verification_token || null,
+      email_verification_expires_at: data.email_verification_expires_at || null,
+      password_reset_token: data.password_reset_token || null,
+      password_reset_expires_at: data.password_reset_expires_at || null,
       is_company_owner: data.is_company_owner ? 1 : 0,
       created_by: user ? user.id : null
     };
@@ -64,9 +70,9 @@ class UsersModel {
         if (user?.role_name === 'super_admin') {
           // Super admin can create any role — no restriction
         }
-        // Admin can only create reviewer accounts
-        else if (user?.role_name === 'admin' && roleRow.role_name !== 'reviewer') {
-          throw new Error('Admin may only create reviewer accounts');
+        // Admin can only create reviewer and instructor accounts
+        else if (user?.role_name === 'admin' && !['reviewer', 'instructor'].includes(roleRow.role_name)) {
+          throw new Error('Admin may only create reviewer and instructor accounts');
         }
         // Require company_id for roles that need it
         if (['admin', 'reviewer', 'instructor'].includes(roleRow.role_name) && !insertData.company_id) {
@@ -80,8 +86,27 @@ class UsersModel {
     }
 
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, is_company_owner, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-      db.run(sql, [insertData.user_uuid, insertData.company_id, insertData.role_id, insertData.first_name, insertData.last_name, insertData.email, insertData.password_hash, insertData.phone, insertData.profile_image, insertData.status, insertData.is_company_owner, insertData.created_by], function(err) {
+      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, email_verified, email_verified_at, email_verification_token, email_verification_expires_at, password_reset_token, password_reset_expires_at, is_company_owner, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      db.run(sql, [
+        insertData.user_uuid,
+        insertData.company_id,
+        insertData.role_id,
+        insertData.first_name,
+        insertData.last_name,
+        insertData.email,
+        insertData.password_hash,
+        insertData.phone,
+        insertData.profile_image,
+        insertData.status,
+        insertData.email_verified,
+        insertData.email_verified_at,
+        insertData.email_verification_token,
+        insertData.email_verification_expires_at,
+        insertData.password_reset_token,
+        insertData.password_reset_expires_at,
+        insertData.is_company_owner,
+        insertData.created_by
+      ], function(err) {
         if (err) {
           logger.error('Model(UsersModel): Create error', err);
           return reject(err);
@@ -183,6 +208,11 @@ class UsersModel {
     if (!existing) return { updated: false };
     const keys = Object.keys(changes);
     if (!keys.length) return Promise.resolve({ updated: false });
+    // Track who updated this record
+    if (user && !changes.updated_by) {
+      keys.push('updated_by');
+      changes.updated_by = user.id;
+    }
     const set = keys.map(k => `${k} = ?`).join(', ');
     const params = keys.map(k => changes[k]);
     params.push(id);
@@ -198,11 +228,20 @@ class UsersModel {
     UsersModel._ensureAdminOrSuper(user);
     const existing = await UsersModel.getUserById(user, id);
     if (!existing) return { deleted: false };
+    const ts = Date.now();
+    const anonEmail = 'deleted_' + ts + '_' + (existing.email || 'user');
+    const anonUuid  = 'deleted_' + ts + '_' + (existing.user_uuid || 'user');
     return new Promise((resolve, reject) => {
-      db.run('UPDATE users SET deleted_at = CURRENT_TIMESTAMP, status = "deleted" WHERE id = ?', [id], function(err) {
-        if (err) return reject(err);
-        resolve({ deleted: this.changes > 0 });
-      });
+      db.run(
+        `UPDATE users SET deleted_at = CURRENT_TIMESTAMP, status = "deleted",
+         is_active = 0, is_deleted = 1, deleted_by = ?,
+         email = ?, user_uuid = ? WHERE id = ?`,
+        [user.id, anonEmail, anonUuid, id],
+        function(err) {
+          if (err) return reject(err);
+          resolve({ deleted: this.changes > 0 });
+        }
+      );
     });
   }
 }

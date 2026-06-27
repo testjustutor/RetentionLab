@@ -7,7 +7,7 @@ const { logger } = require('../utils/logger');
 class MeetingReviewersModel {
   static assignReviewer(meetingId, reviewerId, assignedBy) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT OR IGNORE INTO meeting_reviewers (meeting_id, reviewer_id, assigned_by, assigned_at, review_status) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending')`;
+      const sql = `INSERT IGNORE INTO meeting_reviewers (meeting_id, reviewer_id, assigned_by, assigned_at, review_status) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending')`;
       db.run(sql, [meetingId, reviewerId, assignedBy || null], function(err) {
         if (err) return reject(err);
         resolve({ id: this.lastID, meetingId, reviewerId });

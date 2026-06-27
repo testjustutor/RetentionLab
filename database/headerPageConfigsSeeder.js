@@ -5,23 +5,22 @@ const { runAsync, getAsync } = require('./seedHelpers');
 const { db } = require('./db');
 
 const DEFAULT_PAGES = {
-  dashboard:         { title: 'Dashboard',             description: 'View your dashboard and recent activity.',                       roleTitle: 'Dashboard', showStats: true, buttons: [] },
-  archives:          { title: 'Archives',              description: 'Browse and manage archived meetings.',                           roleTitle: 'Archives', showStats: false, buttons: [] },
-  assets:            { title: 'Assets',                description: 'Manage media and content assets.',                               roleTitle: 'Assets', showStats: false, buttons: [] },
-  audit:             { title: 'Audit Log',             description: 'View system activity and user actions.',                         roleTitle: 'Audit', showStats: false, buttons: [] },
-  botManagement:     { title: 'Bot Management',        description: 'Configure and manage bot settings.',                             roleTitle: 'Settings', showStats: false, buttons: [] },
-  calendarAccounts:  { title: 'Calendar Accounts',     description: 'Manage connected calendar integrations.',                       roleTitle: 'Accounts', showStats: false, buttons: [] },
-  calendarEvents:    { title: 'Calendar Events',       description: 'View and manage calendar events.',                               roleTitle: 'Events', showStats: false, buttons: [] },
-  dataArchitecture:  { title: 'Data Architecture',     description: 'Inspect schema models, retention flows, and topology.',          roleTitle: 'Console', showStats: false, buttons: [] },
-  profile:           { title: 'Profile',               description: 'Manage your account profile and preferences.',                  roleTitle: 'Profile', showStats: false, buttons: [] },
-  settings:          { title: 'Settings',              description: 'Configure system and personal settings.',                        roleTitle: 'Settings', showStats: false, buttons: [] },
-  userSettings:      { title: 'User Settings',         description: 'Manage user account settings.',                                  roleTitle: 'Settings', showStats: false, buttons: [] },
-  addUser:           { title: 'Add User',              description: 'Create and add new user accounts.',                              roleTitle: 'User Management', showStats: false, buttons: [] },
-  manageUsers:       { title: 'Manage Users',          description: 'Edit, deactivate, and manage user accounts.',                   roleTitle: 'User Management', showStats: false, buttons: [] },
-  rolesAccess:       { title: 'Roles & Access',        description: 'Manage user roles and access permissions.',                     roleTitle: 'User Management', showStats: false, buttons: [] },
-  rubricManagement:  { title: 'Rubric Management',     description: 'Create, manage, and assign rubric categories and indicators.',   roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  myWorkspace:       { title: 'My Workspace',          description: 'Your personal dashboard — meetings, reports, and calendar.',      roleTitle: 'My Workspace', showStats: true, buttons: [] }
+  dashboard:        { title: 'Console',            description: 'Dashboard overview',                                        roleTitle: 'Console', showStats: true,  buttons: [] },
+  profile:          { title: 'My Profile',         description: 'View and update your profile',                              roleTitle: 'Console', showStats: false, buttons: [] },
+  settings:         { title: 'Settings',           description: 'Manage your preferences',                                   roleTitle: 'Console', showStats: false, buttons: [] },
+  archives:         { title: 'Archives',           description: 'Browse archived records',                                   roleTitle: 'Console', showStats: false, buttons: [] },
+  events:           { title: 'Events',             description: 'View event timeline',                                       roleTitle: 'Console', showStats: false, buttons: [] },
+  calendarAccounts: { title: 'Calendar Accounts',  description: 'Manage connected calendar accounts and email sources.',     roleTitle: 'Console', showStats: false, buttons: [] },
+  bot:              { title: 'Bot Engine Console', description: 'Monitor real-time orchestrator instances and active bots.', roleTitle: 'Console', showStats: false, buttons: [] },
+  assets:           { title: 'Media Assets',       description: 'View partitioned audio chunks and raw exports.',            roleTitle: 'Console', showStats: false, buttons: [] },
+  audit:            { title: 'Audit Timeline',     description: 'Review system audit logs and compliance tracking.',         roleTitle: 'Console', showStats: false, buttons: [] },
+  dataArchitecture: { title: 'Data Architecture',  description: 'Inspect schema models, retention flows, and topology.',    roleTitle: 'Console', showStats: false, buttons: [] },
+  addUser:          { title: 'Add User',           description: 'Create new users and assign roles.',                         roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  manageUsers:      { title: 'Manage Users',       description: 'View, update, and delete user accounts.',                   roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  rolesAccess:      { title: 'Roles & Access',      description: 'Define and manage user roles and permissions.',             roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  userSettings:     { title: 'User Settings',      description: 'Configure global user-related settings.',                  roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  rubricManagement: { title: 'Rubric Management',   description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] }
 };
 
 const seedHeaderPageConfigs = async () => {
@@ -35,11 +34,10 @@ const seedHeaderPageConfigs = async () => {
         });
     });
 
-    // Seed all pages for all roles
     for (const role of roles) {
         for (const [pageKey, pageData] of Object.entries(DEFAULT_PAGES)) {
             await runAsync(
-                `INSERT OR IGNORE INTO header_page_configs 
+                `INSERT IGNORE INTO header_page_configs 
                  (role_id, page_key, title, description, role_title, show_stats, buttons_json)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
@@ -49,7 +47,7 @@ const seedHeaderPageConfigs = async () => {
                     pageData.description,
                     pageData.roleTitle,
                     pageData.showStats ? 1 : 0,
-                    JSON.stringify(pageData.buttons || [])
+                    JSON.stringify(pageData.buttons)
                 ]
             );
         }

@@ -4,29 +4,36 @@
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
+// Promisified run helper matching the MySQL shim's callback style
+const run = (sql, params = []) => new Promise((resolve, reject) => {
+  db.run(sql, params, function (err) {
+    if (err) return reject(err);
+    resolve({ lastID: this.lastID, changes: this.changes });
+  });
+});
+
+const get = (sql, params = []) => new Promise((resolve, reject) => {
+  db.get(sql, params, (err, row) => {
+    if (err) return reject(err);
+    resolve(row || null);
+  });
+});
+
 class TranscriptModel {
 
-  static createSession(meetingId) {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('INSERT OR IGNORE INTO meeting_sessions (meeting_id) VALUES (?)', [meetingId], function(err) {
-          if (err) {
-            logger.error('Model(transcriptModel): Error creating session:', err);
-            reject(err);
-            return;
-          }
+  static async createSession(meetingId) {
+    // Use INSERT IGNORE via ON DUPLICATE KEY for MySQL compatibility
+    await run(
+      `INSERT INTO meeting_sessions (meeting_id, start_time) VALUES (?, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`,
+      [meetingId]
+    );
 
-          db.get('SELECT id, meeting_id, transcript_file_name FROM meeting_sessions WHERE meeting_id = ?', [meetingId], (selectErr, row) => {
-            if (selectErr) {
-              logger.error('Model(transcriptModel): Error selecting session after create:', selectErr);
-              reject(selectErr);
-            } else {
-              resolve(row || { id: this.lastID, meeting_id: meetingId });
-            }
-          });
-        });
-      });
-    });
+    const row = await get(
+      'SELECT id, meeting_id, transcript_file_name FROM meeting_sessions WHERE meeting_id = ? ORDER BY id DESC LIMIT 1',
+      [meetingId]
+    );
+    return row || { id: null, meeting_id: meetingId };
   }
 
   static saveTranscriptFile(sessionId, fileName) {
@@ -127,4 +134,3 @@ class TranscriptModel {
 }
 
 module.exports = TranscriptModel;
-

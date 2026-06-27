@@ -50,7 +50,19 @@ function getIconSvg(iconName) {
     shield: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
     calendar: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
     user: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
-    chevron: '<svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>'
+    users: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+    star: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+    zap: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+    'bar-chart': '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>',
+    archive: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>',
+    clipboard: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>',
+    list: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>',
+    chevron: '<svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>',
+    building: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-6h6v6"/></svg>',
+    link: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    lock: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    activity: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    database: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>'
   };
   return icons[iconName] || '';
 }
@@ -91,7 +103,7 @@ function detectCurrentPageId() {
   // Root or index → dashboard
   if (!fileName || fileName === 'index.html' || fileName.includes('index')) return 'dashboard';
 
-  // Strip .html extension (or any extension), keep kebab-case
+  // Strip .html extension if present, keep kebab-case
   const baseName = fileName.replace(/\.\w+$/, '');
 
   return baseName || 'dashboard';
@@ -99,100 +111,151 @@ function detectCurrentPageId() {
 
 function renderMenuItems(menuItems, currentPageId) {
   const ul = document.createElement('ul');
-  ul.className = 'menu-list';
+  ul.className = 'menu-list space-y-1 px-2 py-4';
+
+  // Group items by section
+  const sections = {};
+  const sectionOrder = ['main', 'reviews', 'sessions', 'evaluations', 'analytics', 'account', 'people', 'meetings', 'content', 'evaluation', 'insights', 'reports', 'archives', 'settings', 'organization', 'platform', 'monitoring', 'data'];
+  const sectionLabels = {
+    main: '',
+    reviews: 'Review Queue',
+    sessions: 'Sessions',
+    evaluations: 'Evaluations',
+    analytics: 'Review Analytics',
+    people: 'People',
+    meetings: 'Meetings',
+    content: 'Content',
+    evaluation: 'Evaluation',
+    insights: 'Insights',
+    reports: 'Reports',
+    archives: 'Archives',
+    settings: 'Settings',
+    account: 'Account',
+    organization: 'Organization Management',
+    platform: 'Platform Configuration',
+    monitoring: 'Monitoring & Compliance',
+    data: 'Data Management'
+  };
 
   for (const item of menuItems) {
-    if (item.isActive === false) {
-      continue;
+    const section = item.section || 'main';
+    if (!sections[section]) {
+      sections[section] = [];
     }
-    const li = document.createElement('li');
-    li.className = 'menu-item';
+    sections[section].push(item);
+  }
 
-    // Check if this item or any submenu item is active
-    let isActive = item.id === currentPageId;
-    if (item.submenu && !isActive) {
-      isActive = item.submenu.some(sub => {
-        const subId = sub.id || sub.href?.split('/').pop()?.replace('.html', '');
-        return subId === currentPageId;
-      });
-    }
+  // Render sections in order
+  for (const sectionKey of sectionOrder) {
+    const items = sections[sectionKey];
+    if (!items || !items.length) continue;
 
-    if (isActive) {
-      li.classList.add('active');
-    }
-
-    // Main item link/button
-    const itemContent = document.createElement(item.submenu ? 'button' : 'a');
-    itemContent.className = 'menu-link';
-    
-    if (item.submenu) {
-      itemContent.type = 'button';
-      itemContent.setAttribute('aria-expanded', isActive ? 'true' : 'false');
-    } else {
-      itemContent.href = item.href;
+    // Section header
+    if (sectionLabels[sectionKey]) {
+      const sectionLi = document.createElement('li');
+      sectionLi.className = 'pt-4';
+      const sectionP = document.createElement('p');
+      sectionP.className = 'px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500';
+      sectionP.textContent = sectionLabels[sectionKey];
+      sectionLi.appendChild(sectionP);
+      ul.appendChild(sectionLi);
     }
 
-    // Icon + Label
-    const iconSpan = document.createElement('span');
-    iconSpan.className = 'menu-icon-wrapper';
-    iconSpan.innerHTML = getIconSvg(item.icon);
-    itemContent.appendChild(iconSpan);
+    // Render items in this section
+    for (const item of items) {
+      if (item.isActive === false) continue;
 
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'menu-label';
-    labelSpan.textContent = item.label;
-    itemContent.appendChild(labelSpan);
+      const li = document.createElement('li');
 
-    // Chevron for submenu items
-    if (item.submenu) {
-      const chevronSpan = document.createElement('span');
-      chevronSpan.className = 'menu-chevron';
-      chevronSpan.innerHTML = getIconSvg('chevron');
-      itemContent.appendChild(chevronSpan);
-
-      // Toggle submenu on click
-      itemContent.addEventListener('click', (e) => {
-        e.preventDefault();
-        const submenuEl = li.querySelector('.submenu');
-        const isExpanded = submenuEl.classList.toggle('expanded');
-        itemContent.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-      });
-    }
-
-    li.appendChild(itemContent);
-
-    // Submenu (if exists)
-    if (item.submenu) {
-      const submenuDiv = document.createElement('div');
-      submenuDiv.className = 'submenu' + (isActive ? ' expanded' : '');
-      
-      const submenuUl = document.createElement('ul');
-      submenuUl.className = 'submenu-list';
-
-      for (const subItem of item.submenu) {
-        const subLi = document.createElement('li');
-        subLi.className = 'submenu-item';
-
-        const subLink = document.createElement('a');
-        subLink.className = 'submenu-link';
-        subLink.href = subItem.href;
-        subLink.textContent = subItem.label;
-
-        // Highlight active submenu item
-        const subId = subItem.id || subItem.href?.split('/').pop()?.replace('.html', '');
-        if (subId === currentPageId) {
-          subLi.classList.add('active');
-        }
-
-        subLi.appendChild(subLink);
-        submenuUl.appendChild(subLi);
+      // Check if this item or any submenu item is active
+      let isActive = item.id === currentPageId;
+      if (item.submenu && !isActive) {
+        isActive = item.submenu.some(sub => {
+          const subId = sub.id || sub.href?.split('/').pop()?.replace('.html', '');
+          return subId === currentPageId;
+        });
       }
 
-      submenuDiv.appendChild(submenuUl);
-      li.appendChild(submenuDiv);
-    }
+      if (isActive) {
+        li.classList.add('active');
+      }
 
-    ul.appendChild(li);
+      // Main item link/button
+      const itemContent = document.createElement(item.submenu ? 'button' : 'a');
+      itemContent.className = 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
+      
+      if (item.submenu) {
+        itemContent.type = 'button';
+        itemContent.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+      } else {
+        itemContent.href = item.href;
+      }
+
+      // Colored icon background
+      const colorClass = item.color ? `text-${item.color}-400` : 'text-violet-400';
+      const iconSvg = getIconSvg(item.icon);
+      if (iconSvg) {
+        const iconSpan = document.createElement('span');
+        iconSpan.className = `w-5 h-5 ${colorClass}`;
+        iconSpan.innerHTML = iconSvg;
+        itemContent.appendChild(iconSpan);
+      }
+
+      // Label
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'flex-1';
+      labelSpan.textContent = item.label;
+      itemContent.appendChild(labelSpan);
+
+      // Chevron for submenu items
+      if (item.submenu) {
+        const chevronSpan = document.createElement('span');
+        chevronSpan.className = 'w-3 h-3 transition-transform group-open:rotate-90';
+        chevronSpan.innerHTML = getIconSvg('chevron');
+        itemContent.appendChild(chevronSpan);
+
+        // Toggle submenu on click
+        itemContent.addEventListener('click', (e) => {
+          e.preventDefault();
+          const submenuEl = li.querySelector('.submenu');
+          const isExpanded = submenuEl.classList.toggle('expanded');
+          itemContent.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+        });
+      }
+
+      li.appendChild(itemContent);
+
+      // Submenu (if exists)
+      if (item.submenu) {
+        const submenuDiv = document.createElement('div');
+        submenuDiv.className = 'submenu' + (isActive ? ' expanded' : '');
+        
+        const submenuUl = document.createElement('ul');
+        submenuUl.className = 'ml-6 mt-1 space-y-1';
+
+        for (const subItem of item.submenu) {
+          const subLi = document.createElement('li');
+          const subLink = document.createElement('a');
+          subLink.className = 'block px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded';
+          subLink.href = subItem.href;
+          subLink.textContent = subItem.label;
+
+          // Highlight active submenu item
+          const subId = subItem.id || subItem.href?.split('/').pop()?.replace('.html', '');
+          if (subId === currentPageId) {
+            subLi.classList.add('active');
+          }
+
+          subLi.appendChild(subLink);
+          submenuUl.appendChild(subLi);
+        }
+
+        submenuDiv.appendChild(submenuUl);
+        li.appendChild(submenuDiv);
+      }
+
+      ul.appendChild(li);
+    }
   }
 
   return ul;

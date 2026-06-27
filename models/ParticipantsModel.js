@@ -7,7 +7,7 @@ const { logger } = require('../utils/logger');
 class ParticipantsModel {
   static create(participant) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT OR IGNORE INTO participants (meeting_id, session_id, participant_name, first_joined_at, last_left_at, total_duration_seconds, participant_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      const sql = `INSERT IGNORE INTO participants (meeting_id, session_id, participant_name, first_joined_at, last_left_at, total_duration_seconds, participant_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
       db.run(sql, [participant.meeting_id, participant.session_id, participant.participant_name, participant.first_joined_at || null, participant.last_left_at || null, participant.total_duration_seconds || 0, participant.participant_status || 'joined'], function(err) {
         if (err) {
           logger.error('[ParticipantsModel] create error', err);

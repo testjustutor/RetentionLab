@@ -12,7 +12,7 @@ class SystemSettingsModel {
 
   static upsertSetting(companyId, key, value, type = 'string') {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO system_settings (company_id, setting_key, setting_value, setting_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(company_id, setting_key) DO UPDATE SET setting_value = excluded.setting_value, setting_type = excluded.setting_type, updated_at = CURRENT_TIMESTAMP`;
+      const sql = `INSERT INTO system_settings (company_id, setting_key, setting_value, setting_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type), updated_at = CURRENT_TIMESTAMP`;
       db.run(sql, [companyId, key, value, type], function(err) {
         if (err) return reject(err);
         resolve({ saved: this.changes > 0 });

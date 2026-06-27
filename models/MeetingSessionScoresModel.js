@@ -19,11 +19,11 @@ class MeetingSessionScoresModel {
         INSERT INTO meeting_session_scores (
           meeting_id, session_id, indicator_id, score, score_type, comment, reviewer_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(meeting_id, session_id, indicator_id) DO UPDATE SET
-          score = excluded.score,
-          comment = excluded.comment,
-          score_type = excluded.score_type,
-          reviewer_id = excluded.reviewer_id,
+        ON DUPLICATE KEY UPDATE
+          score = VALUES(score),
+          comment = VALUES(comment),
+          score_type = VALUES(score_type),
+          reviewer_id = VALUES(reviewer_id),
           scored_at = CURRENT_TIMESTAMP
       `;
 

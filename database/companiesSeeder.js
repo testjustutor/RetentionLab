@@ -28,7 +28,7 @@ const seedCompanies = async () => {
 
     for (const company of seedCompanies) {
         await runAsync(
-            `INSERT OR IGNORE INTO companies 
+            `INSERT IGNORE INTO companies 
              (company_uuid, company_name, company_code, domain, logo_url, status) 
              VALUES (?, ?, ?, ?, ?, ?)`,
             [

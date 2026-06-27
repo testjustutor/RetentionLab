@@ -23,8 +23,8 @@ class MeetingAssetsModel {
         )
         VALUES (?, ?, ?, 'Conversion', CURRENT_TIMESTAMP)
 
-        ON CONFLICT(meeting_id) DO UPDATE SET
-            wav_audio_path = excluded.wav_audio_path,
+        ON DUPLICATE KEY UPDATE
+            wav_audio_path = VALUES(wav_audio_path),
             status = 'Conversion',
             processed_at = CURRENT_TIMESTAMP
       `;
@@ -77,26 +77,26 @@ class MeetingAssetsModel {
             questions_asked_count_path, topic_clusters_path, summary_path, 
             oqi_score, evidence_quote, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(meeting_id) DO UPDATE SET
-            audio_path = excluded.audio_path,
-            transcript_path = excluded.transcript_path,
-            audit_json_path = excluded.audit_json_path,
-            wav_audio_path = excluded.wav_audio_path,
-            whisper_path = excluded.whisper_path,
-            captions_raw_path = excluded.captions_raw_path,
-            diarization_path = excluded.diarization_path,
-            embeddings_path = excluded.embeddings_path,
-            llm_prompts_path = excluded.llm_prompts_path,
-            action_items_path = excluded.action_items_path,
-            sentiment_analysis_path = excluded.sentiment_analysis_path,
-            talk_ratio_json_path = excluded.talk_ratio_json_path,
-            user_silence_duration_path = excluded.user_silence_duration_path,
-            questions_asked_count_path = excluded.questions_asked_count_path,
-            topic_clusters_path = excluded.topic_clusters_path,
-            summary_path = excluded.summary_path,
-            oqi_score = excluded.oqi_score,
-            evidence_quote = excluded.evidence_quote,
-            status = excluded.status,
+        ON DUPLICATE KEY UPDATE
+            audio_path = VALUES(audio_path),
+            transcript_path = VALUES(transcript_path),
+            audit_json_path = VALUES(audit_json_path),
+            wav_audio_path = VALUES(wav_audio_path),
+            whisper_path = VALUES(whisper_path),
+            captions_raw_path = VALUES(captions_raw_path),
+            diarization_path = VALUES(diarization_path),
+            embeddings_path = VALUES(embeddings_path),
+            llm_prompts_path = VALUES(llm_prompts_path),
+            action_items_path = VALUES(action_items_path),
+            sentiment_analysis_path = VALUES(sentiment_analysis_path),
+            talk_ratio_json_path = VALUES(talk_ratio_json_path),
+            user_silence_duration_path = VALUES(user_silence_duration_path),
+            questions_asked_count_path = VALUES(questions_asked_count_path),
+            topic_clusters_path = VALUES(topic_clusters_path),
+            summary_path = VALUES(summary_path),
+            oqi_score = VALUES(oqi_score),
+            evidence_quote = VALUES(evidence_quote),
+            status = VALUES(status),
             processed_at = CURRENT_TIMESTAMP
       `;
 

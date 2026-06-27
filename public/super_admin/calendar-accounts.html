@@ -16,20 +16,20 @@
     .sidebar { width: 280px; flex-shrink: 0; }
 
     /* Card grid */
-    .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 
     /* User card */
     .user-card {
       background: rgba(15, 23, 42, 0.7);
       border: 1px solid #1e293b;
-      border-radius: 16px;
-      padding: 20px;
+      border-radius: 12px;
+      padding: 14px;
       transition: border-color 0.15s, transform 0.15s;
       cursor: default;
       position: relative;
       overflow: hidden;
     }
-    .user-card:hover { border-color: #4f46e5; transform: translateY(-2px); }
+    .user-card:hover { border-color: #4f46e5; transform: translateY(-1px); }
     .user-card::before {
       content: '';
       position: absolute;
@@ -40,9 +40,9 @@
 
     /* Avatar */
     .avatar {
-      width: 44px; height: 44px; border-radius: 50%;
+      width: 36px; height: 36px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
+      font-weight: 700; font-size: 12px; letter-spacing: 0.02em;
       flex-shrink: 0;
     }
     .avatar-indigo { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
@@ -64,14 +64,14 @@
     .stat-box {
       background: rgba(15,23,42,0.6);
       border: 1px solid #1e293b;
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 8px;
+      padding: 6px 8px;
       flex: 1;
       min-width: 0;
     }
-    .stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 4px; }
-    .stat-value { font-size: 18px; font-weight: 700; color: #f1f5f9; line-height: 1; }
-    .stat-sub   { font-size: 10px; color: #475569; margin-top: 2px; }
+    .stat-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 2px; }
+    .stat-value { font-size: 15px; font-weight: 700; color: #f1f5f9; line-height: 1; }
+    .stat-sub   { font-size: 9px; color: #475569; margin-top: 1px; }
 
     /* Rating stars */
     .stars { display: flex; gap: 2px; }
@@ -132,13 +132,13 @@
 
     <!-- Header -->    <div id="header-placeholder"></div>
 <!-- Main layout -->
-    <div class="flex gap-5 items-start p-4">
+    <div class="flex gap-3 items-start p-3">
 
       <!-- LEFT SIDEBAR: Add User only -->
       <aside class="sidebar space-y-4">
 
         <!-- Add user form -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        <div class="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
           <div class="flex items-center gap-2 mb-2">
             <div class="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
@@ -158,7 +158,7 @@
         </div>
 
         <!-- Quick tips -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <div class="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
           <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">How it works</h3>
           <ol class="space-y-3">
             <li class="flex gap-3 text-xs text-slate-500">
@@ -177,7 +177,7 @@
         </div>
 
         <!-- Filter / search -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <div class="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
           <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Filter</h3>
           <input id="searchInput" type="text" placeholder="Search email..." class="inp mb-3" oninput="filterCards()" />
           <div class="space-y-1">
@@ -308,7 +308,7 @@
 
           <!-- Role + last seen -->
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-slate-500">${u.role_name || 'employee'}</span>
+            <span class="text-xs text-slate-500">${u.role_name || 'instructor'}</span>
             <span class="text-xs text-slate-600">Last: ${timeAgo(lastMeeting)}</span>
           </div>
 

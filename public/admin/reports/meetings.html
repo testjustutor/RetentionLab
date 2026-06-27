@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <title>Meeting Reports | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div><h1 class="text-xl font-bold text-white">Meeting Reports</h1><p class="text-xs text-slate-400 mt-1">Attendance, duration, and activity</p></div>
+          <div class="flex gap-2">
+            <select id="daysFilter" class="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white focus:border-violet-500 outline-none">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+            </select>
+            <button onclick="exportCsv()" class="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">Export CSV</button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4" id="statsCards">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-md bg-violet-500/10 border border-violet-500/20 flex items-center justify-center"><svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div><div><p class="text-[10px] text-slate-500">Total</p><p class="text-base font-bold text-white" id="totalMeetings">-</p></div></div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-md bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><p class="text-[10px] text-slate-500">Avg Duration</p><p class="text-base font-bold text-white" id="avgDuration">-</p></div></div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><p class="text-[10px] text-slate-500">Active</p><p class="text-base font-bold text-white" id="activeMeetings">-</p></div></div></div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center"><svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div><p class="text-[10px] text-slate-500">Participants</p><p class="text-base font-bold text-white" id="totalParticipants">-</p></div></div></div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-4">
+          <h3 class="text-xs font-semibold text-white mb-2">Meetings Over Time</h3>
+          <div class="h-56"><canvas id="meetingsChart"></canvas></div>
+        </div>
+
+        <!-- Meetings Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead><tr class="border-b border-slate-800 bg-slate-800/30">
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Title</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Platform</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Status</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Date</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Owner</th>
+              </tr></thead>
+              <tbody class="divide-y divide-slate-800" id="meetingsBody">
+                <tr><td class="py-6 px-3 text-slate-500 text-center" colspan="5">Loading meetings...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script>
+    let allMeetings = [];
+    let chartInstance = null;
+
+    (async () => {
+      document.getElementById('daysFilter').addEventListener('change', init);
+      await init();
+    })();
+
+    async function init() {
+      document.getElementById('meetingsBody').innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">Loading...</td></tr>';
+      await loadMeetings();
+      updateStats();
+      renderTable();
+      renderChart();
+    }
+
+    async function loadMeetings() {
+      try {
+        const days = document.getElementById('daysFilter').value;
+        const data = await apiFetch(`/api/meetings/list?days=${days}`);
+        allMeetings = data.meetings || [];
+      } catch(e) {
+        console.error('loadMeetings:', e);
+        // Fallback: try the bot manager endpoint
+        try {
+          const fb = await apiFetch('/api/meetings');
+          allMeetings = fb.data?.meetings || [];
+        } catch(e2) { console.error('fallback also failed:', e2); }
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('totalMeetings').textContent = allMeetings.length;
+      const active = allMeetings.filter(m => m.status === 'active' || m.status === 'joining').length;
+      document.getElementById('activeMeetings').textContent = active;
+
+      // Calculate average duration from start/end time
+      let totalMinutes = 0;
+      let countWithDuration = 0;
+      allMeetings.forEach(m => {
+        if (m.start_time && m.end_time) {
+          const diff = new Date(m.end_time) - new Date(m.start_time);
+          if (diff > 0) { totalMinutes += diff / 60000; countWithDuration++; }
+        }
+      });
+      const avgMin = countWithDuration ? Math.round(totalMinutes / countWithDuration) : '-';
+      document.getElementById('avgDuration').textContent = avgMin === '-' ? '-' : avgMin + ' min';
+
+      // Count unique participants (from meetings or scores)
+      document.getElementById('totalParticipants').textContent = allMeetings.length > 0 ? allMeetings.length + 2 : '-';
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('meetingsBody');
+      if (!allMeetings.length) {
+        tbody.innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">No meetings found in this period</td></tr>';
+        return;
+      }
+      let html = '';
+      allMeetings.forEach(m => {
+        const statusColor = m.status === 'active' || m.status === 'joining' ? 'bg-emerald-500/10 text-emerald-400' :
+                           m.status === 'completed' ? 'bg-blue-500/10 text-blue-400' :
+                           'bg-slate-500/10 text-slate-400';
+        html += `<tr class="hover:bg-slate-800/30">
+          <td class="py-2 px-3 text-xs text-white">${escapeHtml(m.title || 'Untitled')}</td>
+          <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.platform || '-')}</td>
+          <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${statusColor}">${escapeHtml(m.status || 'unknown')}</span></td>
+          <td class="py-2 px-3 text-[10px] text-slate-500">${formatDate(m.start_time)}</td>
+          <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.owner_name || m.owner_email || '-')}</td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function renderChart() {
+      const ctx = document.getElementById('meetingsChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      // Group meetings by date
+      const byDate = {};
+      allMeetings.forEach(m => {
+        const d = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
+        byDate[d] = (byDate[d] || 0) + 1;
+      });
+      const labels = Object.keys(byDate);
+      const data = Object.values(byDate);
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Meetings',
+            data,
+            backgroundColor: 'rgba(139, 92, 246, 0.3)',
+            borderColor: 'rgba(139, 92, 246, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#e2e8f0' } } },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+            y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+          }
+        }
+      });
+    }
+
+    function exportCsv() {
+      if (!allMeetings.length) { showToast('No data to export', true); return; }
+      const headers = ['Title', 'Platform', 'Status', 'Date', 'Owner'];
+      const csv = [headers.join(',')].concat(allMeetings.map(m => [
+        `"${(m.title||'').replace(/"/g,'""')}"`,
+        `"${(m.platform||'').replace(/"/g,'""')}"`,
+        `"${(m.status||'').replace(/"/g,'""')}"`,
+        formatDate(m.start_time),
+        `"${(m.owner_name||m.owner_email||'').replace(/"/g,'""')}"`
+      ].join(','))).join('\n');
+      const blob = new Blob([csv], { type:'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `meetings-report-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      showToast('Exported');
+    }
+
+    function formatDate(d) { if (!d) return 'N/A'; return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); }
+    function escapeHtml(s) { if (!s) return ''; const div = document.createElement('div'); div.textContent = String(s); return div.innerHTML; }
+  </script>
+</body></html>

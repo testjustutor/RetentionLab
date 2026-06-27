@@ -12,7 +12,7 @@ class UserSettingsModel {
 
   static upsertSetting(userId, key, value) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO user_settings (user_id, setting_key, setting_value, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP`;
+      const sql = `INSERT INTO user_settings (user_id, setting_key, setting_value, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP`;
       db.run(sql, [userId, key, value], function(err) {
         if (err) return reject(err);
         resolve({ saved: this.changes > 0 });

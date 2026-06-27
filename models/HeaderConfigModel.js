@@ -4,134 +4,6 @@
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
-// ─── Default seed data ────────────────────────────────────────────────────────
-// Keyed by role_name (matches roles.role_name in the DB).
-// Used only by seedForAllRoles(); never read at runtime.
-
-const DEFAULT_NAV_BY_ROLE = {
-  super_admin: {
-    home:     { labelKey: 'nav.home',     href: '/super_admin/calendar-accounts.html', target: '_self'  },
-    events:   { labelKey: 'nav.events',   href: '/super_admin/calendar-events.html',   target: '_blank' },
-    archives: { labelKey: 'nav.archives', href: '/super_admin/archives.html',           target: '_blank' },
-    profile:  { labelKey: 'nav.profile',  href: '/super_admin/profile.html',            target: '_self'  },
-    settings: { labelKey: 'nav.settings', href: '/super_admin/settings.html',           target: '_self'  },
-    sidebar: {
-      menuItems: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/index.html', submenu: null },
-        { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management.html', submenu: null },
-        { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management.html', submenu: null },
-        { id: 'operations', label: 'Operations', icon: 'settings', href: null, submenu: [
-          { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts.html' },
-          { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events.html' },
-          { id: 'data-architecture', label: 'Data Architecture', href: '/super_admin/data-architecture.html' }
-        ]},
-        { id: 'content', label: 'Content Management', icon: 'folder', href: null, submenu: [
-          { id: 'archives', label: 'Archives', href: '/super_admin/archives.html' },
-          { id: 'assets', label: 'Assets', href: '/super_admin/assets.html' },
-          { id: 'audit', label: 'Audit Log', href: '/super_admin/audit.html' }
-        ]},
-        { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
-          { id: 'add-user', label: 'Add User', href: '/super_admin/add-user.html' },
-          { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users.html' },
-          { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access.html' }
-        ]},
-        { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
-          { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot.html' },
-          { id: 'settings', label: 'Settings', href: '/super_admin/settings.html' },
-          { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' },
-          { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings.html' }
-        ]}
-      ]
-    }
-  },
-  admin: {
-    home:     { labelKey: 'nav.home',     href: '/admin/calendar-accounts.html', target: '_self'  },
-    events:   { labelKey: 'nav.events',   href: '/admin/calendar-events.html',   target: '_blank' },
-    archives: { labelKey: 'nav.archives', href: '/admin/archives.html',          target: '_blank' },
-    profile:  { labelKey: 'nav.profile',  href: '/admin/profile.html',           target: '_self'  },
-    settings: { labelKey: 'nav.settings', href: '/admin/settings.html',          target: '_self'  },
-    sidebar: {
-      menuItems: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/admin/index.html', submenu: null },
-        { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-          { id: 'calendar-accounts', label: 'Accounts', href: '/admin/calendar-accounts.html' },
-          { id: 'calendar-events', label: 'Events', href: '/admin/calendar-events.html' }
-        ]},
-        { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-          { id: 'archives', label: 'Archives', href: '/admin/archives.html' }
-        ]},
-        { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-          { id: 'profile', label: 'Profile', href: '/admin/profile.html' },
-          { id: 'settings', label: 'Settings', href: '/admin/settings.html' }
-        ]}
-      ]
-    }
-  },
-  reviewer: {
-    home:     { labelKey: 'nav.home',     href: '/reviewer/calendar-accounts.html', target: '_self'  },
-    events:   { labelKey: 'nav.events',   href: '/reviewer/calendar-events.html',   target: '_blank' },
-    archives: { labelKey: 'nav.archives', href: '/reviewer/archives.html',           target: '_blank' },
-    profile:  { labelKey: 'nav.profile',  href: '/reviewer/profile.html',            target: '_self'  },
-    settings: { labelKey: 'nav.settings', href: '/reviewer/settings.html',           target: '_self'  },
-    sidebar: {
-      menuItems: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/index.html', submenu: null },
-        { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-          { id: 'calendar-accounts', label: 'Accounts', href: '/reviewer/calendar-accounts.html' },
-          { id: 'calendar-events', label: 'Events', href: '/reviewer/calendar-events.html' }
-        ]},
-        { id: 'content', label: 'Archives', icon: 'folder', href: '/reviewer/archives.html', submenu: null },
-        { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-          { id: 'profile', label: 'Profile', href: '/reviewer/profile.html' },
-          { id: 'settings', label: 'Settings', href: '/reviewer/settings.html' }
-        ]}
-      ]
-    }
-  },
-  employee: {
-    home:     { labelKey: 'nav.home',     href: '/employee/calendar-accounts.html', target: '_self'  },
-    events:   { labelKey: 'nav.events',   href: '/employee/calendar-events.html',   target: '_blank' },
-    archives: { labelKey: 'nav.archives', href: '/employee/archives.html',           target: '_blank' },
-    profile:  { labelKey: 'nav.profile',  href: '/employee/profile.html',            target: '_self'  },
-    settings: { labelKey: 'nav.settings', href: '/employee/settings.html',           target: '_self'  },
-    sidebar: {
-      menuItems: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/employee/index.html', submenu: null },
-        { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-          { id: 'calendar-accounts', label: 'My Calendar', href: '/employee/calendar-accounts.html' },
-          { id: 'calendar-events', label: 'Events', href: '/employee/calendar-events.html' }
-        ]},
-        { id: 'content', label: 'Archives', icon: 'folder', href: '/employee/archives.html', submenu: null },
-        { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-          { id: 'profile', label: 'Profile', href: '/employee/profile.html' },
-          { id: 'settings', label: 'Settings', href: '/employee/settings.html' }
-        ]}
-      ]
-    }
-  }
-};
-
-// Pages are identical across all roles in the default seed.
-// To customise per-role pages, adjust the seed in seedForAllRoles().
-const DEFAULT_PAGES = {
-  dashboard:        { title: 'Console',            description: 'Dashboard overview',                                        roleTitle: 'Console', showStats: true,  buttons: [] },
-  profile:          { title: 'My Profile',         description: 'View and update your profile',                              roleTitle: 'Console', showStats: false, buttons: [] },
-  settings:         { title: 'Settings',           description: 'Manage your preferences',                                   roleTitle: 'Console', showStats: false, buttons: [] },
-  archives:         { title: 'Archives',           description: 'Browse archived records',                                   roleTitle: 'Console', showStats: false, buttons: [] },
-  events:           { title: 'Events',             description: 'View event timeline',                                       roleTitle: 'Console', showStats: false, buttons: [] },
-  calendarAccounts: { title: 'Calendar Accounts',  description: 'Manage connected calendar accounts and email sources.',     roleTitle: 'Console', showStats: false, buttons: [] },
-  bot:              { title: 'Bot Engine Console', description: 'Monitor real-time orchestrator instances and active bots.', roleTitle: 'Console', showStats: false, buttons: [] },
-  assets:           { title: 'Media Assets',       description: 'View partitioned audio chunks and raw exports.',            roleTitle: 'Console', showStats: false, buttons: [] },
-  audit:            { title: 'Audit Timeline',     description: 'Review system audit logs and compliance tracking.',         roleTitle: 'Console', showStats: false, buttons: [] },
-  dataArchitecture: { title: 'Data Architecture',  description: 'Inspect schema models, retention flows, and topology.',    roleTitle: 'Console', showStats: false, buttons: [] },
-  addUser:          { title: 'Add User',           description: 'Create new users and assign roles.',                         roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  manageUsers:      { title: 'Manage Users',       description: 'View, update, and delete user accounts.',                   roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  rolesAccess:      { title: 'Roles & Access',      description: 'Define and manage user roles and permissions.',             roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  userSettings:     { title: 'User Settings',      description: 'Configure global user-related settings.',                  roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  rubricManagement: { title: 'Rubric Management',   description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] }
-};
-
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function safeParseJson(raw, fallback = null) {
@@ -374,18 +246,18 @@ class HeaderConfigModel {
          (role_id, home_href, home_label, events_href, events_label, archives_href, archives_label,
           profile_href, profile_label, settings_href, settings_label, created_by, updated_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(role_id) DO UPDATE SET
-           home_href = excluded.home_href,
-           home_label = excluded.home_label,
-           events_href = excluded.events_href,
-           events_label = excluded.events_label,
-           archives_href = excluded.archives_href,
-           archives_label = excluded.archives_label,
-           profile_href = excluded.profile_href,
-           profile_label = excluded.profile_label,
-           settings_href = excluded.settings_href,
-           settings_label = excluded.settings_label,
-           updated_by = excluded.updated_by,
+         ON DUPLICATE KEY UPDATE
+           home_href = VALUES(home_href),
+           home_label = VALUES(home_label),
+           events_href = VALUES(events_href),
+           events_label = VALUES(events_label),
+           archives_href = VALUES(archives_href),
+           archives_label = VALUES(archives_label),
+           profile_href = VALUES(profile_href),
+           profile_label = VALUES(profile_label),
+           settings_href = VALUES(settings_href),
+           settings_label = VALUES(settings_label),
+           updated_by = VALUES(updated_by),
            updated_at = CURRENT_TIMESTAMP,
            deleted_at = NULL`,
         [
@@ -611,13 +483,13 @@ class HeaderConfigModel {
         `INSERT INTO header_page_configs
            (role_id, page_key, title, description, role_title, show_stats, buttons_json, created_by, updated_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(role_id, page_key) DO UPDATE SET
-           title        = excluded.title,
-           description  = excluded.description,
-           role_title   = excluded.role_title,
-           show_stats   = excluded.show_stats,
-           buttons_json = excluded.buttons_json,
-           updated_by   = excluded.updated_by,
+         ON DUPLICATE KEY UPDATE
+           title        = VALUES(title),
+           description  = VALUES(description),
+           role_title   = VALUES(role_title),
+           show_stats   = VALUES(show_stats),
+           buttons_json = VALUES(buttons_json),
+           updated_by   = VALUES(updated_by),
            updated_at   = CURRENT_TIMESTAMP,
            deleted_at   = NULL`,
         [roleId, pageKey, title, description, roleTitle, showStats ? 1 : 0,
@@ -754,7 +626,7 @@ class HeaderConfigModel {
   static async getMenuItemsByRoleId(roleId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT id, menu_id, parent_id, label, icon, href, display_order, is_active
+        `SELECT id, menu_id, parent_id, label, icon, href, display_order, is_active, section, color
          FROM header_menu_items
          WHERE role_id = ? AND deleted_at IS NULL
          ORDER BY display_order ASC`,
@@ -772,6 +644,8 @@ class HeaderConfigModel {
               label: row.label,
               icon: row.icon,
               href: row.href,
+              section: row.section || 'main',
+              color: row.color || 'violet',
               submenu: null,
               isActive: !!row.is_active
             };
@@ -929,9 +803,9 @@ class HeaderConfigModel {
             for (const item of menuItems) {
               await insertAsync(
                 `INSERT INTO header_menu_items 
-                 (role_id, menu_id, parent_id, label, icon, href, display_order, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-                [roleId, item.id, null, item.label, item.icon || null, item.href || null, order++]
+                 (role_id, menu_id, parent_id, label, icon, href, display_order, is_active, section, color)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+                [roleId, item.id, null, item.label, item.icon || null, item.href || null, order++, item.section || 'main', item.color || 'violet']
               );
 
               // Insert submenu items
@@ -940,9 +814,9 @@ class HeaderConfigModel {
                 for (const subItem of item.submenu) {
                   await insertAsync(
                     `INSERT INTO header_menu_items 
-                     (role_id, menu_id, parent_id, label, icon, href, display_order, is_active)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-                    [roleId, subItem.id, item.id, subItem.label, null, subItem.href || null, subOrder++]
+                     (role_id, menu_id, parent_id, label, icon, href, display_order, is_active, section, color)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+                    [roleId, subItem.id, item.id, subItem.label, null, subItem.href || null, subOrder++, item.section || 'main', item.color || 'violet']
                   );
                 }
               }
@@ -963,7 +837,7 @@ class HeaderConfigModel {
   /**
    * Seed nav + page configs for every role found in the roles table.
    * Safe to call on every startup — skips roles that already have a config.
-   * Roles not in DEFAULT_NAV_BY_ROLE get the 'employee' nav as a fallback.
+   * Roles not in DEFAULT_NAV_BY_ROLE get the 'instructor' nav as a fallback.
    *
    * @returns {Promise<{ seeded: string[], skipped: string[] }>}
    */
@@ -988,19 +862,17 @@ class HeaderConfigModel {
         );
       });
 
-      const nav = DEFAULT_NAV_BY_ROLE[role.role_name] || DEFAULT_NAV_BY_ROLE.employee;
+      // Seed nav configs from seeder (single source of truth)
+      const { seedHeaderRoleConfigs } = require('../database/headerRoleConfigSeeder');
+      await seedHeaderRoleConfigs();
 
-      // Always upsert nav to pick up updated menu structures
-      await HeaderConfigModel.upsertNav(role.id, nav);
+      // Seed menu items from seeder (single source of truth)
+      const { seedHeaderMenuItems } = require('../database/headerMenuItemsSeeder');
+      await seedHeaderMenuItems();
 
-      // Seed menu items
-      if (nav.sidebar?.menuItems) {
-        await HeaderConfigModel.seedMenuItems(role.id, nav.sidebar.menuItems);
-      }
-
-      for (const [pageKey, pageData] of Object.entries(DEFAULT_PAGES)) {
-        await HeaderConfigModel.upsertPage(role.id, pageKey, pageData);
-      }
+      // Seed page configs from seeder (single source of truth)
+      const { seedHeaderPageConfigs } = require('../database/headerPageConfigsSeeder');
+      await seedHeaderPageConfigs();
 
       if (!existing) {
         seeded.push(role.role_name);
@@ -1016,4 +888,4 @@ class HeaderConfigModel {
   }
 }
 
-module.exports = { HeaderConfigModel, DEFAULT_NAV_BY_ROLE, DEFAULT_PAGES };
+module.exports = { HeaderConfigModel };

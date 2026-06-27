@@ -20,11 +20,11 @@ const DEFAULT_NAV_BY_ROLE = {
     settings: { label: 'Settings', href: '/admin/settings.html' }
   },
   reviewer: {
-    home: { label: 'Dashboard', href: '/reviewer/index.html' },
-    events: { label: 'Events', href: '/reviewer/calendar-events.html' },
-    archives: { label: 'Archives', href: '/reviewer/archives.html' },
-    profile: { label: 'Profile', href: '/reviewer/profile.html' },
-    settings: { label: 'Settings', href: '/reviewer/settings.html' }
+    home: { label: 'Dashboard', href: '/reviewer/dashboard' },
+    events: { label: 'Reviews', href: '/reviewer/reviews' },
+    archives: { label: 'Sessions', href: '/reviewer/sessions' },
+    profile: { label: 'Profile', href: '/reviewer/profile' },
+    settings: { label: 'Settings', href: '/reviewer/settings' }
   },
   instructor: {
     home: { label: 'Dashboard', href: '/instructor/index.html' },
@@ -34,11 +34,11 @@ const DEFAULT_NAV_BY_ROLE = {
     settings: { label: 'Settings', href: '/instructor/settings.html' }
   },
   solo_instructor: {
-    home: { label: 'My Workspace', href: '/my-workspace/index.html' },
-    events: { label: 'My Meetings', href: '/my-workspace/calendar-events.html' },
-    archives: { label: 'My Archives', href: '/my-workspace/archives.html' },
-    profile: { label: 'Profile', href: '/my-workspace/profile.html' },
-    settings: { label: 'Settings', href: '/my-workspace/settings.html' }
+    home: { label: 'Dashboard', href: '/dashboard' },
+    events: { label: 'Meetings', href: '/meetings' },
+    archives: { label: 'Content', href: '/content/recordings' },
+    profile: { label: 'Profile', href: '/profile' },
+    settings: { label: 'Settings', href: '/settings' }
   }
 };
 
@@ -60,7 +60,7 @@ const seedHeaderRoleConfigs = async () => {
         }
 
         await runAsync(
-            `INSERT OR IGNORE INTO header_role_configs 
+            `INSERT IGNORE INTO header_role_configs 
              (role_id, home_href, home_label, events_href, events_label, archives_href, archives_label, 
               profile_href, profile_label, settings_href, settings_label)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

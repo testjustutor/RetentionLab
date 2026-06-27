@@ -2,15 +2,26 @@
  * root/public/js/load-components.js
  */
 document.addEventListener('DOMContentLoaded', async () => {
-  // Load shared sidebar template
+  // Load shared sidebar template (role-aware)
   const shouldLoadSidebar = !document.getElementById('sidebarNav');
   if (shouldLoadSidebar) {
     try {
-      const res = await fetch('/sidebar.html');
+      // Determine which sidebar to load based on the page's role meta tag
+      const roleMeta = document.querySelector('meta[name="dashboard-role"]');
+      const role = roleMeta ? roleMeta.getAttribute('content') : '';
+      const sidebarPath = role === 'super_admin' ? '/super_admin/sidebar.html' : '/sidebar.html';
+      const res = await fetch(sidebarPath);
       const sidebarHtml = await res.text();
       const sidebarDiv = document.createElement('div');
       sidebarDiv.innerHTML = sidebarHtml;
-      document.body.insertBefore(sidebarDiv.firstElementChild, document.body.firstChild);
+      const aside = sidebarDiv.firstElementChild;
+      // Insert into sidebar-placeholder if it exists, otherwise prepend to body
+      const placeholder = document.getElementById('sidebar-placeholder');
+      if (placeholder) {
+        placeholder.parentNode.replaceChild(aside, placeholder);
+      } else {
+        document.body.insertBefore(aside, document.body.firstChild);
+      }
       executeScripts(sidebarDiv);
     } catch (err) {
       console.error('Failed to load shared sidebar:', err);

@@ -23,16 +23,12 @@ function verifyPassword(password, stored) {
 
 class AuthModel {
   static async register(data) {
-    const existing = await UsersModel.getUserByEmail(data.email);
+    const email = String(data.email || '').trim().toLowerCase();
+    if (!email) throw new Error('Email is required');
+    const existing = await UsersModel.getUserByEmail(email);
     if (existing) throw new Error('Email already registered');
 
-    // Determine registration type:
-    //   data.role_name === 'solo_instructor' → self-registration, auto-create company
-    //   data.role_name === 'instructor'      → join existing company by invitation/signup
-    //   otherwise                            → default to 'instructor'
-    const role_name = data.role_name === 'solo_instructor' ? 'solo_instructor'
-                    : data.role_name === 'instructor'      ? 'instructor'
-                    : 'instructor';
+    const role_name = 'solo_instructor';
 
     const role = await RolesModel.getRoleByName(role_name);
     if (!role) throw new Error(`Role not found: ${role_name}`);
@@ -63,11 +59,14 @@ class AuthModel {
     const password_hash = data.password ? hashPassword(data.password) : null;
     const createPayload = {
       ...data,
+      email,
       role_id: role.id,
       company_id,
       is_company_owner: role_name === 'solo_instructor' ? 1 : 0,
       role_name: undefined,
-      password_hash
+      password_hash,
+      status: data.status || 'active',
+      email_verified: 0
     };
 
     const created = await UsersModel.createUser(createPayload);
@@ -76,16 +75,22 @@ class AuthModel {
   }
 
   static async authenticate(email, password) {
-    const user = await UsersModel.getUserByEmail(email);
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const user = await UsersModel.getUserByEmail(normalizedEmail);
     if (!user) return null;
+    if (!user.is_active || user.status !== 'active' || user.is_deleted) {
+      throw new Error('This account is not active. Contact support.');
+    }
+    if (!user.email_verified) {
+      throw new Error('Email not verified. Please check your inbox.');
+    }
     const valid = verifyPassword(password, user.password_hash);
     if (!valid) return null;
-    // update last_login_at
     try { await UsersModel.updateUser(user.id, { last_login_at: new Date().toISOString() }); } catch (e) { logger.warn('Failed to update last_login_at', e); }
-    // strip sensitive
     delete user.password_hash;
     return user;
   }
 }
 
+AuthModel.hashPassword = hashPassword;
 module.exports = AuthModel;

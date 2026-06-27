@@ -1,0 +1,132 @@
+/**
+ * controllers/userController.js
+ * Business logic for user CRUD and management.
+ */
+
+const UsersModel = require('../models/UsersModel');
+const RolesModel = require('../models/RolesModel');
+
+function ok(data, message) {
+  return { success: true, message: message || null, ...(data || {}) };
+}
+
+function err(message, statusCode) {
+  return { success: false, error: message, statusCode: statusCode || 500 };
+}
+
+const userController = {
+  /**
+   * GET /api/users
+   * List users scoped to the requesting user's company.
+   */
+  async list(req) {
+    try {
+      const rows = await UsersModel.listUsers(req.user, { limit: 200 });
+      return ok({ count: rows.length, data: rows });
+    } catch (e) {
+      if (e.message === 'Forbidden') return err('Forbidden', 403);
+      return err(e.message);
+    }
+  },
+
+  /**
+   * GET /api/users/:id
+   * Get single user by ID.
+   */
+  async getById(req) {
+    try {
+      const row = await UsersModel.getUserById(req.user, req.params.id);
+      if (!row) return err('User not found', 404);
+      return ok({ data: row });
+    } catch (e) {
+      if (e.message === 'Forbidden') return err('Forbidden', 403);
+      return err(e.message);
+    }
+  },
+
+  /**
+   * GET /api/auth/me
+   * Get current authenticated user's profile.
+   */
+  async me(req) {
+    try {
+      const row = await UsersModel.getUserById(req.user, req.user.id);
+      if (!row) return err('User not found', 404);
+      return ok({ user: row });
+    } catch (e) {
+      return err(e.message);
+    }
+  },
+
+  /**
+   * POST /api/users
+   * Create a new user. Admin can create reviewer/instructor only.
+   */
+  async create(req) {
+    try {
+      const data = req.body;
+      if (!data.email) return err('Email is required', 400);
+
+      // Validate role access
+      if (data.role_id) {
+        const role = await RolesModel.getRoleById(data.role_id);
+        if (!role) return err('Role not found', 400);
+        if (req.user.role_name === 'admin' && !['reviewer', 'instructor'].includes(role.role_name)) {
+          return err('Admin may only create reviewer and instructor accounts', 403);
+        }
+      }
+
+      const created = await UsersModel.createUser(req.user, data);
+      return ok({ data: created }, 'User created', 201);
+    } catch (e) {
+      if (e.message === 'Forbidden') return err('Forbidden', 403);
+      return err(e.message);
+    }
+  },
+
+  /**
+   * PUT /api/users/:id
+   * Update user fields (name, email, role, status, is_active).
+   */
+  async update(req) {
+    try {
+      const id = req.params.id;
+      const changes = req.body;
+
+      if (!Object.keys(changes).length) return err('No fields to update', 400);
+
+      // Validate role if being changed
+      if (changes.role_id) {
+        const role = await RolesModel.getRoleById(changes.role_id);
+        if (!role) return err('Role not found', 400);
+        if (req.user.role_name === 'admin' && !['reviewer', 'instructor'].includes(role.role_name)) {
+          return err('Admin may only assign reviewer and instructor roles', 403);
+        }
+      }
+
+      const result = await UsersModel.updateUser(req.user, id, changes);
+      if (!result.updated) return err('User not found or no changes made', 404);
+      return ok({ result }, 'User updated');
+    } catch (e) {
+      if (e.message === 'Forbidden') return err('Forbidden', 403);
+      return err(e.message);
+    }
+  },
+
+  /**
+   * DELETE /api/users/:id
+   * Soft-delete a user.
+   */
+  async delete(req) {
+    try {
+      const result = await UsersModel.softDeleteUser(req.user, req.params.id);
+      if (!result.deleted) return err('User not found', 404);
+      return ok({ result }, 'User deleted');
+    } catch (e) {
+      if (e.message === 'Forbidden') return err('Forbidden', 403);
+      return err(e.message);
+    }
+  },
+};
+
+module.exports = userController;

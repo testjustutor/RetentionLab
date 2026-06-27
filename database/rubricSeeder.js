@@ -135,62 +135,33 @@ const rubricData = {
     }
 };
 
-const seedRubric = () => {
-    return new Promise((resolve, reject) => {
-        logger.info("[Seeder] Starting Rubric Seed process...");
+const seedRubric = async () => {
+    const { runAsync } = require('./seedHelpers');
+    
+    logger.info("[Seeder] Starting Rubric Seed process...");
 
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
-
-            // Categories Prepared Statement
-            const catStmt = db.prepare(`
-                INSERT INTO rubric_categories (category_id, name, weight) 
+    try {
+        // Insert categories
+        for (const [catId, category] of Object.entries(rubricData)) {
+            await runAsync(`
+                INSERT IGNORE INTO rubric_categories (category_id, name, weight) 
                 VALUES (?, ?, ?)
-                ON CONFLICT(category_id) DO UPDATE SET 
-                    name=excluded.name, 
-                    weight=excluded.weight
-            `);
+            `, [catId, category.name, category.weight]);
 
-            // Indicators Prepared Statement (now includes value)
-            const indStmt = db.prepare(`
-                INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(indicator_id) DO UPDATE SET 
-                    name=excluded.name, 
-                    type=excluded.type, 
-                    is_gate=excluded.is_gate,
-                    value=excluded.value
-            `);
-
-            try {
-                Object.entries(rubricData).forEach(([catId, category]) => {
-                    catStmt.run(catId, category.name, category.weight);
-
-                    Object.entries(category.indicators).forEach(([indId, ind]) => {
-                        indStmt.run(indId, catId, ind.name, ind.type, ind.gate ? 1 : 0, ind.value || 1);
-                    });
-                });
-
-                catStmt.finalize();
-                indStmt.finalize();
-
-                db.run("COMMIT", (err) => {
-                    if (err) {
-                        logger.error(`[Seeder] Commit Failed: ${err.message}`);
-                        db.run("ROLLBACK");
-                        reject(err);
-                    } else {
-                        logger.info("[Seeder] Rubric seeded successfully.");
-                        resolve();
-                    }
-                });
-            } catch (error) {
-                db.run("ROLLBACK");
-                logger.error(`[Seeder] Fatal Error during seeding: ${error.message}`);
-                reject(error);
+            // Insert indicators for this category
+            for (const [indId, ind] of Object.entries(category.indicators)) {
+                await runAsync(`
+                    INSERT IGNORE INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [indId, catId, ind.name, ind.type, ind.gate ? 1 : 0, ind.value || 1]);
             }
-        });
-    });
+        }
+
+        logger.info("[Seeder] Rubric seeded successfully.");
+    } catch (error) {
+        logger.error(`[Seeder] Fatal Error during seeding: ${error.message}`);
+        throw error;
+    }
 };
 
 module.exports = { seedRubric };

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="super_admin">
+  <title>Storage Management | Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <h1 class="text-xl font-bold text-white mb-1.5">Storage & Retention</h1>
+        <p class="text-xs text-slate-400 mb-4">Manage recordings, transcripts, cache, and cleanup policies</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+            <p class="text-[10px] text-slate-400">Total Storage</p>
+            <p class="text-lg font-bold text-white" id="totalStorage">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+            <p class="text-[10px] text-slate-400">Recordings</p>
+            <p class="text-lg font-bold text-violet-400" id="recordingsCount">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+            <p class="text-[10px] text-slate-400">Transcripts</p>
+            <p class="text-lg font-bold text-emerald-400" id="transcriptsCount">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+            <p class="text-[10px] text-slate-400">Retention Days</p>
+            <p class="text-lg font-bold text-amber-400">90</p>
+          </div>
+        </div>
+
+        <div class="flex gap-1 mb-4 bg-slate-900 p-1 rounded-md w-fit">
+          <button onclick="switchTab('overview')" class="tab-btn px-3 py-1.5 text-xs rounded-md bg-violet-600 text-white" data-tab="overview">Overview</button>
+          <button onclick="switchTab('recordings')" class="tab-btn px-3 py-1.5 text-xs rounded-md text-slate-400 hover:text-white" data-tab="recordings">Recordings</button>
+          <button onclick="switchTab('transcripts')" class="tab-btn px-3 py-1.5 text-xs rounded-md text-slate-400 hover:text-white" data-tab="transcripts">Transcripts</button>
+          <button onclick="switchTab('cache')" class="tab-btn px-3 py-1.5 text-xs rounded-md text-slate-400 hover:text-white" data-tab="cache">Cache</button>
+        </div>
+
+        <div id="tab-overview" class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <p class="text-xs text-slate-400">Storage overview. Total: <strong class="text-white" id="overviewSize">-</strong></p>
+        </div>
+        <div id="tab-recordings" class="hidden bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead><tr class="border-b border-slate-800 bg-slate-800/30">
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">File</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Size</th>
+                <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Date</th>
+              </tr></thead>
+              <tbody class="divide-y divide-slate-800" id="recordingsBody">
+                <tr><td colspan="3" class="py-6 text-center text-slate-500">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div id="tab-transcripts" class="hidden bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+          <div class="p-4 text-slate-400 text-xs">Transcript library - coming soon.</div>
+        </div>
+        <div id="tab-cache" class="hidden bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+          <div class="p-4 text-slate-400 text-xs">Cache management - coming soon.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../js/auth.js"></script>
+  <script src="../js/load-components.js"></script>
+  <script>
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('bg-violet-600', b.dataset.tab === tab);
+        b.classList.toggle('text-white', b.dataset.tab === tab);
+        b.classList.toggle('text-slate-400', b.dataset.tab !== tab);
+      });
+      ['overview','recordings','transcripts','cache'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+      });
+    }
+    (async()=>{
+      try {
+        const stats = await apiFetch('/storage/stats');
+        document.getElementById('totalStorage').textContent = stats.total || '-';
+        document.getElementById('overviewSize').textContent = stats.total || '-';
+      } catch(e){}
+      try {
+        const recordings = await apiFetch('/api/recordings');
+        const files = recordings.files || [];
+        document.getElementById('recordingsCount').textContent = files.length;
+        const tbody = document.getElementById('recordingsBody');
+        if(files.length) {
+          tbody.innerHTML = files.slice(0,20).map(f => `<tr class="hover:bg-slate-800/30"><td class="py-2 px-4 text-sm text-white">${escapeHtml(f.name||f.filename||'-')}</td><td class="py-2 px-4 text-xs text-slate-400">${f.size||'-'}</td><td class="py-2 px-4 text-xs text-slate-500">${f.date?new Date(f.date).toLocaleDateString():'-'}</td></tr>`).join('');
+        }
+      } catch(e){}
+    })();
+    function escapeHtml(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  </script>
+</body></html>

@@ -14,17 +14,17 @@
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
         <div class="max-w-6xl mx-auto">
-          <h2 class="text-2xl font-bold text-white mb-2">My Assigned Rubric</h2>
-          <p class="text-slate-400 mb-4">View and manage the rubric categories and indicators assigned to you. Changes you make here only affect your account.</p>
+          <h2 class="text-xl font-bold text-white mb-1.5">My Assigned Rubric</h2>
+          <p class="text-xs text-slate-400 mb-3">View and manage rubric categories and indicators assigned to you. Changes only affect your account.</p>
 
           <!-- Tab Navigation -->
-          <div class="flex gap-2 mb-4 border-b border-slate-800 pb-2 flex-wrap">
-            <button id="tabRubric" class="px-4 py-2 bg-indigo-600 text-white rounded-t-lg font-medium" onclick="switchTab('rubric')">My Rubric</button>
-            <button id="tabCalculator" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-t-lg font-medium hover:bg-slate-700" onclick="switchTab('calculator')">Score Calculator</button>
+          <div class="flex gap-1.5 mb-3 border-b border-slate-800 pb-1.5 flex-wrap">
+            <button id="tabRubric" class="px-3 py-1.5 bg-indigo-600 text-white rounded-t-md text-xs font-medium" onclick="switchTab('rubric')">My Rubric</button>
+            <button id="tabCalculator" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-t-md text-xs font-medium hover:bg-slate-700" onclick="switchTab('calculator')">Score Calculator</button>
           </div>
 
           <!-- Status Messages -->
-          <div id="statusBar" class="hidden mb-4 p-3 rounded-lg text-sm font-medium"></div>
+          <div id="statusBar" class="hidden mb-3 p-2.5 rounded-md text-xs font-medium"></div>
 
           <!-- Rubric Tab -->
           <div id="panelRubric" class="block">
@@ -35,17 +35,17 @@
 
           <!-- Score Calculator Tab -->
           <div id="panelCalculator" class="hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <h3 class="text-xl font-semibold text-white mb-4">Score Calculator</h3>
-              <p class="text-slate-400 mb-4">Calculate weighted scores for a meeting using your custom weights and indicator values.</p>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+              <h3 class="text-base font-semibold text-white mb-2">Score Calculator</h3>
+              <p class="text-xs text-slate-400 mb-3">Calculate weighted scores using your custom weights and indicator values.</p>
               
-              <div class="space-y-4">
+              <div class="space-y-2">
                 <div>
-                  <label class="block text-sm font-medium text-slate-300 mb-1">Meeting ID</label>
-                  <input type="text" id="calculatorMeetingId" class="w-full rounded-md bg-slate-800 border border-slate-700 text-white p-2" placeholder="Enter meeting ID (or paste from URL)" />
+                  <label class="block text-xs font-medium text-slate-300 mb-1">Meeting ID</label>
+                  <input type="text" id="calculatorMeetingId" class="w-full rounded-md bg-slate-800 border border-slate-700 text-white p-1.5 text-xs" placeholder="Enter meeting ID" />
                 </div>
-                <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="calculateScore()">
-                  Calculate Weighted Score
+                <button class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="calculateScore()">
+                  Calculate Score
                 </button>
               </div>
 
@@ -139,18 +139,18 @@
 
       // Summary cards
       html += `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
-            <p class="text-indigo-300 text-sm font-medium">Assigned Categories</p>
-            <p class="text-white text-2xl font-bold mt-1">${rubricData.categories.length}</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-lg p-2.5">
+            <p class="text-indigo-300 text-xs font-medium">Assigned Categories</p>
+            <p class="text-white text-xl font-bold mt-1">${rubricData.categories.length}</p>
           </div>
-          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
-            <p class="text-indigo-300 text-sm font-medium">Assigned Indicators</p>
-            <p class="text-white text-2xl font-bold mt-1">${rubricData.indicators.length}</p>
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-lg p-2.5">
+            <p class="text-indigo-300 text-xs font-medium">Assigned Indicators</p>
+            <p class="text-white text-xl font-bold mt-1">${rubricData.indicators.length}</p>
           </div>
-          <div class="bg-indigo-900/30 border border-indigo-800 rounded-xl p-4">
-            <p class="text-indigo-300 text-sm font-medium">Status</p>
-            <p class="text-green-400 text-sm font-bold mt-1">${hasUnsavedChanges ? 'Unsaved Changes' : 'All Saved'}</p>
+          <div class="bg-indigo-900/30 border border-indigo-800 rounded-lg p-2.5">
+            <p class="text-indigo-300 text-xs font-medium">Status</p>
+            <p class="text-green-400 text-xs font-bold mt-1">${hasUnsavedChanges ? 'Unsaved Changes' : 'All Saved'}</p>
           </div>
         </div>
       `;
@@ -158,10 +158,10 @@
       // Save button bar
       html += `
         <div class="flex justify-between items-center mb-2">
-          <h3 class="text-xl font-semibold text-white">Categories & Indicators</h3>
-          <button id="saveAllBtn" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors ${hasUnsavedChanges ? '' : 'opacity-50 cursor-not-allowed'}" 
+          <h3 class="text-base font-semibold text-white">Categories & Indicators</h3>
+          <button id="saveAllBtn" class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors ${hasUnsavedChanges ? '' : 'opacity-50 cursor-not-allowed'}" 
                   onclick="saveAllChanges()" ${hasUnsavedChanges ? '' : 'disabled'}>
-            Save All Changes
+            Save Changes
           </button>
         </div>
       `;
@@ -170,16 +170,16 @@
       rubricData.categories.forEach(cat => {
         const catIndicators = rubricData.indicators.filter(ind => ind.original_category_id === cat.original_category_id);
         html += `
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-            <div class="flex justify-between items-center mb-3">
-              <h4 class="text-lg font-semibold text-white">${cat.name}</h4>
-              <div class="flex items-center gap-2">
-                <label class="text-sm text-slate-400">Category Weight:</label>
-                <input type="number" class="w-20 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 category-weight-input" 
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-2">
+            <div class="flex justify-between items-center mb-2">
+              <h4 class="text-base font-semibold text-white">${cat.name}</h4>
+              <div class="flex items-center gap-1.5">
+                <label class="text-xs text-slate-400">Weight:</label>
+                <input type="number" class="w-16 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 category-weight-input" 
                        value="${cat.weight}" min="0" max="100" step="0.1"
                        data-category-id="${cat.original_category_id}"
                        onchange="onCategoryWeightChange('${cat.original_category_id}', this.value)" />
-                <span class="text-slate-400 text-sm">%</span>
+                <span class="text-slate-400 text-xs">%</span>
               </div>
             </div>
             
@@ -187,22 +187,22 @@
               <table class="min-w-full divide-y divide-slate-700">
                 <thead>
                   <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Indicator</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Gate</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Value / Weightage</th>
+                    <th class="px-3 py-1.5 text-left text-[10px] font-medium text-slate-400 uppercase">Indicator</th>
+                    <th class="px-3 py-1.5 text-left text-[10px] font-medium text-slate-400 uppercase">Type</th>
+                    <th class="px-3 py-1.5 text-left text-[10px] font-medium text-slate-400 uppercase">Gate</th>
+                    <th class="px-3 py-1.5 text-left text-[10px] font-medium text-slate-400 uppercase">Value</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800">
                   ${catIndicators.length === 0 ? 
-                    '<tr><td colspan="4" class="px-4 py-3 text-sm text-slate-500 text-center">No indicators in this category.</td></tr>' :
+                    '<tr><td colspan="4" class="px-3 py-2 text-xs text-slate-500 text-center">No indicators.</td></tr>' :
                     catIndicators.map(ind => `
                       <tr>
-                        <td class="px-4 py-3 text-sm font-medium text-white">${ind.name}</td>
-                        <td class="px-4 py-3 text-sm text-slate-300">${ind.type || 'HUMAN'}</td>
-                        <td class="px-4 py-3 text-sm text-slate-300">${ind.is_gate ? 'Yes' : 'No'}</td>
-                        <td class="px-4 py-3 text-sm">
-                          <input type="number" class="w-24 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 indicator-value-input" 
+                        <td class="px-3 py-2 text-xs font-medium text-white">${ind.name}</td>
+                        <td class="px-3 py-2 text-xs text-slate-300">${ind.type || 'HUMAN'}</td>
+                        <td class="px-3 py-2 text-xs text-slate-300">${ind.is_gate ? 'Yes' : 'No'}</td>
+                        <td class="px-3 py-2 text-xs">
+                          <input type="number" class="w-20 rounded-md bg-slate-800 border border-slate-700 text-white text-center p-1 indicator-value-input" 
                                  value="${ind.value !== undefined ? ind.value : 1}" min="0" max="100" step="0.1"
                                  data-indicator-id="${ind.original_indicator_id}"
                                  onchange="onIndicatorValueChange('${ind.original_indicator_id}', this.value)" />

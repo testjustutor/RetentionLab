@@ -14,10 +14,13 @@ const API = {
     try { return JSON.parse(text); } catch (e) { return text; }
   },
 
-  login:    (email, password) => API.request('/login',    { method: 'POST', body: JSON.stringify({ email, password }) }),
-  logout:   ()                => API.request('/logout',   { method: 'POST' }),
-  register: (payload)         => API.request('/register', { method: 'POST', body: JSON.stringify(payload) }),
-  me:       ()                => API.request('/me',       { method: 'GET' })
+  login:            (email, password) => API.request('/login',            { method: 'POST', body: JSON.stringify({ email, password }) }),
+  logout:           ()                => API.request('/logout',           { method: 'POST' }),
+  register:         (payload)         => API.request('/register',         { method: 'POST', body: JSON.stringify(payload) }),
+  forgotPassword:   (email)           => API.request('/forgot-password',   { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword:    (token, password) => API.request('/reset-password',    { method: 'POST', body: JSON.stringify({ token, password }) }),
+  verifyEmail:      (token)           => API.request('/verify-email',      { method: 'POST', body: JSON.stringify({ token }) }),
+  me:               ()                => API.request('/me',               { method: 'GET' })
 };
 
 export default API;
@@ -46,7 +49,7 @@ function getRoleRedirect(role) {
     case 'super_admin': return '/super_admin';
     case 'admin':       return '/admin';
     case 'reviewer':    return '/reviewer';
-    case 'employee':    return '/employee';
+    case 'instructor':    return '/instructor';
     default:            return '/dashboard';
   }
 }
@@ -67,7 +70,7 @@ const SERVER_PROTECTED_PREFIXES = [
   '/admin',
   '/super_admin',
   '/reviewer',
-  '/employee',
+  '/instructor',
   // root-level safeRootPages from pages.js
   '/schedule-intelligence',
   '/meeting-overview',

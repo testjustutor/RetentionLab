@@ -91,7 +91,7 @@ class ParticipantModel {
   static ensureAttendanceSession(meetingId, participantId, sessionNumber, joinedAt = new Date()) {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
-        INSERT OR IGNORE INTO participant_attendance_sessions (
+        INSERT IGNORE INTO participant_attendance_sessions (
           meeting_id, participant_id, session_number, joined_at,
           attendance_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
