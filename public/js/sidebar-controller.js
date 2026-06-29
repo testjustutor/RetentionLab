@@ -109,7 +109,37 @@ function detectCurrentPageId() {
   return baseName || 'dashboard';
 }
 
-function renderMenuItems(menuItems, currentPageId) {
+/**
+ * Match the current window pathname against menu items' href values.
+ * Returns the menu_id of the matching top-level or submenu item, or null.
+ */
+function findActiveMenuIdFromPath(menuItems) {
+  const currentPath = window.location.pathname;
+
+  for (const item of menuItems) {
+    // Skip disabled items
+    if (item.isActive === false) continue;
+
+    // Exact match on top-level href
+    if (item.href && currentPath === item.href) {
+      return item.id;
+    }
+
+    // Check submenu items
+    if (item.submenu) {
+      for (const sub of item.submenu) {
+        if (sub.href && currentPath === sub.href) {
+          // Return the parent item's id so the parent gets expanded/highlighted
+          return item.id;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
   const ul = document.createElement('ul');
   ul.className = 'menu-list space-y-1 px-2 py-4';
 
@@ -166,14 +196,24 @@ function renderMenuItems(menuItems, currentPageId) {
       if (item.isActive === false) continue;
 
       const li = document.createElement('li');
+      li.className = 'menu-item';
 
       // Check if this item or any submenu item is active
-      let isActive = item.id === currentPageId;
-      if (item.submenu && !isActive) {
-        isActive = item.submenu.some(sub => {
-          const subId = sub.id || sub.href?.split('/').pop()?.replace('.html', '');
-          return subId === currentPageId;
-        });
+      // Priority: 1) path-based match (most accurate), 2) legacy ID-based match
+      let isActive = false;
+      if (activeMenuIdFromPath) {
+        // Path-based match found — ONLY use this, skip fallback to avoid
+        // false positives (e.g. /admin/settings/meetings should NOT highlight "Meetings")
+        isActive = item.id === activeMenuIdFromPath;
+      } else {
+        // No path match found — use legacy ID-based matching
+        isActive = item.id === currentPageId;
+        if (item.submenu && !isActive) {
+          isActive = item.submenu.some(sub => {
+            const subId = sub.id || sub.href?.split('/').pop()?.replace('.html', '');
+            return subId === currentPageId;
+          });
+        }
       }
 
       if (isActive) {
@@ -182,7 +222,7 @@ function renderMenuItems(menuItems, currentPageId) {
 
       // Main item link/button
       const itemContent = document.createElement(item.submenu ? 'button' : 'a');
-      itemContent.className = 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
+      itemContent.className = 'menu-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
       
       if (item.submenu) {
         itemContent.type = 'button';
@@ -203,22 +243,22 @@ function renderMenuItems(menuItems, currentPageId) {
 
       // Label
       const labelSpan = document.createElement('span');
-      labelSpan.className = 'flex-1';
+      labelSpan.className = 'flex-1 text-left';
       labelSpan.textContent = item.label;
       itemContent.appendChild(labelSpan);
 
       // Chevron for submenu items
       if (item.submenu) {
         const chevronSpan = document.createElement('span');
-        chevronSpan.className = 'w-3 h-3 transition-transform group-open:rotate-90';
+        chevronSpan.className = 'menu-chevron w-3 h-3 transition-transform group-open:rotate-90';
         chevronSpan.innerHTML = getIconSvg('chevron');
         itemContent.appendChild(chevronSpan);
 
         // Toggle submenu on click
         itemContent.addEventListener('click', (e) => {
           e.preventDefault();
-          const submenuEl = li.querySelector('.submenu');
-          const isExpanded = submenuEl.classList.toggle('expanded');
+          li.classList.toggle('expanded');
+          const isExpanded = li.classList.contains('expanded');
           itemContent.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
         });
       }
@@ -228,7 +268,8 @@ function renderMenuItems(menuItems, currentPageId) {
       // Submenu (if exists)
       if (item.submenu) {
         const submenuDiv = document.createElement('div');
-        submenuDiv.className = 'submenu' + (isActive ? ' expanded' : '');
+        submenuDiv.className = 'submenu' + (isActive ? '' : '');
+      if (isActive) li.classList.add('expanded');
         
         const submenuUl = document.createElement('ul');
         submenuUl.className = 'ml-6 mt-1 space-y-1';
@@ -236,13 +277,18 @@ function renderMenuItems(menuItems, currentPageId) {
         for (const subItem of item.submenu) {
           const subLi = document.createElement('li');
           const subLink = document.createElement('a');
-          subLink.className = 'block px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded';
+          subLink.className = 'block px-3 py-1.5 text-xs text-left text-slate-400 hover:text-white rounded';
           subLink.href = subItem.href;
           subLink.textContent = subItem.label;
 
-          // Highlight active submenu item
-          const subId = subItem.id || subItem.href?.split('/').pop()?.replace('.html', '');
-          if (subId === currentPageId) {
+          // Highlight active submenu item — use path matching first, then id matching
+          const currentPath = window.location.pathname;
+          let isSubActive = subItem.href && currentPath === subItem.href;
+          if (!isSubActive) {
+            const subId = subItem.id || subItem.href?.split('/').pop()?.replace('.html', '');
+            isSubActive = subId === currentPageId;
+          }
+          if (isSubActive) {
             subLi.classList.add('active');
           }
 
@@ -275,12 +321,22 @@ async function populateSidebar() {
   const currentPageId = detectCurrentPageId();
   const menu = await fetchSidebarMenu();
 
+  // Update brand text based on role from meta tag
+  const roleMeta = document.querySelector('meta[name="dashboard-role"]');
+  if (roleMeta) {
+    const brandEl = document.querySelector('.sidebar-brand');
+    const roleNames = { super_admin: 'Super Admin', admin: 'Admin', reviewer: 'Reviewer', instructor: 'Instructor', solo_instructor: 'Instructor' };
+    if (brandEl) brandEl.textContent = roleNames[roleMeta.getAttribute('content')] || 'Navigation';
+  }
+
   if (!menu || !Array.isArray(menu.menuItems) || !menu.menuItems.length) {
     menuList.innerHTML = '<li class="menu-error">Menu not available</li>';
     return;
   }
 
-  const menuHtml = renderMenuItems(menu.menuItems, currentPageId);
+  // Try path-based matching first, fall back to legacy ID-based matching
+  const activeMenuIdFromPath = findActiveMenuIdFromPath(menu.menuItems);
+  const menuHtml = renderMenuItems(menu.menuItems, currentPageId, activeMenuIdFromPath);
 
   // Clear existing menu and append new menu items
   menuList.innerHTML = '';
@@ -297,25 +353,32 @@ async function populateSidebar() {
   sidebarInitialized = true;
 }
 
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebarNav');
+  
+  if (!sidebar) return;
+  
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  document.body.classList.toggle('sidebar-collapsed');
+  
+  console.log('Toggled sidebar:', isCollapsed ? 'collapsed' : 'expanded');
+}
+
 function setupSidebarToggle() {
-  const toggleBtn = $('sidebarToggle');
-  const sidebar = $('sidebarNav');
-
-  if (!toggleBtn || !sidebar) return;
-
-  toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  if (!toggleBtn) return;
+  toggleBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleSidebar();
   });
 }
 
 function setupSidebarCollapse() {
-  const collapseBtn = $('sidebarCollapseBtn');
-  const sidebar = $('sidebarNav');
-
-  if (!collapseBtn || !sidebar) return;
-
-  collapseBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
+  const collapseBtn = document.getElementById('sidebarCollapseBtn');
+  if (!collapseBtn) return;
+  collapseBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleSidebar();
   });
 }
 
@@ -336,3 +399,15 @@ if (document.readyState === 'loading') {
 } else {
   populateSidebar();
 }
+
+// Global sidebar toggle handler for ALL pages
+document.addEventListener('click', function(e) {
+  const toggleBtn = e.target.closest('#sidebarToggle, #sidebarCollapseBtn');
+  if (!toggleBtn) return;
+  e.preventDefault();
+  const sidebar = document.getElementById('sidebarNav');
+  if (!sidebar) return;
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  document.body.classList.toggle('sidebar-collapsed');
+  console.log('Sidebar toggled:', isCollapsed ? 'collapsed' : 'expanded');
+});

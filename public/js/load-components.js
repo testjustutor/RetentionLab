@@ -6,10 +6,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const shouldLoadSidebar = !document.getElementById('sidebarNav');
   if (shouldLoadSidebar) {
     try {
-      // Determine which sidebar to load based on the page's role meta tag
-      const roleMeta = document.querySelector('meta[name="dashboard-role"]');
-      const role = roleMeta ? roleMeta.getAttribute('content') : '';
-      const sidebarPath = role === 'super_admin' ? '/super_admin/sidebar.html' : '/sidebar.html';
+      // Always use the common sidebar for all roles
+      const sidebarPath = '/sidebar.html';
       const res = await fetch(sidebarPath);
       const sidebarHtml = await res.text();
       const sidebarDiv = document.createElement('div');

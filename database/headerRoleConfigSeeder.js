@@ -6,11 +6,11 @@ const { db } = require('./db');
 
 const DEFAULT_NAV_BY_ROLE = {
   super_admin: {
-    home: { label: 'Dashboard', href: '/super_admin/index.html' },
-    events: { label: 'Events', href: '/super_admin/calendar-events.html' },
-    archives: { label: 'Archives', href: '/super_admin/archives.html' },
-    profile: { label: 'Profile', href: '/super_admin/profile.html' },
-    settings: { label: 'Settings', href: '/super_admin/settings.html' }
+    home: { label: 'Dashboard', href: '/super_admin' },
+    events: { label: 'Events', href: '/super_admin/calendar-events' },
+    archives: { label: 'Archives', href: '/super_admin/archives' },
+    profile: { label: 'Profile', href: '/super_admin/profile' },
+    settings: { label: 'Settings', href: '/super_admin/settings' }
   },
   admin: {
     home: { label: 'Dashboard', href: '/admin/index.html' },

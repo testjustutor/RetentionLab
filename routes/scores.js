@@ -131,12 +131,12 @@ router.get('/', requireAuth, async (req, res) => {
 
     const sql = `
       SELECT ms.*, m.title as meeting_title, m.start_time as meeting_date,
-             u.first_name || ' ' || u.last_name as reviewer_name,
+             CONCAT(u.first_name, ' ', u.last_name) as reviewer_name,
              u.id as reviewer_id
       FROM meeting_scores ms
       LEFT JOIN meetings m ON m.meeting_id = ms.meeting_id
       LEFT JOIN users u ON u.id = ms.reviewer_id
-      WHERE ms.scored_at >= datetime('now', '-' || ? || ' days')
+      WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
       ORDER BY ms.scored_at DESC
       LIMIT 200
     `;

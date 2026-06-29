@@ -6,29 +6,29 @@ const { db } = require('./db');
 
 const DEFAULT_MENU_BY_ROLE = {
   super_admin: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/index.html', submenu: null },
-    { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management.html', submenu: null },
-    { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management.html', submenu: null },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin', submenu: null },
+    { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management', submenu: null },
+    { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management', submenu: null },
     { id: 'operations', label: 'Operations', icon: 'settings', href: null, submenu: [
-      { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts.html' },
-      { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events.html' },
-      { id: 'data-architecture', label: 'Data Architecture', href: '/super_admin/data-architecture.html' }
+      { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts' },
+      { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events' },
+      { id: 'data-architecture', label: 'Data Architecture', href: '/super_admin/data-architecture' }
     ]},
     { id: 'content', label: 'Content Management', icon: 'folder', href: null, submenu: [
-      { id: 'archives', label: 'Archives', href: '/super_admin/archives.html' },
-      { id: 'assets', label: 'Assets', href: '/super_admin/assets.html' },
-      { id: 'audit', label: 'Audit Log', href: '/super_admin/audit.html' }
+      { id: 'archives', label: 'Archives', href: '/super_admin/archives' },
+      { id: 'assets', label: 'Assets', href: '/super_admin/assets' },
+      { id: 'audit', label: 'Audit Log', href: '/super_admin/audit' }
     ]},
     { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
-      { id: 'add-user', label: 'Add User', href: '/super_admin/add-user.html' },
-      { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users.html' },
-      { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access.html' }
+      { id: 'add-user', label: 'Add User', href: '/super_admin/add-user' },
+      { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users' },
+      { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access' }
     ]},
     { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
-      { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot.html' },
-      { id: 'settings', label: 'Settings', href: '/super_admin/settings.html' },
-      { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' },
-      { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings.html' }
+      { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot' },
+      { id: 'settings', label: 'Settings', href: '/super_admin/settings' },
+      { id: 'profile', label: 'Profile', href: '/super_admin/profile' },
+      { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings' }
     ]}
   ],
   admin: [
