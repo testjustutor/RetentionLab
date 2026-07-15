@@ -7,10 +7,10 @@ const { db } = require('./db');
 const DEFAULT_NAV_BY_ROLE = {
   super_admin: {
     home: { label: 'Dashboard', href: '/super_admin' },
-    events: { label: 'Events', href: '/super_admin/calendar-events' },
-    archives: { label: 'Archives', href: '/super_admin/archives' },
-    profile: { label: 'Profile', href: '/super_admin/profile' },
-    settings: { label: 'Settings', href: '/super_admin/settings' }
+    events: { label: 'Events', href: '/super_admin/integrations/bot' },
+    archives: { label: 'Archives', href: '/super_admin/storage/archives' },
+    profile: { label: 'Profile', href: '/super_admin/people/profile' },
+    settings: { label: 'Settings', href: '/super_admin/settings/settings' }
   },
   admin: {
     home: { label: 'Dashboard', href: '/admin/index.html' },
@@ -34,7 +34,7 @@ const DEFAULT_NAV_BY_ROLE = {
     settings: { label: 'Settings', href: '/instructor/settings.html' }
   },
   solo_instructor: {
-    home: { label: 'Dashboard', href: '/dashboard' },
+    home: { label: 'Dashboard', href: '/instructor/index.html' },
     events: { label: 'Meetings', href: '/meetings' },
     archives: { label: 'Content', href: '/content/recordings' },
     profile: { label: 'Profile', href: '/profile' },
@@ -81,4 +81,4 @@ const seedHeaderRoleConfigs = async () => {
     }
 };
 
-module.exports = { seedHeaderRoleConfigs };
+module.exports = { seedHeaderRoleConfigs, DEFAULT_NAV_BY_ROLE };

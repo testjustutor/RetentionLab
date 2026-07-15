@@ -10,6 +10,7 @@
     "dev:api": "nodemon api-server.js",
     "db:init": "node -e \"require('./database/db').initDB()\"",
     "db:seed": "node database/seeder.js",
+    "seed:google-credentials": "node -e \"const GoogleOAuthCredentialsModel = require('./models/GoogleOAuthCredentialsModel');const path=require('path');GoogleOAuthCredentialsModel.seedFromFile(path.join(__dirname,'uploads/google-calendar-json/credentials_multi.json')).then(r=>{console.log('Google OAuth credentials seeded:',r.client_id);process.exit(0)}).catch(e=>{console.error('Error:',e.message);process.exit(1)})\"",
     "build": "npm run db:init && npm run db:seed && echo 'Build Complete: Database synced and environment verified.'"
   },
   "keywords": [

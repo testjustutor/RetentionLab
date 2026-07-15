@@ -26,18 +26,77 @@ const ASSET_KEYS = [
 
 function toUrl(p) {
   if (!p) return null;
-  // Replace backslashes with forward slashes
-  let normalized = p.replace(/\\/g, '/');
-  // Fix known bad paths: AUDIO_DIAR should be DIAR, cache_audio_transcripts should be cache_diarization
+  let normalized = p.replace(/\\/g, '/').replace(/\/+/g, '/');
   normalized = normalized.replace(/AUDIO_DIAR_/g, 'DIAR_').replace(/cache_audio_transcripts/g, 'cache_diarization');
-  // Extract the part after 'storage/' to get the relative web path
-  const storageIdx = normalized.toLowerCase().indexOf('storage/');
-  if (storageIdx !== -1) {
-    // Return /storage/... path (relative, no hardcoded base URL)
-    return '/' + normalized.slice(storageIdx);
+  
+  // ── Handle malformed paths (no separators, e.g. "C:xampphtdocsRetentionLabstorage...") ──
+  // Check if the normalized path has no '/' after the drive letter or 'storage' keyword
+  const hasSeparators = normalized.includes('/');
+  const lower = normalized.toLowerCase();
+  
+  // Extract filename whether the path has separators or not
+  const filenameExtract = normalized.match(/([^\\\/]+\.\w+)$/);
+  
+  if (!hasSeparators && filenameExtract) {
+    // No path separators at all — path is malformed. Determine correct folder by filename prefix.
+    const fn = filenameExtract[1].toLowerCase();
+    const fname = filenameExtract[1];
+    if (fn.startsWith('summary_')) return '/storage/summaries/' + fname;
+    if (fn.startsWith('trans_')) return '/storage/transcripts/' + fname;
+    if (fn.startsWith('diar_')) return '/storage/diarization/' + fname;
+    if (fn.endsWith('.wav') || fn.endsWith('.mp3') || fn.endsWith('.ogg')) return '/storage/audio/' + fname;
+    if (fn.endsWith('.json')) return '/storage/json/' + fname;
+    return '/' + fname;
   }
-  // Fallback: just prefix with /
-  return '/' + normalized;
+  
+  // ── Normal path with separators ──
+  normalized = normalized.replace(/AUDIO_DIAR_/g, 'DIAR_').replace(/cache_audio_transcripts/g, 'cache_diarization');
+  
+  let storageIdx = lower.indexOf('storage/');
+  if (storageIdx === -1) {
+    storageIdx = lower.indexOf('storage');
+  }
+  if (storageIdx !== -1) {
+    let result = normalized.slice(storageIdx);
+    result = result.replace(/\/+/g, '/');
+    // Ensure there's at least one slash after "storage" — otherwise the path has no separators
+    if (!result.includes('/', 8)) {
+      if (filenameExtract) {
+        const fn = filenameExtract[1].toLowerCase();
+        const fname = filenameExtract[1];
+        if (fn.startsWith('summary_')) return '/storage/summaries/' + fname;
+        if (fn.startsWith('trans_')) return '/storage/transcripts/' + fname;
+        if (fn.startsWith('diar_')) return '/storage/diarization/' + fname;
+        if (fn.endsWith('.wav') || fn.endsWith('.mp3') || fn.endsWith('.ogg')) return '/storage/audio/' + fname;
+        if (fn.endsWith('.json')) return '/storage/json/' + fname;
+        return '/' + fname;
+      }
+      return null;
+    }
+    result = result.replace(/^\/+/, '');
+    return '/' + result;
+  }
+  // If the path is an absolute Windows drive path, strip the drive prefix and return a relative web path.
+  const driveMatch = normalized.match(/^[a-zA-Z]:\/?(.*)$/);
+  if (driveMatch && driveMatch[1]) {
+    let rest = driveMatch[1].replace(/\\/g, '/').replace(/^\/+/, '');
+    // If the rest has no path separators, the path is malformed — extract filename
+    if (!rest.includes('/')) {
+      if (filenameExtract) {
+        const fn = filenameExtract[1].toLowerCase();
+        const fname = filenameExtract[1];
+        if (fn.startsWith('summary_')) return '/storage/summaries/' + fname;
+        if (fn.startsWith('trans_')) return '/storage/transcripts/' + fname;
+        if (fn.startsWith('diar_')) return '/storage/diarization/' + fname;
+        if (fn.endsWith('.wav') || fn.endsWith('.mp3') || fn.endsWith('.ogg')) return '/storage/audio/' + fname;
+        if (fn.endsWith('.json')) return '/storage/json/' + fname;
+        return '/' + fname;
+      }
+      return null;
+    }
+    return '/' + rest;
+  }
+  return normalized.startsWith('/') ? normalized : '/' + normalized;
 }
 
 const controller = {
@@ -73,7 +132,20 @@ const controller = {
       const userId = parseInt(req.params.userId);
       if (!userId) return err('User ID required', 400);
       const data = await controller._fetchByUserId(userId, null, rows =>
-        rows.map(r => ({ meeting_id: r.meeting_id, title: r.title || 'Untitled', start_time: r.start_time, end_time: r.end_time, platform: r.platform || 'unknown', play_url: toUrl(r.audio_path || r.audio_path), has_recording: !!(r.audio_path || r.audio_path), asset_status: r.asset_status || 'not_started', status: r.status || 'unknown' }))
+        rows.map(r => { 
+          let audioUrl = r.audio_path || r.wav_audio_path || null;
+          return { 
+            meeting_id: r.meeting_id, 
+            title: r.title || 'Untitled', 
+            start_time: r.start_time, 
+            end_time: r.end_time, 
+            platform: r.platform || 'unknown', 
+            play_url: toUrl(audioUrl), 
+            has_recording: !!audioUrl, 
+            asset_status: r.asset_status || 'not_started', 
+            status: r.status || 'unknown' 
+          }; 
+        })
       );
       return ok({ userId, count: data.length, recordings: data });
     } catch (e) { return err(e.message); }

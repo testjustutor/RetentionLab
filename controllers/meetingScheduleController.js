@@ -83,10 +83,10 @@ function groupByAccount(rows) {
     const email = (r.calendar_account || '').toLowerCase();
     if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
     groups[email].events.push({
-      id: r.meeting_id, title: r.title || 'Untitled', start: r.start_time, end: r.end_time,
-      link: r.meeting_link || null, platform: r.platform || null, status: r.status || 'scheduled',
-      duration: r.duration || null, participants: r.participant_count || 0,
-      bot_joined_at: r.bot_joined_at || null, bot_left_at: r.bot_left_at || null
+      title: r.title || 'Untitled',
+      start_time: r.start_time,
+      end_time: r.end_time,
+      platform: r.platform || null
     });
   });
   return Object.values(groups).map(g => ({ email: g.email, role_name: g.role_name, total: g.events.length, events: g.events }));
@@ -102,6 +102,7 @@ const controller = {
   async syncMeetings(req) {
     try {
       const hours = parseInt(req.query.hours) || 24;
+      const adminId = req.user ? req.user.id : null;
       const connections = await CalendarUsersModel.getAllUsers();
       const activeConnections = (connections || []).filter(c => c.status === 'active' && c.email && (c.access_token || c.token_expiry));
       if (!activeConnections.length) return ok({ users: [], totalUsers: 0, totalEvents: 0, synced: 0, message: 'No connected accounts' });
@@ -116,7 +117,7 @@ const controller = {
           await service.initialize(conn.email);
           await service.ensureValidToken();
           let events = [];
-          try { events = await service.getEvents({ timeMin: now.toISOString(), timeMax: future.toISOString(), maxResults: 20 }); }
+          try { events = await service.getEvents({ timeMin: now.toISOString(), timeMax: future.toISOString(), maxResults: 2500 }); }
           catch (fe) { logger.warn('[MeetingSchedule] Fetch failed for '+conn.email+':', fe.message); return; }
 
           for (const e of events) {
@@ -125,8 +126,11 @@ const controller = {
             if (pt && pt !== 'unknown') {
               const { meetingId, passcode } = extractMeetingId(link, pt, e.description || '', e.location || '');
               if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
-                await MeetingModel.getMeetingByIdOrCreate({ meetingId, platform: pt, eventId: e.id, passcode, account: conn.email, meetingLink: link, startTime: e.start.dateTime || e.start.date, endTime: e.end.dateTime || e.end.date, timezone: e.start.timezone, title: e.summary || 'Untitled Meeting' });
-                totalStored++;
+                const result = await MeetingModel.getMeetingByIdOrCreate({ meetingId, platform: pt, eventId: e.id, passcode, account: conn.email, meetingLink: link, startTime: e.start.dateTime || e.start.date, endTime: e.end.dateTime || e.end.date, timezone: e.start.timezone, title: e.summary || 'Untitled Meeting' });
+                // Only count as synced if it was created new or updated for upcoming window
+                if (result.created || result.updated) {
+                  totalStored++;
+                }
               }
             }
           }
@@ -135,8 +139,40 @@ const controller = {
 
       const activeEmails = activeConnections.map(c => c.email.toLowerCase());
       const rows = await MeetingModel.getMeetingsByAccounts(activeEmails, hours);
-      const users = groupByAccount(rows);
-      return ok({ hours, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), synced: totalStored });
+
+      // Include ALL active connections as users (even those with 0 meetings)
+      const usersFromMeetings = groupByAccount(rows);
+      const eventsByEmail = {};
+      usersFromMeetings.forEach(u => {
+        eventsByEmail[u.email] = (u.events || []).map(e => ({
+          title: e.title,
+          start_time: e.start_time,
+          end_time: e.end_time,
+          platform: e.platform
+        }));
+      });
+
+      const normalizedUsers = activeConnections.map(c => {
+        const email = c.email.toLowerCase();
+        const events = eventsByEmail[email] || [];
+        return {
+          email: c.email,
+          role_name: c.role_name || 'instructor',
+          total: events.length,
+          events
+        };
+      });
+
+      const connectedCount = await CalendarUsersModel.getConnectedCalendarCount(adminId);
+
+      return ok({
+        hours,
+        users: normalizedUsers,
+        totalUsers: normalizedUsers.length,
+        totalEvents: normalizedUsers.reduce((s,u)=>s+u.total,0),
+        synced: totalStored,
+        connectedUsers: connectedCount
+      });
     } catch (e) { return err(e.message); }
   },
 
@@ -144,15 +180,49 @@ const controller = {
   async getAllMeetings(req) {
     try {
       const hours = parseInt(req.query.hours) || 24;
-      const activeEmails = await getActiveEmails();
-      const rows = await MeetingModel.getMeetingsByAccounts(activeEmails, hours);
-      const users = groupByAccount(rows);
+      const adminId = req.user ? req.user.id : null;
       
-      // Connected users count is always from calendar_integrations, not dependent on meetings
+      // Get ALL connected users (not just those with meetings)
       const connections = await CalendarUsersModel.getAllUsers();
-      const connectedCount = (connections || []).filter(c => c.status === 'active' && c.email).length;
+      const activeConnections = (connections || []).filter(c => c.status === 'active' && c.email);
       
-      return ok({ hours, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
+      // Get meetings for all active emails
+      const activeEmails = activeConnections.map(c => c.email.toLowerCase());
+      const rows = await MeetingModel.getMeetingsByAccounts(activeEmails, hours);
+
+      // Group meetings by account
+      const meetingsByAccount = {};
+      (rows || []).forEach(r => {
+        const email = (r.calendar_account || '').toLowerCase();
+        if (!meetingsByAccount[email]) meetingsByAccount[email] = [];
+        meetingsByAccount[email].push({
+          title: r.title,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          platform: r.platform,
+          // send duration when possible (helps UI)
+          duration: r.duration
+        });
+      });
+
+      
+      // Build users array with ALL connected users, even those without meetings
+      const users = activeConnections.map(c => {
+        const email = c.email.toLowerCase();
+        const events = meetingsByAccount[email] || [];
+        return {
+          email: c.email,
+          role_name: c.role_name || 'instructor',
+          total: events.length,
+          events: events
+        };
+      });
+      
+      // Connected calendars count
+      const connectedCount = users.length;
+      const totalEvents = users.reduce((s,u) => s + u.total, 0);
+      
+      return ok({ hours, users, totalUsers: connectedCount, totalEvents, connectedUsers: connectedCount });
     } catch (e) { return err(e.message); }
   },
 
@@ -171,13 +241,13 @@ const controller = {
   async getCompletedMeetings(req) {
     try {
       const hours = parseInt(req.query.hours) || 24;
+      const adminId = req.user ? req.user.id : null;
       // Get ALL completed meetings (not filtered by calendar connections — show all data)
       const rows = await MeetingModel.getCompletedMeetingsByAccounts([], hours);
       const users = groupByAccount(rows);
       
-      // Also get total connected users count
-      const connections = await CalendarUsersModel.getAllUsers();
-      const connectedCount = (connections || []).filter(c => c.status === 'active' && c.email).length;
+      // Connected calendars count from calendar_integrations, users, roles, calendar_verifications & created_by admin
+      const connectedCount = await CalendarUsersModel.getConnectedCalendarCount(adminId);
       
       return ok({ hours, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
     } catch (e) { return err(e.message); }

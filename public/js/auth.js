@@ -1,8 +1,204 @@
 /**
  * root/public/js/auth.js
+ * 
+ * Merged auth utilities:
+ *  - Auth API wrapper
+ *  - User profile cache (sessionStorage)
+ *  - Auth guard functions
+ *  - User profile API with retry logic
  */
 
-// Lightweight auth helpers for frontend
+// ========== USER PROFILE CACHE ==========
+
+const USER_CACHE_KEY = 'rl_user_profile';
+
+export function getCachedUser() {
+  try {
+    const raw = sessionStorage.getItem(USER_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setCachedUser(user) {
+  try {
+    const profile = {
+      id: user.id,
+      name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
+      email: user.email,
+      role: user.role_name || user.role,
+      company_id: user.company_id,
+      profile_image: user.profile_image || null,
+      first_name: user.first_name,
+      last_name: user.last_name
+    };
+    sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.error('Failed to cache user profile:', e);
+  }
+}
+
+export function clearCachedUser() {
+  try {
+    sessionStorage.removeItem(USER_CACHE_KEY);
+    // Also clear the user-profile-cache key to prevent stale data
+    sessionStorage.removeItem('cached_user');
+  } catch {
+    // ignore
+  }
+}
+
+export function isAuthenticated() {
+  return getCachedUser() !== null;
+}
+
+export function getDisplayName() {
+  const user = getCachedUser();
+  return user?.name || user?.email || 'User';
+}
+
+export function getUserInitials() {
+  const user = getCachedUser();
+  const name = user?.name || '';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'U';
+}
+
+// ========== AUTH GUARD ==========
+
+export function requireAuth(returnUrl = null) {
+  if (!isAuthenticated()) {
+    const loginUrl = returnUrl 
+      ? `/login.html?returnUrl=${encodeURIComponent(returnUrl)}`
+      : '/login.html';
+    window.location.href = loginUrl;
+    return false;
+  }
+  return true;
+}
+
+export function getCurrentUser() {
+  return getCachedUser();
+}
+
+export function hasRole(roles) {
+  const user = getCachedUser();
+  if (!user) return false;
+  
+  const userRole = (user.role || '').toLowerCase();
+  const allowedRoles = Array.isArray(roles) 
+    ? roles.map(r => r.toLowerCase())
+    : [roles.toLowerCase()];
+  
+  return allowedRoles.includes(userRole);
+}
+
+export function requireRole(roles, fallbackUrl = '/') {
+  if (!hasRole(roles)) {
+    window.location.href = fallbackUrl;
+    return false;
+  }
+  return true;
+}
+
+// ========== AUTH API ==========
+
+const API_BASE = '/api/auth';
+const INFLIGHT_KEY = '__rl_user_inflight__';
+
+function safeJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+async function requestJsonWithRetry(url, options, { retries = 2, backoffMs = 150 } = {}) {
+  let lastErr;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      const data = safeJson(text);
+
+      if (!res.ok) {
+        const err = data?.error || data?.message || `HTTP ${res.status}`;
+        throw new Error(err);
+      }
+
+      // Return user object if present, null if explicitly null, or fallback to data
+      return data?.user !== undefined && data?.user !== null ? data.user : null;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === retries) break;
+      const delay = backoffMs * (attempt + 1);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  throw lastErr;
+}
+
+export async function fetchCurrentUser() {
+  // 1) Cache fast-path
+  const cached = getCachedUser();
+  if (cached) return cached;
+
+  // 2) In-flight de-dupe (module-level)
+  if (globalThis[INFLIGHT_KEY]) return globalThis[INFLIGHT_KEY];
+
+  const promise = (async () => {
+    const url = `${API_BASE}/me`;
+    const options = {
+      method: 'GET',
+      credentials: 'include'
+    };
+
+    const user = await requestJsonWithRetry(url, options, { retries: 2, backoffMs: 200 });
+
+    if (user) setCachedUser(user);
+    return user;
+  })();
+
+  globalThis[INFLIGHT_KEY] = promise;
+
+  try {
+    return await promise;
+  } finally {
+    // clear inflight no matter what
+    delete globalThis[INFLIGHT_KEY];
+  }
+}
+
+export function userToDisplayName(user) {
+  const first = (user?.first_name || '').trim();
+  const last = (user?.last_name || '').trim();
+  const full = `${first} ${last}`.trim();
+  return full || user?.email || 'User';
+}
+
+export function userToInitials(user) {
+  const name = userToDisplayName(user);
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+// ========== AUTH API WRAPPER ==========
+
 const API = {
   base: '/api/auth',
   async request(path, options = {}) {
@@ -25,13 +221,23 @@ const API = {
 
 export default API;
 
-// --- AUTH GUARD LOGIC ---
+// ========== AUTH CHECK ==========
 
-async function checkAuth() {
+export async function checkAuth() {
+  // Try to get user from cache first (no API call)
+  const cachedUser = getCachedUser();
+  if (cachedUser) {
+    window.currentUser = cachedUser;
+    return true;
+  }
+  
+  // If not in cache, fetch from API (only when explicitly called)
   try {
     const response = await API.me();
     if (response && response.user) {
       window.currentUser = response.user;
+      // Cache the user for future use
+      setCachedUser(response.user);
       return true;
     }
   } catch (err) {
@@ -40,103 +246,9 @@ async function checkAuth() {
   return false;
 }
 
-/**
- * Returns the correct landing URL for a given role.
- * Used after login and when redirecting away from public pages.
- */
-function getRoleRedirect(role) {
-  switch (role) {
-    case 'super_admin': return '/super_admin';
-    case 'admin':       return '/admin';
-    case 'reviewer':    return '/reviewer';
-    case 'instructor':    return '/instructor';
-    default:            return '/dashboard';
-  }
-}
+// ========== DASHBOARD UI LOGIC ==========
 
-function getRoleFromMeta() {
-  const meta = document.querySelector('meta[name="dashboard-role"]');
-  return meta ? meta.getAttribute('content') : null;
-}
-
-/**
- * Pages whose auth is already enforced server-side by pageAuth middleware
- * in pages.js. The client should NOT redirect away from these on a failed
- * checkAuth — the server will redirect to /login itself if needed.
- * This prevents the double-redirect loop that caused every URL to land on /login.
- */
-const SERVER_PROTECTED_PREFIXES = [
-  '/dashboard',
-  '/admin',
-  '/super_admin',
-  '/reviewer',
-  '/instructor',
-  // root-level safeRootPages from pages.js
-  '/schedule-intelligence',
-  '/meeting-overview',
-  '/archives',
-  '/assets',
-  '/audit',
-  '/bot',
-  '/calendar-accounts',
-  '/calendar-events',
-  '/calendar-integrations',
-  '/data-architecture'
-];
-
-const PUBLIC_PAGE_SUFFIXES = [
-  '/login',
-  '/login.html',
-  '/register',
-  '/register.html'
-];
-
-// Automatically run auth guard on load
-(async () => {
-  const currentPath = window.location.pathname;
-
-  const isPublicPage = PUBLIC_PAGE_SUFFIXES.some(p => currentPath.endsWith(p));
-
-  // Pages already protected server-side — don't interfere with their auth flow
-  const isServerProtected = SERVER_PROTECTED_PREFIXES.some(p => currentPath.startsWith(p));
-
-  const authenticated = await checkAuth();
-
-  // Scenario A: User is NOT logged in
-  if (!authenticated) {
-    // Server-protected pages: let the server handle the redirect to /login.
-    // Public pages (login/register): stay put, nothing to do.
-    // Any other client-side-only page: redirect to login.
-    if (!isPublicPage && !isServerProtected) {
-      window.location.replace('/login');
-    }
-    return;
-  }
-
-  // Scenario B: User IS logged in but landed on a public page (login / register)
-  if (isPublicPage) {
-    const role = window.currentUser?.role_name;
-    window.location.replace(getRoleRedirect(role));
-    return;
-  }
-
-  // Scenario C: Role-based folder protection via <meta name="dashboard-role">
-  // e.g. super_admin pages have <meta name="dashboard-role" content="super_admin">
-  const requiredFolderRole = getRoleFromMeta();
-  if (requiredFolderRole && window.currentUser?.role_name !== requiredFolderRole) {
-    // Wrong role for this folder — send them to their own dashboard
-    window.location.replace(getRoleRedirect(window.currentUser?.role_name));
-    return;
-  }
-
-  // Scenario D: Authenticated and on the right page — boot the UI
-  initDashboard(window.currentUser);
-})();
-
-
-// --- DASHBOARD UI LOGIC ---
-
-function initDashboard(user) {
+export function initDashboard(user) {
   const titleEl = document.getElementById('pageTitle');
   if (titleEl && !titleEl.textContent) titleEl.textContent = document.title;
 
@@ -166,6 +278,7 @@ function initDashboard(user) {
   if (logout) {
     logout.addEventListener('click', async () => {
       await API.logout();
+      clearCachedUser();
       window.location.replace('/login');
     });
   }

@@ -26,14 +26,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Load sidebar styles
-  if (!document.querySelector('link[href="/css/sidebar.css"]')) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '/css/sidebar.css';
-    document.head.appendChild(link);
-  }
-
   // Load shared header template
   const headerPlaceholder = document.getElementById('header-placeholder');
   if (headerPlaceholder) {
@@ -88,64 +80,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (headerPlaceholder) {
     await waitFor(() => !!document.getElementById('profileMenuWrap'), 3000);
 
-    // header-controller.js self-initializes on import:
+    // header.js handles header config, controller, and profile/role common
     // fetches /api/header-config/me, populates title/description/nav links,
     // wires profile dropdown + logout.
     if (!globalThis[initKeyController]) {
       globalThis[initKeyController] = true;
       try {
-        await import('/js/header-controller.js');
-      } catch (err) {
-        console.error('Failed to load header-controller:', err);
-
-        // If header-controller fails to load, still initialize profile
-        // dropdown/rendering and logout from role-common so profile buttons
-        // remain clickable.
-        try {
-          const roleMod = await import('/js/header-role-common.js');
-          if (typeof roleMod?.initProfileRoleHeaderCommon === 'function') {
-            await roleMod.initProfileRoleHeaderCommon();
-          }
-          if (typeof roleMod?.initDropdownBehavior === 'function') {
-            roleMod.initDropdownBehavior();
-          }
-          if (typeof roleMod?.initLogout === 'function') {
-            roleMod.initLogout();
-          }
-        } catch (fallbackErr) {
-          console.error('Failed to recover header controls after header-controller load failure:', fallbackErr);
-        }
-      }
-    }
-
-    // header-role-common.js handles ONLY profile rendering now
-    // (avatar/name/email/userName/userEmail via user-profile-api.js).
-    // Its dropdown/logout init is redundant with header-controller.js,
-    // but harmless since it checks for missing markup before binding —
-    // however, since both bind click listeners to the SAME elements,
-    // this WILL double-fire toggle/logout. We call only the profile-render
-    // part by relying on initProfileRoleHeaderCommon's internal guard
-    // (initialized flag) — but since it ALSO binds dropdown/logout,
-    // recommend trimming header-role-common.js to remove
-    // initDropdownBehavior() + initLogout() calls inside
-    // initProfileRoleHeaderCommon(), since header-controller.js owns those now.
-    if (!globalThis[initKeyRoleCommon]) {
-      globalThis[initKeyRoleCommon] = true;
-      try {
-        const roleMod = await import('/js/header-role-common.js');
-        if (typeof roleMod?.initProfileRoleHeaderCommon === 'function') {
-          await roleMod.initProfileRoleHeaderCommon();
-        } else if (typeof globalThis.initProfileRoleHeaderCommon === 'function') {
-          await globalThis.initProfileRoleHeaderCommon();
+        const headerMod = await import('/js/header.js');
+        if (typeof headerMod?.init === 'function') {
+          await headerMod.init();
         }
       } catch (err) {
-        try {
-          if (typeof globalThis.initProfileRoleHeaderCommon === 'function') {
-            await globalThis.initProfileRoleHeaderCommon();
-          }
-        } catch (_) {
-          console.error('Failed to initialize header-role-common:', err);
-        }
+        console.error('Failed to load header.js:', err);
       }
     }
 
@@ -155,14 +101,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Wait for sidebar to be loaded before initializing controller
       await waitFor(() => !!document.getElementById('sidebarMenuList'), 3000);
       try {
-        const sidebarMod = await import('/js/sidebar-controller.js?v=' + Math.random());
+        const sidebarMod = await import('/js/sidebar/sidebar.js');
         if (typeof sidebarMod?.init === 'function') {
           await sidebarMod.init();
         } else if (typeof globalThis.populateSidebar === 'function') {
           await globalThis.populateSidebar();
         }
       } catch (err) {
-        console.error('Failed to initialize sidebar-controller:', err);
+        console.error('Failed to initialize sidebar.js:', err);
       }
     }
 

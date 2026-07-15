@@ -109,6 +109,52 @@ class CalendarUsersModel {
       });
     });
   }
+
+  /**
+   * Get the count of truly connected calendars by checking
+   * calendar_integrations, users, and roles tables.
+   * A calendar is considered "connected" when:
+   *  - calendar_integrations.status = 'active'
+   *  - calendar_integrations has valid access_token or token_expiry
+   *  - user is active (users.status = 'active')
+   *  - user has an instructor-type role (instructor, solo_instructor)
+   *  - user was created by the logged-in admin (users.created_by = adminId)
+   *
+   * @param {number|null} adminId - The logged-in admin's user ID. If null, skip admin filter.
+   */
+  static async getConnectedCalendarCount(adminId = null) {
+    return new Promise((resolve, reject) => {
+      const conditions = [
+        `ci.status = 'active'`,
+        `ci.email IS NOT NULL`,
+        `(ci.access_token IS NOT NULL OR ci.token_expiry IS NOT NULL)`,
+        `u.status = 'active'`,
+        `r.role_name IN ('instructor', 'solo_instructor')`
+      ];
+      const params = [];
+
+      if (adminId) {
+        conditions.push(`u.created_by = ?`);
+        params.push(adminId);
+      }
+
+      const sql = `
+        SELECT COUNT(DISTINCT ci.email) AS count
+        FROM calendar_integrations ci
+        JOIN users u ON u.id = ci.user_id
+        JOIN roles r ON r.id = u.role_id
+        WHERE ${conditions.join(' AND ')}
+      `;
+      db.get(sql, params, (err, row) => {
+        if (err) {
+          logger.error('Model(CalendarUsersModel): Error counting connected calendars:', err);
+          reject(err);
+        } else {
+          resolve(row ? row.count : 0);
+        }
+      });
+    });
+  }
 }
 
 module.exports = CalendarUsersModel;

@@ -4,20 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="evaluationRubrics">
   <title>Rubrics | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
   <script src="../../js/common-ui.js"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
-      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
         <div class="flex items-center justify-between mb-4">
-          <div><h1 class="text-xl font-bold text-white">Rubrics</h1><p class="text-xs text-slate-400 mt-1">Your evaluation framework</p></div>
-          <span class="text-[10px] text-slate-500" id="saveStatus"></span>
+          <div id="header-buttons-container"></div>
+          <span class="text-[12px] text-slate-500" id="saveStatus"></span>
         </div>
         <div id="rubricsRoot">
           <div class="animate-pulse space-y-3">
@@ -30,14 +31,17 @@
   </div>
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
-  <script>
+  <script type="module">
+    import { fetchCurrentUser } from '../../js/auth.js';
+    
     (async () => {
       const root = document.getElementById('rubricsRoot');
 
-      // 1) authenticate & get own user id
-      let me, userId;
-      try { me = await apiFetch('/api/auth/me'); userId = (me.user||me).id; }
+      // 1) Get current user from cache
+      let user;
+      try { user = await fetchCurrentUser(); }
       catch(e) { root.innerHTML = `<p class="text-red-400">Auth failed: ${e.message}</p>`; return; }
+      const userId = user.id;
 
       // 2) fetch admin rubric
       let rubric;
@@ -66,18 +70,18 @@
           html += `<div class="rounded-lg border border-slate-800 bg-slate-900 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-${color}-500/5">
               <div class="flex items-center gap-2">
-                <span class="w-7 h-7 rounded-md bg-${color}-500/10 border border-${color}-500/20 flex items-center justify-center text-${color}-400 font-bold text-[10px]">${i+1}</span>
-                <div><p class="text-xs font-semibold text-white">${escapeHtml(c.name)}</p><p class="text-[10px] text-slate-500">${cItems.length} indicator${cItems.length!==1?'s':''}</p></div>
+                <span class="w-7 h-7 rounded-md bg-${color}-500/10 border border-${color}-500/20 flex items-center justify-center text-${color}-400 font-bold text-[12px]">${i+1}</span>
+ <div><p class="text-xs font-semibold ">${escapeHtml(c.name)}</p><p class="text-[12px] text-slate-500">${cItems.length} indicator${cItems.length!==1?'s':''}</p></div>
               </div>
               <div class="flex items-center gap-1.5">
-                <span class="text-[10px] text-slate-400">Wt:</span>
+                <span class="text-[12px] text-slate-400">Wt:</span>
                 <input type="number" step="0.1" min="0" max="100" value="${+c.weight||0}" data-cat="${cId}"
-                  class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white text-center cat-weight focus:border-violet-500 outline-none" oninput="markDirty()">
+ class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-center cat-weight focus:border-violet-500 outline-none" oninput="markDirty()">
               </div>
             </div>`;
 
           if (cItems.length) {
-            html += `<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider">
+            html += `<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[12px] text-slate-500 uppercase tracking-wider">
               <th class="py-2 px-3">Indicator</th>
               <th class="py-2 px-3 w-16">Type</th>
               <th class="py-2 px-3 w-12 text-center">Gate</th>
@@ -88,11 +92,11 @@
               const pct = totalVal > 0 ? ((+ind.value||0)/totalVal*100).toFixed(1) : '0.0';
               const typeColor = ind.type === 'AI' ? 'bg-violet-500/10 text-violet-400' : 'bg-emerald-500/10 text-emerald-400';
               html += `<tr class="hover:bg-slate-800/30">
-                <td class="py-2 px-3 text-white">${escapeHtml(ind.name)}</td>
-                <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${typeColor}">${ind.type||'HUMAN'}</span></td>
+ <td class="py-2 px-3 ">${escapeHtml(ind.name)}</td>
+                <td class="py-2 px-3"><span class="text-[12px] px-1.5 py-0.5 rounded ${typeColor}">${ind.type||'HUMAN'}</span></td>
                 <td class="py-2 px-3 text-center">${ind.is_gate ? '<span class="text-emerald-400 font-bold">&#x2713;</span>' : '<span class="text-slate-600">--</span>'}</td>
                 <td class="py-2 px-3 text-center"><input type="number" step="0.1" min="0" value="${+ind.value||1}" data-ind="${ind.original_indicator_id}"
-                  class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white text-center ind-value focus:border-violet-500 outline-none" oninput="markDirty()"></td>
+ class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-center ind-value focus:border-violet-500 outline-none" oninput="markDirty()"></td>
                 <td class="py-2 px-3 text-right text-slate-500">${pct}%</td>
               </tr>`;
             });
@@ -103,7 +107,7 @@
         html += '</div>';
         // Save button
         html += `<div class="flex justify-end mt-4 gap-2">
-          <button onclick="resetRubric()" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-white transition-colors">Reset</button>
+          <button onclick="resetRubric()" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-white hover:text-slate-900 transition-colors">Reset</button>
           <button onclick="saveRubric()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">Save</button>
         </div>`;
         root.innerHTML = html;
@@ -160,3 +164,8 @@
     function escapeHtml(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
   </script>
 </body></html>
+
+
+
+
+

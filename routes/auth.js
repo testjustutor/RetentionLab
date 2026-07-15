@@ -1,180 +1,166 @@
 /**
  * root/routes/auth.js
+ * Authentication routes - thin HTTP layer
+ * All business logic is handled by authController
  */
+
 const express = require('express');
-const crypto = require('crypto');
 const router = express.Router();
-const AuthModel = require('../models/AuthModel');
-const UsersModel = require('../models/UsersModel');
-const { requireAuth, signToken, JWT_EXPIRES_MS } = require('../middleware/auth');
-const { sendMail } = require('../utils/mailer');
+const authController = require('../controllers/authController');
+const { requireAuth } = require('../middleware/auth');
 
-function sendAuthCookie(res, token) {
-  const isSecure = process.env.NODE_ENV === 'production';
-  res.cookie('auth_token', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isSecure,
-    maxAge: JWT_EXPIRES_MS
-  });
+/**
+ * Helper to send a standardized response from controller result.
+ * Spreads all controller return fields (user, expiresIn, etc.) into the response body,
+ * while keeping success, message, and error as top-level fields.
+ */
+function sendResponse(res, result) {
+  const statusCode = result.statusCode || (result.success ? 200 : 500);
+  const { statusCode: _sc, success: _s, message: _m, error: _e, ...extraFields } = result;
+  const body = {
+    success: result.success,
+    ...(result.message ? { message: result.message } : {}),
+    ...(result.error ? { error: result.error } : {}),
+    ...(result.data || {}),
+    ...extraFields
+  };
+  res.status(statusCode).json(body);
 }
 
-function buildVerificationLink(req, token) {
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.headers.host;
-  return `${protocol}://${host}/verify-email?token=${encodeURIComponent(token)}`;
-}
-
-function buildResetLink(req, token) {
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.headers.host;
-  return `${protocol}://${host}/reset-password.html?token=${encodeURIComponent(token)}`;
-}
-
-async function sendVerificationEmail(user, req) {
-  if (!process.env.SMTP_HOST) return;
-  const link = buildVerificationLink(req, user.email_verification_token);
-  const html = `<p>Hello ${user.first_name || 'Instructor'},</p><p>Verify your email address by clicking here:</p><p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none">Verify Email</a></p><p>If you did not create this account, ignore this message.</p>`;
-  await sendMail({ to: user.email, subject: 'Verify your RetentionLab account', html });
-}
-
-async function sendResetEmail(user, req) {
-  if (!process.env.SMTP_HOST) return;
-  const link = buildResetLink(req, user.password_reset_token);
-  const html = `<p>Hello ${user.first_name || 'Instructor'},</p><p>Reset your password using the secure link below:</p><p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none">Reset Password</a></p><p>If you did not request this, ignore this email.</p>`;
-  await sendMail({ to: user.email, subject: 'Reset your RetentionLab password', html });
-}
-
+/**
+ * POST /api/auth/register
+ * Register a new user account
+ */
 router.post('/register', async (req, res) => {
   try {
-    const created = await AuthModel.register(req.body);
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await UsersModel.updateUser(created.id, {
-      email_verification_token: process.env.SMTP_HOST ? token : null,
-      email_verification_expires_at: process.env.SMTP_HOST ? expiresAt : null,
-      email_verified: process.env.SMTP_HOST ? 0 : 1,
-      email_verified_at: process.env.SMTP_HOST ? null : new Date().toISOString()
-    });
-    const user = await UsersModel.getUserById(created.id);
-    if (user && process.env.SMTP_HOST) {
-      await sendVerificationEmail(user, req);
-      return res.status(201).json({ status: 'pending_verification', message: 'Account created. Please verify your email to continue.' });
-    }
-    return res.status(201).json({ status: 'verified', message: 'Account created. Email verification is disabled for local setup; you can sign in now.' });
+    const result = await authController.register(req);
+    sendResponse(res, result);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Route error - register:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/auth/login
+ * Authenticate user and create session
+ */
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await AuthModel.authenticate(email, password);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = signToken(user);
-    sendAuthCookie(res, token);
-    res.json({ user, expiresIn: JWT_EXPIRES_MS });
+    const result = await authController.login(req);
+    sendResponse(res, result);
   } catch (err) {
-    if (err.message.includes('Email not verified') || err.message.includes('not active')) {
-      return res.status(400).json({ error: err.message });
-    }
-    res.status(500).json({ error: err.message });
+    console.error('Route error - login:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/auth/logout
+ * Clear user session
+ */
 router.post('/logout', requireAuth, (req, res) => {
-  res.clearCookie('auth_token');
-  res.json({ success: true });
+  try {
+    const result = authController.logout(req);
+    sendResponse(res, result);
+  } catch (err) {
+    console.error('Route error - logout:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
 });
 
+/**
+ * POST /api/auth/forgot-password
+ * Initiate password reset flow
+ */
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body || {};
-  if (!email) return res.status(400).json({ error: 'Email is required' });
   try {
-    const user = await UsersModel.getUserByEmail(String(email).trim().toLowerCase());
-    if (!user) return res.json({ status: 'success' });
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    await UsersModel.updateUser(user.id, {
-      password_reset_token: token,
-      password_reset_expires_at: expiresAt
-    });
-    await sendResetEmail({ ...user, password_reset_token: token }, req);
-    res.json({ status: 'success' });
+    const result = await authController.forgotPassword(req);
+    sendResponse(res, result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Route error - forgot-password:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/auth/reset-password
+ * Reset password using token
+ */
 router.post('/reset-password', async (req, res) => {
-  const { token, password } = req.body || {};
-  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
-  if (password.length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters' });
   try {
-    const user = await new Promise((resolve, reject) => {
-      require('../database/db').db.get(
-        `SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE password_reset_token = ? AND deleted_at IS NULL`,
-        [token],
-        (err, row) => err ? reject(err) : resolve(row || null)
-      );
-    });
-    if (!user) return res.status(400).json({ error: 'Invalid password reset token' });
-    if (!user.password_reset_expires_at || new Date(user.password_reset_expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ error: 'Password reset token expired' });
-    }
-    const password_hash = AuthModel.hashPassword(password);
-    await UsersModel.updateUser(user.id, {
-      password_hash,
-      password_reset_token: null,
-      password_reset_expires_at: null,
-      email_verified: 1,
-      email_verified_at: new Date().toISOString()
-    });
-    const updatedUser = await UsersModel.getUserById(user.id);
-    const tokenJwt = signToken(updatedUser);
-    sendAuthCookie(res, tokenJwt);
-    res.json({ user: updatedUser, expiresIn: JWT_EXPIRES_MS });
+    const result = await authController.resetPassword(req);
+    sendResponse(res, result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Route error - reset-password:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/auth/verify-email
+ * Verify email address using token
+ */
 router.post('/verify-email', async (req, res) => {
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'Verification token is required' });
   try {
-    const user = await new Promise((resolve, reject) => {
-      require('../database/db').db.get(
-        `SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE email_verification_token = ? AND deleted_at IS NULL`,
-        [token],
-        (err, row) => err ? reject(err) : resolve(row || null)
-      );
-    });
-    if (!user) return res.status(400).json({ error: 'Invalid email verification token' });
-    if (!user.email_verification_expires_at || new Date(user.email_verification_expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ error: 'Email verification token expired' });
-    }
-    await UsersModel.updateUser(user.id, {
-      email_verified: 1,
-      email_verified_at: new Date().toISOString(),
-      email_verification_token: null,
-      email_verification_expires_at: null
-    });
-    res.json({ status: 'success' });
+    const result = await authController.verifyEmail(req);
+    sendResponse(res, result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Route error - verify-email:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
-router.get('/me', requireAuth, async (req, res) => {
+/**
+ * GET /api/auth/me
+ * Get current authenticated user profile.
+ * Does NOT use requireAuth middleware — gracefully returns null user if not authenticated.
+ * This prevents 401 console errors when the login page checks for an existing session.
+ */
+router.get('/me', async (req, res) => {
   try {
-    const user = await UsersModel.getUserById(req.user, req.user.id);
-    if (!user) return res.status(404).json({ error: 'Not found' });
-    delete user.password_hash;
-    res.json({ user });
+    // Check if user is authenticated via middleware (may have set req.user)
+    // If not authenticated, return null user gracefully instead of 401
+    if (!req.user || !req.user.id) {
+      // The requireAuth middleware ran before this if it was in the stack,
+      // but we don't use it. Try to parse the token manually.
+      const authHeader = req.get('authorization');
+      const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      const token = bearerToken || req.cookies?.auth_token;
+      
+      if (!token) {
+        return res.status(200).json({ success: true, user: null });
+      }
+      
+      const { verifyToken } = require('../middleware/auth');
+      const payload = verifyToken(token);
+      
+      if (!payload) {
+        return res.status(200).json({ success: true, user: null });
+      }
+      
+      req.user = {
+        id: payload.id,
+        role_id: payload.role_id || null,
+        role_name: payload.role_name,
+        company_id: payload.company_id,
+        email: payload.email
+      };
+    }
+    
+    const result = await authController.getCurrentUser(req);
+    
+    // If user not found in DB, return null gracefully
+    // Controller returns user at top level (not inside data)
+    if (!result.success || !result.user) {
+      return res.status(200).json({ success: true, user: null });
+    }
+    
+    sendResponse(res, result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Route error - me:', err);
+    // Always return 200 with null user on error to avoid console errors
+    res.status(200).json({ success: true, user: null });
   }
 });
 

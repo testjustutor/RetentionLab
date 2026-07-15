@@ -3,6 +3,8 @@ node_modules/
 .venv/
 .vscode/
 retention_lab.sql
+test-engine.js
+test_diarization.py
 # Logs
 logs/*.log
 

@@ -34,6 +34,16 @@ app.use(express.json());
 app.use(cookieParser());
 app.use('/', require('./routes'));
 
+// Clean URL mapping for session-quality pages (sidebar uses /admin/session-quality/rubric, not .html)
+app.get('/admin/session-quality/:page', (req, res) => {
+  const page = req.params.page;
+  const validPages = ['index', 'rubric', 'analysis', 'impact', 'parent-summary', 'coaching', 'better-alternatives', 'next-plan', 'flags', 'final-eval'];
+  if (validPages.includes(page)) {
+    return res.sendFile(path.join(__dirname, 'public', 'admin', 'session-quality', `${page}.html`));
+  }
+  return res.status(404).send('Page not found');
+});
+
 app.use(
   '/storage',
   express.static(path.join(__dirname, 'storage'))
@@ -175,10 +185,10 @@ function extractMeetingId(link, platform, description = '') {
 // -------------------------------------------------------------------------
 // NEW: AUTO-SYNC ALL USERS (The "Fireflies" background engine)
 // -------------------------------------------------------------------------
-async function backgroundSyncAllUsers() {
+async function scheduleBackgroundSync() {
   try {
     const users = await CalendarUsersModel.getAllUsers();
-    logger.info(`(ServerJS File): Global Sync: Checking meetings for ${users.length} authenticated users...`);
+    logger.debug(`(ServerJS File): Global Sync: checking ${users.length} authenticated users`);
 
     for (const user of users) {
       try {
@@ -197,8 +207,7 @@ async function backgroundSyncAllUsers() {
         for (const e of events) {
           activeEventIds.push(e.id);
           
-          logger.info(`(ServerJS File): e.id - ${e.id} `);
-          
+          // Reduce per-event log noise
           const link = e.hangoutLink || extractMeetingLink(e.description);
           if (link) {
             
@@ -207,8 +216,6 @@ async function backgroundSyncAllUsers() {
             if (platformType && platformType !== 'unknown') {
 
               const { meetingId, passcode } = extractMeetingId(link, platformType, e.description);
-              
-              logger.info(`(ServerJS File): Platform - ${platformType} meetingId - ${meetingId} and passcode - ${passcode} `);
               
               if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
                 // Store & Match logic
@@ -231,13 +238,15 @@ async function backgroundSyncAllUsers() {
           }
         }
         // await MeetingModel.deleteRemovedMeetings(user.email, activeEventIds);
-        logger.info(`(ServerJS File): Sync complete for ${user.email}. Cleanup performed.`);
+        logger.debug(`(ServerJS File): Sync complete for ${user.email}`);
       } catch (userErr) {
         logger.error(`(ServerJS File): Failed to sync for ${user.email}: ${userErr.message}`);
       }
     }
   } catch (err) {
     logger.error('(ServerJS File): Global background sync error:', err);
+  } finally {
+    setTimeout(scheduleBackgroundSync, 30 * 60 * 1000);
   }
 }
 
@@ -252,7 +261,7 @@ const io = new Server(httpServer, {
 // -------------------------------------------------------------------------
 // RE-ACTIVATED: BOT POLLING SERVICE
 // -------------------------------------------------------------------------
-setInterval(async () => {
+async function pollQueuedMeetings() {
   try {
     // ✅ Only fetch meetings that haven't been touched yet
     const queued = await MeetingModel.getQueuedMeetings(['queued']);
@@ -270,7 +279,7 @@ setInterval(async () => {
         logger.warn(
           `(ServerJS): Skipping ${meeting.meeting_id}: timed out by ${Math.abs(Math.round(minutesUntilStart))} mins`
         );
-        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'expired');
+        await MeetingModel.updateMeetingStatus(meeting.event_id, 'expired');
         continue;
       }
 
@@ -285,54 +294,54 @@ setInterval(async () => {
 
       // ✅ Mark 'launching' BEFORE calling launchFromDb — prevents double-launch
       //    on the next poll cycle (getQueuedMeetings won't return this meeting again)
-      await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'launching');
+      await MeetingModel.updateMeetingStatus(meeting.event_id, 'launching');
 
       try {
         await botManager.launchFromDb(meeting);
-        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'in_progress');
+        await MeetingModel.updateMeetingStatus(meeting.event_id, 'in_progress');
         logger.info(`(ServerJS): Launched meeting ${meeting.meeting_id}`);
       } catch (launchErr) {
         logger.error(`(ServerJS): Launch failed for ${meeting.meeting_id}:`, launchErr);
         // ✅ Roll back so it can be retried, or set 'failed' to stop retrying
-        await MeetingModel.updateMeetingStatus(meeting.meeting_id, 'failed');
+        await MeetingModel.updateMeetingStatus(meeting.event_id, 'failed');
       }
     }
   } catch (err) {
     logger.error('(ServerJS): Polling error:', err);
+  } finally {
+    setTimeout(pollQueuedMeetings, 30000);
   }
-}, 30000); // ✅ 30s is enough — meetings don't change second-by-second
+}
+setTimeout(pollQueuedMeetings, 30000); // ✅ 30s is enough — meetings don't change second-by-second
 
 // -------------------------------------------------------------------------
 // SERVER STARTUP WITH INITIAL GLOBAL SYNC
 // -------------------------------------------------------------------------
 initDB()
   .then(() => migrateDB())
-  .then(() => runSeeder())
-  .then(() => HeaderConfigModel.seedForAllRoles())
+  .then(async () => {
+    // Seed only if explicitly enabled to reduce noisy startup logs.
+    if (process.env.RUN_SEEDERS === 'true') {
+      await runSeeder();
+      await HeaderConfigModel.seedForAllRoles();
+    } else {
+      logger.info('[Startup] Seeding disabled (set RUN_SEEDERS=true to enable)');
+    }
+  })
   .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
   .then(async () => {
-    // 🚀 FIREFLIES LOGIC: Run Global Sync immediately on server start
-    // Ensure calendar_verifications table exists before any calendar operations
-    try {
-      await CalendarVerificationModel.createTable();
-      logger.info('(ServerJS File): calendar_verifications table ensured');
-    } catch (e) {
-      logger.warn('(ServerJS File): Failed to ensure calendar_verifications table:', e.message);
-    }
-    try {
-      await CalendarUsersModel.createTable();
-      logger.info('(ServerJS File): calendar_integrations table ensured');
-    } catch (e) {
-      logger.warn('(ServerJS File): Failed to ensure calendar_integrations table:', e.message);
-    }
 
-    await backgroundSyncAllUsers();
-
-    // 🔄 Sync every 30 minutes to capture new calendar invites
-    setInterval(backgroundSyncAllUsers, 30 * 60 * 1000);
+// Optional background sync to reduce startup noise.
+    if (process.env.RUN_CAL_SYNC_AT_START === 'true') {
+      await scheduleBackgroundSync();
+    } else {
+      logger.info('[Startup] Calendar sync at start disabled (set RUN_CAL_SYNC_AT_START=true to enable)');
+    // Still start polling jobs; scheduleBackgroundSync will re-schedule itself when enabled.
+      // (Leaving it disabled avoids token refresh + per-event logging at boot.)
+    }
 
     httpServer.listen(PORT, () => {
-      logger.info(`(ServerJS File): Bot Server is LIVE on Port: ${PORT}`);
+      logger.info(`(ServerJS File): Server is LIVE on Port: ${PORT}`);
       logger.info(`(ServerJS File): Auto-Sync (1min) and Polling (30s) are now ACTIVE.`);
     });
   })

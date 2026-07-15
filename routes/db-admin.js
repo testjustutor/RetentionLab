@@ -88,13 +88,4 @@ router.post('/row/:table', async (req, res) => {
   }
 });
 
-router.get('/stats', async (req, res) => {
-  try {
-    const data = await AdminModel.getAllTableCounts();
-    res.json({ status: 'success', data });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
 module.exports = router;

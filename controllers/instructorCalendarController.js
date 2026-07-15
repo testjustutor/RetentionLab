@@ -13,15 +13,13 @@ const { google } = require('googleapis');
 const CalendarVerificationModel = require('../models/CalendarVerificationModel');
 const CalendarUsersModel = require('../models/CalendarUsersModel');
 const UsersModel = require('../models/UsersModel');
+const GoogleOAuthCredentialsModel = require('../models/GoogleOAuthCredentialsModel');
 const { sendMail } = require('../utils/mailer');
 const { logger } = require('../utils/logger');
 
 // ─── Secure token config ───────────────────────────────────────────────────────
 const VERIFY_SECRET = process.env.INSTRUCTOR_CALENDAR_SECRET || process.env.JWT_SECRET || 'instructor_cal_secure_key_change_me';
 const VERIFY_EXPIRES  = '30m';  // verification link expires in 30 minutes
-
-// ─── Google OAuth helpers (no MultiUserCalendarService) ────────────────────────
-const CREDENTIALS_PATH = path.join(__dirname, '../uploads/google-calendar-json/credentials_multi.json');
 
 function hashPassword(password, salt = null) {
   salt = salt || crypto.randomBytes(16).toString('hex');
@@ -30,11 +28,9 @@ function hashPassword(password, salt = null) {
 }
 
 async function loadCredentials() {
-  const raw = await fs.readFile(CREDENTIALS_PATH, 'utf8');
-  const creds = JSON.parse(raw);
-  const config = creds.installed || creds.web || creds;
-  if (!config.client_id || !config.client_secret || !config.redirect_uris?.[0]) {
-    throw new Error('credentials_multi.json missing client_id, client_secret, or redirect_uris');
+  const config = await GoogleOAuthCredentialsModel.getConfig();
+  if (!config || !config.client_id || !config.client_secret || !config.redirect_uris?.[0]) {
+    throw new Error('No active Google OAuth credentials found in database. Run: npm run seed:google-credentials');
   }
   return config;
 }
@@ -75,21 +71,81 @@ function verifyToken(token) {
 const controller = {
   /**
    * GET /api/instructor-calendar/connections
+   * Returns calendar connections based on user role:
+   * - Admin: Returns all instructor calendar connections in their company
+   * - Instructor/SoloInstructor: Returns only their own connection
    */
   async listConnections(req) {
     try {
-      const rows = await CalendarUsersModel.getAllUsers();
-      return ok({
-        count: rows.length,
-        data: (rows || []).map(r => ({
-          email: r.email,
-          status: r.status || 'disconnected',
-          provider: r.provider || null,
-          updated_at: r.updated_at,
-          user_id: r.user_id || r.user_id_ref,
-          role_name: r.role_name
-        }))
-      });
+      const userRole = req.user?.role_name;
+      const userEmail = req.user?.email;
+      const userCompanyId = req.user?.company_id;
+
+      // For solo_instructor or instructor: return only their own connection
+      if (userRole === 'solo_instructor' || userRole === 'instructor') {
+        if (!userEmail) {
+          return ok({ count: 0, data: [] });
+        }
+
+        const row = await CalendarUsersModel.getUser(userEmail);
+        if (!row) {
+          return ok({ count: 0, data: [] });
+        }
+
+        return ok({
+          count: 1,
+          data: [{
+            email: row.email,
+            status: row.status || 'disconnected',
+            provider: row.provider || null,
+            updated_at: row.updated_at,
+            user_id: row.user_id || row.user_id_ref,
+            role_name: userRole
+          }]
+        });
+      }
+
+      // For admin: return all instructor connections in their company
+      if (userRole === 'admin' || userRole === 'super_admin') {
+        // Get all users in the admin's company (listUsers already filters by company for admin)
+        const allUsers = await UsersModel.listUsers(req.user, { limit: 1000 });
+        
+        // Filter to only instructors
+        const instructors = allUsers.filter(u => 
+          u.role_name === 'instructor' || u.role_name === 'solo_instructor'
+        );
+        
+        if (!instructors || instructors.length === 0) {
+          return ok({ count: 0, data: [] });
+        }
+
+        // Get calendar connections for all instructors
+        const instructorEmails = instructors.map(i => i.email).filter(Boolean);
+        const connections = [];
+        
+        for (const email of instructorEmails) {
+          const conn = await CalendarUsersModel.getUser(email);
+          if (conn) {
+            const instructor = instructors.find(i => i.email === email);
+            connections.push({
+              email: conn.email,
+              status: conn.status || 'disconnected',
+              provider: conn.provider || null,
+              updated_at: conn.updated_at,
+              user_id: conn.user_id || conn.user_id_ref,
+              role_name: instructor?.role_name || 'instructor'
+            });
+          }
+        }
+
+        return ok({
+          count: connections.length,
+          data: connections
+        });
+      }
+
+      // Default: return empty
+      return ok({ count: 0, data: [] });
     } catch (e) { return err(e.message); }
   },
 
@@ -102,11 +158,17 @@ const controller = {
       const { email } = req.body;
       if (!email) return err('Email is required', 400);
 
-      // Also create DB record for tracking
-      await CalendarVerificationModel.create(email);
-
       // Sign a JWT token (encrypted, expiring, single-use)
+      // NOTE: This JWT MUST be the same value stored in calendar_verifications.token,
+      // otherwise verifyToken() cannot find the row and status will stay 'pending'.
       const token = signVerifyToken(email);
+
+      // Also create DB record for tracking using the SAME token value
+      // (CalendarVerificationModel.create() currently generates its own random token internally,
+      // so we update it immediately after creation to match the JWT used in the verification link).
+      await CalendarVerificationModel.create(email);
+      await CalendarVerificationModel.updateTokenByEmail(email, token);
+
 
       // Build secure verification URL
       const protocol = req.headers['x-forwarded-proto'] || 'http';
@@ -119,22 +181,95 @@ const controller = {
           to: email,
           subject: 'RetentionLab — Connect Your Google Calendar',
           html: `
-            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:auto;background:#0f172a;border-radius:16px;overflow:hidden;color:#e2e8f0;">
-              <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:32px 24px;text-align:center;">
-                <h1 style="margin:0;font-size:22px;color:#fff;font-weight:700;">RetentionLab</h1>
-                <p style="margin:8px 0 0;color:#e9d5ff;font-size:14px;">Calendar Integration</p>
-              </div>
-              <div style="padding:28px 24px;">
-                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Your administrator has invited you to connect your Google Calendar so RetentionLab can automatically sync your meetings for evaluation and insights.</p>
-                <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">Click the button below to authorize access. This is a <strong>secure, one-time link</strong> that expires in 30 minutes.</p>
-                <a href="${verifyUrl}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;letter-spacing:0.3px;">Verify & Connect Calendar</a>
-                <p style="margin:24px 0 0;font-size:12px;color:#64748b;">This link is unique to your email address. Do not share it with anyone.</p>
-              </div>
-              <div style="padding:16px 24px;background:#1e293b;text-align:center;font-size:11px;color:#475569;">
-                RetentionLab &copy; 2026 &middot; Meeting Intelligence Platform
-              </div>
-            </div>
-          `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Connect Your Google Calendar</title>
+            </head>
+            <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f8fafc;color:#334155;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 20px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" max-width="600px" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+                      <!-- Header with branding -->
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#1f65c2,#1b4f97);padding:32px 24px;text-align:center;">
+                          <h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:700;">RetentionLab</h1>
+                          <p style="margin:8px 0 0;color:#e0f2fe;font-size:14px;">Meeting Intelligence Platform</p>
+                        </td>
+                      </tr>
+                      <!-- Website info top -->
+                      <tr>
+                        <td style="padding:20px 24px 0 24px;text-align:center;">
+                          <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
+                            <strong style="color:#1f65c2;">www.retentionlab.com</strong> &nbsp;|&nbsp;
+                            <a href="mailto:support@retentionlab.com" style="color:#1f65c2;text-decoration:none;">support@retentionlab.com</a>
+                          </p>
+                        </td>
+                      </tr>
+                      <!-- Main content -->
+                      <tr>
+                        <td style="padding:32px 24px;">
+                          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1f65c2;font-weight:600;">Connect Your Google Calendar</h2>
+                          <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#475569;">
+                            Your administrator has invited you to connect your Google Calendar to RetentionLab. This allows us to automatically sync your meetings for evaluation and insights.
+                          </p>
+                          <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;">
+                            Click the button below to authorize access. This is a <strong>secure, one-time link</strong> that expires in 30 minutes.
+                          </p>
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px auto;">
+                            <tr>
+                              <td style="background:linear-gradient(135deg,#1f65c2,#1b4f97);border-radius:10px;padding:14px 32px;">
+                                <a href="${verifyUrl}" style="display:inline-block;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;letter-spacing:0.3px;">Verify & Connect Calendar</a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin:0 0 8px 0;font-size:13px;color:#64748b;line-height:1.5;">
+                            <strong>Why connect your calendar?</strong>
+                          </p>
+                          <ul style="margin:0 0 16px 0;padding-left:20px;font-size:13px;color:#64748b;line-height:1.6;">
+                            <li>Automatic meeting sync and session tracking</li>
+                            <li>AI-powered session quality analysis</li>
+                            <li>Real-time insights and coaching feedback</li>
+                          </ul>
+                          <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">
+                            This link is unique to your email address. Do not share it with anyone. If you did not request this, please ignore this email.
+                          </p>
+                        </td>
+                      </tr>
+                      <!-- Divider -->
+                      <tr>
+                        <td style="padding:0 24px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;">
+                            <tr><td style="font-size:0;line-height:0;">&nbsp;</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <!-- Footer with website details -->
+                      <tr>
+                        <td style="padding:24px;text-align:center;background-color:#f8fafc;">
+                          <p style="margin:0 0 8px 0;font-size:12px;color:#64748b;line-height:1.5;">
+                            <strong style="color:#1f65c2;">RetentionLab</strong> &middot; Meeting Intelligence Platform
+                          </p>
+                          <p style="margin:0 0 8px 0;font-size:11px;color:#94a3b8;line-height:1.5;">
+                            <a href="https://www.retentionlab.com" style="color:#1f65c2;text-decoration:none;">www.retentionlab.com</a> &nbsp;|&nbsp;
+                            <a href="mailto:support@retentionlab.com" style="color:#1f65c2;text-decoration:none;">support@retentionlab.com</a>
+                          </p>
+                          <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.5;">
+                            &copy; 2026 RetentionLab. All rights reserved.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+          purpose: 'calendar_integration'
         });
         logger.info(`[InstructorCalendar] Verification email sent to ${email}`);
       } catch (mailErr) {
@@ -146,6 +281,49 @@ const controller = {
   },
 
   /**
+   * POST /api/instructor-calendar/self-request
+   * Public — registered instructor submits their email to self-integrate calendar.
+   * Validates the email exists in the users table with an instructor/solo_instructor role,
+   * then returns a signed verification URL that redirects to Google OAuth.
+   * No admin approval or email notification is required.
+   */
+  async selfRequest(req, res) {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email is required' });
+      }
+
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const user = await UsersModel.getUserByEmail(normalizedEmail);
+
+      if (!user) {
+        return res.status(403).json({ success: false, error: 'Email not found. Please contact your administrator.' });
+      }
+
+      const allowedRoles = ['instructor', 'solo_instructor'];
+      if (!allowedRoles.includes(user.role_name)) {
+        return res.status(403).json({ success: false, error: 'Only instructors can connect their calendar. Please contact your administrator.' });
+      }
+
+      if (user.status !== 'active' || !user.is_active) {
+        return res.status(403).json({ success: false, error: 'Your account is not active. Please contact your administrator.' });
+      }
+
+      const token = signVerifyToken(normalizedEmail);
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const host = req.headers.host || 'localhost:3000';
+      const verifyUrl = `${protocol}://${host}/api/instructor-calendar/verify?token=${encodeURIComponent(token)}`;
+
+      logger.info(`[InstructorCalendar] selfRequest: approved email=${normalizedEmail} userId=${user.id}`);
+      return res.json({ success: true, redirectUrl: verifyUrl });
+    } catch (e) {
+      logger.error('[InstructorCalendar] selfRequest error:', e);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  },
+
+  /**
    * GET /api/instructor-calendar/verify?token=JWT
    * Public — instructor clicks this link from email.
    * Verifies JWT, redirects to Google OAuth.
@@ -153,19 +331,26 @@ const controller = {
   async verifyToken(req, res) {
     try {
       const { token } = req.query;
-      if (!token) return res.status(400).send('<h2>Missing verification token</h2>');
+      if (!token) return res.status(400).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">Missing verification token</h2></body></html>`);
 
       const payload = verifyToken(token);
       if (!payload) {
         return res.status(400).send(`
-          <html><body style="font-family:Arial;text-align:center;padding:50px;background:#0f172a;color:#e2e8f0;">
-            <h2 style="color:#f87171;">Link Expired or Invalid</h2>
-            <p>This verification link is no longer valid. Please request a new one from your administrator.</p>
+          <html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;">
+            <h2 style="color:#ef4444;">Link Expired or Invalid</h2>
+            <p style="color:#64748b;">This verification link is no longer valid. Please request a new one from your administrator.</p>
           </body></html>
         `);
       }
 
       const email = payload.email;
+
+      // Mark verification as verified in DB
+      try {
+        await CalendarVerificationModel.verifyToken(token);
+      } catch (e) {
+        logger.warn('[InstructorCalendar] Failed to update verification status:', e.message);
+      }
       const baseUrl = `${req.protocol || 'http'}://${req.get('host')}`;
       const instructorCallbackUrl = `${baseUrl}/api/instructor-calendar/callback`;
 
@@ -193,15 +378,18 @@ const controller = {
       return res.send(`
         <html>
           <head><meta http-equiv="refresh" content="0; url=${authUrl}"></head>
-          <body style="font-family:Arial;text-align:center;padding:50px;background:#0f172a;color:#e2e8f0;">
-            <h2 style="color:#a78bfa;">Verification Successful</h2>
-            <p>Redirecting to Google for authorization...</p>
+          <body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;">
+            <div style="max-width:400px;margin:auto;">
+              <div style="font-size:48px;margin-bottom:16px;">&#x2705;</div>
+              <h2 style="color:#1f65c2;">Verification Successful</h2>
+              <p style="color:#64748b;">Redirecting to Google for authorization...</p>
+            </div>
           </body>
         </html>
       `);
     } catch (e) {
       logger.error('[InstructorCalendar] Verify error:', e);
-      return res.status(500).send('<h2>Verification failed</h2><p>' + e.message + '</p>');
+      return res.status(500).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">Verification failed</h2><p style="color:#64748b;">${e.message}</p></body></html>`);
     }
   },
 
@@ -219,18 +407,29 @@ const controller = {
 
       if (!code) {
         logger.warn(`[InstructorCalendar] handleCallback: no code received path=${requestPath}`);
-        return res.status(400).send('<h2>No authorization code received</h2>');
+        return res.status(400).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">No authorization code received</h2></body></html>`);
       }
       if (!state) {
         logger.warn(`[InstructorCalendar] handleCallback: no state token path=${requestPath}`);
-        return res.status(400).send('<h2>Missing state token</h2>');
+        return res.status(400).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">Missing state token</h2></body></html>`);
       }
 
       // State contains the JWT with email
       const payload = verifyToken(state);
+
+      // Ensure DB verification row becomes VERIFIED when user reaches callback.
+      // (So calendar_verifications.status is 'verified' even if the previous /verify step didn't update.)
+      if (state) {
+        try {
+          await CalendarVerificationModel.verifyToken(state);
+        } catch (e) {
+          logger.warn('[InstructorCalendar] handleCallback: failed to mark calendar_verification verified:', e.message);
+        }
+      }
+
       if (!payload || !payload.email) {
         logger.warn(`[InstructorCalendar] handleCallback: invalid/expired state token path=${requestPath}`);
-        return res.status(400).send('<h2>Invalid or expired state token</h2>');
+        return res.status(400).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">Invalid or expired state token</h2></body></html>`);
       }
 
       const email = payload.email;
@@ -302,12 +501,12 @@ const controller = {
 
       return res.send(`
         <html>
-          <body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:60px;background:#0f172a;color:#e2e8f0;">
+          <body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:60px;background:#ffffff;color:#334155;">
             <div style="max-width:400px;margin:auto;">
               <div style="font-size:48px;margin-bottom:16px;">&#x2705;</div>
-              <h1 style="color:#4ade80;font-size:24px;margin:0 0 8px;">Connected!</h1>
-              <p style="font-size:14px;color:#94a3b8;">Your Google Calendar (<strong>${email}</strong>) is now connected to RetentionLab.</p>
-              <p style="font-size:12px;color:#64748b;">You can close this window.</p>
+              <h1 style="color:#16a34a;font-size:24px;margin:0 0 8px;">Connected!</h1>
+              <p style="font-size:14px;color:#64748b;">Your Google Calendar (<strong>${email}</strong>) is now connected to RetentionLab.</p>
+              <p style="font-size:12px;color:#94a3b8;">You can close this window.</p>
               <script>setTimeout(() => window.close(), 4000);</script>
             </div>
           </body>
@@ -315,7 +514,7 @@ const controller = {
       `);
     } catch (e) {
       logger.error('[InstructorCalendar] Callback error:', e);
-      return res.status(500).send('<h2>Connection failed</h2><p>' + e.message + '</p>');
+      return res.status(500).send(`<html><body style="font-family:'Segoe UI',Arial,sans-serif;text-align:center;padding:50px;background:#ffffff;color:#334155;"><h2 style="color:#ef4444;">Connection failed</h2><p style="color:#64748b;">${e.message}</p></body></html>`);
     }
   },
 

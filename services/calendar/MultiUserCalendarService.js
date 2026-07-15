@@ -7,8 +7,7 @@ const crypto = require('crypto');
 const { logger } = require('../../utils/logger');
 const CalendarUsersModel = require('../../models/CalendarUsersModel');
 const UsersModel = require('../../models/UsersModel');
-const path = require('path');
-const fs = require('fs/promises');
+const GoogleOAuthCredentialsModel = require('../../models/GoogleOAuthCredentialsModel');
 const { signCalendarLink } = require('../../utils/calendarLinkToken');
 
 function hashPassword(password, salt = null) {
@@ -41,19 +40,14 @@ class MultiUserCalendarService {
 
     this.currentEmail = email;
 
-    // Create OAuth2 client - credentials from existing resolver logic or env
-    // Assume credentials.json in uploads/google-calendar-json/credentials_multi.json
-    const credentialsPath = path.join(__dirname, '../../uploads/google-calendar-json/credentials_multi.json');
-    const credentials = JSON.parse(await fs.readFile(credentialsPath, 'utf8'));
-
-    const { client_id, client_secret, redirect_uris } = credentials.installed || credentials.web || credentials;
-    if (!client_id || !client_secret) {
-      throw new Error('Missing client_id/client_secret in credentials_multi.json');
+    // Load Google OAuth credentials from database
+    const config = await GoogleOAuthCredentialsModel.getConfig();
+    if (!config || !config.client_id || !config.client_secret) {
+      throw new Error('No active Google OAuth credentials found in database. Seed with: npm run seed:google-credentials');
     }
-
-    const config = credentials.installed || credentials.web || credentials;
-    // Use the override if provided, otherwise use the first URI in the file
-    this.redirectUri = redirectUriOverride || config.redirect_uris[0];
+    const { client_id, client_secret } = config;
+    // Use the override if provided, otherwise use the first URI from config
+    this.redirectUri = redirectUriOverride || (config.redirect_uris && config.redirect_uris[0]);
 
     this.oauth2Client = new google.auth.OAuth2(
       client_id,
@@ -109,25 +103,12 @@ class MultiUserCalendarService {
   }
 
   async getOAuth2Client() {
-    // Load credentials directly (no tokens/DB needed for auth URL)
-    const credentialsPath = path.join(__dirname, '../../uploads/google-calendar-json/credentials_multi.json');
-    
-    let credentials;
-    try {
-      const raw = await fs.readFile(credentialsPath, 'utf8');
-      credentials = JSON.parse(raw);
-    } catch (err) {
-      throw new Error(`credentials_multi.json missing or invalid: ${err.message}. Download from Google Console.`);
+    // Load credentials from database (no tokens/DB needed for auth URL)
+    const config = await GoogleOAuthCredentialsModel.getConfig();
+    if (!config || !config.client_id || !config.client_secret || !config.redirect_uris?.[0]) {
+      throw new Error('No active Google OAuth credentials in database.');
     }
-
-    const config = credentials.installed || credentials.web || credentials;
-    const { client_id, client_secret, redirect_uris } = config;
-
-    if (!client_id || !client_secret || !redirect_uris?.[0]) {
-      throw new Error('Invalid credentials_multi.json: Missing client_id, client_secret, or redirect_uris[0]');
-    }
-
-    return new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+    return new google.auth.OAuth2(config.client_id, config.client_secret, config.redirect_uris[0]);
   }
 
   async getAuthUrl() { 

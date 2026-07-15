@@ -4,22 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="reportsTeams">
   <title>Team Reports | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
   <script src="../../js/common-ui.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
-      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div><h1 class="text-xl font-bold text-white">Team Reports</h1><p class="text-xs text-slate-400 mt-1">Team performance, participation, and growth</p></div>
+          <div></div>
           <div class="flex gap-2">
-            <select id="teamFilter" class="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white focus:border-violet-500 outline-none">
+ <select id="teamFilter" class="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs focus:border-violet-500 outline-none">
               <option value="">All Teams</option>
             </select>
             <button onclick="exportTeamReport()" class="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">Export CSV</button>
@@ -35,7 +36,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
               </div>
-              <div><p class="text-[10px] text-slate-500">Teams</p><p class="text-base font-bold text-white" id="totalTeams">-</p></div>
+ <div><p class="text-[12px] text-slate-500">Teams</p><p class="text-base font-bold " id="totalTeams">-</p></div>
             </div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
@@ -45,7 +46,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
                 </svg>
               </div>
-              <div><p class="text-[10px] text-slate-500">Members</p><p class="text-base font-bold text-white" id="totalMembers">-</p></div>
+ <div><p class="text-[12px] text-slate-500">Members</p><p class="text-base font-bold " id="totalMembers">-</p></div>
             </div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
@@ -55,24 +56,24 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                 </svg>
               </div>
-              <div><p class="text-[10px] text-slate-500">Avg Score</p><p class="text-base font-bold text-white" id="avgPerformance">-</p></div>
+ <div><p class="text-[12px] text-slate-500">Avg Score</p><p class="text-base font-bold " id="avgPerformance">-</p></div>
             </div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                 </svg>
               </div>
-              <div><p class="text-[10px] text-slate-500">Growth</p><p class="text-base font-bold text-white" id="growthRate">-</p></div>
+ <div><p class="text-[12px] text-slate-500">Growth</p><p class="text-base font-bold " id="growthRate">-</p></div>
             </div>
           </div>
         </div>
 
         <!-- Team Performance Chart -->
         <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-4">
-          <h3 class="text-xs font-semibold text-white mb-2">Team Performance Comparison</h3>
+ <h3 class="text-xs font-semibold mb-2">Team Performance Comparison</h3>
           <div class="h-56">
             <canvas id="teamChart"></canvas>
           </div>
@@ -90,250 +91,10 @@
   </div>
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
-  <script>
-    let allUsers = [];
-    let allScores = [];
-    let departments = [];
-    let teamChart = null;
-
-    (async () => {
-      await Promise.all([loadUsers(), loadScores(), loadDepartments()]);
-      updateStats();
-      renderTeamCards();
-      initChart();
-      populateTeamFilter();
-    })();
-
-    async function loadUsers() {
-      try {
-        const data = await apiFetch('/api/users');
-        allUsers = data.users || data.data || [];
-      } catch(e) { console.error('Failed to load users:', e); }
-    }
-
-    async function loadScores() {
-      try {
-        const data = await apiFetch('/api/scores');
-        allScores = data.scores || [];
-      } catch(e) { console.error('Failed to load scores:', e); }
-    }
-
-    async function loadDepartments() {
-      try {
-        const data = await apiFetch('/api/departments');
-        departments = data.data || data.departments || [];
-        if (!departments.length) {
-          // Fallback: derive from users
-          const deptSet = new Set(allUsers.map(u => u.department || u.team || 'Ungrouped').filter(Boolean));
-          departments = Array.from(deptSet).map(name => ({ id: name, name }));
-        }
-      } catch(e) { console.error('Failed to load departments:', e); }
-    }
-
-    function populateTeamFilter() {
-      const filter = document.getElementById('teamFilter');
-      filter.innerHTML = '<option value="">All Teams</option>';
-      departments.forEach(d => {
-        filter.innerHTML += `<option value="${escapeHtml(d.name||d.id)}">${escapeHtml(d.name||d.id)}</option>`;
-      });
-      filter.addEventListener('change', renderTeamCards);
-    }
-
-    function updateStats() {
-      document.getElementById('totalTeams').textContent = departments.length;
-      document.getElementById('totalMembers').textContent = allUsers.length;
-
-      const avgPerf = allScores.length ? (allScores.reduce((sum, s) => sum + (+s.score || 0), 0) / allScores.length).toFixed(1) : '0.0';
-      document.getElementById('avgPerformance').textContent = avgPerf;
-      document.getElementById('growthRate').textContent = '+0.0'; // placeholder until historical comparison is added
-    }
-
-    function renderTeamCards() {
-      const container = document.getElementById('teamCards');
-      const selectedTeam = document.getElementById('teamFilter').value;
-      
-      const filteredDepts = selectedTeam ? departments.filter(d => (d.name||d.id) === selectedTeam) : departments;
-      
-      if (!filteredDepts.length) {
-        container.innerHTML = '<p class="text-slate-500 text-center py-16 col-span-2">No teams found</p>';
-        return;
-      }
-
-      let html = '';
-      filteredDepts.forEach(dept => {
-        const deptName = dept.name || dept.id;
-        const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-        const memberIds = members.map(m => m.id);
-        
-        const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-        const avgScore = deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : '0.0';
-        const participationRate = members.length > 0 ? Math.round((deptScores.length / Math.max(members.length, 1)) * 100) : 0;
-        
-        // Calculate score distribution
-        const scoreBins = { high: 0, medium: 0, low: 0 };
-        deptScores.forEach(s => {
-          const v = +s.score || 0;
-          if (v >= 4) scoreBins.high++;
-          else if (v >= 3) scoreBins.medium++;
-          else scoreBins.low++;
-        });
-
-        html += `<div class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-violet-500/30 transition-colors">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h3 class="text-sm font-semibold text-white">${escapeHtml(deptName)}</h3>
-              <p class="text-[10px] text-slate-500">${members.length} member${members.length !== 1 ? 's' : ''}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-xl font-bold text-white">${avgScore}</p>
-              <p class="text-[10px] text-slate-500">Avg Score</p>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-3 gap-2 mb-3">
-            <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-              <p class="text-base font-bold text-emerald-400">${scoreBins.high}</p>
-              <p class="text-[10px] text-slate-500">High (4+)</p>
-            </div>
-            <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-              <p class="text-base font-bold text-blue-400">${scoreBins.medium}</p>
-              <p class="text-[10px] text-slate-500">Med (3-4)</p>
-            </div>
-            <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-              <p class="text-base font-bold text-amber-400">${scoreBins.low}</p>
-              <p class="text-[10px] text-slate-500">Low (<3)</p>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-slate-400">Participation: <span class="text-white font-medium">${participationRate}%</span></span>
-            <span class="text-slate-400">Sessions: <span class="text-white font-medium">${deptScores.length}</span></span>
-          </div>
-
-          ${members.length > 0 ? `
-          <details class="mt-4">
-            <summary class="text-xs text-slate-400 cursor-pointer hover:text-white transition-colors">View Members</summary>
-            <div class="mt-2 space-y-1">
-              ${members.slice(0, 10).map(m => {
-                const memberScores = allScores.filter(s => (s.reviewer_id || s.user_id) === m.id);
-                const memberAvg = memberScores.length ? (memberScores.reduce((sum, s) => sum + (+s.score || 0), 0) / memberScores.length).toFixed(1) : '-';
-                return `<div class="flex items-center justify-between py-1 px-2 rounded bg-slate-800/20">
-                  <span class="text-xs text-slate-300">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name || '')}</span>
-                  <span class="text-xs font-medium text-violet-400">${memberAvg}</span>
-                </div>`;
-              }).join('')}
-              ${members.length > 10 ? `<p class="text-xs text-slate-500 pt-1">+${members.length - 10} more</p>` : ''}
-            </div>
-          </details>` : ''}
-        </div>`;
-      });
-
-      container.innerHTML = html;
-    }
-
-    function initChart() {
-      const ctx = document.getElementById('teamChart').getContext('2d');
-      
-      const labels = departments.map(d => d.name || d.id);
-      const scores = departments.map(dept => {
-        const deptName = dept.name || dept.id;
-        const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-        const memberIds = members.map(m => m.id);
-        const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-        return deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : 0;
-      });
-      
-      const members = departments.map(dept => {
-        const deptName = dept.name || dept.id;
-        return allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName).length;
-      });
-
-      teamChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Average Score',
-              data: scores,
-              backgroundColor: 'rgba(139, 92, 246, 0.3)',
-              borderColor: 'rgba(139, 92, 246, 1)',
-              borderWidth: 1,
-              yAxisID: 'y'
-            },
-            {
-              label: 'Members',
-              data: members,
-              backgroundColor: 'rgba(34, 197, 94, 0.3)',
-              borderColor: 'rgba(34, 197, 94, 1)',
-              borderWidth: 1,
-              yAxisID: 'y1'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { labels: { color: '#e2e8f0' } }
-          },
-          scales: {
-            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-            y: {
-              beginAtZero: true,
-              ticks: { color: '#94a3b8' },
-              grid: { color: '#334155' },
-              position: 'left'
-            },
-            y1: {
-              beginAtZero: true,
-              ticks: { color: '#94a3b8' },
-              grid: { display: false },
-              position: 'right'
-            }
-          }
-        }
-      });
-    }
-
-    async function exportTeamReport() {
-      try {
-        const rows = departments.map(dept => {
-          const deptName = dept.name || dept.id;
-          const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-          const memberIds = members.map(m => m.id);
-          const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-          const avgScore = deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : '0.0';
-          return {
-            team: deptName,
-            members: members.length,
-            avgScore,
-            totalScores: deptScores.length
-          };
-        });
-
-        if (!rows.length) { showToast('No data to export', true); return; }
-        const headers = Object.keys(rows[0]);
-        const csv = [headers.join(',')].concat(rows.map(r => headers.map(k => `"${String(r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `team-report-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showToast('Report exported');
-      } catch(e) { showToast('Export failed: ' + e.message, true); }
-    }
-
-    function escapeHtml(s) {
-      if (!s) return '';
-      const div = document.createElement('div');
-      div.textContent = String(s);
-      return div.innerHTML;
-    }
-  </script>
+  <script src="../../js/admin/reports/teams.js"></script>
 </body></html>
+
+
+
+
+

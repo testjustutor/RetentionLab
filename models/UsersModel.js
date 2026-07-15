@@ -16,6 +16,26 @@ function isHashedPassword(value) {
 }
 
 class UsersModel {
+  /**
+   * Strip sensitive/internal fields from a user row before returning it in API responses.
+   */
+  static _sanitizeUser(row) {
+    if (!row) return row;
+    const clean = { ...row };
+    delete clean.password_hash;
+    delete clean.email_verified_at;
+    delete clean.email_verification_token;
+    delete clean.email_verification_expires_at;
+    delete clean.password_reset_token;
+    delete clean.password_reset_expires_at;
+    delete clean.is_deleted;
+    delete clean.deleted_by;
+    delete clean.deleted_at;
+    delete clean.created_by;
+    delete clean.updated_by;
+    return clean;
+  }
+
   static _ensureAdminOrSuper(user) {
     if (!user || (user.role_name !== 'super_admin' && user.role_name !== 'admin')) {
       throw new Error('Forbidden');
@@ -159,8 +179,7 @@ class UsersModel {
     if (user && !isSelf && user.role_name !== 'super_admin' && row.company_id !== user.company_id) {
       throw new Error('Forbidden');
     }
-    delete row.password_hash;
-    return row;
+    return UsersModel._sanitizeUser(row);
   }
 
   static async listUsers(user, { limit = 200 } = {}) {
@@ -171,10 +190,13 @@ class UsersModel {
           `SELECT users.*, roles.role_name as role_name
            FROM users
            LEFT JOIN roles ON users.role_id = roles.id
-           WHERE users.deleted_at IS NULL AND users.company_id = ?
+           WHERE users.deleted_at IS NULL AND users.company_id = ? AND users.id != ?
            ORDER BY users.created_at DESC LIMIT ?`,
-          [user.company_id, limit],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
+          [user.company_id, user.id, limit],
+          (err, rows) => {
+            if (err) return reject(err);
+            resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));
+          }
         );
       });
     }
@@ -183,10 +205,13 @@ class UsersModel {
         `SELECT users.*, roles.role_name as role_name
          FROM users
          LEFT JOIN roles ON users.role_id = roles.id
-         WHERE users.deleted_at IS NULL
+         WHERE users.deleted_at IS NULL AND users.id != ?
          ORDER BY users.created_at DESC LIMIT ?`,
-        [limit],
-        (err, rows) => err ? reject(err) : resolve(rows || [])
+        [user.id, limit],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));
+        }
       );
     });
   }

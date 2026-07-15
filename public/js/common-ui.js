@@ -64,6 +64,22 @@ function escHtml(str) {
 // ── API helper ──
 async function apiFetch(url, options) {
   const res = await fetch(url, { credentials: 'include', ...options });
+  
+  // If server returns 401 (session expired), clear all caches and redirect to login
+  if (res.status === 401) {
+    try {
+      sessionStorage.removeItem('cached_user');
+      sessionStorage.removeItem('rl_user_profile');
+      sessionStorage.removeItem('rl_header_config');
+      localStorage.removeItem('rl_user');
+      localStorage.removeItem('rl_token');
+    } catch {
+      // ignore
+    }
+    window.location.href = '/login.html';
+    throw new Error('Session expired');
+  }
+  
   const json = await res.json();
   if (!res.ok || json.success === false) {
     throw new Error(json.error || json.message || 'Request failed');

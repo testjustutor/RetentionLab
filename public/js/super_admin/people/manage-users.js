@@ -1,0 +1,91 @@
+// Load users dynamically from backend API
+async function loadUsers() {
+  const userTableContainer = document.getElementById('userTableContainer');
+  try {
+    const response = await fetch('/api/users');
+    if (!response.ok) throw new Error('Failed to fetch users');
+    const result = await response.json();
+    const users = result.data || [];
+
+    if (users.length === 0) {
+      userTableContainer.innerHTML = '<p class="text-slate-400">No users found.</p>';
+      return;
+    }
+
+    let tableHtml = `
+      <table class="min-w-full divide-y divide-slate-700">
+        <thead>
+          <tr>
+            <th class="px-3 py-2 text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider">Name</th>
+            <th class="px-3 py-2 text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider">Email</th>
+            <th class="px-3 py-2 text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider">Role</th>
+            <th class="px-3 py-2 text-left text-[10px] font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800">
+    `;
+
+    users.forEach(user => {
+      const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email;
+      tableHtml += `
+        <tr>
+          <td class="px-3 py-2 whitespace-nowrap text-xs font-medium">${userName}</td>
+          <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-300">${user.email}</td>
+          <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-300">${user.role_name || 'N/A'}</td>
+          <td class="px-3 py-2 whitespace-nowrap text-xs font-medium">
+            <button class="text-indigo-400 hover:text-indigo-600 mr-2" onclick="editUser(${user.id})">Edit</button>
+            <button class="text-red-400 hover:text-red-600" onclick="deleteUser(${user.id})">Delete</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+        </tbody>
+      </table>
+    `;
+    userTableContainer.innerHTML = tableHtml;
+  } catch (err) {
+    console.error('Error loading users:', err);
+    userTableContainer.innerHTML = '<p class="text-red-400">Failed to load users. ' + err.message + '</p>';
+  }
+}
+
+async function editUser(id) {
+  const newName = prompt('Enter new name for user ID ' + id + ':');
+  if (newName !== null) {
+    try {
+      const response = await fetch('/api/users/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name: newName })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Update failed');
+      }
+      alert('User updated successfully!');
+      loadUsers();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+}
+
+async function deleteUser(id) {
+  if (confirm('Are you sure you want to delete user with ID: ' + id + '?')) {
+    try {
+      const response = await fetch('/api/users/' + id, { method: 'DELETE' });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Delete failed');
+      }
+      alert('User deleted successfully!');
+      loadUsers();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+}
+
+loadUsers();

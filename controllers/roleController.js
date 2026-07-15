@@ -51,7 +51,8 @@ const roleController = {
 
   /**
    * GET /api/roles/:id/pages
-   * Get pages assigned to a role based on its menu items from header_menu_items.
+   * Get pages assigned to a role from header_page_configs.
+   * Falls back to all pages if no menu items exist for the role.
    */
   async getPages(req) {
     try {
@@ -83,8 +84,9 @@ const roleController = {
       // 3. Get all page configs for this role from DB
       const pages = (await HeaderConfigModel.getPagesByRoleId(roleId, { activeOnly: false })) || [];
 
-      // 4. Filter to only pages referenced in menu items
-      const filtered = pages.filter(p => pageKeys.has(p.pageKey));
+      // 4. If no menu items exist for this role, return all pages
+      //    Otherwise filter to only pages referenced in menu items
+      const filtered = (pageKeys.size === 0) ? pages : pages.filter(p => pageKeys.has(p.pageKey));
 
       return ok({ roleId, count: filtered.length, data: filtered });
     } catch (e) {

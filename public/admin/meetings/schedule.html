@@ -4,62 +4,71 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="meetingsSchedule">
   <title>Meeting Schedule | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
   <script src="../../js/common-ui.js"></script>
-  <style>
-    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-    .animate-fade-up{animation:fadeUp .4s ease-out}
-    .meeting-card:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(139,92,246,.12)}
-    .meeting-card{transition:all .2s ease}
-    .pulse-dot{animation:pulse 2s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  </style>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
-      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
-
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        
+        <!-- Header Section -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h1 class="text-xl font-bold text-white">Meeting Schedule</h1>
-            <p class="text-xs text-slate-400 mt-1">Calendar view across connected instructors</p>
+
+            <!-- Stats Cards -->
+            <div id="statsBar" class="grid grid-cols-2 gap-3 mb-0">
+              <div class="bg-white border border-slate-200 rounded-lg p-2 shadow-sm">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Connected Instructors</p>
+                    <p class="text-xl font-bold text-violet-600" id="statUsers">-</p>
+                  </div>
+                  <div class="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-white border border-slate-200 rounded-lg p-2 shadow-sm">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Meetings</p>
+                    <p class="text-xl font-bold text-emerald-600" id="statMeetings">-</p>
+                  </div>
+                  <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="flex items-center gap-2">
-            <select id="hoursSelect" class="bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500 cursor-pointer">
+            <select id="hoursSelect" class="bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-violet-500 cursor-pointer">
               <option value="6">Next 6 Hours</option>
               <option value="12">Next 12 Hours</option>
               <option value="24" selected>Next 24 Hours</option>
               <option value="48">Next 48 Hours</option>
               <option value="168">Next 7 Days</option>
             </select>
-            <button onclick="doSync()" class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors shadow-md shadow-violet-600/10">
+            <button onclick="doSync()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors shadow-sm">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              Sync & Refresh
+              Sync Now
             </button>
           </div>
         </div>
 
-        <div id="statsBar" class="grid grid-cols-2 gap-2 mb-3">
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center">
-            <p class="text-xl font-bold text-violet-400" id="statUsers">-</p>
-            <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Connected</p>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center">
-            <p class="text-xl font-bold text-emerald-400" id="statMeetings">-</p>
-            <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Meetings</p>
-          </div>
-        </div>
 
+        <!-- Schedule Container -->
         <div id="scheduleContainer">
-          <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-800 rounded w-2/3"></div></div>
-            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-800 rounded w-2/3"></div></div>
-            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-800 rounded w-2/3"></div></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
           </div>
         </div>
 
@@ -68,76 +77,6 @@
   </div>
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
-  <script>
-    // ── Initial load from DB only (no sync) ──
-    async function loadFromDB() {
-      try {
-        const hours = document.getElementById('hoursSelect').value;
-        const json = await apiFetch('/api/meeting-schedule/all?hours=' + hours);
-        renderSchedule(json);
-      } catch (err) { console.error(err); }
-    }
-
-    // ── Sync: fetch from Google → store in DB → display ──
-    async function doSync() {
-      const hours = document.getElementById('hoursSelect').value;
-      const container = document.getElementById('scheduleContainer');
-      container.innerHTML = '<div class="flex items-center justify-center py-20"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-400">Syncing from Google Calendar...</span></div>';
-      try {
-        const json = await apiFetch('/api/meeting-schedule/sync?hours=' + hours, { method: 'POST' });
-        if (json.synced !== undefined) showToast(json.synced + ' meetings synced from Google Calendar');
-        renderSchedule(json);
-      } catch (err) {
-        container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-red-400"><p class="text-sm">Sync failed</p><p class="text-xs mt-1">' + escHtml(err.message) + '</p></div>';
-      }
-    }
-
-    function renderSchedule(json) {
-      const container = document.getElementById('scheduleContainer');
-      const users = json.users || [];
-      const totalEvents = json.totalEvents || 0;
-      const now = new Date();
-
-      document.getElementById('statUsers').textContent = json.connectedUsers || 0;
-      document.getElementById('statMeetings').textContent = totalEvents;
-
-      if (!users.length) {
-        container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><p class="text-sm">No connected accounts or meetings</p><p class="text-xs mt-1">Connect instructor calendars from the Users page, then click Sync</p></div>';
-        return;
-      }
-
-      container.innerHTML = '<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">' +
-        users.map((u, idx) => {
-          const events = u.events || [];
-          const colorList = ['violet','emerald','amber','rose','sky'];
-          const color = colorList[idx % colorList.length];
-
-          const eventHtml = events.length
-            ? events.sort((a,b) => new Date(a.start)-new Date(b.start)).map(e => {
-                const start = new Date(e.start);
-                const end = e.end ? new Date(e.end) : null;
-                const timeStr = start.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-                const endStr = end ? ' - '+end.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
-                return '<div class="flex items-start gap-2.5 pl-2.5 border-l-2 border-slate-700 py-1">'+
-                  '<div class="flex-1 min-w-0">'+
-                    '<p class="text-[10px] text-white font-medium truncate">'+escHtml(e.title||'Untitled')+'</p>'+
-                    '<p class="text-[10px] text-slate-500">'+timeStr+endStr+'</p>'+
-                    (e.link?'<a href="'+e.link+'" target="_blank" class="text-[10px] text-violet-400 hover:text-violet-300 mt-0.5 inline-block">Join &rarr;</a>':'')+
-                  '</div></div>';
-              }).join('')
-            : '<p class="text-[10px] text-slate-600 pl-2.5 py-1.5">No meetings</p>';
-
-          return '<div class="meeting-card bg-slate-900 border border-slate-800 rounded-lg overflow-hidden animate-fade-up" style="animation-delay:'+(idx*80)+'ms">'+
-            '<div class="p-3 border-b border-slate-800 flex items-center gap-2">'+
-              '<div class="w-8 h-8 rounded-md bg-'+color+'-500/10 border border-'+color+'-500/20 flex items-center justify-center text-'+color+'-400 font-bold text-[10px]">'+(u.email||'?').charAt(0).toUpperCase()+'</div>'+
-              '<div class="flex-1 min-w-0"><p class="text-xs font-semibold text-white truncate">'+escHtml(u.email)+'</p><p class="text-[10px] text-slate-500">'+escHtml(u.role_name||'instructor')+' &middot; '+events.length+' meeting'+(events.length!==1?'s':'')+'</p></div>'+
-              '<span class="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-'+color+'-500/10 text-'+color+'-400 border border-'+color+'-500/20">'+events.length+'</span>'+
-            '</div><div class="p-2.5 space-y-0.5 max-h-56 overflow-y-auto">'+eventHtml+'</div></div>';
-        }).join('') + '</div>';
-    }
-
-    document.getElementById('hoursSelect').addEventListener('change', loadFromDB);
-    loadFromDB();
-  </script>
+  <script src="../../js/admin/meetings/schedule.js"></script>
 </body>
 </html>

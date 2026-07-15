@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="session-quality">
+  <title>Session Quality Dashboard | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        
+        <!-- Filters Row -->
+        <div class="bg-white border border-slate-200 rounded-lg p-2.5 mb-3">
+          <div class="flex flex-wrap items-end gap-2">
+            <div class="w-[180px]">
+              <label class="block text-[9px] text-slate-500 uppercase tracking-wide mb-0.5">Instructor</label>
+              <select id="filterInstructor" class="w-full text-[11px] border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="">All Instructors</option>
+              </select>
+            </div>
+            <div class="flex-1 min-w-[160px]">
+              <label class="block text-[9px] text-slate-500 uppercase tracking-wide mb-0.5">Meeting</label>
+              <select id="filterMeeting" class="w-full text-[11px] border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" disabled>
+                <option value="">All Meetings</option>
+              </select>
+            </div>
+            <div class="w-[150px]">
+              <label class="block text-[9px] text-slate-500 uppercase tracking-wide mb-0.5">Session</label>
+              <select id="filterSession" class="w-full text-[11px] border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" disabled>
+                <option value="">All Sessions</option>
+              </select>
+            </div>
+            <div>
+              <button id="btnGetData" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium rounded transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>Get Data</button>
+            </div>
+            <div>
+              <button id="btnReset" class="px-3 py-1 bg-white text-slate-700 border border-slate-200 rounded text-[11px] font-medium hover:bg-slate-50 transition-colors">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          <div class="p-2 rounded-lg bg-white border border-slate-200">
+            <p class="text-[9px] text-slate-500 uppercase tracking-wide">Total Sessions</p>
+            <h3 class="text-base font-bold text-slate-950 mt-0.5" id="statTotalSessions">0</h3>
+          </div>
+          <div class="p-2 rounded-lg bg-white border border-slate-200">
+            <p class="text-[9px] text-slate-500 uppercase tracking-wide">Avg Score</p>
+            <h3 class="text-base font-bold text-blue-600 mt-0.5" id="statAvgScore">0%</h3>
+          </div>
+          <div class="p-2 rounded-lg bg-white border border-slate-200">
+            <p class="text-[9px] text-slate-500 uppercase tracking-wide">Complete</p>
+            <h3 class="text-base font-bold text-emerald-700 mt-0.5" id="statCompleteReports">0</h3>
+          </div>
+          <div class="p-2 rounded-lg bg-white border border-slate-200">
+            <p class="text-[9px] text-slate-500 uppercase tracking-wide">Pending</p>
+            <h3 class="text-base font-bold text-amber-700 mt-0.5" id="statPendingReports">0</h3>
+          </div>
+        </section>
+
+        <!-- Charts Grid: 2 rows x 3 cols = 6 compact charts -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Score Distribution</h4>
+            <div id="scoreChart" class="h-36"></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Sessions by Subject</h4>
+            <div id="subjectChart" class="h-36"></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Avg Score by Subject</h4>
+            <div id="avgScoreChart" class="h-36"></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Sessions by Grade</h4>
+            <div id="gradeChart" class="h-36"></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Engagement vs Impact</h4>
+            <div id="engagementChart" class="h-36"></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2">
+            <h4 class="text-[10px] font-semibold text-slate-900 mb-1">Score by Curriculum</h4>
+            <div id="curriculumChart" class="h-36"></div>
+          </div>
+        </div>
+
+        <!-- Tables Row: Low Performing + All Sessions Side by Side -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+          <!-- Low Performing Sessions Alert -->
+          <div class="bg-white border border-red-200 rounded-lg">
+            <details class="p-2" open>
+              <summary class="text-[11px] font-semibold text-red-700 cursor-pointer select-none">⚠ Low Scoring Sessions (below 60%)</summary>
+              <div class="overflow-x-auto px-2 pb-2">
+                <table class="w-full text-left text-[11px]">
+                  <thead>
+                    <tr class="border-b border-slate-200">
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Session</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Instructor</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Student</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Subject</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Grade</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Date</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Score</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100" id="lowPerformingTableBody">
+                    <tr><td colspan="8" class="py-2 text-center text-slate-500">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- All Sessions Table -->
+          <div class="bg-white border border-slate-200 rounded-lg">
+            <details class="p-2" open>
+              <summary class="text-[11px] font-semibold text-slate-900 cursor-pointer select-none">All Sessions</summary>
+              <div class="overflow-x-auto px-2 pb-2">
+                <table class="w-full text-left text-[11px]">
+                  <thead>
+                    <tr class="border-b border-slate-200">
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Session</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Instructor</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Student</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Subject</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Grade</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Date</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Score</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Rating</th>
+                      <th class="py-1 px-2 text-[8px] text-slate-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100" id="sessionsTableBody">
+                    <tr><td colspan="9" class="py-2 text-center text-slate-500">Loading sessions...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </div>
+        
+      </main>
+    </div>
+  </div>
+
+  <script src="../../js/common-ui.js"></script>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="/js/admin/session-quality/index.js"></script>
+</body>
+</html>

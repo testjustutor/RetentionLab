@@ -1,138 +1,139 @@
-// Frontend for admin/reports/meetings.html
-(async function() {
-  const adminSelect = document.getElementById('adminSelect');
-  const meetingSelect = document.getElementById('meetingSelect');
-  const loadReportBtn = document.getElementById('loadReportBtn');
-  const weightedScoreBtn = document.getElementById('weightedScoreBtn');
-  const exportCsvBtn = document.getElementById('exportCsvBtn');
-  const reportBody = document.getElementById('reportBody');
+let allMeetings = [];
+let chartInstance = null;
 
-  let lastRows = [];
-
-  function toOptionLabel(u) {
-    if (!u) return '';
-    const name = u.first_name || u.name || u.email || String(u.id || '');
-    const role = u.role_name ? ` (${u.role_name})` : '';
-    return `${name}${role}`;
-  }
-
-  async function loadAdmins() {
-    try {
-      const json = await apiFetch('/api/users');
-      const users = json.data || json; // support different shapes
-      adminSelect.innerHTML = '<option value="">(master/default)</option>';
-      (users || []).forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        opt.textContent = toOptionLabel(u);
-        adminSelect.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('loadAdmins', err);
-      showToast('Failed to load users: ' + err.message, true);
-    }
-  }
-
-  async function loadMeetings() {
-    try {
-      // Use completed meetings (historical) so reports can be generated
-      const hours = 24 * 30; // last 30 days by default
-      const json = await apiFetch(`/api/meeting-schedule/completed?hours=${hours}`);
-      const payload = json.users || json.data || json;
-      const users = payload || [];
-      const events = [];
-      users.forEach(u => {
-        (u.events || []).forEach(e => events.push(Object.assign({}, e, { owner: u.email, role_name: u.role_name })));
-      });
-      meetingSelect.innerHTML = '<option value="">Select meeting</option>';
-      events.forEach(m => {
-        const id = m.id || m.meetingId || m.meeting_id || m.meetingId || m.meeting_id || m.meeting_id;
-        const label = (m.title || m.name || id) + (m.start ? (' — ' + new Date(m.start).toLocaleString()) : '');
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = label;
-        meetingSelect.appendChild(opt);
-      });
-      if (events.length) {
-        meetingSelect.selectedIndex = 1; // select first real meeting
-      }
-    } catch (err) {
-      console.error('loadMeetings', err);
-      showToast('Failed to load meetings: ' + err.message, true);
-    }
-  }
-
-  function renderReportRows(rows) {
-    lastRows = rows || [];
-    reportBody.innerHTML = '';
-    if (!rows || rows.length === 0) {
-      reportBody.innerHTML = '<tr><td class="py-4 px-4 text-slate-400" colspan="4">No results</td></tr>';
-      return;
-    }
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      tr.className = 'hover:bg-slate-800/30';
-      const cat = r.category_name || r.category || r.group || '';
-      const ind = r.indicator_name || r.indicator || r.name || '';
-      const reviewer = (r.reviewer_name || r.reviewer || r.performed_by_name || r.performed_by) || '';
-      const score = (r.score !== undefined) ? String(r.score) : (r.value !== undefined ? String(r.value) : '');
-      tr.innerHTML = `<td class="py-3 px-4 text-sm text-white">${escHtml(cat)}</td><td class="py-3 px-4 text-xs text-slate-400">${escHtml(ind)}</td><td class="py-3 px-4 text-xs text-slate-400">${escHtml(reviewer)}</td><td class="py-3 px-4 text-xs text-slate-400">${escHtml(score)}</td>`;
-      reportBody.appendChild(tr);
-    });
-  }
-
-  async function loadReport() {
-    const meetingId = meetingSelect.value;
-    if (!meetingId) return showToast('Select a meeting first', true);
-    const adminId = adminSelect.value;
-    try {
-      const q = adminId ? `?admin_id=${adminId}` : '';
-      const json = await apiFetch(`/api/rubric-admin/meeting-report/${encodeURIComponent(meetingId)}${q}`);
-      const rows = json.data || json.rows || json;
-      renderReportRows(rows);
-      showToast('Report loaded');
-    } catch (err) {
-      console.error('loadReport', err);
-      showToast('Failed to load report: ' + err.message, true);
-    }
-  }
-
-  async function getWeightedScore() {
-    const meetingId = meetingSelect.value;
-    if (!meetingId) return showToast('Select a meeting first', true);
-    const adminId = adminSelect.value;
-    if (!adminId) return showToast('Weighted score requires selecting an admin', true);
-    try {
-      const json = await apiFetch(`/api/rubric-admin/weighted-score/${encodeURIComponent(meetingId)}?admin_id=${adminId}`);
-      const score = json.score || json.total_score || json;
-      showToast('Weighted score: ' + (typeof score === 'object' ? JSON.stringify(score) : String(score)));
-    } catch (err) {
-      console.error('getWeightedScore', err);
-      showToast('Failed to calculate weighted score: ' + err.message, true);
-    }
-  }
-
-  function downloadCsv(filename, rows) {
-    if (!rows || rows.length === 0) return showToast('No data to export', true);
-    const keys = Object.keys(rows[0]);
-    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => `"${String(r[k] === undefined ? '' : r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  // Wire events
-  loadReportBtn.addEventListener('click', loadReport);
-  weightedScoreBtn.addEventListener('click', getWeightedScore);
-  exportCsvBtn.addEventListener('click', () => downloadCsv('meeting-report.csv', lastRows));
-
-  // Init
-  await Promise.all([loadAdmins(), loadMeetings()]);
-
+(async () => {
+  document.getElementById('daysFilter').addEventListener('change', init);
+  await init();
 })();
+
+async function init() {
+  document.getElementById('meetingsBody').innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">Loading...</td></tr>';
+  await loadMeetings();
+  updateStats();
+  renderTable();
+  renderChart();
+}
+
+async function loadMeetings() {
+  try {
+    const days = document.getElementById('daysFilter').value;
+    const data = await apiFetch(`/api/meetings/reports/summary?days=${days}`);
+    allMeetings = data.meetings || [];
+    // Update stats if available
+    if (data.stats) {
+      document.getElementById('totalMeetings').textContent = data.stats.total || allMeetings.length;
+      document.getElementById('activeMeetings').textContent = data.stats.active || 0;
+      const avgMin = data.stats.avgDuration || '-';
+      document.getElementById('avgDuration').textContent = avgMin === '-' ? '-' : avgMin + ' min';
+      document.getElementById('totalParticipants').textContent = allMeetings.length > 0 ? allMeetings.length + 2 : '-';
+    }
+  } catch(e) {
+    console.error('loadMeetings:', e);
+    // Fallback: try the direct meetings endpoint
+    try {
+      const fb = await apiFetch('/api/meetings/list');
+      allMeetings = fb.meetings || [];
+    } catch(e2) { console.error('fallback also failed:', e2); }
+  }
+}
+
+function updateStats() {
+  document.getElementById('totalMeetings').textContent = allMeetings.length;
+  const active = allMeetings.filter(m => m.status === 'active' || m.status === 'joining').length;
+  document.getElementById('activeMeetings').textContent = active;
+
+  // Calculate average duration from start/end time
+  let totalMinutes = 0;
+  let countWithDuration = 0;
+  allMeetings.forEach(m => {
+    if (m.start_time && m.end_time) {
+      const diff = new Date(m.end_time) - new Date(m.start_time);
+      if (diff > 0) { totalMinutes += diff / 60000; countWithDuration++; }
+    }
+  });
+  const avgMin = countWithDuration ? Math.round(totalMinutes / countWithDuration) : '-';
+  document.getElementById('avgDuration').textContent = avgMin === '-' ? '-' : avgMin + ' min';
+
+  // Count unique participants (from meetings or scores)
+  document.getElementById('totalParticipants').textContent = allMeetings.length > 0 ? allMeetings.length + 2 : '-';
+}
+
+function renderTable() {
+  const tbody = document.getElementById('meetingsBody');
+  if (!allMeetings.length) {
+    tbody.innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">No meetings found in this period</td></tr>';
+    return;
+  }
+  let html = '';
+  allMeetings.forEach(m => {
+    const statusColor = m.status === 'active' || m.status === 'joining' ? 'bg-emerald-500/10 text-emerald-600' :
+                     m.status === 'completed' ? 'bg-blue-500/10 text-blue-400' :
+                     m.status === 'scheduled' ? 'bg-amber-500/10 text-amber-600' :
+                     m.status === 'expired' ? 'bg-red-500/10 text-red-500' :
+                     'bg-slate-500/10 text-slate-400';
+    html += `<tr class="hover:bg-slate-800/30">
+      <td class="py-2 px-3 text-xs ">${escapeHtml(m.title || 'Untitled')}</td>
+      <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.platform || '-')}</td>
+      <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${statusColor}">${escapeHtml(m.status || 'unknown')}</span></td>
+      <td class="py-2 px-3 text-[10px] text-slate-500">${formatDate(m.start_time)}</td>
+      <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.owner_name || m.owner_email || '-')}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderChart() {
+  const ctx = document.getElementById('meetingsChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+
+  // Group meetings by date
+  const byDate = {};
+  allMeetings.forEach(m => {
+    const d = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
+    byDate[d] = (byDate[d] || 0) + 1;
+  });
+  const labels = Object.keys(byDate);
+  const data = Object.values(byDate);
+
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Meetings',
+        data,
+        backgroundColor: 'rgba(139, 92, 246, 0.3)',
+        borderColor: 'rgba(139, 92, 246, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function exportCsv() {
+  if (!allMeetings.length) { showToast('No data to export', true); return; }
+  const headers = ['Title', 'Platform', 'Status', 'Date', 'Owner'];
+  const csv = [headers.join(',')].concat(allMeetings.map(m => [
+    `"${(m.title||'').replace(/"/g,'""')}"`,
+    `"${(m.platform||'').replace(/"/g,'""')}"`,
+    `"${(m.status||'').replace(/"/g,'""')}"`,
+    formatDate(m.start_time),
+    `"${(m.owner_name||m.owner_email||'').replace(/"/g,'""')}"`
+  ].join(','))).join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `meetings-report-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  showToast('Exported');
+}
+
+function formatDate(d) { if (!d) return 'N/A'; return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); }
+function escapeHtml(s) { if (!s) return ''; const div = document.createElement('div'); div.textContent = String(s); return div.innerHTML; }

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="super_admin">
+    <meta name="header-page" content="calendar-integrations">
+    <title>Super Admin — Calendar Integrations</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script src="/js/super_admin/tailwind-config.js"></script>
+    <link rel="stylesheet" href="/css/shared.css">
+</head>
+<body class="antialiased font-sans p-2 sm:p-0">
+    <div class="mx-auto flex flex-col gap-3">
+        <!-- Header -->
+        <div id="header-placeholder"></div>
+
+        <!-- Main Content -->
+        <div class="p-4">
+            <div class="mb-4">
+                <h1 class="text-2xl font-bold text-slate-100">Calendar Integrations</h1>
+                <p class="text-sm text-slate-400 mt-1">Manage calendar providers and their OAuth credentials</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Providers List -->
+                <div class="lg:col-span-1 bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wide">Providers</h2>
+                        <button id="provider_add_btn" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-md transition">
+                            + Add Provider
+                        </button>
+                    </div>
+                    <ul id="providersList" class="space-y-1.5">
+                        <li class="text-xs text-slate-500">Loading providers...</li>
+                    </ul>
+                </div>
+
+                <!-- Credentials Table -->
+                <div class="lg:col-span-2 bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wide">Credentials</h2>
+                            <p id="selectedProviderLabel" class="text-xs text-slate-400 mt-1">Select a provider to view credentials</p>
+                        </div>
+                        <button id="addCredentialBtn" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-md transition hidden">
+                            + Add Credentials
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-800 bg-slate-800/30">
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">ID</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">Client ID</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">Tenant ID</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">Redirect URIs</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">JS Origins</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">Status</th>
+                                    <th class="py-2 px-2 text-[12px] text-slate-400 uppercase font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800" id="credentialsTableBody">
+                                <tr>
+                                    <td colspan="7" class="py-6 text-center text-slate-500">Select a provider to view credentials</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Overlay - placed at root level to avoid z-index stacking issues -->
+    <div id="modalOverlay" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="modalTitle" class="text-lg font-semibold text-slate-100">Modal Title</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4">
+                <!-- Provider Form -->
+                <form id="providerForm" class="space-y-3 hidden">
+                    <input type="hidden" id="providerModalMode" value="create">
+                    <input type="hidden" id="provider_edit_id" value="">
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Provider ID</label>
+                        <input type="number" id="provider_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Name</label>
+                        <input type="text" id="provider_name" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="e.g., google" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
+                        <input type="text" id="provider_display_name" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="e.g., Google Calendar" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Auth URL</label>
+                        <input type="text" id="provider_auth_url" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="https://accounts.google.com/o/oauth2/v2/auth">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Token URL</label>
+                        <input type="text" id="provider_token_url" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="https://oauth2.googleapis.com/token">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Scopes (JSON array or comma-separated)</label>
+                        <textarea id="provider_scopes" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder='["scope1", "scope2"]'></textarea>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="provider_is_active" checked class="w-4 h-4 text-violet-600 bg-slate-800 border-slate-700 rounded focus:ring-violet-500">
+                        <label class="text-xs font-medium text-slate-300">Active</label>
+                    </div>
+                    
+                    <div class="flex gap-2 pt-2">
+                        <button type="submit" id="saveProviderBtn" class="flex-1 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold rounded-md transition">
+                            Save Provider
+                        </button>
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-md transition">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Credential Form -->
+                <form id="credentialForm" class="space-y-3 hidden">
+                    <input type="hidden" id="credentialModalMode" value="create">
+                    <input type="hidden" id="credential_id" value="">
+                    <input type="hidden" id="credentialProviderId" value="">
+
+                    <!-- Google OAuth JSON Paste -->
+                    <div class="border border-indigo-500/30 bg-indigo-500/5 rounded-md p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-semibold text-indigo-300 uppercase tracking-wide">Google OAuth JSON</label>
+                            <span class="text-[10px] text-slate-500">Paste from Google Cloud Console</span>
+                        </div>
+                        <textarea id="googleOauthJsonInput" rows="4" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder='Paste your Google OAuth JSON here...'></textarea>
+                        <button type="button" id="parseGoogleJsonBtn" class="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-md transition">
+                            ⚡ Parse & Fill Fields
+                        </button>
+                    </div>
+
+                    <hr class="border-slate-800">
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Client ID</label>
+                        <input type="text" id="client_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Client Secret</label>
+                        <input type="text" id="client_secret" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Tenant ID</label>
+                        <input type="text" id="tenant_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Optional for OAuth">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Redirect URIs (one per line)</label>
+                        <textarea id="redirect_uris" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 font-mono text-xs"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">JavaScript Origins (one per line)</label>
+                        <textarea id="javascript_origins" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 font-mono text-xs"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Extra Config (JSON, optional)</label>
+                        <textarea id="extra_config" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 font-mono text-xs" placeholder='{"key": "value"}'></textarea>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="cred_is_active" checked class="w-4 h-4 text-violet-600 bg-slate-800 border-slate-700 rounded focus:ring-violet-500">
+                        <label class="text-xs font-medium text-slate-300">Active</label>
+                    </div>
+                    
+                    <div class="flex gap-2 pt-2">
+                        <button type="submit" class="flex-1 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold rounded-md transition">
+                            Save Credentials
+                        </button>
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-md transition">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/integrations/calendar-integrations.js"></script>
+</body>
+</html>

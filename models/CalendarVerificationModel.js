@@ -24,6 +24,20 @@ class CalendarVerificationModel {
     return Promise.resolve();
   }
 
+  static async updateTokenByEmail(email, token) {
+    // Ensures the DB row uses the SAME token value that is placed in the verification URL.
+    // This is required because verifyToken() primarily looks up by `calendar_verifications.token`.
+    await run(
+      `UPDATE calendar_verifications
+       SET token = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE email = ? 
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [token, email]
+    );
+  }
+
+
   static async create(email, ttlMinutes = 30) {
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
@@ -32,9 +46,9 @@ class CalendarVerificationModel {
        VALUES (?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON DUPLICATE KEY UPDATE
          token = VALUES(token),
-         status = 'pending',
+         status = CASE WHEN status = 'verified' THEN 'verified' ELSE 'pending' END,
          expires_at = VALUES(expires_at),
-         verified_at = NULL,
+         verified_at = CASE WHEN status = 'verified' THEN verified_at ELSE NULL END,
          updated_at = CURRENT_TIMESTAMP`,
       [email, token, expiresAt]
     );
@@ -45,8 +59,34 @@ class CalendarVerificationModel {
     return get(`SELECT * FROM calendar_verifications WHERE token = ? LIMIT 1`, [token]);
   }
 
+  static async getByEmail(email) {
+    return get(`SELECT * FROM calendar_verifications WHERE email = ? ORDER BY created_at DESC LIMIT 1`, [email]);
+  }
+
   static async verifyToken(token) {
-    const row = await this.getByToken(token);
+    // Try lookup by token first (legacy/compatibility)
+    let row = await this.getByToken(token);
+    let whereClause = 'token = ?';
+    let params = [token];
+
+    // If not found by token, try to extract email from JWT payload
+    if (!row) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const VERIFY_SECRET = process.env.INSTRUCTOR_CALENDAR_SECRET || process.env.JWT_SECRET || 'instructor_cal_secure_key_change_me';
+        const payload = jwt.verify(token, VERIFY_SECRET);
+        if (payload?.email) {
+          row = await this.getByEmail(payload.email);
+          if (row) {
+            whereClause = 'email = ?';
+            params = [payload.email];
+          }
+        }
+      } catch (e) {
+        // Invalid JWT or not found
+      }
+    }
+
     if (!row) return null;
     if (new Date(row.expires_at).getTime() < Date.now()) {
       return { expired: true, row };
@@ -55,8 +95,8 @@ class CalendarVerificationModel {
     await run(
       `UPDATE calendar_verifications
        SET status = 'verified', verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE token = ?`,
-      [token]
+       WHERE ${whereClause}`,
+      params
     );
     return { expired: false, row };
   }

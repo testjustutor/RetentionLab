@@ -11,7 +11,7 @@ function isValidIdentifier(name) {
 class AdminModel {
   static listTables() {
     return new Promise((resolve, reject) => {
-      db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+      db.all("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()", (err, tables) => {
         if (err) return reject(err);
         resolve(tables
           .map(t => ({ name: t.name }))
@@ -24,7 +24,9 @@ class AdminModel {
   static getTableInfo(tableName) {
     return new Promise((resolve, reject) => {
       if (!isValidIdentifier(tableName)) return reject(new Error('Invalid table name'));
-      db.all(`PRAGMA table_info("${tableName}")`, (err, columns) => {
+      db.all(`SHOW COLUMNS FROM \`${tableName}\``, (err, columns) => {
+        if (err) return reject(err);
+        resolve(columns.map(c => ({ name: c.Field, type: c.Type, notNull: c.Null === 'NO', default: c.Default, pk: c.Key === 'PRI' ? 1 : 0 })) || []);
         if (err) return reject(err);
         resolve(columns || []);
       });

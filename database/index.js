@@ -11,6 +11,7 @@ const { seedAdminUser } = require('./adminUserSeeder');
 const { seedRubric } = require('./rubricSeeder');
 const { seedSettings } = require('./settingsSeeder');
 const { seedPermissions } = require('./permissionsSeeder');
+const { seedSessionQuality } = require('./sessionQualitySeeder');
 
 const runSeeder = async () => {
     await seedRoles();
@@ -25,6 +26,9 @@ const runSeeder = async () => {
     // Must run after seedRoles (needs role ids) and after seedSuperAdmin/
     // seedAdminUser if you later seed user-level overrides here too.
     await seedPermissions();
+    
+    // Session Quality & Impact Report sample data
+    await seedSessionQuality();
 };
 
 module.exports = {

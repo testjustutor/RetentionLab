@@ -5,8 +5,7 @@
 const { google } = require('googleapis');
 const path = require('path');
 const { logger } = require('../../utils/logger');
-const fs = require('fs');
-const CredentialsResolver = require('./auth/credentialsResolver');
+const GoogleOAuthCredentialsModel = require('../../models/GoogleOAuthCredentialsModel');
 const TokenManager = require('./auth/tokenManager');
 const EventService = require('./events/EventService');
 const { SCOPES } = require('./config/paths');
@@ -14,7 +13,6 @@ const { SCOPES } = require('./config/paths');
 class CalendarService {
   constructor(accountName = 'default') {
     this.accountName = accountName;
-    this.credentialsResolver = new CredentialsResolver(accountName);
     this.tokenManager = null;
     this.oauth2Client = null;
     this.auth = null;
@@ -22,10 +20,6 @@ class CalendarService {
     this.eventService = null;
     this.tokenPath = path.join(__dirname, `../../uploads/google-calendar-json/calendar-token-${accountName}.json`);
     this.tokenManager = new TokenManager(this.tokenPath);
-  }
-
-  setCredentialsFile(filename) {
-    this.credentialsResolver.setCredentialsFile(filename);
   }
 
   async ensureAuth() {
@@ -43,7 +37,7 @@ class CalendarService {
       // Silent - read-only mode OK
     }
 
-    this.oauth2Client = this.getOAuth2Client();
+    this.oauth2Client = await this.getOAuth2Client();
     this.oauth2Client.setCredentials(tokens);
     const refreshedTokens = await this.tokenManager.refreshTokens(this.oauth2Client, tokens).catch(() => {
       return tokens; // Silent fallback - no refresh_token expected
@@ -55,40 +49,21 @@ class CalendarService {
     this.eventService = new EventService(this.calendar);
   }
 
-  getOAuth2Client() {
-    try {
-      const credentialsPath = this.resolveCredentialsPath();
-      const raw = fs.readFileSync(credentialsPath, 'utf8');
-      const credentials = JSON.parse(raw);
-      const config = credentials.installed || credentials.web;
-
-      if (!config) {
-        throw new Error('Expected credentials JSON to contain either an installed or web object.');
-      }
-
-      const { client_id, client_secret, redirect_uris } = config;
-      if (!client_id || !client_secret || !redirect_uris || !redirect_uris.length) {
-        throw new Error('Missing required OAuth client fields in credentials.json.');
-      }
-
-      return new google.auth.OAuth2(
-        client_id,
-        client_secret,
-        redirect_uris[0]
-      );
-    } catch (err) {
-      logger.error('Error loading credentials:', err);
-      throw new Error('Google Calendar credentials not found or invalid. Please add valid credentials.json to the config folder.');
+  async getOAuth2Client() {
+    const config = await GoogleOAuthCredentialsModel.getConfig();
+    if (!config || !config.client_id || !config.client_secret || !config.redirect_uris?.[0]) {
+      throw new Error('No active Google OAuth credentials found in database. Seed with: npm run seed:google-credentials');
     }
+    return new google.auth.OAuth2(
+      config.client_id,
+      config.client_secret,
+      config.redirect_uris[0]
+    );
   }
 
-  resolveCredentialsPath() {
-    return this.credentialsResolver.resolveCredentialsPath();
-  }
-
-  getAuthUrl() {
+  async getAuthUrl() {
     try {
-      const oauth2Client = this.getOAuth2Client();
+      const oauth2Client = await this.getOAuth2Client();
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: SCOPES,
@@ -103,7 +78,7 @@ class CalendarService {
 
   async authorize(code) {
     try {
-      const oauth2Client = this.getOAuth2Client();
+      const oauth2Client = await this.getOAuth2Client();
       const { tokens } = await oauth2Client.getToken(code);
 
       await this.tokenManager.saveTokens(tokens);

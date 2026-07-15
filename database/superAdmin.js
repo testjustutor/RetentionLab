@@ -1,10 +1,10 @@
 /**
  * root/database/superAdmin.js
  */
-const crypto = require('crypto');
-const { runAsync, getAsync } = require('./seedHelpers');
+ const crypto = require('crypto');
+ const { runAsync, getAsync } = require('./seedHelpers');
 
-const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
+ const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
     const derived = crypto.scryptSync(password, salt, 64).toString('hex');
     return `${salt}:${derived}`;
 };
@@ -19,9 +19,37 @@ const seedSuperAdmin = async () => {
     const role = await getAsync(`SELECT id FROM roles WHERE role_name = ?`, ['super_admin']);
     const password_hash = hashPassword(password);
     await runAsync(
-        `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [crypto.randomUUID(), null, role?.id || null, 'Super', 'Admin', email, password_hash, null, null, 'active', null]
-    );
+        `INSERT INTO users (
+        user_uuid,
+        company_id,
+        role_id,
+        first_name,
+        last_name,
+        email,
+        password_hash,
+        phone,
+        profile_image,
+        email_verified,
+        status,
+        created_by,
+        created_at,
+        updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+        crypto.randomUUID(),
+        null,
+        role?.id || null,
+        'Super',
+        'Admin',
+        email,
+        password_hash,
+        null,
+        null,
+        1,              // email_verified = true
+        'active',
+        null
+        ]
+        );
 };
 
 module.exports = { seedSuperAdmin };

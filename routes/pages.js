@@ -50,6 +50,7 @@ function redirectToDashboard(req, res) {
   if (role === 'super_admin') return res.redirect('/super_admin/index.html');
   if (role === 'admin') return res.redirect('/admin/');
   if (role === 'reviewer') return res.redirect('/reviewer/dashboard');
+  if (role === 'instructor' || role === 'solo_instructor') return res.redirect('/instructor/');
   return res.redirect('/dashboard');
 }
 
@@ -164,12 +165,22 @@ router.get('/admin/:section/:page', pageAuth, requirePageRole('admin', 'super_ad
   serveHTML(req, res, `admin/${section}/${page}.html`);
 });
 
-// Super Admin pages
-router.get('/super_admin/:page?', pageAuth, requirePageRole('super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
+// Super Admin pages (nested module routes)
+router.get('/super_admin/:section/:page', pageAuth, requirePageRole('super_admin'), (req, res) => {
+  const section = req.params.section;
+  let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `super_admin/${page}.html`);
+  serveHTML(req, res, `super_admin/${section}/${page}.html`);
 });
+
+// Super Admin pages (single-level)
+router.get('/super_admin/:page?', pageAuth, requirePageRole('super_admin'), (req, res) => {
+  let page = req.params.page || 'dashboard/index';
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  // Allow `/super_admin/dashboard/index` style fallbacks
+  return serveHTML(req, res, `super_admin/${page}.html`);
+});
+
 
 // Reviewer pages
 router.get('/reviewer/:page?', pageAuth, requirePageRole('reviewer', 'admin', 'super_admin'), (req, res) => {
@@ -183,6 +194,35 @@ router.get('/instructor/:page?', pageAuth, requirePageRole('solo_instructor', 'i
   let page = req.params.page || 'index';
   if (page.endsWith('.html')) page = page.slice(0, -5);
   serveHTML(req, res, `instructor/${page}.html`);
+});
+
+// Solo instructor shared routes (served from instructor folder to match side menu URLs)
+router.get('/meetings', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/meetings.html');
+});
+
+router.get('/evaluations', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/evaluations.html');
+});
+
+router.get('/reports', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/reports.html');
+});
+
+router.get('/profile', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/profile.html');
+});
+
+router.get('/content/:page', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `instructor/content/${page}.html`);
+});
+
+router.get('/insights/:page', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `instructor/insights/${page}.html`);
 });
 
 // Marketing catch-all 404 for unknown public marketing paths
@@ -202,7 +242,7 @@ router.get('/:page', pageAuth, (req, res, next) => {
   if (page.startsWith('api') || page.startsWith('storage')) return next();
   
   // Safe list of root pages that need auth
-  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events', 'calendar-integrations', 'data-architecture'];
+  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events', 'calendar-integrations'];
   
   if (safeRootPages.includes(page)) {
     serveHTML(req, res, `${page}.html`);

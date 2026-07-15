@@ -6,29 +6,35 @@ const { db } = require('./db');
 
 const DEFAULT_MENU_BY_ROLE = {
   super_admin: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin', submenu: null },
-    { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management', submenu: null },
-    { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management', submenu: null },
-    { id: 'operations', label: 'Operations', icon: 'settings', href: null, submenu: [
-      { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts' },
-      { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events' },
-      { id: 'data-architecture', label: 'Data Architecture', href: '/super_admin/data-architecture' }
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/dashboard/index.html', submenu: null },
+
+    { id: 'people', label: 'People', icon: 'users', href: null, submenu: [
+      { id: 'add-user', label: 'Add User', href: '/super_admin/people/add-user.html' },
+      { id: 'manage-users', label: 'Manage Users', href: '/super_admin/people/manage-users.html' },
+      { id: 'profile', label: 'Profile', href: '/super_admin/people/profile.html' },
+      { id: 'user-settings', label: 'User Settings', href: '/super_admin/people/user-settings.html' }
     ]},
-    { id: 'content', label: 'Content Management', icon: 'folder', href: null, submenu: [
-      { id: 'archives', label: 'Archives', href: '/super_admin/archives' },
-      { id: 'assets', label: 'Assets', href: '/super_admin/assets' },
-      { id: 'audit', label: 'Audit Log', href: '/super_admin/audit' }
+
+    { id: 'roles', label: 'Roles & Rubrics', icon: 'clipboard', href: null, submenu: [
+      { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles/roles-access.html' },
+      { id: 'rubric-management', label: 'Rubric Management', href: '/super_admin/roles/rubric-management.html' }
     ]},
-    { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
-      { id: 'add-user', label: 'Add User', href: '/super_admin/add-user' },
-      { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users' },
-      { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access' }
+
+    { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
+      { id: 'archives', label: 'Archives', href: '/super_admin/storage/archives.html' },
+      { id: 'assets', label: 'Assets', href: '/super_admin/storage/assets.html' },
+      { id: 'audit', label: 'Audit Log', href: '/super_admin/reports/audit.html' }
     ]},
-    { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
-      { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot' },
-      { id: 'settings', label: 'Settings', href: '/super_admin/settings' },
-      { id: 'profile', label: 'Profile', href: '/super_admin/profile' },
-      { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings' }
+
+    { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
+      { id: 'app-settings', label: 'Settings', href: '/super_admin/settings/settings.html' },
+      { id: 'sidebar-menu-management', label: 'Sidebar Menu Management', href: '/super_admin/settings/sidebar-menu-management.html' }
+    ]},
+
+    { id: 'integrations', label: 'Integrations', icon: 'link', href: null, submenu: [
+      { id: 'calendar-integrations', label: 'Calendar Integrations', href: '/super_admin/integrations/calendar-integrations.html' },
+      { id: 'google-credentials', label: 'Google Credentials', href: '/super_admin/integrations/google-credentials.html' },
+      { id: 'bot-management', label: 'Bot Management', href: '/super_admin/integrations/bot.html' }
     ]}
   ],
   admin: [
@@ -69,6 +75,18 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
       { id: 'audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
     ]},
+    { id: 'session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
+      { id: 'sq-hub', label: 'Report Hub', href: '/admin/session-quality/index' },
+      { id: 'sq-rubric', label: 'Rubric Evaluation', href: '/admin/session-quality/rubric' },
+      { id: 'sq-analysis', label: 'Session Analysis', href: '/admin/session-quality/analysis' },
+      { id: 'sq-impact', label: 'Learning Impact', href: '/admin/session-quality/impact' },
+      { id: 'sq-parent-summary', label: 'Parent Summary', href: '/admin/session-quality/parent-summary' },
+      { id: 'sq-coaching', label: 'Coaching Feedback', href: '/admin/session-quality/coaching' },
+      { id: 'sq-better-alt', label: 'Better Alternatives', href: '/admin/session-quality/better-alternatives' },
+      { id: 'sq-next-plan', label: 'Next Session Plan', href: '/admin/session-quality/next-plan' },
+      { id: 'sq-flags', label: 'Quality Flags', href: '/admin/session-quality/flags' },
+      { id: 'sq-final-eval', label: 'Final Evaluation', href: '/admin/session-quality/final-eval' }
+    ]},
     { id: 'archives', label: 'Archives', icon: 'archive', href: '/admin/archives', submenu: null },
     { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
       { id: 'organization', label: 'Organization', href: '/admin/settings/organization' },
@@ -79,27 +97,14 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'profile', label: 'Profile', icon: 'user', href: '/admin/profile', submenu: null }
   ],
   reviewer: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
-    { id: 'reviews', label: 'Review Queue', icon: 'clipboard', href: '/reviewer/reviews', color: 'blue', section: 'reviews', submenu: null },
-    { id: 'sessions', label: 'Sessions', icon: 'calendar', href: '/reviewer/sessions', color: 'emerald', section: 'sessions', submenu: null },
-    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/reviewer/evaluations', color: 'amber', section: 'evaluations', submenu: null },
-    { id: 'analytics', label: 'Review Analytics', icon: 'bar-chart', href: '/reviewer/analytics', color: 'cyan', section: 'analytics', submenu: null },
-    { id: 'profile', label: 'Profile', icon: 'user', href: '/reviewer/profile', color: 'slate', section: 'account', submenu: null }
+    { id: 'dashboard', label: 'Session Quality Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'profile', label: 'My Profile', icon: 'user', href: '/reviewer/profile', color: 'slate', section: 'account', submenu: null }
   ],
   instructor: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', submenu: null },
-    { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-      { id: 'calendar-accounts', label: 'My Calendar', href: '/instructor/calendar-accounts.html' },
-      { id: 'calendar-events', label: 'Events', href: '/instructor/calendar-events.html' }
-    ]},
-    { id: 'content', label: 'Archives', icon: 'folder', href: '/instructor/archives.html', submenu: null },
-    { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-      { id: 'profile', label: 'Profile', href: '/instructor/profile.html' },
-      { id: 'settings', label: 'Settings', href: '/instructor/settings.html' }
-    ]}
+    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile', submenu: null }
   ],
   solo_instructor: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/', color: 'violet', section: 'main', submenu: null },
     { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/meetings', color: 'emerald', section: 'meetings', submenu: [
       { id: 'upcoming-meetings', label: 'Upcoming Meetings', href: '/meetings', color: 'emerald', section: 'meetings' },
       { id: 'completed-meetings', label: 'Completed Meetings', href: '/meetings?tab=completed', color: 'emerald', section: 'meetings' }
@@ -183,4 +188,4 @@ const seedHeaderMenuItems = async () => {
     }
 };
 
-module.exports = { seedHeaderMenuItems };
+module.exports = { seedHeaderMenuItems, DEFAULT_MENU_BY_ROLE };

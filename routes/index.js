@@ -123,6 +123,7 @@ router.use('/api/settings', require('./settings'));
 router.use('/api/scores', require('./scores'));
 router.use('/api/auth', require('./auth'));
 router.use('/api/dashboard', require('./dashboard'));
+router.use('/api/instructor-dashboard', require('./instructor-dashboard'));
 
 // Sidebar navigation API
 router.get('/api/sidebar/menu', requireAuth, require('./sidebar-api'));
@@ -143,13 +144,25 @@ router.use('/api/rubric-admin', require('./rubric-admin'));
 // Sidebar menu management (super admin)
 router.use('/api/sidebar-menu-admin', require('./sidebar-menu-admin'));
 
+// Google OAuth credentials management (super admin) - legacy (kept for backward compatibility)
+router.use('/api/google-credentials', require('./google-credentials'));
+
+// Calendar providers + credentials (new schema)
+router.use('/api/calendar-integrations', require('./calendar-integrations'));
+
+
 // Tutoring/session-quality endpoints
 router.use('/api/meeting-schedule', require('./meeting-schedule'));
 router.use('/api/recordings', require('./recordings-dashboard'));
 router.use('/api/instructor-calendar', require('./instructor-calendar'));
+router.use('/api/instructor-meetings', require('./instructor-meetings'));
 router.use('/api/departments', require('./departments'));
 router.use('/api/tutoring', require('./tutoring'));
 router.use('/api/participants', require('./participants'));
+
+// Report controllers (MVC pattern)
+router.use('/api/meetings/reports', require('./meeting-reports'));
+router.use('/api/evaluations/reports', require('./evaluation-reports'));
 
 // Serve page routes (must be after API routes to avoid intercepting API calls)
 router.use('/', require('./pages'));

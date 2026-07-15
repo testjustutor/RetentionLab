@@ -45,20 +45,6 @@ const userController = {
   },
 
   /**
-   * GET /api/auth/me
-   * Get current authenticated user's profile.
-   */
-  async me(req) {
-    try {
-      const row = await UsersModel.getUserById(req.user, req.user.id);
-      if (!row) return err('User not found', 404);
-      return ok({ user: row });
-    } catch (e) {
-      return err(e.message);
-    }
-  },
-
-  /**
    * POST /api/users
    * Create a new user. Admin can create reviewer/instructor only.
    */

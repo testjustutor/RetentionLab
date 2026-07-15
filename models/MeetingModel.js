@@ -43,9 +43,13 @@ class MeetingModel {
     return { id: result.lastID, ...meetingData };
   }
 
+  // Dedup key is event_id (unique per calendar occurrence), NOT meeting_id.
+  // meeting_id (e.g. the static Google Meet link ID) is often identical across
+  // every occurrence of a recurring meeting, so keying on it would silently
+  // skip/overwrite the wrong day's row.
   static getMeetingByIdOrCreate(meetingData) {
     return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM meetings WHERE meeting_id = ?', [meetingData.meetingId], (err, row) => {
+      db.get('SELECT * FROM meetings WHERE event_id = ?', [meetingData.eventId], (err, row) => {
         if (err) { logger.error('Model(MeetingModel): Error checking meeting existence:', err); return reject(err); }
 
         if (row) {
@@ -60,10 +64,17 @@ class MeetingModel {
           }
           if (failedStatuses.includes(row.status)) {
             db.run(
-              `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ?`,
-              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.meetingId],
+              `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, reset: true, ...meetingData }); });
-          } else { resolve({ id: row.id, exists: true, ...meetingData }); }
+          } else {
+            // Update existing meeting with fresh data from calendar sync
+            db.run(
+              `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, start_time = ?, end_time = ?, title = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.endTime || null, meetingData.title, meetingData.timezone || null, meetingData.eventId],
+              function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, updated: true, ...meetingData }); }
+            );
+          }
         } else {
           const insertSql = `INSERT INTO meetings (meeting_id, platform, passcode, event_id, calendar_account, meeting_link, start_time, title, end_time, timezone, status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
           const insertParams = [
@@ -102,25 +113,47 @@ class MeetingModel {
     });
   }
 
+  // NOTE: meeting_id is no longer guaranteed unique (recurring meetings share
+  // the same meeting_id across occurrences with different event_id). This
+  // lookup will only return ONE row (the first match) even if several
+  // occurrences share the same meeting_id. Prefer getMeetingByEventId when
+  // you need a specific occurrence.
   static getMeetingById(meetingId) {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM meetings WHERE meeting_id = ?', [meetingId], (err, row) => { if (err) { logger.error('Model(MeetingModel): Error fetching meeting by ID:', err); reject(err); } else resolve(row); });
     });
   }
 
+  static getMeetingByEventId(eventId) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM meetings WHERE event_id = ?', [eventId], (err, row) => { if (err) { logger.error('Model(MeetingModel): Error fetching meeting by event ID:', err); reject(err); } else resolve(row); });
+    });
+  }
+
   static getMeetingsByAccounts(emails, hours) {
     return new Promise((resolve, reject) => {
       if (!emails || !emails.length) return resolve([]);
-      const now = Date.now();
-      const future = now + hours * 3600000;
+
+      const now = new Date();
+      const future = new Date(now.getTime() + hours * 3600000);
+      const futureStr = future.toISOString().slice(0, 19).replace('T', ' ');
+
       const placeholders = emails.map(() => '?').join(',');
+      const params = [...emails, futureStr];
+
       db.all(
-        `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.start_time ASC`,
-        emails,
+        `SELECT m.title, m.start_time, m.end_time, m.platform, m.calendar_account, 
+                u.first_name, u.last_name, r.role_name 
+         FROM meetings m 
+         LEFT JOIN users u ON u.email = m.calendar_account 
+         LEFT JOIN roles r ON r.id = u.role_id 
+         WHERE LOWER(m.calendar_account) IN (${placeholders}) 
+           AND m.start_time <= ?
+         ORDER BY m.start_time ASC`,
+        params,
         (err, rows) => {
           if (err) return reject(err);
-          const filtered = (rows || []).filter(r => { const start = new Date(r.start_time).getTime(); if (isNaN(start)) return false; return start >= now && start <= future; });
-          resolve(filtered);
+          resolve(rows || []);
         }
       );
     });
@@ -170,13 +203,21 @@ class MeetingModel {
 
   static getQueuedMeetings() {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT * FROM meetings WHERE status = 'queued' AND start_time <= DATE_ADD(NOW(), INTERVAL 1 MINUTE) ORDER BY start_time ASC LIMIT 10`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching queued meetings:', err); reject(err); } else resolve(rows); });
+      db.all(
+        `SELECT * FROM meetings WHERE status = 'queued' AND start_time <= DATE_ADD(NOW(), INTERVAL 3 MINUTE) ORDER BY start_time ASC LIMIT 10`,
+        [],
+        (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching queued meetings:', err); reject(err); } else resolve(rows); }
+      );
     });
   }
 
-  static updateMeetingStatus(meetingId, status, sessionId = null) {
+  // Keyed on event_id so that only the specific occurrence being processed
+  // gets its status updated — meeting_id is shared across every occurrence
+  // of a recurring meeting, so using it here could flip the status of the
+  // wrong day's row (e.g. tomorrow's queued row instead of today's).
+  static updateMeetingStatus(eventId, status, sessionId = null) {
     return new Promise((resolve, reject) => {
-      db.run(`UPDATE meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE meeting_id = ? AND status IN ('queued', 'launching')`, [status, sessionId, meetingId], function (err) { if (err) { logger.error('Model(MeetingModel): Error updating meeting status:', err); reject(err); } else resolve({ success: true, updated: this.changes > 0, changes: this.changes, meetingId }); });
+      db.run(`UPDATE meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status IN ('queued', 'launching')`, [status, sessionId, eventId], function (err) { if (err) { logger.error('Model(MeetingModel): Error updating meeting status:', err); reject(err); } else resolve({ success: true, updated: this.changes > 0, changes: this.changes, eventId }); });
     });
   }
 

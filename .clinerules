@@ -6,6 +6,7 @@ Development Rules:
 - Explain significant changes before implementing them.
 - Preserve existing project structure when possible.
 - Prefer simple solutions over complex ones.
+- Prefer to read database tables, column while making query in models.
 
 Code Quality:
 - Write modular, readable code.
