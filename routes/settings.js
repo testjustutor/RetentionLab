@@ -1,69 +1,39 @@
 /**
  * root/routes/settings.js
+ * Thin route layer — delegates all logic to settingsController.
  */
 const express = require('express');
 const router = express.Router();
-const SystemSettingsModel = require('../models/SystemSettingsModel');
-const UserSettingsModel = require('../models/UserSettingsModel');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const requireSuperAdmin = requireRole('super_admin');
+const settingsController = require('../controllers/settings/settingsController');
 
-// System settings (company-level)
-router.get('/system/:companyId/:key', async (req, res) => {
-  try {
-    const row = await SystemSettingsModel.getSetting(req.params.companyId, req.params.key);
-    res.json(row || null);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-router.post('/system/:companyId', async (req, res) => {
-  try {
-    const { key, value, type } = req.body;
-    const r = await SystemSettingsModel.upsertSetting(req.params.companyId, key, value, type || 'string');
-    res.json(r);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+function handle(fn) {
+  return (req, res) => {
+    fn(req).then(result => {
+      const status = result.statusCode || (result.success === false ? 400 : 200);
+      res.status(status).json(result);
+    });
+  };
+}
 
-// Global system settings (company_id = 0 for system-level)
-router.get('/global/:key', async (req, res) => {
-  try {
-    const row = await SystemSettingsModel.getSetting(0, req.params.key);
-    res.json(row || null);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// System Settings Routes (Super Admin only)
+router.get('/system', requireAuth, requireSuperAdmin, handle(settingsController.getSystemSettings));
+router.post('/system/filter', requireAuth, requireSuperAdmin, handle(settingsController.getSystemSettingsByFilter));
+router.get('/system/categories', requireAuth, requireSuperAdmin, handle(settingsController.getCategories));
+router.get('/system/:key', requireAuth, requireSuperAdmin, handle(settingsController.getSystemSetting));
+router.post('/system', requireAuth, requireSuperAdmin, handle(settingsController.upsertSystemSetting));
+router.post('/system/bulk', requireAuth, requireSuperAdmin, handle(settingsController.bulkUpdateSystemSettings));
+router.delete('/system/:key', requireAuth, requireSuperAdmin, handle(settingsController.deleteSystemSetting));
 
-router.post('/global', async (req, res) => {
-  try {
-    const { key, value, type } = req.body;
-    const r = await SystemSettingsModel.upsertSetting(0, key, value, type || 'string');
-    res.json(r);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// User Settings Routes (Authenticated users)
+router.get('/user', requireAuth, handle(settingsController.getUserSettings));
+router.post('/user', requireAuth, handle(settingsController.upsertUserSetting));
+router.post('/user/bulk', requireAuth, requireSuperAdmin, handle(settingsController.bulkUpdateUserSettings));
 
-// User settings
-router.get('/user/:userId/:key', async (req, res) => {
-  try {
-    const row = await UserSettingsModel.getSetting(req.params.userId, req.params.key);
-    res.json(row || null);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/user/:userId', async (req, res) => {
-  try {
-    const { key, value } = req.body;
-    const r = await UserSettingsModel.upsertSetting(req.params.userId, key, value);
-    res.json(r);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Import/Export Routes (Super Admin only)
+router.get('/export', requireAuth, requireSuperAdmin, handle(settingsController.exportSettings));
+router.post('/import', requireAuth, requireSuperAdmin, handle(settingsController.importSettings));
 
 module.exports = router;

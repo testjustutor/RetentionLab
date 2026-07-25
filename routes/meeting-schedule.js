@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const ctrl = require('../controllers/meetingScheduleController');
+const ctrl = require('../controllers/meetings/meetingScheduleController');
 
 router.get('/all', requireAuth, (req, res) => ctrl.getAllMeetings(req).then(r => res.status(r.statusCode || 200).json(r)));
 router.get('/live', requireAuth, (req, res) => ctrl.getLiveMeetings(req).then(r => res.status(r.statusCode || 200).json(r)));

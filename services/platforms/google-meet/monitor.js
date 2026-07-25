@@ -4,7 +4,7 @@
  */
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const ParticipantTracker = require('./participantTracker');
 const path = require('path');
 

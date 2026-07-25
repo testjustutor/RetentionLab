@@ -28,17 +28,17 @@ const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
 // ── Models ──────────────────────────────────────────────────────────────────
-const RubricEvaluationModel = require('../models/RubricEvaluationModel');
-const RubricSummaryModel = require('../models/RubricSummaryModel');
-const SessionSnapshotModel = require('../models/SessionSnapshotModel');
-const SessionAnalysisModel_v2 = require('../models/SessionAnalysisModel_v2');
-const SessionLearningImpactModel_v2 = require('../models/SessionLearningImpactModel_v2');
-const SessionParentSummaryModel_v2 = require('../models/SessionParentSummaryModel_v2');
-const SessionCoachingFeedbackModel_v2 = require('../models/SessionCoachingFeedbackModel_v2');
-const SessionBetterAlternativesModel_v2 = require('../models/SessionBetterAlternativesModel_v2');
-const SessionNextPlanModel_v2 = require('../models/SessionNextPlanModel_v2');
-const SessionQualityFlagsModel_v2 = require('../models/SessionQualityFlagsModel_v2');
-const SessionFinalEvaluationModel_v2 = require('../models/SessionFinalEvaluationModel_v2');
+const RubricEvaluationModel = require('../models/rubrics/RubricEvaluationModel');
+const RubricSummaryModel = require('../models/rubrics/RubricSummaryModel');
+const SessionSnapshotModel = require('../models/session-quality/SessionSnapshotModel');
+const SessionAnalysisModel_v2 = require('../models/session-quality/SessionAnalysisModel_v2');
+const SessionLearningImpactModel_v2 = require('../models/session-quality/SessionLearningImpactModel_v2');
+const SessionParentSummaryModel_v2 = require('../models/session-quality/SessionParentSummaryModel_v2');
+const SessionCoachingFeedbackModel_v2 = require('../models/session-quality/SessionCoachingFeedbackModel_v2');
+const SessionBetterAlternativesModel_v2 = require('../models/session-quality/SessionBetterAlternativesModel_v2');
+const SessionNextPlanModel_v2 = require('../models/session-quality/SessionNextPlanModel_v2');
+const SessionQualityFlagsModel_v2 = require('../models/session-quality/SessionQualityFlagsModel_v2');
+const SessionFinalEvaluationModel_v2 = require('../models/session-quality/SessionFinalEvaluationModel_v2');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

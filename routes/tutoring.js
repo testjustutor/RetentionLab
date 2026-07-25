@@ -9,7 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
-const ctrl = require('../controllers/sessionQualityController');
+const ctrl = require('../controllers/session-quality/sessionQualityController');
 
 // ── Route handler wrapper (matches project convention) ──────────────────────
 function handle(fn) {
@@ -45,7 +45,7 @@ router.post('/dashboard', requireAuth, handle(ctrl.getDashboard));
 router.post('/filters/options', requireAuth, handle(ctrl.getFilterOptions));
 
 // ── CASCADING FILTERS ───────────────────────────────────────────────────────
-const sessionQualityFilterController = require('../controllers/sessionQualityFilterController');
+const sessionQualityFilterController = require('../controllers/session-quality/sessionQualityFilterController');
 router.post('/filters/instructors', requireAuth, handle(sessionQualityFilterController.getInstructors));
 router.post('/filters/boards', requireAuth, handle(sessionQualityFilterController.getBoards));
 router.post('/filters/classes', requireAuth, handle(sessionQualityFilterController.getClasses));

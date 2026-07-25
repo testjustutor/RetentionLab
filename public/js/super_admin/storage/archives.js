@@ -1,168 +1,151 @@
 /**
  * root/public/js/super_admin/archives.js
  */
+
 let meetingsData = [];
+let instructorsList = [];
+let currentPage = 1;
+let totalPages = 1;
+let totalMeetings = 0;
+let pageSize = 20;
 let activeMeetingId = null;
 
-// Initialize layout handlers on DOM load
+// ─── Initialize ──────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
-    // initialize date inputs to today if empty so user can change them
+    initFlatpickr();
+    loadInstructors();
+    loadMeetings();
+
+    // Search on Enter key
+    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') applyFilters();
+    });
+});
+
+// ─── Flatpickr Initialization ────────────────────────────────────────────────
+
+function initFlatpickr() {
     const fromEl = document.getElementById('fromDate');
     const toEl = document.getElementById('toDate');
-    const today = getDefaultTodayISO();
-    if (fromEl && !fromEl.value) fromEl.value = today;
-    if (toEl && !toEl.value) toEl.value = today;
 
-    // Debounced loader to collapse multiple quick events into one request
-    function debounce(fn, wait) {
-        let t = null;
-        return (...args) => {
-            clearTimeout(t);
-            t = setTimeout(() => fn.apply(this, args), wait);
-        };
-    }
-
-    const debouncedLoadMeetings = debounce(() => window.loadMeetings(), 300);
-
-    // If flatpickr available, initialize calendar pickers and wire onchange to reload (debounced)
     if (window.flatpickr) {
         try {
-            flatpickr(fromEl, { dateFormat: 'Y-m-d', defaultDate: today, allowInput: false, onChange: () => debouncedLoadMeetings() });
-            flatpickr(toEl, { dateFormat: 'Y-m-d', defaultDate: today, allowInput: false, onChange: () => debouncedLoadMeetings() });
+            flatpickr(fromEl, {
+                dateFormat: 'Y-m-d',
+                allowInput: false,
+                onChange: () => applyFilters()
+            });
+            flatpickr(toEl, {
+                dateFormat: 'Y-m-d',
+                allowInput: false,
+                onChange: () => applyFilters()
+            });
         } catch (e) {
             console.warn('flatpickr init failed', e);
         }
     }
+}
 
-    // Run initial workspace fetch
-    window.loadMeetings();
+// ─── Load Instructors ────────────────────────────────────────────────────────
 
-    // Search functionality (transcripts)
-    document.getElementById('searchTranscript')?.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        const items = document.querySelectorAll('.transcript-item');
-        items.forEach(item => {
-            const text = item.querySelector('.transcript-text').textContent.toLowerCase();
-            if (term === '' || text.includes(term)) {
-                item.style.display = 'flex';
-            } else {
-                item.style.display = 'none';
-            }
+async function loadInstructors() {
+    try {
+        const res = await fetch('/api/archives/instructors', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch instructors');
+        const data = await res.json();
+        instructorsList = data.instructors || [];
+
+        const select = document.getElementById('instructorFilter');
+        select.innerHTML = '<option value="">All Instructors</option>';
+        instructorsList.forEach(inst => {
+            const option = document.createElement('option');
+            option.value = inst.id;
+            option.textContent = inst.name;
+            select.appendChild(option);
         });
-    });
-
-    // Search + filters (meetings list)
-    document.getElementById('meetingSearch')?.addEventListener('input', () => window.loadMeetings());
-    
-    const fromDateEl = document.getElementById('fromDate');
-    const toDateEl = document.getElementById('toDate');
-    if (fromDateEl) {
-        fromDateEl.addEventListener('change', () => window.loadMeetings());
-        fromDateEl.addEventListener('input', () => window.loadMeetings());
+    } catch (err) {
+        console.error('Error loading instructors:', err);
     }
-    if (toDateEl) {
-        toDateEl.addEventListener('change', () => window.loadMeetings());
-        toDateEl.addEventListener('input', () => window.loadMeetings());
-    }
-});
-
-function getDefaultTodayISO() {
-    return new Date().toISOString().slice(0, 10);
 }
 
-function readFilters() {
-    const q = document.getElementById('meetingSearch')?.value?.trim() || '';
+// ─── Apply Filters ───────────────────────────────────────────────────────────
 
-    // from/to are date inputs (YYYY-MM-DD)
-    const fromVal = document.getElementById('fromDate')?.value?.trim();
-    const toVal = document.getElementById('toDate')?.value?.trim();
-
-    const today = getDefaultTodayISO();
-
-    // Default date filter = today for both from and to
-    const from = fromVal || today;
-    const to = toVal || today;
-
-    // Convert date-only to ISO range values
-    const fromISO = new Date(from + 'T00:00:00.000Z').toISOString();
-    const toISO = new Date(to + 'T23:59:59.999Z').toISOString();
-
-    // Use a high limit to approximate 'all' within the date range
-    const defaultLimit = 1000;
-
-    return {
-        q,
-        from: fromISO,
-        to: toISO,
-        limit: defaultLimit
-    };
+function applyFilters() {
+    currentPage = 1;
+    loadMeetings();
 }
 
-// Promoted to window level so header refresh markup can hit it natively
-window.loadMeetings = async function() {
-    const listEl = document.getElementById('meetingsList');
-    const loadingEl = document.getElementById('loadingMeetings');
-    const countEl = document.getElementById('meetingCount');
+// ─── Load Meetings ───────────────────────────────────────────────────────────
 
-    if (!listEl || !loadingEl || !countEl) {
-        console.error("Missing DOM elements", { listEl, loadingEl, countEl });
-        return;
-    }
+async function loadMeetings() {
+    const listEl = document.getElementById('meetingsTableBody');
+    if (!listEl) return;
 
-    loadingEl.classList.remove('hidden');
-    listEl.classList.add('hidden');
+    listEl.innerHTML = `
+        <tr>
+            <td colspan="6" class="py-4 text-center text-slate-500">Loading meetings...</td>
+        </tr>
+    `;
 
-    const { q, from, to, limit } = readFilters();
+    const fromDate = document.getElementById('fromDate')?.value?.trim() || '';
+    const toDate = document.getElementById('toDate')?.value?.trim() || '';
+    const instructorId = document.getElementById('instructorFilter')?.value?.trim() || '';
+    const search = document.getElementById('searchInput')?.value?.trim() || '';
 
     try {
-        const body = { from, to, limit };
-        if (q) body.search = q;
+        const body = {};
+        if (fromDate) body.from = fromDate;
+        if (toDate) body.to = toDate;
+        if (instructorId) body.instructorId = Number(instructorId);
+        if (search) body.search = search;
+        body.page = currentPage;
+        body.pageSize = pageSize;
 
         const res = await fetch('/api/archives', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        const text = await res.text();
 
+        const text = await res.text();
         if (text.trim().startsWith('<')) {
             throw new Error('Received HTML response instead of JSON');
         }
 
         const data = JSON.parse(text);
-        meetingsData = data.meetings || data.data || [];
+        meetingsData = data.meetings || [];
+        totalMeetings = data.total || 0;
+        totalPages = data.totalPages || 0;
+        currentPage = data.page || currentPage;
+        pageSize = data.pageSize || pageSize;
     } catch (err) {
         console.warn('Data fetch failed, injecting empty list.', err);
         meetingsData = [];
+        totalMeetings = 0;
+        totalPages = 0;
     }
 
-    try {
-        loadingEl.classList.add('hidden');
-        listEl.classList.remove('hidden');
-        countEl.textContent = meetingsData.length;
-        renderMeetingsList();
-    } catch (err) {
-        console.error("Error in render process:", err);
-        listEl.innerHTML = `<p style="color:red" class="text-xs p-4">Render Error: ${err.message}</p>`;
-        loadingEl.classList.add('hidden');
-        listEl.classList.remove('hidden');
-    }
-};
+    renderMeetingsTable();
+    updatePagination();
+}
 
-function renderMeetingsList() {
-    const listEl = document.getElementById('meetingsList');
+// ─── Render Meetings Table ───────────────────────────────────────────────────
+
+function renderMeetingsTable() {
+    const tbody = document.getElementById('meetingsTableBody');
 
     if (meetingsData.length === 0) {
-        listEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-800 rounded-lg opacity-60">
-                <p class="text-[11px] text-slate-400 font-medium">No completed meetings found</p>
-            </div>`;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="py-4 text-center text-slate-500">No meetings found</td>
+            </tr>
+        `;
         return;
     }
 
     let html = '';
     meetingsData.forEach((meeting) => {
-        const isActive = activeMeetingId === meeting.id;
         const d = new Date(meeting.date);
         const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -170,86 +153,170 @@ function renderMeetingsList() {
         const platformRaw = (meeting.platform || 'unknown').toLowerCase();
         let platformLabel = platformRaw, platformColors = '';
 
-        if (platformRaw === 'zoom') { 
-            platformLabel = 'Zoom'; 
-            platformColors = 'text-blue-400 bg-blue-500/10 border-blue-500/20'; 
-        } else if (platformRaw === 'teams') { 
-            platformLabel = 'Teams'; 
-            platformColors = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'; 
-        } else if (platformRaw === 'google-meet' || platformRaw === 'google') { 
-            platformLabel = 'G-Meet'; 
-            platformColors = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'; 
-        } else { 
-            platformColors = 'text-slate-400 bg-slate-500/10 border-slate-500/20'; 
+        if (platformRaw === 'zoom') {
+            platformLabel = 'Zoom';
+            platformColors = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+        } else if (platformRaw === 'teams') {
+            platformLabel = 'Teams';
+            platformColors = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20';
+        } else if (platformRaw === 'google-meet' || platformRaw === 'google') {
+            platformLabel = 'G-Meet';
+            platformColors = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+        } else {
+            platformColors = 'text-slate-400 bg-slate-500/10 border-slate-500/20';
         }
 
+        const sessionCount = meeting.session_count || 1;
+
         html += `
-            <div onclick="selectMeeting('${meeting.id}')" class="bg-slate-950/40 border ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-slate-800 hover:border-slate-700'} rounded-lg p-3 transition duration-200 cursor-pointer group">
-                <div class="flex justify-between items-start mb-2">
-                    <h3 class="text-[13px] font-semibold text-slate-200 group-hover:text-white leading-tight line-clamp-2 pr-2">${meeting.title || 'Untitled Session'}</h3>
-                    <span class="px-1.5 py-[1px] rounded uppercase font-bold tracking-wider border ${platformColors} text-[9px] shrink-0 mt-0.5">${platformLabel}</span>
-                </div>
-                <div class="flex items-center justify-between text-[10px]">
-                    <span class="text-slate-400 font-medium tracking-wide font-mono">${dateStr}</span>
-                    <span class="bg-slate-900 border border-slate-700 px-1.5 rounded text-slate-500">${timeStr}</span>
-                </div>
-            </div>
+            <tr class="hover:bg-slate-800/30 transition">
+                <td class="py-2 px-3 text-xs text-slate-300">
+                    <div class="font-medium">${dateStr}</div>
+                    <div class="text-[10px] text-slate-500">${timeStr}</div>
+                </td>
+                <td class="py-2 px-3 text-xs text-slate-200 font-medium">${meeting.title || 'Untitled Session'}</td>
+                <td class="py-2 px-3 text-xs text-slate-300">${meeting.instructorName || 'Unknown'}</td>
+                <td class="py-2 px-3">
+                    <span class="px-1.5 py-[1px] rounded uppercase font-bold tracking-wider border ${platformColors} text-[9px]">${platformLabel}</span>
+                </td>
+                <td class="py-2 px-3 text-xs text-slate-300 text-center">${sessionCount}</td>
+                <td class="py-2 px-3">
+                    <button onclick="viewMeetingDetail('${meeting.id}')" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] rounded transition">
+                        View
+                    </button>
+                </td>
+            </tr>
         `;
     });
-    listEl.innerHTML = html;
+
+    tbody.innerHTML = html;
 }
 
-window.selectMeeting = async function(id) {
-    activeMeetingId = id;
-    renderMeetingsList();
+// ─── Pagination ──────────────────────────────────────────────────────────────
 
-    const meeting = meetingsData.find(m => m.id === id);
+function updatePagination() {
+    const start = totalMeetings === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, totalMeetings);
+
+    document.getElementById('showingStart').textContent = start;
+    document.getElementById('showingEnd').textContent = end;
+    document.getElementById('totalMeetings').textContent = totalMeetings;
+    document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+
+    document.getElementById('prevBtn').disabled = currentPage <= 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+
+function changePage(newPage) {
+    if (newPage < 1 || newPage > totalPages) return;
+    currentPage = newPage;
+    loadMeetings();
+}
+
+window.changePage = changePage;
+
+// ─── View Meeting Detail ─────────────────────────────────────────────────────
+
+window.viewMeetingDetail = async function(meetingId) {
+    const meeting = meetingsData.find(m => m.id === meetingId);
     if (!meeting) return;
 
-    document.getElementById('emptyState').classList.add('hidden');
-    const activeView = document.getElementById('activeView');
-    activeView.classList.remove('hidden');
-    activeView.classList.add('flex');
+    activeMeetingId = meetingId;
+    const modal = document.getElementById('meetingDetailModal');
+    const content = document.getElementById('meetingDetailContent');
+
+    modal.classList.remove('hidden');
 
     const d = new Date(meeting.date);
-    document.getElementById('mtgDate').textContent = `${d.toLocaleDateString()} at ${d.toLocaleTimeString()}`;
-    document.getElementById('mtgTitle').textContent = meeting.title || 'Untitled Session';
-    document.getElementById('mtgId').textContent = 'ID: ' + (meeting.meetingId || 'N/A');
+    const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const pRaw = (meeting.platform || '').toLowerCase();
-    const el = document.getElementById('mtgPlatform');
-    el.textContent = pRaw === 'zoom' ? 'Zoom' : pRaw === 'teams' ? 'Teams' : pRaw.includes('google') ? 'G-Meet' : 'Platform';
+    const platformRaw = (meeting.platform || 'unknown').toLowerCase();
+    let platformLabel = platformRaw;
+    if (platformRaw === 'google-meet' || platformRaw === 'google') platformLabel = 'Google Meet';
+    else if (platformRaw === 'zoom') platformLabel = 'Zoom';
+    else if (platformRaw === 'teams') platformLabel = 'Microsoft Teams';
 
-    let pColor = '';
-    if (pRaw === 'zoom') pColor = 'text-blue-400 bg-blue-500/10 border-blue-500/30';
-    else if (pRaw === 'teams') pColor = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30';
-    else if (pRaw.includes('google')) pColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
-    else pColor = 'text-slate-400 bg-slate-500/10 border-slate-500/30';
-    el.className = `px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider border ${pColor}`;
+    content.innerHTML = `
+        <div class="space-y-4">
+            <!-- Meeting Info -->
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                <h4 class="text-sm font-semibold text-slate-200 mb-2">${meeting.title || 'Untitled Session'}</h4>
+                <div class="grid grid-cols-2 gap-2 text-[10px]">
+                    <div>
+                        <span class="text-slate-400">Date:</span>
+                        <span class="text-slate-200 ml-1">${dateStr} at ${timeStr}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400">Platform:</span>
+                        <span class="text-slate-200 ml-1">${platformLabel}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400">Instructor:</span>
+                        <span class="text-slate-200 ml-1">${meeting.instructorName || 'Unknown'}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400">Meeting ID:</span>
+                        <span class="text-slate-200 ml-1 font-mono">${meeting.meetingId || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
 
-    const audioPlayer = document.getElementById('audioPlayer');
-    audioPlayer.src = meeting.audioUrl || '';
+            <!-- Audio Player -->
+            ${meeting.audioUrl ? `
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                <h5 class="text-xs font-semibold text-slate-300 mb-2">Recording</h5>
+                <audio controls class="w-full">
+                    <source src="${meeting.audioUrl}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            ` : ''}
 
-    document.getElementById('searchTranscript').value = '';
+            <!-- Transcript -->
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                <h5 class="text-xs font-semibold text-slate-300 mb-2">Transcript</h5>
+                <div id="transcriptContainer" class="max-h-96 overflow-y-auto custom-scrollbar">
+                    <div class="flex justify-center py-4">
+                        <span class="text-[10px] text-slate-400">Loading transcript...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 
-    try {
-        const rawText = await fetch(meeting.transcripts).then(r => r.text());
-        const transcripts = parseTranscript(rawText);
-        renderTranscripts(transcripts);
-    } catch (err) {
-        console.error("Failed to parse transcripts source", err);
-        renderTranscripts([]);
+    // Load transcript if available
+    if (meeting.transcripts) {
+        try {
+            const rawText = await fetch(meeting.transcripts).then(r => r.text());
+            const transcripts = parseTranscript(rawText);
+            renderTranscripts(transcripts);
+        } catch (err) {
+            console.error("Failed to parse transcripts", err);
+            document.getElementById('transcriptContainer').innerHTML = `
+                <div class="flex justify-center py-4">
+                    <span class="text-[10px] text-slate-500">Failed to load transcript</span>
+                </div>
+            `;
+        }
+    } else {
+        document.getElementById('transcriptContainer').innerHTML = `
+            <div class="flex justify-center py-4">
+                <span class="text-[10px] text-slate-500">No transcript available</span>
+            </div>
+        `;
     }
 };
 
-function getColor(speaker) {
-    let hash = 0;
-    for (let i = 0; i < speaker.length; i++) {
-        hash += speaker.charCodeAt(i);
-    }
-    const colors = ['emerald', 'blue', 'indigo', 'orange', 'fuchsia'];
-    return colors[hash % colors.length];
-}
+// ─── Close Modal ─────────────────────────────────────────────────────────────
+
+window.closeMeetingDetailModal = function() {
+    const modal = document.getElementById('meetingDetailModal');
+    modal.classList.add('hidden');
+    activeMeetingId = null;
+};
+
+// ─── Transcript Parsing & Rendering ─────────────────────────────────────────
 
 function parseTranscript(text) {
     const lines = text.split('\n');
@@ -261,7 +328,6 @@ function parseTranscript(text) {
         if (!match) continue;
 
         const [, time, speaker, msg] = match;
-
         result.push({
             time,
             speaker,
@@ -273,62 +339,55 @@ function parseTranscript(text) {
     return result;
 }
 
+function getColor(speaker) {
+    let hash = 0;
+    for (let i = 0; i < speaker.length; i++) {
+        hash += speaker.charCodeAt(i);
+    }
+    const colors = ['emerald', 'blue', 'indigo', 'orange', 'fuchsia'];
+    return colors[hash % colors.length];
+}
+
 function renderTranscripts(transcripts) {
-    const listEl = document.getElementById('transcriptList');
+    const container = document.getElementById('transcriptContainer');
 
     if (transcripts.length === 0) {
-        listEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center p-10 text-center opacity-60">
-                <svg class="w-10 h-10 text-slate-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                <p class="text-xs text-slate-400 font-medium">No transcript available for this session</p>
+        container.innerHTML = `
+            <div class="flex justify-center py-4">
+                <span class="text-[10px] text-slate-500">No transcript entries found</span>
             </div>
         `;
         return;
     }
 
+    const colorMap = {
+        'emerald': 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
+        'blue': 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+        'indigo': 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400',
+        'orange': 'bg-orange-500/20 border-orange-500/30 text-orange-400',
+        'fuchsia': 'bg-fuchsia-500/20 border-fuchsia-500/30 text-fuchsia-400',
+    };
+
     let html = '';
     transcripts.forEach((t) => {
-        if (t.isSystem) {
-            html += `
-                <div class="flex gap-4 transcript-item">
-                    <div class="w-10 h-10 shrink-0 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-                    </div>
-                    <div class="pt-0.5 w-full">
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[11px] font-bold text-slate-300">System Log</span>
-                            <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">${t.time || 'SYS'}</span>
-                        </div>
-                        <p class="text-emerald-300/80 font-mono text-[11px] leading-relaxed p-2.5 bg-emerald-500/5 rounded-lg border border-emerald-500/10 transcript-text">${t.text}</p>
-                    </div>
-                </div>
-            `;
-        } else {
-            const initials = t.speaker ? t.speaker.substring(0, 2).toUpperCase() : 'U';
-            const colorMap = {
-                'emerald': 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
-                'blue': 'bg-blue-500/20 border-blue-500/30 text-blue-400',
-                'indigo': 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400',
-                'orange': 'bg-orange-500/20 border-orange-500/30 text-orange-400',
-                'fuchsia': 'bg-fuchsia-500/20 border-fuchsia-500/30 text-fuchsia-400',
-            };
-            const colorStyle = colorMap[t.color] || 'bg-slate-700 border-slate-600 text-white';
+        const initials = t.speaker ? t.speaker.substring(0, 2).toUpperCase() : 'U';
+        const colorStyle = colorMap[t.color] || 'bg-slate-700 border-slate-600 text-white';
 
-            html += `
-                <div class="flex gap-4 transcript-item">
-                    <div class="w-10 h-10 shrink-0 rounded-xl ${colorStyle} border flex items-center justify-center font-bold text-xs">
-                        ${initials}
-                    </div>
-                    <div class="pt-1.5">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <span class="text-xs font-bold text-slate-200">${t.speaker || 'Unknown Speaker'}</span>
-                            <span class="text-[10px] text-slate-500 font-mono tracking-wide">${t.time || '--:--'}</span>
-                        </div>
-                        <p class="text-slate-300 text-sm leading-relaxed transcript-text">${t.text}</p>
-                    </div>
+        html += `
+            <div class="flex gap-3 transcript-item mb-3">
+                <div class="w-8 h-8 shrink-0 rounded-lg ${colorStyle} border flex items-center justify-center font-bold text-[10px]">
+                    ${initials}
                 </div>
-            `;
-        }
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[11px] font-bold text-slate-200">${t.speaker || 'Unknown Speaker'}</span>
+                        <span class="text-[9px] text-slate-500 font-mono">${t.time || '--:--'}</span>
+                    </div>
+                    <p class="text-slate-300 text-[11px] leading-relaxed">${t.text}</p>
+                </div>
+            </div>
+        `;
     });
-    listEl.innerHTML = html;
+
+    container.innerHTML = html;
 }

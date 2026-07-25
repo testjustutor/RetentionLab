@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const ctrl = require('../controllers/instructorCalendarController');
+const ctrl = require('../controllers/calendar/instructorCalendarController');
 const { syncGoogleCalendar } = require('../services/calendarSyncService');
 
 function handle(fn) {
@@ -34,7 +34,7 @@ router.post('/sync', requireAuth, async (req, res) => {
       syncResults.push({ email: user.email, ...result });
     } else if (user.role_name === 'admin' || user.role_name === 'super_admin') {
       // Sync all instructors in their company
-      const UsersModel = require('../models/UsersModel');
+      const UsersModel = require('../models/users/UsersModel');
       const allUsers = await UsersModel.listUsers(user, { limit: 1000 });
       const instructors = allUsers.filter(u => 
         u.role_name === 'instructor' || u.role_name === 'solo_instructor'

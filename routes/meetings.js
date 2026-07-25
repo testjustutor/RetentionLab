@@ -6,7 +6,7 @@ const router = express.Router();
 const { logger } = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const botManager = require('../services/shared/botManager');
-const TranscriptModel = require('../models/transcriptModel');
+const TranscriptModel = require('../models/transcripts/transcriptModel');
 const PlatformFactory = require('../services/platforms/platformFactory');
 
 router.get('/', (req, res) => {

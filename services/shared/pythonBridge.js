@@ -7,7 +7,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { logger } = require('../../utils/logger');
-const MeetingAssetsModel = require('../../models/MeetingAssetsModel');
+const MeetingAssetsModel = require('../../models/recordings/MeetingAssetsModel');
 
 class PythonBridge {
   /**

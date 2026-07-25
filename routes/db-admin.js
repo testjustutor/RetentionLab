@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
-const AdminModel = require('../models/AdminModel');
+const AdminModel = require('../models/admin/AdminModel');
 
 router.get('/tables', async (req, res) => {
   try {

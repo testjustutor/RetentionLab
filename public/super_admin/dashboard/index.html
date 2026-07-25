@@ -8,7 +8,6 @@
   <title>Super Admin — Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/shared.css">
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
@@ -17,86 +16,201 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        
+        <!-- Page Header -->
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h1 class="text-xl font-bold ">Platform Overview</h1>
-            <p class="text-xs text-slate-400 mt-0.5">Real-time platform intelligence</p>
+            <h1 class="text-xl font-bold">Platform Overview</h1>
+            <p class="text-xs text-slate-400 mt-0.5">Real-time platform intelligence &amp; system health</p>
           </div>
-          <div class="flex gap-2">
-            <select id="timeRange" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5  text-xs">
-              <option value="24h">Last 24h</option>
-              <option value="7d" selected>Last 7 days</option>
-              <option value="30d">Last 30 days</option>
+          <div class="flex items-center gap-2">
+            <select id="timeRange" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
             </select>
-            <button onclick="refreshDashboard()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500  text-xs font-semibold">Refresh</button>
+            <button onclick="refreshDashboard()" class="px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold transition-colors">Refresh</button>
           </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+        <!-- ===== STATS CARDS ROW ===== -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+          <!-- Companies -->
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <p class="text-[12px] text-slate-400 uppercase tracking-wide font-medium">Active Companies</p>
-            <h3 class="text-2xl font-bold  mt-1" id="activeCompanies">-</h3>
-            <p class="text-[12px] text-emerald-400 mt-1 flex items-center gap-1">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-              <span id="companyGrowth">+0% vs last period</span>
-            </p>
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Companies</p>
+              <span class="text-[10px] text-emerald-400 font-medium" id="companyGrowth">+0</span>
+            </div>
+            <h3 class="text-2xl font-bold" id="statCompanies">-</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5"><span id="statActiveCompanies">-</span> active</p>
           </div>
+          <!-- Users -->
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <p class="text-[12px] text-slate-400 uppercase tracking-wide font-medium">Total Users</p>
-            <h3 class="text-2xl font-bold  mt-1" id="totalUsers">-</h3>
-            <p class="text-[12px] text-blue-400 mt-1">Across all companies</p>
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Total Users</p>
+              <span class="text-[10px] text-blue-400 font-medium" id="userGrowth">+0</span>
+            </div>
+            <h3 class="text-2xl font-bold" id="statUsers">-</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5"><span id="statActiveUsers">-</span> active</p>
           </div>
+          <!-- Meetings -->
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <p class="text-[12px] text-slate-400 uppercase tracking-wide font-medium">Active Meetings</p>
-            <h3 class="text-2xl font-bold  mt-1" id="activeMeetings">-</h3>
-            <p class="text-[12px] text-amber-800 mt-1">Currently in progress</p>
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Meetings</p>
+              <span class="inline-flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" id="liveDot"></span>
+                <span class="text-[10px] text-emerald-400 font-medium" id="statInProgress">0</span>
+              </span>
+            </div>
+            <h3 class="text-2xl font-bold" id="statMeetings">-</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5"><span id="statCompletedMeetings">-</span> completed</p>
           </div>
+          <!-- Roles Distribution -->
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <p class="text-[12px] text-slate-400 uppercase tracking-wide font-medium">Storage Used</p>
-            <h3 class="text-2xl font-bold  mt-1" id="storageUsed">-</h3>
-            <p class="text-[12px] text-violet-400 mt-1">Recordings & transcripts</p>
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-1">User Roles</p>
+            <div class="flex flex-wrap gap-1.5 mt-1" id="roleBadges">
+              <span class="text-[10px] text-slate-500">Loading...</span>
+            </div>
+          </div>
+          <!-- System Load -->
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-1">System</p>
+            <div class="flex items-baseline gap-1">
+              <span class="text-lg font-bold" id="statMemUsage">-</span>
+              <span class="text-[10px] text-slate-500">mem</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5">
+              <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" id="memBar" style="width:0%"></div>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">CPU: <span id="statCpuLoad">-</span></p>
+          </div>
+          <!-- Uptime -->
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-1">Uptime</p>
+            <h3 class="text-lg font-bold" id="statUptime">-</h3>
+            <p class="text-[10px] text-slate-500 mt-1">Server online</p>
           </div>
         </div>
 
-        <!-- Charts Row -->
+        <!-- ===== QUICK ACTIONS ===== -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          <a href="/super_admin/people/add-user" class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:bg-slate-800/50 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-200">Add User</p>
+                <p class="text-[10px] text-slate-500">Create new account</p>
+              </div>
+            </div>
+          </a>
+          <a href="/super_admin/people/access-control" class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:bg-slate-800/50 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-200">Access Control</p>
+                <p class="text-[10px] text-slate-500">Manage permissions</p>
+              </div>
+            </div>
+          </a>
+          <a href="/super_admin/reports/audit" class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:bg-slate-800/50 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-200">Audit Logs</p>
+                <p class="text-[10px] text-slate-500">View activity</p>
+              </div>
+            </div>
+          </a>
+          <a href="/super_admin/settings/sidebar-menu-management" class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:bg-slate-800/50 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-200">Manage Menu</p>
+                <p class="text-[10px] text-slate-500">Sidebar settings</p>
+              </div>
+            </div>
+          </a>
+        </div>
+
+        <!-- ===== CHARTS ROW ===== -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <h3 class="text-xs font-semibold  mb-2">Meeting Trends</h3>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-semibold">Meeting Trends</h3>
+              <span class="text-[10px] text-slate-500" id="trendPeriod">Last 7 days</span>
+            </div>
             <div class="h-48"><canvas id="meetingTrendsChart"></canvas></div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
-            <h3 class="text-xs font-semibold  mb-2">Company Distribution</h3>
-            <div class="h-48"><canvas id="companyChart"></canvas></div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-semibold">User Signups</h3>
+              <span class="text-[10px] text-slate-500">Last 14 days</span>
+            </div>
+            <div class="h-48"><canvas id="userTrendsChart"></canvas></div>
           </div>
         </div>
 
-        <!-- Recent Companies Table -->
-        <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-          <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
- <h3 class="text-xs font-semibold ">Recent Companies</h3>
-            <a href="/super_admin/companies.html" class="text-[12px] text-violet-400 hover:text-violet-300">View All</a>
+        <!-- ===== BOTTOM TABLES ROW ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+          <!-- Recent Users -->
+          <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+            <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+              <h3 class="text-xs font-semibold">Recent Users</h3>
+              <a href="/super_admin/people/manage-users" class="text-[11px] text-indigo-400 hover:text-indigo-300">View All</a>
+            </div>
+            <div class="overflow-x-auto" style="max-height:260px;overflow-y:auto">
+              <table class="w-full text-left text-xs">
+                <thead><tr class="border-b border-slate-800 bg-slate-800/30 sticky top-0">
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Name</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Role</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Company</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Status</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Joined</th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-800" id="recentUsersBody">
+                  <tr><td colspan="5" class="py-6 text-center text-slate-500">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-              <thead><tr class="border-b border-slate-800 bg-slate-800/30">
-                <th class="py-2 px-3 text-[12px] text-slate-400 uppercase">Name</th>
-                <th class="py-2 px-3 text-[12px] text-slate-400 uppercase">Status</th>
-                <th class="py-2 px-3 text-[12px] text-slate-400 uppercase">Users</th>
-                <th class="py-2 px-3 text-[12px] text-slate-400 uppercase">Created</th>
-              </tr></thead>
-              <tbody class="divide-y divide-slate-800" id="companyTableBody">
-                <tr><td colspan="4" class="py-6 text-center text-slate-500">Loading...</td></tr>
-              </tbody>
-            </table>
+          <!-- Recent Meetings -->
+          <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+            <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+              <h3 class="text-xs font-semibold">Recent Meetings</h3>
+              <a href="/api/meetings" class="text-[11px] text-indigo-400 hover:text-indigo-300">View All</a>
+            </div>
+            <div class="overflow-x-auto" style="max-height:260px;overflow-y:auto">
+              <table class="w-full text-left text-xs">
+                <thead><tr class="border-b border-slate-800 bg-slate-800/30 sticky top-0">
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Title</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Status</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Owner</th>
+                  <th class="py-2 px-3 text-[10px] text-slate-400 uppercase">Date</th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-800" id="recentMeetingsBody">
+                  <tr><td colspan="4" class="py-6 text-center text-slate-500">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+
+        <!-- ===== ERROR / STATUS ===== -->
+        <div id="dashboardError" class="hidden bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-400"></div>
       </main>
     </div>
   </div>
   <script type="module" src="/js/auth.js"></script>
   <script src="/js/load-components.js"></script>
-<script src="/js/super_admin/dashboard/index.js"></script>
-
-
+  <script src="/js/common-ui.js"></script>
+  <script src="/js/super_admin/dashboard/index.js"></script>
 </body>
+</html>

@@ -5,8 +5,8 @@
 
 const express = require('express');
 const router = express.Router();
-const sessionQualityController = require('../controllers/sessionQualityController');
-const sessionQualityFilterController = require('../controllers/sessionQualityFilterController');
+const sessionQualityController = require('../controllers/session-quality/sessionQualityController');
+const sessionQualityFilterController = require('../controllers/session-quality/sessionQualityFilterController');
 
 /**
  * @route   GET /api/tutoring/dashboard

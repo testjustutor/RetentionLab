@@ -1,0 +1,34 @@
+/**
+ * Migration: Create calendar_verifications table
+ */
+const { runAsync } = require('../seedHelpers');
+
+const migrationName = 'create_calendar_verifications_table';
+
+const up = async () => {
+  console.log('[Migration calendar_verifications] Starting...');
+
+  await runAsync(
+    `DROP TABLE IF EXISTS calendar_verifications`
+  );
+
+  await runAsync(`
+CREATE TABLE IF NOT EXISTS calendar_verifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    code VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_cv_user (user_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`);
+
+  console.log('[Migration calendar_verifications] Complete.');
+};
+
+const down = async () => {
+  await runAsync(`DROP TABLE IF EXISTS calendar_verifications`);
+  console.log('[Migration calendar_verifications] Rolled back — calendar_verifications dropped.');
+};
+
+module.exports = { up, down, migrationName };

@@ -29,14 +29,14 @@ const GoogleParticipantTracker = require('./platforms/google-meet/participantTra
 const AudioRecorder = require('./audioRecorder');
 const ScreenRecorder = require('./screenRecorder');
 
-const MeetingAssetsModel = require('../models/MeetingAssetsModel');
-const MeetingModel = require('../models/MeetingModel');
+const MeetingAssetsModel = require('../models/recordings/MeetingAssetsModel');
+const MeetingModel = require('../models/meetings/MeetingModel');
 
 const PythonBridge = require('./shared/pythonBridge');
 
 const fs = require('fs');
 const path = require('path');
-const TranscriptModel = require('../models/transcriptModel');
+const TranscriptModel = require('../models/transcripts/transcriptModel');
 const { logger } = require('../utils/logger');
 
 class SocraticBot {

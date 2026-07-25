@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin">
+  <meta name="header-page" content="accessControl">
+  <title>Access Control — Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css" />
+</head>
+<body class="antialiased font-sans p-2 sm:p-0">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-2">
+        <!-- Header -->
+        <div id="header-placeholder"></div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-cyan-500/30 shadow-md shadow-cyan-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Total Users</p>
+                    <p id="totalUsers" class="text-base font-bold font-sans text-cyan-400">0</p>
+                </div>
+                <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-emerald-500/30 shadow-md shadow-emerald-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Active Users</p>
+                    <p id="activeUsers" class="text-base font-bold font-sans text-emerald-400">0</p>
+                </div>
+                <div class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-amber-500/30 shadow-md shadow-amber-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Inactive Users</p>
+                    <p id="inactiveUsers" class="text-base font-bold font-sans text-amber-400">0</p>
+                </div>
+                <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-violet-500/30 shadow-md shadow-violet-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Role Types</p>
+                    <p id="totalRoles" class="text-base font-bold font-sans text-violet-400">0</p>
+                </div>
+                <div class="p-1.5 bg-violet-500/10 text-violet-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Access Control Section -->
+        <div class="p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+                <!-- Header with Search & Filters -->
+                <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                            <h2 class="text-sm font-semibold text-white">User Access Control</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <!-- Search -->
+                            <div class="relative">
+                                <input type="text" id="searchInput" placeholder="Search users..." 
+                                    class="w-40 lg:w-56 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-slate-500">
+                            </div>
+                            <!-- Role Filter -->
+                            <select id="roleFilter" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                <option value="">All Roles</option>
+                            </select>
+                            <!-- Company Filter -->
+                            <select id="companyFilter" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                <option value="">All Companies</option>
+                            </select>
+                            <!-- Status Filter -->
+                            <select id="statusFilter" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[10px]">
+                        <thead>
+                            <tr class="border-b border-slate-800 bg-slate-800/30">
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">User</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Email</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Role</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Company</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Status</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Access Controls</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800" id="userTableBody">
+                            <tr>
+                                <td colspan="6" class="py-4 text-center text-slate-500">Loading users...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Access Modal -->
+    <div id="editAccessModal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Edit Access Permissions
+                </h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <form id="editAccessForm" class="p-3 space-y-2">
+                <input type="hidden" id="editUserId" value="">
+                <div class="flex items-center gap-3 mb-2 pb-2 border-b border-slate-800">
+                    <div id="editUserAvatar" class="w-8 h-8 rounded bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold text-xs">RL</div>
+                    <div>
+                        <p id="editUserName" class="text-sm font-semibold text-slate-100">User Name</p>
+                        <p id="editUserEmail" class="text-[10px] text-slate-400">email@example.com</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Role</label>
+                    <select id="editRole" name="role_id" required
+                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <option value="">Select role</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Company</label>
+                    <select id="editCompany" name="company_id" required
+                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <option value="">Select company</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Account Status</label>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="is_active" value="1" checked
+                                class="text-emerald-500 focus:ring-emerald-500 bg-slate-800 border-slate-700">
+                            <span class="text-xs text-emerald-400">Active</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="is_active" value="0"
+                                class="text-rose-500 focus:ring-rose-500 bg-slate-800 border-slate-700">
+                            <span class="text-xs text-rose-400">Inactive</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-1.5">
+                    <button type="submit" class="flex-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded transition">
+                        Save Changes
+                    </button>
+                    <button type="button" onclick="closeEditModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded transition">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="resetPasswordModal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Reset Password
+                </h3>
+                <button onclick="closeResetModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <form id="resetPasswordForm" class="p-3 space-y-2">
+                <input type="hidden" id="resetUserId" value="">
+                <p class="text-[10px] text-slate-400">Set a new password for <span id="resetUserEmail" class="text-slate-200 font-mono"></span></p>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-300 mb-0.5">New Password</label>
+                    <input type="password" id="newPassword" name="password" required minlength="6"
+                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="Min. 6 characters">
+                </div>
+                <div class="flex gap-2 pt-1.5">
+                    <button type="submit" class="flex-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded transition">
+                        Reset Password
+                    </button>
+                    <button type="button" onclick="closeResetModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded transition">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Toggle Status Modal -->
+    <div id="confirmToggleModal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-sm w-full">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="confirmToggleTitle" class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                    Confirm Action
+                </h3>
+                <button onclick="closeConfirmModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-3">
+                <p id="confirmToggleMessage" class="text-xs text-slate-300 mb-3">Are you sure you want to change this user's status?</p>
+                <input type="hidden" id="confirmToggleUserId" value="">
+                <input type="hidden" id="confirmToggleNewStatus" value="">
+                <div class="flex gap-2">
+                    <button onclick="executeToggleStatus()" id="confirmToggleBtn" class="flex-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded transition">
+                        Confirm
+                    </button>
+                    <button type="button" onclick="closeConfirmModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/people/access-control.js"></script>
+</body>
+</html>
+

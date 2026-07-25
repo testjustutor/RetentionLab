@@ -2,7 +2,7 @@
  * root/services/platforms/google-meet/captionMonitor.js
  *
  */
-const TranscriptModel = require('../../../models/transcriptModel.js');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel.js');
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../../../utils/logger');

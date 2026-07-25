@@ -1,7 +1,9 @@
 Project Goal:
-Build reliable software with clear, maintainable code.
+Build reliable software with clear, maintainable code, security risk free.
 
 Development Rules:
+- Always create a TDOD.md file for doing any task and very after task completed with check box.
+- Please check one by one, do not test or execute large text at a time please use or do task in small chunks.
 - Understand the existing codebase before making changes.
 - Explain significant changes before implementing them.
 - Preserve existing project structure when possible.

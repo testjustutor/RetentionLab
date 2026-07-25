@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
-const TranscriptModel = require('../models/transcriptModel');
-const ParticipantModel = require('../models/participantModel'); // TODO: Create participantModel
+const TranscriptModel = require('../models/transcripts/transcriptModel');
+const ParticipantModel = require('../models/participants/participantModel'); // TODO: Create participantModel
 const { logger } = require('./logger');
 
 async function exportToJson(meetingId, outputDir = '.') {

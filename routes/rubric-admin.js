@@ -10,7 +10,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const RubricAdminModel = require('../models/RubricAdminModel');
+const RubricAdminModel = require('../models/rubrics/RubricAdminModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
   requireAdminRubricOwnership,
@@ -18,11 +18,6 @@ const {
   requireAdminIndicatorOwnership,
   requireRubricAssignmentPrivilege
 } = require('../middleware/adminRubricAuth');
-
-// Initialize scoped tables on first load
-RubricAdminModel.initTables().catch(err => {
-  console.error('Failed to init rubric admin tables:', err.message);
-});
 
 // ─── MIDDLEWARE ─────────────────────────────────────────────────────────────
 

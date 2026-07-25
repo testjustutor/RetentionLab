@@ -7,7 +7,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { HeaderConfigModel } = require('../models/HeaderConfigModel');
+const MenuModel = require('../models/menu/MenuModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // ─── ROLES ──────────────────────────────────────────────────────────────
@@ -18,7 +18,8 @@ const { requireAuth, requireRole } = require('../middleware/auth');
  */
 router.get('/roles', requireAuth, requireRole('super_admin'), async (req, res) => {
   try {
-    const roles = await HeaderConfigModel.getAllRoles();
+    const RolesModel = require('../models/roles/RolesModel');
+    const roles = await RolesModel.getAllRoles();
     res.json({ count: roles.length, data: roles });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -34,8 +35,8 @@ router.get('/roles', requireAuth, requireRole('super_admin'), async (req, res) =
 router.get('/items/:roleId', requireAuth, requireRole('super_admin'), async (req, res) => {
   try {
     const roleId = parseInt(req.params.roleId);
-    const items = await HeaderConfigModel.getMenuItemsFlatByRoleId(roleId);
-    const tree = await HeaderConfigModel.getMenuItemsByRoleId(roleId);
+    const items = await MenuModel.getAllMenuItems();
+    const tree = await MenuModel.getResolvedMenuForUser(0, roleId);
     res.json({ 
       count: items.length, 
       flat: items, 
@@ -58,15 +59,9 @@ router.post('/items/:roleId', requireAuth, requireRole('super_admin'), async (re
     if (!menu_id || !label) {
       return res.status(400).json({ error: 'menu_id and label are required' });
     }
-    const result = await HeaderConfigModel.insertMenuItem(roleId, {
-      menu_id,
-      parent_id: parent_id || null,
-      label,
-      icon: icon || null,
-      href: href || null,
-      display_order: display_order !== undefined ? parseInt(display_order) : 0,
-      is_active: is_active !== undefined ? is_active : true
-    });
+    // Note: Creating new menu items is done via the menu_items table
+    // This endpoint is deprecated - use /api/menu/admin/menu-permissions instead
+    return res.json({ success: false, error: 'This endpoint is deprecated. Use /api/menu/admin/menu-permissions' });
     res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -88,7 +83,9 @@ router.put('/items/:id', requireAuth, requireRole('super_admin'), async (req, re
     if (req.body.parent_id !== undefined) updates.parent_id = req.body.parent_id;
     if (req.body.display_order !== undefined) updates.display_order = parseInt(req.body.display_order);
     if (req.body.is_active !== undefined) updates.is_active = req.body.is_active;
-    const result = await HeaderConfigModel.updateMenuItemById(id, updates);
+    // Note: Updating menu items is done via the menu_items table
+    // This endpoint is deprecated - use /api/menu/admin/menu-permissions instead
+    return res.json({ success: false, error: 'This endpoint is deprecated. Use /api/menu/admin/menu-permissions' });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -102,7 +99,9 @@ router.put('/items/:id', requireAuth, requireRole('super_admin'), async (req, re
 router.delete('/items/:id', requireAuth, requireRole('super_admin'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const result = await HeaderConfigModel.deleteMenuItemById(id);
+    // Note: Deleting menu items is done via the menu_items table
+    // This endpoint is deprecated - use /api/menu/admin/menu-permissions instead
+    return res.json({ success: false, error: 'This endpoint is deprecated. Use /api/menu/admin/menu-permissions' });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -121,10 +120,10 @@ router.post('/reseed/:roleId', requireAuth, requireRole('super_admin'), async (r
     if (!Array.isArray(menuItems) || menuItems.length === 0) {
       return res.status(400).json({ error: 'menuItems array is required' });
     }
-    await HeaderConfigModel.seedMenuItems(roleId, menuItems);
-    // Fetch and return the new menu
-    const items = await HeaderConfigModel.getMenuItemsFlatByRoleId(roleId);
-    const tree = await HeaderConfigModel.getMenuItemsByRoleId(roleId);
+    // Note: Menu items are now managed via the menu_items table and role_menu_permissions
+    // This endpoint is deprecated - use /api/menu/admin/menu-permissions instead
+    return res.json({ success: false, error: 'This endpoint is deprecated. Use /api/menu/admin/menu-permissions' });
+    const tree = await MenuModel.getResolvedMenuForUser(0, roleId);
     res.json({ success: true, flat: items, tree });
   } catch (err) {
     res.status(500).json({ error: err.message });

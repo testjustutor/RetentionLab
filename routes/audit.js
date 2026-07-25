@@ -7,7 +7,7 @@ const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { logger } = require('../utils/logger');
-const TranscriptModel = require('../models/transcriptModel');
+const TranscriptModel = require('../models/transcripts/transcriptModel');
 
 /**
  * @route   POST /api/audit/process/:meetingId

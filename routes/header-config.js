@@ -4,8 +4,8 @@
 const express = require('express');
 const router  = express.Router();
 
-const { HeaderConfigModel } = require('../models/HeaderConfigModel');
-const RolesModel             = require('../models/RolesModel');
+const { HeaderConfigModel } = require('../models/header/HeaderConfigModel');
+const RolesModel             = require('../models/roles/RolesModel');
 const { requireAuth }       = require('../middleware/auth');
 
 // ─── Shared response helpers ──────────────────────────────────────────────────
@@ -258,6 +258,64 @@ router.delete('/nav/role/:roleId', async (req, res) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN CRUD —  management endpoints for the header manager page
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /header-config/admin/all
+ * Returns all roles with their page configs in a flat, easy-to-render format.
+ * This is the primary endpoint for the header management CRUD page.
+ * Response: { roles: [{ id, role_name, description, pages: [{ pageKey, title, description, isActive, ... }] }] }
+ */
+router.get('/admin/all', async (req, res) => {
+  try {
+    // Get all roles
+    const roles = await RolesModel.getAllRoles();
+    
+    // Get all pages grouped by role
+    const grouped = await HeaderConfigModel.getAllPagesGroupedByRole({ activeOnly: false });
+    
+    // Merge pages into roles
+    const result = roles.map(role => {
+      const group = grouped[role.role_name];
+      const pages = group ? Object.values(group.pages) : [];
+      return {
+        id: role.id,
+        role_name: role.role_name,
+        description: role.description,
+        pages: pages
+      };
+    });
+    
+    return ok(res, { roles: result });
+  } catch (err) {
+    return serverErr(res, err, 'getAllForAdmin');
+  }
+});
+
+/**
+ * PUT /header-config/pages/toggle-status
+ * Quick toggle of is_active for a page config.
+ * Body: { roleId, pageKey, isActive }
+ */
+router.put('/pages/toggle-status', async (req, res) => {
+  const { roleId: rawRoleId, pageKey, isActive } = req.body;
+  const roleId = parseRoleId(rawRoleId);
+  
+  if (!roleId) return fail(res, 'roleId must be a positive integer');
+  if (!pageKey) return fail(res, 'pageKey is required');
+  if (isActive === undefined) return fail(res, 'isActive is required');
+
+  try {
+    const result = await HeaderConfigModel.updatePage(roleId, pageKey, { isActive, updatedBy: req.user?.id });
+    if (result.changes === 0) return fail(res, `Page config "${pageKey}" not found for role id ${roleId}`, 404);
+    return ok(res, { result });
+  } catch (err) {
+    return serverErr(res, err, 'togglePageStatus');
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PAGE CONFIG  —  header_page_configs (one row per role × page)

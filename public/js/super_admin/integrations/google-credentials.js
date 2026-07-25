@@ -20,8 +20,9 @@ function renderCredentials() {
   container.innerHTML = allCredentials.map(cred => {
     const statusBadge = cred.is_active ? 'Active' : 'Inactive';
     return '<div class="bg-white border rounded-lg p-4">' +
-      '<h3>' + cred.client_id + '</h3>' +
+      '<h3>Google OAuth Configuration</h3>' +
       '<p>Status: ' + statusBadge + '</p>' +
+      '<p class="text-xs text-gray-500">Credentials managed via .env file</p>' +
       '<button onclick="editCredential(' + cred.id + ')">Edit</button> ' +
       '<button onclick="deleteCredential(' + cred.id + ')">Delete</button>' +
     '</div>';
@@ -40,13 +41,11 @@ function editCredential(id) {
   const cred = allCredentials.find(c => c.id === id);
   if (!cred) return;
   document.getElementById('editId').value = cred.id;
-  document.getElementById('client_id').value = cred.client_id || '';
-  document.getElementById('client_secret').value = cred.client_secret || '';
   document.getElementById('project_id').value = cred.project_id || '';
   document.getElementById('redirect_uris').value = (cred.redirect_uris || []).join('\n');
   document.getElementById('javascript_origins').value = (cred.javascript_origins || []).join('\n');
   document.getElementById('is_active').checked = cred.is_active === 1;
-  document.getElementById('modalTitle').textContent = 'Edit Credentials';
+  document.getElementById('modalTitle').textContent = 'Edit OAuth Configuration';
   document.getElementById('credentialModal').classList.remove('hidden');
 }
 
@@ -69,8 +68,6 @@ document.getElementById('credentialForm').addEventListener('submit', async (e) =
   e.preventDefault();
   const id = document.getElementById('editId').value;
   const data = {
-    client_id: document.getElementById('client_id').value.trim(),
-    client_secret: document.getElementById('client_secret').value.trim(),
     project_id: document.getElementById('project_id').value.trim() || null,
     redirect_uris: document.getElementById('redirect_uris').value.split('\n').map(s => s.trim()).filter(Boolean),
     javascript_origins: document.getElementById('javascript_origins').value.split('\n').map(s => s.trim()).filter(Boolean),

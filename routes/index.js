@@ -97,7 +97,7 @@ router.get('/api/calendar/callback', (req, res, next) => {
       const VERIFY_SECRET = process.env.INSTRUCTOR_CALENDAR_SECRET || process.env.JWT_SECRET || 'instructor_cal_secure_key_change_me';
       const payload = jwt.verify(state, VERIFY_SECRET);
       if (payload?.purpose === 'instructor-calendar-verify') {
-        const ctrl = require('../controllers/instructorCalendarController');
+        const ctrl = require('../controllers/calendar/instructorCalendarController');
         return ctrl.handleCallback(req, res);
       }
     } catch { /* not our JWT, pass through */ }
@@ -106,6 +106,7 @@ router.get('/api/calendar/callback', (req, res, next) => {
 });
 
 router.use('/api/bot', require('./bot'));
+router.use('/api/monitoring', require('./monitoring'));
 router.use('/api/calendar', require('./calendar'));
 router.use('/api/meetings', require('./meetings'));
 router.use('/api/db', require('./db-admin'));
@@ -150,6 +151,11 @@ router.use('/api/google-credentials', require('./google-credentials'));
 // Calendar providers + credentials (new schema)
 router.use('/api/calendar-integrations', require('./calendar-integrations'));
 
+// Menu management
+router.use('/api/menu', require('./menu'));
+
+// Configuration pages (super admin)
+router.use('/super_admin/configuration', require('./configuration'));
 
 // Tutoring/session-quality endpoints
 router.use('/api/meeting-schedule', require('./meeting-schedule'));

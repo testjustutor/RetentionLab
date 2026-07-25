@@ -4,148 +4,14 @@
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
-const CalendarService = require('../services/calendar');
-const MultiUserCalendarService = require('../services/calendar/MultiUserCalendarService');
-const CalendarUsersModel = require('../models/CalendarUsersModel');
-const CalendarVerificationModel = require('../models/CalendarVerificationModel');
-const MeetingModel = require('../models/MeetingModel');
-const PlatformFactory = require('../services/platforms/platformFactory');
-const { URL } = require('url');
+const CalendarUsersModel = require('../models/calendar/CalendarUsersModel');
+const CalendarVerificationModel = require('../models/calendar/CalendarVerificationModel');
+const MeetingModel = require('../models/meetings/MeetingModel');
+const CalendarAuthModel = require('../models/calendar/CalendarAuthModel');
+const CalendarEventController = require('../controllers/calendar/CalendarEventController');
+const CalendarHelper = require('../utils/calendarHelper');
 const { sendMail } = require('../utils/mailer');
 const { signCalendarLink, verifyCalendarLink } = require('../utils/calendarLinkToken');
-
-// ---------------------- HELPERS ----------------------
-function extractMeetingLink(text = '', location = '') {
-  if (!text) return null;
-  location
-  const matches = text.match(/https?:\/\/[^\s<>\]]+/g);
-  if (!matches) return null;
-
-  for (let url of matches) {
-    // ✅ Strip trailing quotes, parentheses, and brackets that corrupt the URL
-    url = url.replace(/[>\])"']+$/, '');
-
-    if (
-      url.includes('zoom.us') ||
-      url.includes('teams.microsoft.com') ||
-      url.includes('teams.live.com') ||
-      url.includes('meet.google.com') ||
-      url.includes('webex.com') ||
-      url.includes('gotomeeting.com')
-    ) {
-      return url;
-    }
-  }
-
-  return null;
-}
-
-function detectPlatform(link = '', location = '') {
-  if (!link && !location) return 'unknown';
-
-  if (location) {
-    const lowerLoc = location.toLowerCase().trim();
-    if (lowerLoc === 'zoom' || lowerLoc.includes('zoom.us')) return 'zoom';
-    if (lowerLoc.includes('google meet') || lowerLoc.includes('meet.google')) return 'google-meet';
-    if (lowerLoc.includes('teams')) return 'teams';
-  }
-
-  if (link) {
-    const lowerLink = link.toLowerCase();
-    if (lowerLink.includes('meet.google.com')) return 'google-meet';
-    if (lowerLink.includes('zoom.us')) return 'zoom';
-    if (lowerLink.includes('teams.microsoft.com') || lowerLink.includes('teams.live.com')) return 'teams';
-  }
-
-  return 'unknown';
-}
-
-function extractMeetingId(link, platform, description = '', location = '') {
-  let meetingId = null;
-  let passcode = null;
-
-  if (platform === 'zoom') {
-    try {
-      if (link) {
-        const url = new URL(link);
-        const match = url.pathname.match(/\/j\/(\d+)/);
-        if (match) meetingId = match[1];
-      }
-    } catch {}
-    if (description) {
-      const idMatch = description.match(/Meeting ID[:\s]*([\d\s]+)/i);
-      if (idMatch) {
-        meetingId = idMatch[1].replace(/\s/g, '');
-      }
-
-      const passMatch = description.match(/(?:Passcode|Password)[:\s]*([\w]+)/i)
-      if (passMatch) {
-        passcode = passMatch[1];
-      }
-    }
-    return { meetingId, passcode };
-  }
-
-  // -------- Teams --------
-  if (platform === 'teams') {
-    if (!link) return { meetingId: null, passcode: null };
-
-    let passcode = null;
-    const passMatch = description.match(/(?:Passcode|Password)[:\s]*([\w]+)/i) || link.match(/[?&](?:passcode|pwd|p)=([^&]+)/i);
-    if (passMatch) passcode = passMatch[1];
-
-    // ✅ Teams ORG (teams.microsoft.com)
-    const orgMatch = link.match(/meetup-join\/([^/?]+)/);
-    if (orgMatch) {
-      const decoded = decodeURIComponent(orgMatch[1]);
-
-      // Extract only meeting_xxx part
-      const meetingMatch = decoded.match(/(meeting_[^@]+)/);
-      return {
-        meetingId: meetingMatch ? meetingMatch[1] : decoded,
-        passcode
-      };
-    }
-
-    // ✅ Teams 
-    const liveMatch = link.match(/meet\/(\d+)/);
-    if (liveMatch) {
-      return {
-        meetingId: liveMatch[1],
-        passcode
-      };
-    }
-
-    return {
-      meetingId: 'teams-' + Date.now(),
-      passcode
-    };
-  }
-
-  // -------- Google Meet --------
-  if (platform === 'google-meet') {
-   
-    const meetUrl = location ? location : link;
-
-    if (!meetUrl) {
-      return { meetingId: null, passcode: null };
-    }
-
-    try {
-      const url = new URL(meetUrl);
-      const meetingId = url.pathname.replace('/', '');
-
-      return {
-        meetingId: meetingId || null,
-        passcode: null 
-      };
-    } catch {
-      return { meetingId: null, passcode: null };
-    }
-  }
-
-  return { meetingId: null, passcode: null };
-}
 
 // ---------------------- MULTI USERS ----------------------
 router.get('/multi/users/stats', async (req, res) => {
@@ -214,9 +80,7 @@ router.post('/multi/users/disconnect', async (req, res) => {
 
 // ---------------------- MULTI AUTH ----------------------
 async function buildAuthUrl(email) {
-  const service = new MultiUserCalendarService();
-  await service.initialize(email);
-  return service.getAuthUrl();
+  return CalendarEventController.getAuthUrl(email);
 }
 
 async function sendVerificationEmail(email, link) {
@@ -348,7 +212,7 @@ router.get('/callback', async (req, res) => {
     return res.status(400).send('Missing state token from OAuth flow.');
   }
 
-  const timeoutMs = 15000; // prevent hanging forever in the browser
+  const timeoutMs = 15000;
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(
       () => reject(new Error(`OAuth callback timed out after ${timeoutMs}ms (reqId=${reqId})`)),
@@ -365,25 +229,19 @@ router.get('/callback', async (req, res) => {
     }
 
     const email = payload.email;
-    const service = new MultiUserCalendarService();
+    const config = await CalendarAuthModel.getOAuthConfig();
+    const redirectUri = (config.redirect_uris && config.redirect_uris[0]);
 
-    logger.info(`Route(calendar): /callback initializing service for ${email} reqId=${reqId}`);
+    logger.info(`Route(calendar): /callback authorizing for ${email} reqId=${reqId}`);
 
     await Promise.race([
       (async () => {
-        // 1) Initialize
-        await service.initialize(email);
-        logger.info(`Route(calendar): /callback authorize start for ${email} reqId=${reqId}`);
-
-        // 2) Exchange code for tokens + save to DB
-        await service.authorize(code);
-
+        await CalendarEventController.authorize(email, code, redirectUri);
         logger.info(`Route(calendar): /callback authorize success for ${email} reqId=${reqId}`);
       })(),
       timeoutPromise
     ]);
 
-    // 3. Success! Close the popup or redirect
     return res.send(`
       <html>
         <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
@@ -430,10 +288,9 @@ router.post('/multi/callback', async (req, res) => {
     if (!payload || !payload.email) return res.status(400).json({ status: 'error', message: 'invalid state token' });
 
     const email = payload.email;
-
-    const service = new MultiUserCalendarService();
-    await service.initialize(email);
-    const tokens = await service.authorize(code);
+    const config = await CalendarAuthModel.getOAuthConfig();
+    const redirectUri = (config.redirect_uris && config.redirect_uris[0]);
+    const tokens = await CalendarEventController.authorize(email, code, redirectUri);
 
     res.json({
       status: 'success',
@@ -455,30 +312,15 @@ router.post('/multi/events', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'email required' });
     }
 
-    const hours = parseInt(hoursAhead) || 24;
-
-    const service = new MultiUserCalendarService();
-    await service.initialize(email);
-
     const now = new Date();
-
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    // Set to end of today (23:59:59)
-    const endOfToday = new Date(now);
-    endOfToday.setHours(23, 59, 59, 999);
-    
     const future = new Date(now.getTime() + (parseInt(hoursAhead) || 24) * 3600000);
 
     let events = [];
 
     try {
-      events = await service.getEvents({
+      events = await CalendarEventController.getEvents(email, {
         timeMin: now.toISOString(),
         timeMax: future.toISOString(),
-        // timeMin: startOfToday.toISOString(),
-        // timeMax: endOfToday.toISOString(),
         maxResults: 20
       });
     } catch (err) {
@@ -487,59 +329,22 @@ router.post('/multi/events', async (req, res) => {
     }
 
     const filtered = events.filter(e => {
-      const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
-      const detected = detectPlatform(link, e.location);
+      const link = e.hangoutLink || CalendarHelper.extractMeetingLink(e.description, e.location || '');
+      const detected = CalendarHelper.detectPlatform(link, e.location);
       return platform ? detected === platform : true;
     });
     
-    // --- START OF STORAGE LOGIC ---
-    for (const e of filtered) {
-
-      logger.info('(Route(calendar): e.location -', e.location);
-
-      // logger.info(`(Route(calendar): description - ${e.description} `);
-
-      const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
-      logger.info(`(Route(calendar): link - ${link} `);
-      
-      const platformType = detectPlatform(link, e.location);
-
-      // logger.info(`(Route(calendar): platformType - ${platformType} `);
-
-      if (platformType && platformType !== 'unknown') {
-        
-        const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '', e.location || '');
-
-        // logger.info(`(Route(calendar): Platform - ${platformType} meetingId - ${meetingId} and passcode - ${passcode} `);
-        
-        if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
-              
-          await MeetingModel.getMeetingByIdOrCreate({
-            meetingId: meetingId,
-            platform: platformType,
-            eventId: e.id,
-            passcode:passcode,
-            account: email,
-            meetingLink: link,
-            startTime: e.start.dateTime || e.start.date,
-            endTime: e.end.dateTime || e.end.date,
-            timezone: e.start.timezone,
-            title: e.summary || 'Untitled Meeting'
-          });
-        }
-      }
-
-    }
+    // Store meetings from events
+    await CalendarEventController.processAndStoreEvents(email, filtered);
 
     res.json({
       status: 'success',
       count: filtered.length,
-      eventsAll:events,
+      eventsAll: events,
       events: filtered.map(e => {
-        const link = e.hangoutLink || extractMeetingLink(e.description, e.location || '');
-        const platformType = detectPlatform(link, e.location || '');
-
-        const { meetingId, passcode } = extractMeetingId(link, platformType, e.description || '', e.location || '');
+        const link = e.hangoutLink || CalendarHelper.extractMeetingLink(e.description, e.location || '');
+        const platformType = CalendarHelper.detectPlatform(link, e.location || '');
+        const { meetingId, passcode } = CalendarHelper.extractMeetingId(link, platformType, e.description || '', e.location || '');
 
         return {
           id: e.id,
@@ -555,7 +360,6 @@ router.post('/multi/events', async (req, res) => {
       })
     });
   } catch (err) {
-    // logger.error('Route(calendar): ',err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });

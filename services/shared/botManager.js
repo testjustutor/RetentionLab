@@ -4,8 +4,8 @@
  */
 const { logger } = require('../../utils/logger');
 const SocraticBot = require('../socraticbot');
-const TranscriptModel = require('../../models/transcriptModel');
-const MeetingModel = require('../../models/MeetingModel');
+const TranscriptModel = require('../../models/transcripts/transcriptModel');
+const MeetingModel = require('../../models/meetings/MeetingModel');
 const settings = require('../../config/settings');
 
 /**

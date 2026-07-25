@@ -6,10 +6,10 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-const ParticipantsModel = require('../models/ParticipantsModel');
-const ParticipantSessionsModel = require('../models/ParticipantSessionsModel');
-const ParticipantAttendanceSessionsModel = require('../models/ParticipantAttendanceSessionsModel');
-const AIAuditResultsModel = require('../models/AIAuditResultsModel');
+const ParticipantsModel = require('../models/participants/ParticipantsModel');
+const ParticipantSessionsModel = require('../models/participants/ParticipantSessionsModel');
+const ParticipantAttendanceSessionsModel = require('../models/participants/ParticipantAttendanceSessionsModel');
+const AIAuditResultsModel = require('../models/audit/AIAuditResultsModel');
 
 function requireFields(body, fields) {
   const missing = [];

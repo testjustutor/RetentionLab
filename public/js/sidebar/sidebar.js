@@ -312,49 +312,49 @@ function setCachedSidebarMenu(menu) {
   }
 }
 
-async function fetchSidebarMenu(forceRefresh = false) {
-  // 1) Cache fast-path unless a refresh is explicitly requested
-  if (!forceRefresh) {
-    const cached = getCachedSidebarMenu();
-    if (cached) return cached;
-  }
-
-  // 2) In-flight de-dupe
-  if (globalThis[SIDEBAR_INFLIGHT_KEY]) return globalThis[SIDEBAR_INFLIGHT_KEY];
-
-  const promise = (async () => {
-    try {
-      const res = await fetch('/api/sidebar/menu', {
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!res.ok) {
-        throw new Error(`Sidebar API returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (!data?.success || !data.menu) {
-        throw new Error('Invalid sidebar API response');
-      }
-
-      // Cache the successful response
-      setCachedSidebarMenu(data.menu);
-      return data.menu;
-    } catch (err) {
-      console.error('Failed to fetch sidebar menu:', err);
-      return null;
+  async function fetchSidebarMenu(forceRefresh = false) {
+    // 1) Cache fast-path unless a refresh is explicitly requested
+    if (!forceRefresh) {
+      const cached = getCachedSidebarMenu();
+      if (cached) return cached;
     }
-  })();
 
-  globalThis[SIDEBAR_INFLIGHT_KEY] = promise;
+    // 2) In-flight de-dupe
+    if (globalThis[SIDEBAR_INFLIGHT_KEY]) return globalThis[SIDEBAR_INFLIGHT_KEY];
 
-  try {
-    return await promise;
-  } finally {
-    delete globalThis[SIDEBAR_INFLIGHT_KEY];
+    const promise = (async () => {
+      try {
+        const res = await fetch('/api/sidebar/menu', {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!res.ok) {
+          throw new Error(`Sidebar API returned status ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (!data?.success || !data.menu) {
+          throw new Error('Invalid sidebar API response');
+        }
+
+        // Cache the successful response as-is (normalization happens in populateSidebar)
+        setCachedSidebarMenu(data.menu);
+        return data.menu;
+      } catch (err) {
+        console.error('Failed to fetch sidebar menu:', err);
+        return null;
+      }
+    })();
+
+    globalThis[SIDEBAR_INFLIGHT_KEY] = promise;
+
+    try {
+      return await promise;
+    } finally {
+      delete globalThis[SIDEBAR_INFLIGHT_KEY];
+    }
   }
-}
 
 function getIconSvg(iconName) {
   const icons = {
@@ -377,7 +377,14 @@ function getIconSvg(iconName) {
     lock: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
     activity: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
     database: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34-9-3V5"/></svg>',
-    'check-circle': '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+    'check-circle': '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+    menu: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>',
+    video: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>',
+    'file-text': '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
+    lightbulb: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path></svg>',
+    bell: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>',
+    summary: '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+    'log-out': '<svg class="menu-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>'
   };
   return icons[iconName] || '';
 }
@@ -550,7 +557,9 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
 
       // Main item link/button
       const itemContent = document.createElement(item.submenu ? 'button' : 'a');
-      itemContent.className = 'menu-link';
+      // Add logout-link class for logout items to style them in red
+      const isLogout = item.id === 'logout';
+      itemContent.className = 'menu-link' + (isLogout ? ' logout-link' : '');
       
       if (item.submenu) {
         itemContent.type = 'button';
@@ -559,11 +568,14 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
         itemContent.href = item.href;
       }
 
-      // Icon
+      // Icon with dynamic color class from centralized CSS
       const iconSvg = getIconSvg(item.icon);
       if (iconSvg) {
         const iconSpan = document.createElement('span');
-        iconSpan.className = 'sidebar-icon';
+        // Apply icon name as color class (e.g. icon="grid" -> class="sidebar-icon-color-grid")
+        // This maps to the CSS classes in shared.css for colorful, database-driven icons
+        const colorClass = 'sidebar-icon-color-' + (item.icon || 'link');
+        iconSpan.className = 'sidebar-icon ' + colorClass;
         iconSpan.innerHTML = iconSvg;
         itemContent.appendChild(iconSpan);
       }
@@ -640,6 +652,39 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
 
 let sidebarInitialized = false;
 
+/**
+ * Normalize API menu items to the format expected by renderMenuItems.
+ * API returns: { id, menu_key, label, icon, route_path, children: [...] }
+ * Frontend expects: { id, label, icon, href, submenu: [{ id, label, href }] }
+ */
+function normalizeMenuItems(items) {
+  return items.map(function(item) {
+    var normalized = {
+      id: item.menu_key || item.id,
+      label: item.label,
+      icon: item.icon || 'link',
+      href: item.route_path || null,
+      isActive: item.is_active !== 0,
+      section: item.section || 'main',
+      sort_order: item.sort_order
+    };
+
+    // Map children to submenu format
+    if (item.children && Array.isArray(item.children) && item.children.length > 0) {
+      normalized.submenu = item.children.map(function(child) {
+        return {
+          id: child.menu_key || child.id,
+          label: child.label,
+          href: child.route_path || null,
+          icon: child.icon || null
+        };
+      });
+    }
+
+    return normalized;
+  });
+}
+
 async function populateSidebar() {
   if (sidebarInitialized) return;
 
@@ -656,7 +701,7 @@ async function populateSidebar() {
   const roleMeta = document.querySelector('meta[name="dashboard-role"]');
   if (roleMeta) {
     const brandEl = document.querySelector('.sidebar-brand');
-    const roleNames = { super_admin: 'Super Admin', admin: 'Admin', reviewer: 'Reviewer', instructor: 'Instructor', solo_instructor: 'Instructor' };
+    var roleNames = { super_admin: 'Super Admin', admin: 'Admin', reviewer: 'Reviewer', instructor: 'Instructor', solo_instructor: 'Instructor' };
     if (brandEl) brandEl.textContent = roleNames[roleMeta.getAttribute('content')] || 'Navigation';
   }
 
@@ -665,14 +710,17 @@ async function populateSidebar() {
     return;
   }
 
+  // Normalize API response to frontend format
+  var normalizedItems = normalizeMenuItems(menu.menuItems);
+
   // Try path-based matching first, fall back to legacy ID-based matching
-  const activeMenuIdFromPath = findActiveMenuIdFromPath(menu.menuItems);
-  const menuHtml = renderMenuItems(menu.menuItems, currentPageId, activeMenuIdFromPath);
+  var activeMenuIdFromPath = findActiveMenuIdFromPath(normalizedItems);
+  var menuHtml = renderMenuItems(normalizedItems, currentPageId, activeMenuIdFromPath);
 
   // Clear existing menu and append new menu items
   menuList.innerHTML = '';
   if (menuHtml && menuHtml.children) {
-    Array.from(menuHtml.children).forEach(child => {
+    Array.from(menuHtml.children).forEach(function(child) {
       menuList.appendChild(child);
     });
   }

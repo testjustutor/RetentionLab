@@ -2,7 +2,7 @@
  * root/services/platforms/teams/captionListener.js
  *
  */
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const { logger } = require('../../../utils/logger.js');
 
 class CaptionListener {

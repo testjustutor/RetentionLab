@@ -6,9 +6,9 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../database/db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const MeetingReviewersModel = require('../models/MeetingReviewersModel');
-const MeetingScoresModel = require('../models/MeetingScoresModel');
-const MeetingModel = require('../models/MeetingModel');
+const MeetingReviewersModel = require('../models/reviewers/MeetingReviewersModel');
+const MeetingScoresModel = require('../models/reviews/MeetingScoresModel');
+const MeetingModel = require('../models/reports/MeetingModel');
 
 // Get reviewer dashboard stats
 router.get('/stats', requireAuth, requireRole('reviewer'), async (req, res) => {

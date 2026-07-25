@@ -3,7 +3,9 @@
  */
 document.addEventListener('DOMContentLoaded', async () => {
   // Load shared sidebar template (role-aware)
-  const shouldLoadSidebar = !document.getElementById('sidebarNav');
+  // Guard against double-injection when multiple scripts/placeholders run.
+  const sidebarAlreadyInjected = !!document.getElementById('sidebarNav');
+  const shouldLoadSidebar = !sidebarAlreadyInjected && !globalThis.__rlSidebarInjected;
   if (shouldLoadSidebar) {
     try {
       // Always use the common sidebar for all roles
@@ -20,7 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         document.body.insertBefore(aside, document.body.firstChild);
       }
+      globalThis.__rlSidebarInjected = true;
       executeScripts(sidebarDiv);
+
     } catch (err) {
       console.error('Failed to load shared sidebar:', err);
     }

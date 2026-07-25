@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
-const ctrl = require('../controllers/instructorMeetingsController');
+const ctrl = require('../controllers/meetings/instructorMeetingsController');
 
 const allowedRoles = ['solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'];
 

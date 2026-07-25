@@ -3,8 +3,8 @@
  */
 const express = require('express');
 const router = express.Router();
-const MeetingReviewersModel = require('../models/MeetingReviewersModel');
-const MeetingScoresModel = require('../models/MeetingScoresModel');
+const MeetingReviewersModel = require('../models/reviewers/MeetingReviewersModel');
+const MeetingScoresModel = require('../models/reviews/MeetingScoresModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 router.post('/assign', requireAuth, requireRole('super_admin','admin'), async (req, res) => {

@@ -6,7 +6,7 @@
  * Super admins have full access.
  */
 
-const RubricAdminModel = require('../models/RubricAdminModel');
+const RubricAdminModel = require('../models/rubrics/RubricAdminModel');
 const { logger } = require('../utils/logger');
 
 /**

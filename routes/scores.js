@@ -5,8 +5,8 @@
  */
 const express = require('express');
 const router = express.Router();
-const RubricModel = require('../models/RubricModel');
-const MeetingSessionScoresModel = require('../models/MeetingSessionScoresModel');
+const RubricModel = require('../models/rubrics/RubricModel');
+const MeetingSessionScoresModel = require('../models/meetings/MeetingSessionScoresModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // ─── Meeting-Level Scoring Endpoints ───────────────────────────────────────

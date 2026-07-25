@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const { logger } = require('./logger');
-const EmailLogModel = require('../models/EmailLogModel');
+const EmailLogModel = require('../models/email/EmailLogModel');
 
 function getTransport() {
   const host = process.env.SMTP_HOST;

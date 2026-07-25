@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin">
+  <meta name="header-page" content="permissionRubrics">
+  <title>Permission Rubrics — Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css" />
+</head>
+<body class="antialiased font-sans p-2 sm:p-0">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-2">
+        <!-- Header -->
+        <div id="header-placeholder"></div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-violet-500/30 shadow-md shadow-violet-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Admin Users</p>
+                    <p id="totalAdmins" class="text-base font-bold font-sans text-violet-400">0</p>
+                </div>
+                <div class="p-1.5 bg-violet-500/10 text-violet-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-cyan-500/30 shadow-md shadow-cyan-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Active Assignments</p>
+                    <p id="totalAssignments" class="text-base font-bold font-sans text-cyan-400">0</p>
+                </div>
+                <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-emerald-500/30 shadow-md shadow-emerald-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Categories</p>
+                    <p id="totalCategories" class="text-base font-bold font-sans text-emerald-400">0</p>
+                </div>
+                <div class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-amber-500/30 shadow-md shadow-amber-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Avg per Admin</p>
+                    <p id="avgPerAdmin" class="text-base font-bold font-sans text-amber-400">0</p>
+                </div>
+                <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Permission Rubrics Section -->
+        <div class="p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+                <!-- Header with Admin Filter -->
+                <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                            </svg>
+                            <h2 class="text-sm font-semibold text-white">Permission Rubrics</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <!-- Admin Filter -->
+                            <select id="adminFilter" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                <option value="">All Admin Users</option>
+                            </select>
+                            <!-- Category Filter -->
+                            <select id="categoryFilter" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Assignments Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[10px]">
+                        <thead>
+                            <tr class="border-b border-slate-800 bg-slate-800/30">
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Admin User</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Email</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Assigned Categories</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Indicators</th>
+                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800" id="permissionTableBody">
+                            <tr>
+                                <td colspan="5" class="py-4 text-center text-slate-500">Loading permission rubrics...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Assign Section -->
+        <div class="p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+                <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <h2 class="text-sm font-semibold text-white">Quick Assign Rubric Category</h2>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <form id="quickAssignForm" class="flex flex-wrap gap-3 items-end">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Admin User</label>
+                            <select id="quickAdminUserId" required class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[200px]">
+                                <option value="">Select admin user...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Rubric Category</label>
+                            <select id="quickCategoryId" required class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[200px]">
+                                <option value="">Select category...</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded transition">
+                            Assign
+                        </button>
+                    </form>
+                    <div id="quickAssignResult" class="mt-2 text-xs"></div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Assignment Details Modal -->
+    <div id="assignmentDetailModal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-900">
+                <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                    </svg>
+                    <span id="modalDetailTitle">Assignment Details</span>
+                </h3>
+                <button onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="modalDetailBody" class="p-3">
+                <p class="text-slate-400 text-xs">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remove Assignment Confirmation Modal -->
+    <div id="confirmRemoveModal" class="hidden fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow-xl max-w-sm w-full">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                    Remove Assignment
+                </h3>
+                <button onclick="closeRemoveModal()" class="text-slate-400 hover:text-slate-200 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-3">
+                <p id="removeConfirmMessage" class="text-xs text-slate-300 mb-3">Are you sure you want to remove this rubric assignment? This will also delete the admin's custom weightage/value settings.</p>
+                <input type="hidden" id="removeCategoryId" value="">
+                <input type="hidden" id="removeAdminUserId" value="">
+                <div class="flex gap-2">
+                    <button onclick="executeRemove()" class="flex-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded transition">
+                        Yes, Remove
+                    </button>
+                    <button type="button" onclick="closeRemoveModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/people/permission-rubrics.js"></script>
+</body>
+</html>

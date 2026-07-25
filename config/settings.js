@@ -47,13 +47,7 @@ module.exports = {
     protocolTimeout: 180000,
     slowMo: 0,
     ignoreDefaultArgs: ['--mute-audio'],
-    // 🔥 IMPORTANT: isolate profile per mode
-    get userDataDir() {
-      return isGoogleMeetPlatform()
-        ? process.env.CHROME_PROFILE_PATH || "./chrome-profiles"
-        : "./storage/chrome-profiles";
-    },
-    // userDataDir: null,
+    userDataDir: process.env.CHROME_PROFILE_PATH,
 
     get args() {
       return [

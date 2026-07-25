@@ -3,7 +3,7 @@
  *
  */
 const { logger } = require('../../../utils/logger');
-const ParticipantModel = require('../../../models/ParticipantModel');
+const ParticipantModel = require('../../../models/participants/ParticipantModel');
 
 /**
  * ParticipantTracker - Service for managing participant attendance

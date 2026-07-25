@@ -1,0 +1,294 @@
+<!-- root/public/super_admin/monitoring/server.html -->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="super_admin">
+    <meta name="header-page" content="server">
+    <title>Server Performance — RetentionLab</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script src="/js/super_admin/tailwind-config.js"></script>
+    <link rel="stylesheet" href="/css/shared.css">
+</head>
+<body class="antialiased font-sans p-2 sm:p-0">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-2">
+        <!-- Header -->
+        <div id="header-placeholder"></div>
+
+        <!-- KPI Cards Row -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 p-3">
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-indigo-500/30 shadow-md shadow-indigo-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Server Status</p>
+                    <p class="text-base font-bold font-sans flex items-center gap-1">
+                        <span class="relative flex h-1.5 w-1.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" id="statusPing"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" id="statusDot"></span>
+                        </span>
+                        <span id="statusText">ONLINE</span>
+                    </p>
+                </div>
+                <div class="p-1.5 bg-indigo-500/10 text-indigo-400 rounded hidden sm:block">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-cyan-500/30 shadow-md shadow-cyan-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">CPU Usage</p>
+                    <p id="kpiCpuUsage" class="text-base font-bold font-sans text-cyan-400">--</p>
+                </div>
+                <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-violet-500/30 shadow-md shadow-violet-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Memory Usage</p>
+                    <p id="kpiMemoryUsage" class="text-base font-bold font-sans text-violet-400">--</p>
+                </div>
+                <div class="p-1.5 bg-violet-500/10 text-violet-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+            </div>
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-emerald-500/30 shadow-md shadow-emerald-500/5 flex items-center justify-between">
+                <div>
+                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Disk Usage</p>
+                    <p id="kpiDiskUsage" class="text-base font-bold font-sans text-emerald-400">--</p>
+                </div>
+                <div class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded hidden sm:block">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Graphs Section -->
+        <div class="p-3">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                <!-- CPU & Memory Live Graph -->
+                <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                    <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                        </svg>
+                        CPU & Memory Live
+                    </h3>
+                    <div class="relative h-32">
+                        <canvas id="cpuMemChart" class="w-full h-full"></canvas>
+                    </div>
+                    <div class="flex gap-4 mt-1 text-[9px]">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-500"></span> CPU</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-500"></span> Memory</span>
+                    </div>
+                </div>
+
+                <!-- Network Speed Live Graph -->
+                <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                    <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+                        </svg>
+                        Network Speed Live
+                    </h3>
+                    <div class="relative h-32">
+                        <canvas id="networkChart" class="w-full h-full"></canvas>
+                    </div>
+                    <div class="flex gap-4 mt-1 text-[9px]">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Download</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Upload</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric Cards Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-2 p-3">
+            <!-- System Info -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                    System Info
+                </h3>
+                <div class="space-y-1.5 text-[10px]">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Node.js:</span>
+                        <span id="nodeVersion" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Platform:</span>
+                        <span id="platform" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Hostname:</span>
+                        <span id="hostname" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Uptime:</span>
+                        <span id="serverUptime" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">CPU Cores:</span>
+                        <span id="cpuCores" class="text-slate-200 font-mono">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CPU & Memory -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                    </svg>
+                    CPU & Memory
+                </h3>
+                <div class="space-y-2">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-1">
+                            <span class="text-slate-400">CPU Usage</span>
+                            <span id="cpuUsage" class="text-slate-200 font-mono">--</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2">
+                            <div id="cpuUsageBar" class="bg-cyan-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-1">
+                            <span class="text-slate-400">Memory</span>
+                            <span id="memoryUsage" class="text-slate-200 font-mono">--</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2">
+                            <div id="memoryUsageBar" class="bg-violet-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-[9px] mt-0.5">
+                            <span id="memoryUsed" class="text-slate-500">Used: --</span>
+                            <span id="memoryTotal" class="text-slate-500">Total: --</span>
+                        </div>
+                    </div>
+                    <div class="pt-1 border-t border-slate-800">
+                        <p class="text-[9px] font-semibold text-slate-400 uppercase mb-1">Process Memory (Node.js)</p>
+                        <div class="flex justify-between text-[9px]">
+                            <span class="text-slate-500">Heap:</span>
+                            <span id="heapUsed" class="text-slate-400 font-mono">--</span>
+                        </div>
+                        <div class="flex justify-between text-[9px]">
+                            <span class="text-slate-500">RSS:</span>
+                            <span id="rss" class="text-slate-400 font-mono">--</span>
+                        </div>
+                        <div class="flex justify-between text-[9px]">
+                            <span class="text-slate-500">App Storage:</span>
+                            <span id="appStorage" class="text-slate-400 font-mono">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage & Database -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                    </svg>
+                    Storage & Database
+                </h3>
+                <div class="space-y-2">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-1">
+                            <span class="text-slate-400">Disk Storage</span>
+                            <span id="storageUsage" class="text-slate-200 font-mono">--</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2">
+                            <div id="storageUsageBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-[9px] mt-0.5">
+                            <span id="storageUsed" class="text-slate-500">Used: --</span>
+                            <span id="storageTotal" class="text-slate-500">Total: --</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-400">Database Size:</span>
+                        <span id="dbSize" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-400">DB Connections:</span>
+                        <span id="dbConnections" class="text-slate-200 font-mono">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network Speed Live Details & System Load -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-2 p-3">
+            <!-- Network Speed Live Details -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+                    </svg>
+                    Network Speed
+                </h3>
+                <div class="space-y-3">
+                    <!-- Download Speed -->
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-1">
+                            <span class="text-slate-400">Download</span>
+                            <span id="downloadSpeed" class="text-emerald-400 font-mono font-semibold">--</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5">
+                            <div id="downloadSpeedBar" class="bg-emerald-500 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <!-- Upload Speed -->
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-1">
+                            <span class="text-slate-400">Upload</span>
+                            <span id="uploadSpeed" class="text-amber-400 font-mono font-semibold">--</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5">
+                            <div id="uploadSpeedBar" class="bg-amber-500 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-[10px] pt-1 border-t border-slate-800">
+                        <span class="text-slate-400">Total Received:</span>
+                        <span id="bytesReceived" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-400">Total Sent:</span>
+                        <span id="bytesSent" class="text-slate-200 font-mono">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Load -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3">
+                <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    System Load Average
+                </h3>
+                <div class="space-y-1.5 text-[10px]">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">CPU Load:</span>
+                        <span id="load1min" class="text-slate-200 font-mono">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Active Bots:</span>
+                        <span id="kpiActiveBots" class="text-slate-200 font-mono">0 / 50</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/monitoring/server.js"></script>
+</body>
+</html>

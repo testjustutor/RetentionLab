@@ -1,0 +1,429 @@
+<!-- root/public/super_admin/configuration/bot-configuration.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="dashboard-role" content="super_admin">
+  <title>Bot Configuration — RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100 antialiased">
+  <div class="mx-auto p-0">
+    <div id="header-placeholder"></div>
+
+    <!-- Page Header -->
+    <div class="bg-slate-950 border-b border-slate-800 px-4 py-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-bold text-white">Bot Configuration</h1>
+          <p class="text-xs text-slate-400 mt-0.5">Configure puppeteer, audio, screen, and bot behavior settings</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="resetToDefaults()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium transition-colors">
+            Reset to Defaults
+          </button>
+          <button onclick="saveAllSettings()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium transition-colors">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Sections -->
+    <div class="p-3 space-y-3">
+
+      <!-- ============================================ -->
+      <!-- 1. PUPPETEER CONFIGURATION                   -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-violet-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-violet-500/30 bg-violet-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Puppeteer Configuration
+          </h2>
+          <p class="text-[10px] text-violet-300 mt-1">Browser automation and Chrome settings</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">defaultViewport</label>
+              <input type="text" id="defaultViewport" value="null" placeholder="null"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none font-mono">
+              <p class="text-[10px] text-slate-500 mt-1">Default viewport (null for auto)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">protocolTimeout</label>
+              <input type="number" id="protocolTimeout" value="180000" min="60000" max="600000"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Protocol timeout in milliseconds</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">slowMo</label>
+              <input type="number" id="slowMo" value="0" min="0" max="5000"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Slow down operations (ms)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">ignoreDefaultArgs</label>
+              <input type="text" id="ignoreDefaultArgs" value="--mute-audio" placeholder="e.g., --mute-audio"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none font-mono">
+              <p class="text-[10px] text-slate-500 mt-1">Args to ignore (comma-separated)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">userDataDir</label>
+              <input type="text" id="userDataDir" value="./storage/chrome-profiles" placeholder="./chrome-profiles"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none font-mono">
+              <p class="text-[10px] text-slate-500 mt-1">Chrome profile directory</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">headless</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Run without visible window</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="headlessMode" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chrome Args -->
+          <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+            <label class="block text-xs font-semibold text-slate-300 mb-2">args (Chrome Launch Arguments)</label>
+            <textarea id="chromeArgs" rows="10" readonly
+              class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-slate-400 outline-none font-mono cursor-not-allowed select-none">--start-maximized
+--use-fake-ui-for-media-stream
+--disable-notifications
+--no-sandbox
+--disable-setuid-sandbox
+--disable-permissions-api
+--disable-features=TranslateUI
+--disable-features=ExternalProtocolDialog
+--no-default-browser-check
+--disable-popup-blocking
+--auto-select-desktop-capture-source=Tab
+--audio-output-sample-rate=48000
+--audio-buffer-size=4096
+--enable-features=WebRtcAudioProcessing
+--disable-features=WebRtcHideLocalSimulcastSignalingTarget
+--disable-webrtc-hw-encoding
+--disable-webrtc-hw-decoding
+--autoplay-policy=no-user-gesture-required
+--protocol-handler-policy=block-external-protocol-dialogs
+--disable-blink-features=AutomationControlled
+--disable-dev-shm-usage
+--window-size=1920,1080
+--force-webrtc-ip-handling-policy=default_public_interface_only</textarea>
+            <p class="text-[10px] text-slate-500 mt-1">23 Chrome arguments for optimal bot performance</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- 2. AUDIO CONFIGURATION                       -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-rose-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-rose-500/30 bg-rose-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Audio Configuration
+          </h2>
+          <p class="text-[10px] text-rose-300 mt-1">Audio capture, encoding, and enhancement settings</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">deviceName</label>
+              <input type="text" id="audioDeviceName" value="audio=CABLE Output (VB-Audio Virtual Cable)"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-rose-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none font-mono">
+              <p class="text-[10px] text-slate-500 mt-1">Audio device to capture from</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">bitrate</label>
+              <select id="audioBitrate" class="w-full bg-slate-900 border border-slate-700 focus:border-rose-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+                <option value="64k">64 kbps (Low)</option>
+                <option value="128k" selected>128 kbps (Medium)</option>
+                <option value="192k">192 kbps (High)</option>
+                <option value="320k">320 kbps (Very High)</option>
+              </select>
+              <p class="text-[10px] text-slate-500 mt-1">Audio encoding bitrate</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">sampleRate</label>
+              <select id="audioSampleRate" class="w-full bg-slate-900 border border-slate-700 focus:border-rose-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+                <option value="16000">16000 Hz</option>
+                <option value="44100">44100 Hz</option>
+                <option value="48000" selected>48000 Hz</option>
+              </select>
+              <p class="text-[10px] text-slate-500 mt-1">Audio sample rate in Hz</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">channels</label>
+              <select id="audioChannels" class="w-full bg-slate-900 border border-slate-700 focus:border-rose-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+                <option value="1" selected>1 (Mono)</option>
+                <option value="2">2 (Stereo)</option>
+              </select>
+              <p class="text-[10px] text-slate-500 mt-1">Audio channel configuration</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">format</label>
+              <select id="audioFormat" class="w-full bg-slate-900 border border-slate-700 focus:border-rose-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+                <option value="libmp3lame" selected>MP3 (libmp3lame)</option>
+                <option value="aac">AAC</option>
+                <option value="pcm">PCM (WAV)</option>
+              </select>
+              <p class="text-[10px] text-slate-500 mt-1">Audio encoding format</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">enhancementFilters</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Apply FFmpeg audio filters</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="audioEnhancement" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Enhancement Filters -->
+          <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+            <label class="block text-xs font-semibold text-slate-300 mb-2">enhancementFilters (FFmpeg Pipeline)</label>
+            <textarea id="audioFilters" rows="3" readonly
+              class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-slate-400 outline-none font-mono cursor-not-allowed select-none">highpass=f=80, afftdn=nf=-25, loudnorm=I=-16:TP=-1.5:LRA=11, aresample=16000</textarea>
+            <p class="text-[10px] text-slate-500 mt-1">Applied during webm → wav conversion</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- 3. SCREEN CONFIGURATION                      -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-cyan-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-cyan-500/30 bg-cyan-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Screen Configuration
+          </h2>
+          <p class="text-[10px] text-cyan-300 mt-1">Screen recording and video capture settings</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">framerate</label>
+              <input type="number" id="screenFramerate" value="15" min="1" max="30"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Frame rate (fps)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">crf</label>
+              <input type="number" id="screenCrf" value="28" min="18" max="35"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Compression quality (18-35)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- 4. BOT ENGINE SETTINGS                       -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-emerald-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-emerald-500/30 bg-emerald-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Bot Engine Settings
+          </h2>
+          <p class="text-[10px] text-emerald-300 mt-1">Bot orchestration and scheduling behavior</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">Auto-Launch</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Launch bots for scheduled meetings</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="botAutoLaunch" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">Polling Enabled</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Check for queued meetings</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="pollingEnabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Max Concurrent Bots</label>
+              <input type="number" id="maxConcurrentBots" value="50" min="1" max="100"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Max simultaneous bots</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Launch Window</label>
+              <input type="number" id="botLaunchWindow" value="3" min="1" max="10"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Minutes before meeting</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- 5. ERROR HANDLING & RETRIES                  -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-amber-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-amber-500/30 bg-amber-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            Error Handling & Retries
+          </h2>
+          <p class="text-[10px] text-amber-300 mt-1">Retry logic and failure notifications</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Max Retry Attempts</label>
+              <input type="number" id="maxRetries" value="3" min="0" max="10"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Retry failed launches</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Retry Delay</label>
+              <input type="number" id="retryDelay" value="5" min="1" max="60"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Wait between retries (seconds)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">Auto-Retry</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Retry on failure</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="autoRetry" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">Notify on Failure</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Send alert on failure</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="notifyOnFailure" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- 6. ADVANCED SETTINGS                         -->
+      <!-- ============================================ -->
+      <div class="bg-slate-900 border-2 border-cyan-500/30 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-cyan-500/30 bg-cyan-500/10">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+            Advanced Settings
+          </h2>
+          <p class="text-[10px] text-cyan-300 mt-1">Timeout, cleanup, and debugging options</p>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Bot Timeout</label>
+              <input type="number" id="botTimeout" value="300" min="60" max="3600"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Timeout in seconds</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Cleanup Interval</label>
+              <input type="number" id="cleanupInterval" value="24" min="1" max="168"
+                class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded px-2 py-1.5 text-xs text-slate-300 outline-none">
+              <p class="text-[10px] text-slate-500 mt-1">Cleanup frequency (hours)</p>
+            </div>
+
+            <div class="config-card bg-slate-950 border border-slate-800 rounded p-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300">Debug Mode</label>
+                  <p class="text-[10px] text-slate-500 mt-1">Enable verbose logging</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="debugMode">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-3 right-3 bg-slate-800 border border-slate-700 rounded p-3 shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <div class="flex items-center gap-2">
+      <div id="toastIcon"></div>
+      <div>
+        <p id="toastMessage" class="text-xs font-medium"></p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/header.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="/js/super_admin/configuration/bot-configuration.js"></script>
+</body>
+</html>

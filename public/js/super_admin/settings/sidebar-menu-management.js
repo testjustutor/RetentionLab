@@ -1,7 +1,14 @@
+/**
+ * root/public/js/super_admin/settings/sidebar-menu-management.js
+ * Sidebar Menu Management - Super Admin
+ * Manages role-level and user-level menu permissions
+ */
+
 let currentRoleId = null;
+let currentUserId = null;
 let allRoles = [];
+let allUsers = [];
 let currentFlatItems = [];
-let currentAdmins = [];
 
 async function loadRoles() {
   try {
@@ -12,7 +19,9 @@ async function loadRoles() {
     const select = document.getElementById('roleSelector');
     select.innerHTML = '<option value="">Select a role</option>';
     allRoles.forEach(role => {
-      select.innerHTML += '<option value="' + role.id + '">' + role.role_name + '</option>';
+      if (role.role_name !== 'super_admin') {
+        select.innerHTML += '<option value="' + role.id + '">' + role.role_name + '</option>';
+      }
     });
   } catch (err) {
     console.error('Error loading roles:', err);
@@ -20,19 +29,22 @@ async function loadRoles() {
   }
 }
 
-// Wait for DOM to be fully loaded before attaching event listeners
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('roleSelector').addEventListener('change', (e) => {
-      currentRoleId = e.target.value || null;
-      if (currentRoleId) loadMenuItems();
+async function loadUsers() {
+  try {
+    const response = await fetch('/api/users');
+    if (!response.ok) throw new Error('Failed to fetch users');
+    const result = await response.json();
+    allUsers = result.data || result.users || [];
+    const select = document.getElementById('userSelector');
+    select.innerHTML = '<option value="">All Users (Role Defaults)</option>';
+    allUsers.forEach(user => {
+      if (user.role_name !== 'super_admin') {
+        select.innerHTML += '<option value="' + user.id + '">' + (user.first_name || '') + ' ' + (user.last_name || '') + ' (' + user.email + ')</option>';
+      }
     });
-  });
-} else {
-  document.getElementById('roleSelector').addEventListener('change', (e) => {
-    currentRoleId = e.target.value || null;
-    if (currentRoleId) loadMenuItems();
-  });
+  } catch (err) {
+    console.error('Error loading users:', err);
+  }
 }
 
 async function loadMenuItems() {
@@ -41,36 +53,52 @@ async function loadMenuItems() {
     container.innerHTML = '<p class="text-slate-400">Select a role to view its menu items.</p>';
     return;
   }
+
   try {
-    const response = await fetch('/api/sidebar-menu-admin/items/' + currentRoleId);
-    if (!response.ok) throw new Error('Failed to fetch menu items');
-    const result = await response.json();
-    
-    // Extract items from response - API returns { count, flat, tree }
-    let items = [];
-    if (result.flat && Array.isArray(result.flat)) {
-      items = result.flat;
-    } else if (result.data && Array.isArray(result.data)) {
-      items = result.data;
-    } else if (result.items && Array.isArray(result.items)) {
-      items = result.items;
-    } else if (Array.isArray(result)) {
-      items = result;
+    let result;
+
+    if (currentUserId) {
+      // Use resolved view for user - shows role defaults merged with personal overrides
+      const response = await fetch('/api/menu/admin/menu-permissions/resolved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: parseInt(currentUserId) })
+      });
+      if (!response.ok) throw new Error('Failed to fetch resolved user menu');
+      result = await response.json();
+    } else {
+      const response = await fetch('/api/menu/admin/menu-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_id: parseInt(currentRoleId) })
+      });
+      if (!response.ok) throw new Error('Failed to fetch menu items');
+      result = await response.json();
     }
     
-    console.log('API Response:', result);
-    console.log('Parsed items:', items);
-    console.log('Items count:', items.length);
+    if (!result.success || !result.data) {
+      throw new Error('Invalid response format');
+    }
+
+    currentFlatItems = result.data.map(perm => ({
+      id: perm.menu_item_id,
+      menu_id: perm.menu_key,
+      label: perm.label,
+      icon: perm.icon || '',
+      href: perm.route_path || '',
+      is_active: perm.is_visible,
+      display_order: perm.sort_order,
+      parent_id: perm.parent_id,
+      // For resolved view - track override status
+      is_overridden: perm.is_overridden || false,
+      role_default_visible: perm.role_default_visible
+    }));
     
-    currentFlatItems = items;
-    
-    // Render both views
     renderMenuTree();
     renderFlatTable();
     
-    // Show message if no items
-    if (items.length === 0) {
-      container.innerHTML = '<p class="text-slate-400">No menu items found for this role. Click "Reset" to load default menu items.</p>';
+    if (currentFlatItems.length === 0) {
+      container.innerHTML = '<p class="text-slate-400">No menu items found. Click "Reset" to load default menu items.</p>';
     }
   } catch (err) {
     console.error('Error loading menu items:', err);
@@ -94,7 +122,8 @@ function renderMenuTree() {
 }
 
 function renderMenuItem(item, depth) {
-  const hasChildren = currentFlatItems.some(i => i.parent_id === item.menu_id);
+  const children = currentFlatItems.filter(i => parseInt(i.parent_id) === parseInt(item.id));
+  const hasChildren = children.length > 0;
   const indent = depth * 20;
   let html = '<div class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-800/30 rounded">';
   html += '<div style="margin-left: ' + indent + 'px" class="flex-1 flex items-center gap-2">';
@@ -108,11 +137,10 @@ function renderMenuItem(item, depth) {
   html += '</div>';
   html += '<div class="flex gap-1">';
   html += '<button class="text-[10px] text-indigo-400 hover:text-indigo-600" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-  html += '<button class="text-[10px] text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Delete</button>';
+  html += '<button class="text-[10px] text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
   html += '</div></div>';
   
   if (hasChildren) {
-    const children = currentFlatItems.filter(i => i.parent_id === item.menu_id);
     children.forEach(child => {
       html += renderMenuItem(child, depth + 1);
     });
@@ -121,23 +149,13 @@ function renderMenuItem(item, depth) {
 }
 
 function showAddForm() {
-  if (!currentRoleId) { alert('Select a role first.'); return; }
-  document.getElementById('modalTitle').textContent = 'Add Menu Item';
-  document.getElementById('modalEditId').value = '';
-  document.getElementById('modalMenuId').value = '';
-  document.getElementById('modalLabel').value = '';
-  document.getElementById('modalIcon').value = '';
-  document.getElementById('modalHref').value = '';
-  document.getElementById('modalDisplayOrder').value = '0';
-  document.getElementById('modalIsActive').checked = true;
-  populateParentDropdown(null);
-  document.getElementById('modalOverlay').classList.remove('hidden');
+  alert('To add new menu items, use the database seeder. This page manages visibility and ordering.');
 }
 
 function editMenuItem(menuId) {
   const item = currentFlatItems.find(i => i.menu_id === menuId);
   if (!item) return;
-  document.getElementById('modalTitle').textContent = 'Edit Menu Item';
+  document.getElementById('modalTitle').textContent = 'Edit Menu Item Visibility';
   document.getElementById('modalEditId').value = item.id;
   document.getElementById('modalMenuId').value = item.menu_id;
   document.getElementById('modalLabel').value = item.label;
@@ -145,101 +163,7 @@ function editMenuItem(menuId) {
   document.getElementById('modalHref').value = item.href || '';
   document.getElementById('modalDisplayOrder').value = item.display_order || 0;
   document.getElementById('modalIsActive').checked = item.is_active !== 0;
-  populateParentDropdown(item.menu_id);
   document.getElementById('modalOverlay').classList.remove('hidden');
-}
-
-function populateParentDropdown(excludeMenuId) {
-  const select = document.getElementById('modalParentId');
-  select.innerHTML = '<option value="">None (top-level item)</option>';
-  currentFlatItems.forEach(item => {
-    if (item.menu_id !== excludeMenuId) {
-      select.innerHTML += '<option value="' + item.menu_id + '">' + item.label + ' (' + item.menu_id + ')</option>';
-    }
-  });
-}
-
-// Wait for DOM to be fully loaded before attaching modal form listener
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('modalForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const editId = document.getElementById('modalEditId').value;
-      const menuId = document.getElementById('modalMenuId').value.trim();
-      const label = document.getElementById('modalLabel').value.trim();
-      const parentId = document.getElementById('modalParentId').value || null;
-      const icon = document.getElementById('modalIcon').value.trim() || null;
-      const href = document.getElementById('modalHref').value.trim() || null;
-      const displayOrder = parseInt(document.getElementById('modalDisplayOrder').value) || 0;
-      const isActive = document.getElementById('modalIsActive').checked;
-
-      try {
-        if (editId) {
-          const resp = await fetch('/api/sidebar-menu-admin/items/' + editId, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label, icon, href, parent_id: parentId, display_order: displayOrder, is_active: isActive })
-          });
-          if (!resp.ok) throw new Error('Update failed');
-          alert('Menu item updated!');
-        } else {
-          const resp = await fetch('/api/sidebar-menu-admin/items/' + currentRoleId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ menu_id: menuId, parent_id: parentId, label, icon, href, display_order: displayOrder, is_active: isActive })
-          });
-          if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.error || 'Create failed');
-          }
-          alert('Menu item created!');
-        }
-        closeModal();
-        loadMenuItems();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    });
-  });
-} else {
-  document.getElementById('modalForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const editId = document.getElementById('modalEditId').value;
-    const menuId = document.getElementById('modalMenuId').value.trim();
-    const label = document.getElementById('modalLabel').value.trim();
-    const parentId = document.getElementById('modalParentId').value || null;
-    const icon = document.getElementById('modalIcon').value.trim() || null;
-    const href = document.getElementById('modalHref').value.trim() || null;
-    const displayOrder = parseInt(document.getElementById('modalDisplayOrder').value) || 0;
-    const isActive = document.getElementById('modalIsActive').checked;
-
-    try {
-      if (editId) {
-        const resp = await fetch('/api/sidebar-menu-admin/items/' + editId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ label, icon, href, parent_id: parentId, display_order: displayOrder, is_active: isActive })
-        });
-        if (!resp.ok) throw new Error('Update failed');
-        alert('Menu item updated!');
-      } else {
-        const resp = await fetch('/api/sidebar-menu-admin/items/' + currentRoleId, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ menu_id: menuId, parent_id: parentId, label, icon, href, display_order: displayOrder, is_active: isActive })
-        });
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.error || 'Create failed');
-        }
-        alert('Menu item created!');
-      }
-      closeModal();
-      loadMenuItems();
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
-  });
 }
 
 function deleteMenuItem(menuId) {
@@ -248,11 +172,31 @@ function deleteMenuItem(menuId) {
 }
 
 async function deleteMenuItemById(id) {
-  if (!confirm('Delete this menu item? Children will also be removed.')) return;
+  if (!confirm('Hide this menu item?')) return;
   try {
-    const resp = await fetch('/api/sidebar-menu-admin/items/' + id, { method: 'DELETE' });
-    if (!resp.ok) throw new Error('Delete failed');
-    alert('Menu item deleted!');
+    const permissions = currentFlatItems.map(item => ({
+      menu_item_id: item.id,
+      is_visible: item.id === id ? false : item.is_active !== 0,
+      sort_order: item.display_order || 0
+    }));
+
+    let resp;
+    if (currentUserId) {
+      resp = await fetch('/api/menu/admin/menu-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: parseInt(currentUserId), overrides: permissions })
+      });
+    } else {
+      resp = await fetch('/api/menu/admin/menu-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
+      });
+    }
+
+    if (!resp.ok) throw new Error('Update failed');
+    alert('Menu item hidden');
     loadMenuItems();
   } catch (err) {
     alert('Error: ' + err.message);
@@ -261,83 +205,20 @@ async function deleteMenuItemById(id) {
 
 async function reseedMenu() {
   if (!currentRoleId) { alert('Select a role first.'); return; }
-  if (!confirm('This will replace ALL menu items for this role with the default structure. Continue?')) return;
-  
-  const role = allRoles.find(r => r.id === currentRoleId);
-  if (!role) { alert('Role not found'); return; }
-  
-  const defaultMenus = {
-    super_admin: [
-      { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/index.html', submenu: null },
-      { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management.html', submenu: null },
-      { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management.html', submenu: null },
-      { id: 'content', label: 'Content Management', icon: 'folder', href: null, submenu: [
-        { id: 'archives', label: 'Archives', href: '/super_admin/archives.html' },
-        { id: 'assets', label: 'Assets', href: '/super_admin/assets.html' },
-        { id: 'audit', label: 'Audit Log', href: '/super_admin/audit.html' }
-      ]},
-      { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
-        { id: 'add-user', label: 'Add User', href: '/super_admin/add-user.html' },
-        { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users.html' },
-        { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access.html' }
-      ]},
-      { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
-        { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot.html' },
-        { id: 'settings', label: 'Settings', href: '/super_admin/settings.html' },
-        { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' },
-        { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings.html' }
-      ]}
-    ],
-    admin: [
-      { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/admin/index.html', submenu: null },
-      { id: 'rubric-management', label: 'My Rubric', icon: 'clipboard', href: '/admin/rubric-management.html', submenu: null },
-      { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-        { id: 'calendar-accounts', label: 'Accounts', href: '/admin/calendar-accounts.html' },
-        { id: 'calendar-events', label: 'Events', href: '/admin/calendar-events.html' }
-      ]},
-      { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-        { id: 'archives', label: 'Archives', href: '/admin/archives.html' }
-      ]},
-      { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-        { id: 'profile', label: 'Profile', href: '/admin/profile.html' },
-        { id: 'settings', label: 'Settings', href: '/admin/settings.html' }
-      ]}
-    ],
-    reviewer: [
-      { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/index.html', submenu: null },
-      { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-        { id: 'calendar-accounts', label: 'Accounts', href: '/reviewer/calendar-accounts.html' },
-        { id: 'calendar-events', label: 'Events', href: '/reviewer/calendar-events.html' }
-      ]},
-      { id: 'content', label: 'Archives', icon: 'folder', href: '/reviewer/archives.html', submenu: null },
-      { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-        { id: 'profile', label: 'Profile', href: '/reviewer/profile.html' },
-        { id: 'settings', label: 'Settings', href: '/reviewer/settings.html' }
-      ]}
-    ],
-    instructor: [
-      { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', submenu: null },
-      { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-        { id: 'calendar-accounts', label: 'My Calendar', href: '/instructor/calendar-accounts.html' },
-        { id: 'calendar-events', label: 'Events', href: '/instructor/calendar-events.html' }
-      ]},
-      { id: 'content', label: 'Archives', icon: 'folder', href: '/instructor/archives.html', submenu: null },
-      { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-        { id: 'profile', label: 'Profile', href: '/instructor/profile.html' },
-        { id: 'settings', label: 'Settings', href: '/instructor/settings.html' }
-      ]}
-    ]
-  };
-
-  const menuItems = defaultMenus[role.role_name] || defaultMenus.instructor;
+  if (!confirm('This will reset all menu permissions for this role to defaults. Continue?')) return;
   
   try {
-    const resp = await fetch('/api/sidebar-menu-admin/reseed/' + currentRoleId, {
+    const resp = await fetch('/api/menu/admin/menu-permissions/reseed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ menuItems })
+      body: JSON.stringify({ role_id: parseInt(currentRoleId) })
     });
-    if (!resp.ok) throw new Error('Reseed failed');
+    
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Reseed failed');
+    }
+    
     alert('Menu reset to defaults!');
     loadMenuItems();
   } catch (err) {
@@ -364,7 +245,7 @@ function renderFlatTable() {
   html += '</tr></thead><tbody class="divide-y divide-slate-800">';
   
   currentFlatItems.forEach(item => {
-    const parent = currentFlatItems.find(i => i.menu_id === item.parent_id);
+    const parent = currentFlatItems.find(i => parseInt(i.id) === parseInt(item.parent_id));
     const parentLabel = parent ? parent.label : 'None';
     const status = item.is_active !== 0 ? '<span class="text-green-400">Active</span>' : '<span class="text-red-400">Inactive</span>';
     
@@ -377,7 +258,7 @@ function renderFlatTable() {
     html += '<td class="px-3 py-2">' + status + '</td>';
     html += '<td class="px-3 py-2">';
     html += '<button class="text-indigo-400 hover:text-indigo-600 mr-2" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-    html += '<button class="text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Delete</button>';
+    html += '<button class="text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
     html += '</td></tr>';
   });
   
@@ -389,4 +270,85 @@ function closeModal() {
   document.getElementById('modalOverlay').classList.add('hidden');
 }
 
-loadRoles();
+function saveModalForm() {
+  const editId = document.getElementById('modalEditId').value;
+  const displayOrder = parseInt(document.getElementById('modalDisplayOrder').value) || 0;
+  const isActive = document.getElementById('modalIsActive').checked;
+
+  const permissions = currentFlatItems.map(item => ({
+    menu_item_id: item.id,
+    is_visible: item.id === parseInt(editId) ? isActive : item.is_active !== 0,
+    sort_order: item.id === parseInt(editId) ? displayOrder : (item.display_order || 0)
+  }));
+
+  savePermissions(permissions);
+}
+
+async function savePermissions(permissions) {
+  try {
+    let resp;
+    if (currentUserId) {
+      resp = await fetch('/api/menu/admin/menu-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: parseInt(currentUserId), overrides: permissions })
+      });
+    } else {
+      resp = await fetch('/api/menu/admin/menu-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
+      });
+    }
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Save failed');
+    }
+
+    alert('Menu permissions saved!');
+    closeModal();
+    loadMenuItems();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+function init() {
+  attachEventListeners();
+  loadRoles();
+  loadUsers();
+}
+
+function attachEventListeners() {
+  document.getElementById('roleSelector').addEventListener('change', async (e) => {
+    currentRoleId = e.target.value || null;
+    currentUserId = null;
+    document.getElementById('userSelector').value = '';
+    if (currentRoleId) {
+      await loadMenuItems();
+    } else {
+      currentFlatItems = [];
+      renderMenuTree();
+      renderFlatTable();
+    }
+  });
+
+  document.getElementById('userSelector').addEventListener('change', async (e) => {
+    currentUserId = e.target.value || null;
+    if (currentRoleId) {
+      await loadMenuItems();
+    }
+  });
+
+  document.getElementById('modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveModalForm();
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

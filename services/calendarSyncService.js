@@ -5,8 +5,8 @@
 
 const { google } = require('googleapis');
 const { db } = require('../database/db');
-const CalendarUsersModel = require('../models/CalendarUsersModel');
-const MeetingsModel = require('../models/MeetingModel');
+const CalendarUsersModel = require('../models/calendar/CalendarUsersModel');
+const MeetingsModel = require('../models/meetings/MeetingModel');
 const { logger } = require('../utils/logger');
 
 /**

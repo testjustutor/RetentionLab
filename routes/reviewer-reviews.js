@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const ctrl = require('../controllers/reviewerReviewsController');
+const ctrl = require('../controllers/reviewers/reviewerReviewsController');
 
 function handle(fn) {
   return (req, res) => fn(req).then(r => res.status(r.statusCode || (r.success === false ? 400 : 200)).json(r));

@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const instructorDashboardController = require('../controllers/instructorDashboardController');
+const instructorDashboardController = require('../controllers/instructor-dashboard/instructorDashboardController');
 
 router.use(requireAuth);
 

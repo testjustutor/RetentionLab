@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
-const roleController = require('../controllers/roleController');
+const roleController = require('../controllers/roles/roleController');
 
 function handle(fn) {
   return (req, res) => {

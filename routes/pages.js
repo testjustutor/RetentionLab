@@ -242,7 +242,7 @@ router.get('/:page', pageAuth, (req, res, next) => {
   if (page.startsWith('api') || page.startsWith('storage')) return next();
   
   // Safe list of root pages that need auth
-  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events', 'calendar-integrations'];
+  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events'];
   
   if (safeRootPages.includes(page)) {
     serveHTML(req, res, `${page}.html`);

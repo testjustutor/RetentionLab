@@ -9,7 +9,7 @@
 
 const { logger } = require('../../../utils/logger');
 const SocraticBot = require('../../socraticbot');
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const botManager = require('../../shared/botManager');
 const settings = require('../../../config/settings');
 

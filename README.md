@@ -112,11 +112,13 @@ tail -f logs/combined.log | grep "👥\|🔍\|✅"
 ## To install npm 
 
     npm install -g npm
+    npm install -g pm2  
 
 
 ## To install Seeder data
 
     npm run db:init
+    npm run db:migrate
     npm run db:seed
 
 ## Mail setup for calendar verification

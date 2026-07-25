@@ -852,6 +852,52 @@ input[type="radio"] {
   border: 1px solid var(--radio-border);
 }
 
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #334155;
+  transition: 0.3s;
+  border-radius: 18px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #7c3aed;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(14px);
+}
+
 /* ==========================================
    TABLES
    ========================================== */
@@ -924,6 +970,67 @@ th.sortable.active {
   color: var(--table-sort-icon-active);
 }
 
+
+/* ==========================================
+   SIDEBAR ICON COLOR CLASSES
+   (centralized — icon name maps to color)
+   ========================================== */
+
+/* Each icon name used in the sidebar menu gets its own color.
+   These classes are applied to .sidebar-icon by the JS renderer.
+   To add a new icon with color, just add the icon name to sidebar.js
+   icons map and add a matching class here. */
+
+.sidebar-icon-color-grid { color: #22d3ee; }        /* cyan-400 - Dashboard */
+.sidebar-icon-color-settings { color: #a78bfa; }    /* violet-400 - Operations */
+.sidebar-icon-color-folder { color: #fbbf24; }      /* amber-400 - Content */
+.sidebar-icon-color-shield { color: #34d399; }      /* emerald-400 - System */
+.sidebar-icon-color-calendar { color: #f472b6; }    /* pink-400 - Schedules */
+.sidebar-icon-color-user { color: #60a5fa; }        /* blue-400 - Users */
+.sidebar-icon-color-users { color: #818cf8; }       /* indigo-400 */
+.sidebar-icon-color-star { color: #fbbf24; }        /* amber-400 - Favorites */
+.sidebar-icon-color-zap { color: #f59e0b; }         /* amber-500 */
+.sidebar-icon-color-bar-chart { color: #34d399; }   /* emerald-400 - Reports */
+.sidebar-icon-color-archive { color: #a78bfa; }     /* violet-400 - Archives */
+.sidebar-icon-color-clipboard { color: #f472b6; }   /* pink-400 */
+.sidebar-icon-color-list { color: #94a3b8; }        /* slate-400 */
+.sidebar-icon-color-chevron { color: #475569; }     /* slate-600 */
+.sidebar-icon-color-building { color: #f59e0b; }    /* amber-500 - Organization */
+.sidebar-icon-color-link { color: #22d3ee; }         /* cyan-400 */
+.sidebar-icon-color-lock { color: #f472b6; }         /* pink-400 - Security */
+.sidebar-icon-color-activity { color: #34d399; }     /* emerald-400 */
+.sidebar-icon-color-database { color: #818cf8; }    /* indigo-400 */
+.sidebar-icon-color-check-circle { color: #34d399; } /* emerald-400 */
+.sidebar-icon-color-menu { color: #94a3b8; }        /* slate-400 */
+.sidebar-icon-color-video { color: #f472b6; }        /* pink-400 */
+.sidebar-icon-color-file-text { color: #60a5fa; }   /* blue-400 */
+.sidebar-icon-color-lightbulb { color: #fbbf24; }   /* amber-400 */
+.sidebar-icon-color-bell { color: #f59e0b; }        /* amber-500 */
+.sidebar-icon-color-summary { color: #a78bfa; }     /* violet-400 */
+.sidebar-icon-color-globe { color: #22d3ee; }        /* cyan-400 */
+.sidebar-icon-color-monitor { color: #34d399; }      /* emerald-400 */
+.sidebar-icon-color-trending { color: #f59e0b; }     /* amber-500 */
+.sidebar-icon-color-server { color: #818cf8; }       /* indigo-400 */
+.sidebar-icon-color-people { color: #60a5fa; }       /* blue-400 */
+.sidebar-icon-color-layout { color: #a78bfa; }      /* violet-400 */
+.sidebar-icon-color-refresh { color: #34d399; }     /* emerald-400 */
+.sidebar-icon-color-download { color: #22d3ee; }    /* cyan-400 */
+.sidebar-icon-color-upload { color: #f59e0b; }      /* amber-500 */
+.sidebar-icon-color-eye { color: #60a5fa; }          /* blue-400 */
+.sidebar-icon-color-message { color: #f472b6; }      /* pink-400 */
+.sidebar-icon-color-award { color: #fbbf24; }        /* amber-400 */
+.sidebar-icon-color-clock { color: #818cf8; }        /* indigo-400 */
+.sidebar-icon-color-trash { color: #f87171; }        /* red-400 */
+.sidebar-icon-color-edit { color: #34d399; }         /* emerald-400 */
+.sidebar-icon-color-plus { color: #22d3ee; }         /* cyan-400 */
+
+/* Hover state: increase brightness/opacity */
+.sidebar-icon:hover .sidebar-icon-color-grid { color: #67e8f9; }
+.sidebar-icon:hover .sidebar-icon-color-settings { color: #c4b5fd; }
+.sidebar-icon:hover .sidebar-icon-color-folder { color: #fcd34d; }
+.sidebar-icon:hover .sidebar-icon-color-shield { color: #6ee7b7; }
+.sidebar-icon:hover .sidebar-icon-color-calendar { color: #f9a8d4; }
+.sidebar-icon:hover .sidebar-icon-color-user { color: #93c5fd; }
 
 /* ==========================================
     SIDEBAR NAVIGATION
@@ -1217,6 +1324,24 @@ th.sortable.active {
   background-color: var(--color-accent-light) !important;
   font-weight: 600 !important;
   border-left-color: var(--sidebar-active-border);
+}
+
+/* Logout Link Styling */
+.menu-link.logout-link {
+  color: #f87171 !important;
+}
+
+.menu-link.logout-link:hover {
+  background-color: rgba(248, 113, 113, 0.1) !important;
+  color: #fca5a5 !important;
+}
+
+.menu-link.logout-link .sidebar-icon {
+  color: #f87171 !important;
+}
+
+.menu-link.logout-link:hover .sidebar-icon {
+  color: #fca5a5 !important;
 }
 
 /* Sidebar Footer */
