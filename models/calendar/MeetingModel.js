@@ -142,14 +142,14 @@ class MeetingModel {
       const params = [...emails, futureStr];
 
       db.all(
-        `SELECT m.title, m.start_time, m.end_time, m.platform, m.calendar_account, 
+        `SELECT m.title, m.scheduled_start_time, m.scheduled_end_time, m.platform, m.calendar_account, 
                 u.first_name, u.last_name, r.role_name 
          FROM meetings m 
          LEFT JOIN users u ON u.email = m.calendar_account 
          LEFT JOIN roles r ON r.id = u.role_id 
          WHERE LOWER(m.calendar_account) IN (${placeholders}) 
-           AND m.start_time <= ?
-         ORDER BY m.start_time ASC`,
+           AND m.scheduled_start_time <= ?
+         ORDER BY m.scheduled_start_time ASC`,
         params,
         (err, rows) => {
           if (err) return reject(err);
@@ -165,7 +165,7 @@ class MeetingModel {
       const now = Date.now();
       const placeholders = emails.map(() => '?').join(',');
       db.all(
-        `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.start_time ASC`,
+        `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.scheduled_start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.scheduled_start_time ASC`,
         emails,
         (err, rows) => {
           if (err) return reject(err);
@@ -186,14 +186,14 @@ class MeetingModel {
         // Filtered by specific emails
         const placeholders = emails.map(() => '?').join(',');
         db.all(
-          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.start_time IS NOT NULL AND m.end_time <= ? AND m.end_time >= ? ORDER BY m.start_time DESC`,
+          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.scheduled_start_time IS NOT NULL AND m.scheduled_end_time <= ? AND m.scheduled_end_time >= ? ORDER BY m.scheduled_start_time DESC`,
           [...emails, now, lookback],
           (err, rows) => err ? reject(err) : resolve(rows || [])
         );
       } else {
         // All users — no email filter
         db.all(
-          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.start_time IS NOT NULL AND m.end_time <= ? AND m.end_time >= ? ORDER BY m.start_time DESC`,
+          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.scheduled_start_time IS NOT NULL AND m.scheduled_end_time <= ? AND m.scheduled_end_time >= ? ORDER BY m.scheduled_start_time DESC`,
           [now, lookback],
           (err, rows) => err ? reject(err) : resolve(rows || [])
         );
@@ -232,7 +232,7 @@ class MeetingModel {
 
   static getUserStats() {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT ci.id, u.email, ci.provider, ci.token_expiry, ci.status, ci.created_at, ci.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.start_time IS NOT NULL AND m.end_time IS NOT NULL THEN CAST((julianday(m.end_time) - julianday(m.start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = u.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.end_time ELSE NULL END) AS last_meeting_at FROM calendar_integrations ci LEFT JOIN users u ON u.id = ci.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN meetings m ON m.calendar_account = u.email GROUP BY ci.id ORDER BY u.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
+      db.all(`SELECT ci.id, u.email, ci.provider, ci.token_expiry, ci.status, ci.created_at, ci.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.scheduled_start_time IS NOT NULL AND m.scheduled_end_time IS NOT NULL THEN CAST((julianday(m.scheduled_end_time) - julianday(m.scheduled_start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = u.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.scheduled_end_time ELSE NULL END) AS last_meeting_at FROM calendar_integrations ci LEFT JOIN users u ON u.id = ci.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN meetings m ON m.calendar_account = u.email GROUP BY ci.id ORDER BY u.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
     });
   }
 }

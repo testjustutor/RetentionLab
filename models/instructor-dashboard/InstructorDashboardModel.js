@@ -69,7 +69,7 @@ class InstructorDashboardModel {
     try {
       return await new Promise((resolve, reject) => {
         db.all(
-          `SELECT m.meeting_id, m.title, m.platform, m.start_time, m.status, ma.oqi_score
+          `SELECT m.meeting_id, m.title, m.platform, m.scheduled_start_time, m.status, ma.oqi_score
            FROM meetings m
            LEFT JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
            WHERE m.owner_user_id = ?
@@ -89,11 +89,11 @@ class InstructorDashboardModel {
     try {
       return await new Promise((resolve, reject) => {
         db.all(
-          `SELECT m.start_time, ma.oqi_score
+          `SELECT m.scheduled_start_time, ma.oqi_score
            FROM meetings m
            JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
            WHERE m.owner_user_id = ? AND ma.oqi_score IS NOT NULL
-           ORDER BY m.start_time DESC
+           ORDER BY m.scheduled_start_time DESC
            LIMIT ?`,
           [userId, limit],
           (err, rows) => err ? reject(err) : resolve(rows || [])
