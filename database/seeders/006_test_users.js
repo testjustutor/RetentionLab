@@ -65,3 +65,16 @@ const seedTestUsers = async () => {
 };
 
 module.exports = { seedTestUsers };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedTestUsers()
+    .then(() => {
+      console.log('[Seed] ✓ Test users seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Test users seeder failed:', err);
+      process.exit(1);
+    });
+}

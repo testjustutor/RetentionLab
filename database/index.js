@@ -20,7 +20,6 @@ const { seedHeaderConfigs } = require('./seeders/015_header_configs');
 const { seedCalendarProviders } = require('./seeders/016_calendar_providers');
 const { seedMenuItems } = require('./seeders/017_menu_items');
 const { seedRoleMenuPermissions } = require('./seeders/018_role_menu_permissions');
-const { seedUserMenuPermissions } = require('./seeders/019_user_menu_permissions');
 
 const runSeeder = async () => {
     console.log('🚀 Starting database seeding...\n');
@@ -111,14 +110,9 @@ const runSeeder = async () => {
     console.log('✅ Menu items seeded\n');
 
     // Step 17: Seed role menu permissions
-    console.log('🔐 Step 17/18: Seeding role menu permissions...');
+    console.log('🔐 Step 17/17: Seeding role menu permissions...');
     await seedRoleMenuPermissions();
     console.log('✅ Role menu permissions seeded\n');
-
-    // Step 18: Seed user menu permissions
-    console.log('👤 Step 18/18: Seeding user menu permissions...');
-    await seedUserMenuPermissions();
-    console.log('✅ User menu permissions seeded\n');
 
     console.log('🎉 Database seeding completed successfully!');
 };
@@ -143,5 +137,4 @@ module.exports = {
     seedCalendarProviders,
     seedMenuItems,
     seedRoleMenuPermissions,
-    seedUserMenuPermissions,
 };

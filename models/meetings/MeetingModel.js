@@ -14,8 +14,8 @@ const run = (sql, params = []) => new Promise((resolve, reject) => {
 
 class MeetingModel {
   static async createMeeting(meetingData) {
-    const sql = `INSERT INTO meetings (meeting_id, platform, passcode, event_id, calendar_account, 
-      meeting_link, timezone, start_time, end_time, title, 
+    const sql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, 
+      meeting_link, timezone, scheduled_start_time, scheduled_end_time, title, 
       status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
 
@@ -64,19 +64,19 @@ class MeetingModel {
           }
           if (failedStatuses.includes(row.status)) {
             db.run(
-              `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+              `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
               [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, reset: true, ...meetingData }); });
           } else {
             // Update existing meeting with fresh data from calendar sync
             db.run(
-              `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, start_time = ?, end_time = ?, title = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+              `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, scheduled_end_time = ?, title = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
               [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.endTime || null, meetingData.title, meetingData.timezone || null, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, updated: true, ...meetingData }); }
             );
           }
         } else {
-          const insertSql = `INSERT INTO meetings (meeting_id, platform, passcode, event_id, calendar_account, meeting_link, start_time, title, end_time, timezone, status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+          const insertSql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, meeting_link, scheduled_start_time, title, scheduled_end_time, timezone, status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
           const insertParams = [
             meetingData.meetingId, meetingData.platform, meetingData.passcode || null, meetingData.eventId,
             meetingData.account, meetingData.meetingLink, meetingData.startTime, meetingData.title,
@@ -142,14 +142,14 @@ class MeetingModel {
       const params = [...emails, futureStr];
 
       db.all(
-        `SELECT m.title, m.start_time, m.end_time, m.platform, m.calendar_account, 
+        `SELECT m.title, m.scheduled_start_time, m.scheduled_end_time, m.platform, m.calendar_account, 
                 u.first_name, u.last_name, r.role_name 
          FROM meetings m 
          LEFT JOIN users u ON u.email = m.calendar_account 
          LEFT JOIN roles r ON r.id = u.role_id 
          WHERE LOWER(m.calendar_account) IN (${placeholders}) 
-           AND m.start_time <= ?
-         ORDER BY m.start_time ASC`,
+           AND m.scheduled_start_time <= ?
+         ORDER BY m.scheduled_start_time ASC`,
         params,
         (err, rows) => {
           if (err) return reject(err);
@@ -165,11 +165,109 @@ class MeetingModel {
       const now = Date.now();
       const placeholders = emails.map(() => '?').join(',');
       db.all(
-        `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.start_time ASC`,
+        `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.scheduled_start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.scheduled_start_time ASC`,
         emails,
         (err, rows) => {
           if (err) return reject(err);
-          const filtered = (rows || []).filter(r => { const start = new Date(r.start_time).getTime(); const end = r.end_time ? new Date(r.end_time).getTime() : Infinity; return start <= now && end >= now; });
+          // Include meetings that are:
+          // 1. Currently active (start <= now && end >= now)
+          // 2. Starting within the next 10 minutes (start <= now + 10min) - for launch
+          // 3. Started within the last 30 minutes (to account for delayed end_time updates)
+          const filterStart = now - 30 * 60 * 1000; // 30 minutes ago
+          const filterEnd = now + 10 * 60 * 1000;   // 10 minutes from now
+          
+          // Helper function to convert timezone-aware datetime to UTC timestamp
+          const convertToUTC = (dateStr, timezone) => {
+            if (!dateStr) return null;
+            
+            let year, month, day, hour, minute, second;
+            
+            // Handle different input types
+            if (dateStr instanceof Date) {
+              // If it's already a Date object, extract components
+              year = dateStr.getUTCFullYear();
+              month = dateStr.getUTCMonth() + 1;
+              day = dateStr.getUTCDate();
+              hour = dateStr.getUTCHours();
+              minute = dateStr.getUTCMinutes();
+              second = dateStr.getUTCSeconds();
+            } else if (typeof dateStr === 'string') {
+              // Parse datetime components from string (format: "YYYY-MM-DD HH:MM:SS" or ISO format)
+              let datePart, timePart;
+              
+              // Check if it's ISO format (contains 'T')
+              if (dateStr.includes('T')) {
+                const isoDate = new Date(dateStr);
+                year = isoDate.getUTCFullYear();
+                month = isoDate.getUTCMonth() + 1;
+                day = isoDate.getUTCDate();
+                hour = isoDate.getUTCHours();
+                minute = isoDate.getUTCMinutes();
+                second = isoDate.getUTCSeconds();
+              } else {
+                // Format: "YYYY-MM-DD HH:MM:SS"
+                [datePart, timePart] = dateStr.split(' ');
+                [year, month, day] = datePart.split('-').map(Number);
+                [hour, minute, second = 0] = (timePart || '00:00:00').split(':').map(Number);
+              }
+            } else {
+              // Unknown format, try to convert to Date
+              const date = new Date(dateStr);
+              if (isNaN(date.getTime())) return null;
+              return date.getTime();
+            }
+            
+            // If no timezone, treat as UTC
+            if (!timezone) {
+              return Date.UTC(year, month - 1, day, hour, minute, second);
+            }
+            
+            try {
+              // Create a timestamp treating the input as UTC
+              const asUTC = Date.UTC(year, month - 1, day, hour, minute, second);
+              const tempDate = new Date(asUTC);
+              
+              // Format this UTC time in the target timezone to see what wall-clock time it represents
+              const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+              });
+              
+              const parts = formatter.formatToParts(tempDate);
+              const getPart = (type) => parts.find(p => p.type === type)?.value || '00';
+              
+              const tzHour = parseInt(getPart('hour'));
+              const tzMinute = parseInt(getPart('minute'));
+              const tzSecond = parseInt(getPart('second'));
+              
+              // Calculate the timezone offset in minutes
+              const originalMinutes = hour * 60 + minute + second / 60;
+              const tzMinutes = tzHour * 60 + tzMinute + tzSecond / 60;
+              const offsetMinutes = tzMinutes - originalMinutes;
+              
+              // Adjust the UTC timestamp by the offset to get the correct UTC time
+              return asUTC - (offsetMinutes * 60 * 1000);
+              
+            } catch (e) {
+              // Fallback: treat as UTC
+              return Date.UTC(year, month - 1, day, hour, minute, second);
+            }
+          };
+          
+          const filtered = (rows || []).filter(r => { 
+            const start = convertToUTC(r.scheduled_start_time, r.timezone); 
+            const end = r.scheduled_end_time ? convertToUTC(r.scheduled_end_time, r.timezone) : Infinity; 
+            // Show if:
+            // - Meeting is currently ongoing, OR
+            // - Meeting hasnt ended yet and started within the last 30 min, OR
+            // - Meeting will start within the next 10 min (for launch)
+            return (start <= now && end >= now) || 
+                   (end >= now && start >= filterStart && start <= now) ||
+                   (start >= now && start <= filterEnd);
+          });
           resolve(filtered);
         }
       );
@@ -182,29 +280,39 @@ class MeetingModel {
       const lookback = new Date(Date.now() - hours * 3600000).toISOString();
       const now = new Date().toISOString();
 
-      if (emails && emails.length) {
-        // Filtered by specific emails
-        const placeholders = emails.map(() => '?').join(',');
-        db.all(
-          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account IS NOT NULL AND LOWER(m.calendar_account) IN (${placeholders}) AND m.start_time IS NOT NULL AND m.end_time <= ? AND m.end_time >= ? ORDER BY m.start_time DESC`,
-          [...emails, now, lookback],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      } else {
-        // All users — no email filter
-        db.all(
-          `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account LEFT JOIN roles r ON r.id = u.role_id WHERE m.start_time IS NOT NULL AND m.end_time <= ? AND m.end_time >= ? ORDER BY m.start_time DESC`,
-          [now, lookback],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      }
+      // Include meetings that are:
+      // 1. Status = 'completed', OR
+      // 2. Have at least one session with both transcript_file_name AND audio_file_name
+      const sql = `
+        SELECT DISTINCT m.*, u.first_name, u.last_name, r.role_name
+        FROM meetings m
+        LEFT JOIN users u ON u.email = m.calendar_account
+        LEFT JOIN roles r ON r.id = u.role_id
+        LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.external_meeting_id
+        WHERE m.scheduled_start_time IS NOT NULL
+          AND (
+            m.status = 'completed'
+            OR (ms.transcript_file_name IS NOT NULL AND ms.audio_file_name IS NOT NULL)
+          )
+        ORDER BY m.scheduled_start_time DESC
+      `;
+
+      const params = [now, lookback];
+
+      db.all(sql, params, (err, rows) => {
+        if (err) {
+          logger.error('Model(MeetingModel): Error fetching completed meetings:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      });
     });
   }
 
   static getQueuedMeetings() {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meetings WHERE status = 'queued' AND start_time <= DATE_ADD(NOW(), INTERVAL 3 MINUTE) ORDER BY start_time ASC LIMIT 10`,
+        `SELECT * FROM meetings WHERE status = 'queued' AND scheduled_start_time <= DATE_ADD(NOW(), INTERVAL 3 MINUTE) ORDER BY scheduled_start_time ASC LIMIT 10`,
         [],
         (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching queued meetings:', err); reject(err); } else resolve(rows); }
       );
@@ -230,9 +338,92 @@ class MeetingModel {
 
   static getBatchHistory(limit = 50) { return new Promise((resolve, reject) => { db.all(`SELECT * FROM meetings WHERE platform LIKE '%batch%' AND status != 'queued' ORDER BY created_at DESC LIMIT ?`, [limit], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching batch history:', err); reject(err); } else resolve(rows); }); }); }
 
+  /**
+   * Find meeting by title, start time, and owner (for calendar sync deduplication)
+   */
+  static findMeetingByTitleAndTime(title, startTime, ownerUserId) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT meeting_id FROM meetings WHERE title = ? AND scheduled_start_time = ? AND owner_user_id = ?`,
+        [title, startTime, ownerUserId],
+        (err, row) => err ? reject(err) : resolve(row || null)
+      );
+    });
+  }
+
+  /**
+   * Update meeting from calendar sync
+   */
+  static updateMeetingFromCalendar(meetingId, title, platform, startTime, endTime) {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE meetings SET title = ?, platform = ?, scheduled_start_time = ?, scheduled_end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE external_meeting_id = ?`,
+        [title, platform, startTime, endTime, meetingId],
+        function(err) {
+          if (err) {
+            logger.error(`[MeetingModel] Error updating meeting ${meetingId}:`, err);
+            reject(err);
+          } else {
+            logger.info(`[MeetingModel] Updated meeting ${meetingId}: ${title}`);
+            resolve({ updated: this.changes > 0, meetingId });
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Create meeting from calendar sync
+   */
+  static createMeetingFromCalendar(title, platform, startTime, endTime, userId) {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO meetings (external_meeting_id, title, platform, scheduled_start_time, scheduled_end_time, owner_user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, title, platform, startTime, endTime, userId],
+        function(err) {
+          if (err) {
+            logger.error(`[MeetingModel] Error creating meeting for ${title}:`, err);
+            reject(err);
+          } else {
+            logger.info(`[MeetingModel] Created meeting: ${title} at ${startTime}`);
+            resolve({ id: this.lastID, meetingId: `cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` });
+          }
+        }
+      );
+    });
+  }
+
   static getUserStats() {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT ci.id, ci.email, ci.provider, ci.token_expiry, ci.status, ci.created_at, ci.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.start_time IS NOT NULL AND m.end_time IS NOT NULL THEN CAST((julianday(m.end_time) - julianday(m.start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = ci.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.end_time ELSE NULL END) AS last_meeting_at FROM calendar_integrations ci LEFT JOIN users u ON u.id = ci.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN meetings m ON m.calendar_account = ci.email GROUP BY ci.id ORDER BY ci.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
+      db.all(`SELECT ci.id, u.email, ci.provider, ci.token_expiry, ci.status, ci.created_at, ci.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.start_time IS NOT NULL AND m.end_time IS NOT NULL THEN CAST((julianday(m.end_time) - julianday(m.start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = u.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.end_time ELSE NULL END) AS last_meeting_at FROM calendar_integrations ci LEFT JOIN users u ON u.id = ci.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN meetings m ON m.calendar_account = u.email GROUP BY ci.id ORDER BY u.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
+    });
+  }
+
+  /**
+   * Get all meetings with owner details for reports
+   * @param {number} days - Number of days to look back
+   * @returns {Promise<Array>} Array of meetings with owner information
+   */
+  static async getMeetingsWithOwnerDetails(days = 90) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT m.*,
+               CONCAT(u.first_name, ' ', u.last_name) as owner_name,
+               u.email as owner_email
+        FROM meetings m
+        LEFT JOIN users u ON u.email = m.calendar_account
+        WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY) OR m.scheduled_start_time IS NULL
+        ORDER BY m.scheduled_start_time DESC
+        LIMIT 100
+      `;
+
+      db.all(sql, [days], (err, rows) => {
+        if (err) {
+          logger.error('Model(MeetingModel): Error fetching meetings with owner details:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      });
     });
   }
 }

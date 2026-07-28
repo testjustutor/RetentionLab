@@ -42,28 +42,22 @@ const menuController = {
       const { user_id } = req.body;
       if (!user_id) return err('user_id is required', 400);
 
-      // Get user's role
+      // User-specific overrides are not currently enabled.
+      // Return the role-default menu for this user's role only.
       const { getAsync } = require('../../database/seedHelpers');
       const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
       if (!user) return err('User not found', 404);
 
-      // Get menu items, role defaults, and user overrides
-      const [menuItems, rolePermissions, userOverrides] = await Promise.all([
+      const [menuItems, rolePermissions] = await Promise.all([
         MenuModel.getAllMenuItems(),
-        MenuModel.getRoleMenuPermissions(user.role_id),
-        MenuModel.getUserMenuOverrides(user_id)
+        MenuModel.getRoleMenuPermissions(user.role_id)
       ]);
 
-      // Build resolved view with override flags
       const resolvedView = menuItems.map(item => {
         const roleDefault = rolePermissions[item.id];
-        const userOverride = userOverrides[item.id];
-        
-        // If role has no permission entry for this item, it's not configured for this role => hidden
         const roleVisible = roleDefault?.is_visible ?? 0;
         const roleSort = roleDefault?.sort_order ?? item.sort_order;
-        const resolvedVisible = userOverride?.is_visible ?? roleVisible;
-        const resolvedSort = userOverride?.sort_order ?? roleSort;
+        const parentId = roleDefault?.parent_id ?? item.parent_id;
 
         return {
           menu_item_id: item.id,
@@ -71,18 +65,19 @@ const menuController = {
           label: item.label,
           icon: item.icon,
           route_path: item.route_path,
-          parent_id: item.parent_id,
+          parent_id: parentId,
           role_default_visible: roleVisible,
           role_default_sort: roleSort,
-          user_override_visible: userOverride?.is_visible ?? null,
-          user_override_sort: userOverride?.sort_order ?? null,
-          is_overridden: !!userOverride,
-          is_visible: resolvedVisible,
-          sort_order: resolvedSort
+          user_override_visible: null,
+          user_override_sort: null,
+          is_overridden: false,
+          is_visible: roleVisible,
+          sort_order: roleSort,
+          user_overrides_supported: false
         };
       });
 
-      return ok({ data: resolvedView });
+      return ok({ data: resolvedView, message: 'User-specific menu overrides are not currently enabled.' });
     } catch (e) {
       return err(e.message);
     }
@@ -100,27 +95,50 @@ const menuController = {
       const menuItems = await MenuModel.getAllMenuItems();
       
       if (user_id) {
-        // Get user overrides
-        const userOverrides = await MenuModel.getUserMenuOverrides(user_id);
-        
-        const overrides = menuItems.map(item => ({
-          menu_item_id: item.id,
-          menu_key: item.menu_key,
-          label: item.label,
-          icon: item.icon,
-          route_path: item.route_path,
-          parent_id: item.parent_id,
-          is_visible: userOverrides[item.id]?.is_visible ?? 1,
-          sort_order: userOverrides[item.id]?.sort_order ?? null
-        }));
+        // User-specific menu overrides are not currently enabled.
+        // Return role defaults for the user's role instead.
+        const { getAsync } = require('../../database/seedHelpers');
+        const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
+        if (!user) return err('User not found', 404);
 
-        return ok({ data: overrides });
+        const rolePermissions = await MenuModel.getRoleMenuPermissions(user.role_id);
+        const permissions = menuItems.map(item => {
+          const perm = rolePermissions[item.id];
+          const parentId = perm?.parent_id ?? item.parent_id;
+          if (!perm) {
+            return {
+              menu_item_id: item.id,
+              menu_key: item.menu_key,
+              label: item.label,
+              icon: item.icon,
+              route_path: item.route_path,
+              parent_id: parentId,
+              is_visible: 0,
+              sort_order: item.sort_order,
+              user_overrides_supported: false
+            };
+          }
+          return {
+            menu_item_id: item.id,
+            menu_key: item.menu_key,
+            label: item.label,
+            icon: item.icon,
+            route_path: item.route_path,
+            parent_id: parentId,
+            is_visible: perm.is_visible ?? 0,
+            sort_order: perm.sort_order ?? item.sort_order,
+            user_overrides_supported: false
+          };
+        });
+
+        return ok({ data: permissions });
       } else if (role_id) {
         // Get role permissions
         const rolePermissions = await MenuModel.getRoleMenuPermissions(role_id);
         
         const permissions = menuItems.map(item => {
           const perm = rolePermissions[item.id];
+          const parentId = perm?.parent_id ?? item.parent_id;
           // Only include items that have a permission entry for this role
           // If no entry exists, the item is not configured for this role (hidden)
           if (!perm) {
@@ -130,7 +148,7 @@ const menuController = {
               label: item.label,
               icon: item.icon,
               route_path: item.route_path,
-              parent_id: item.parent_id,
+              parent_id: parentId,
               is_visible: 0,
               sort_order: item.sort_order
             };
@@ -141,7 +159,7 @@ const menuController = {
             label: item.label,
             icon: item.icon,
             route_path: item.route_path,
-            parent_id: item.parent_id,
+            parent_id: parentId,
             is_visible: perm.is_visible ?? 0,
             sort_order: perm.sort_order ?? item.sort_order
           };
@@ -165,11 +183,7 @@ const menuController = {
       const { role_id, user_id, permissions, overrides } = req.body;
 
       if (user_id) {
-        if (!Array.isArray(overrides)) {
-          return err('Overrides must be an array', 400);
-        }
-        const result = await MenuModel.saveUserMenuOverrides(user_id, overrides);
-        return ok(result);
+        return err('User-specific menu overrides are not currently enabled', 400);
       } else if (role_id) {
         if (!Array.isArray(permissions)) {
           return err('Permissions must be an array', 400);

@@ -30,19 +30,20 @@ class EmailLogModel {
    * @param {string} data.sender_email - From email address
    * @param {string} data.receiver_email - To email address
    * @param {string} data.subject - Email subject
+   * @param {string} data.body - Email body content
    * @param {string} data.purpose - Purpose: calendar_integration, email_verification, password_reset, etc.
    * @param {string} data.status - 'sent' or 'failed'
    * @param {string} [data.error_message] - Error message if failed
    * @returns {Promise<{id: number}>}
    */
-  static async log({ sender_email, receiver_email, subject, purpose, status, error_message = null }) {
+  static async log({ sender_email, receiver_email, subject, body, purpose, status, error_message = null }) {
     const sentAt = status === 'sent' ? new Date().toISOString() : null;
     
     const result = await new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO email_logs (sender_email, receiver_email, subject, purpose, status, error_message, sent_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [sender_email, receiver_email, subject, purpose, status, error_message, sentAt],
+        `INSERT INTO email_logs (recipient, subject, body, status, sent_at, error_message)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [receiver_email, subject, body || '', status, sentAt, error_message],
         function (err) {
           if (err) return reject(err);
           resolve({ id: this.lastID });
@@ -63,15 +64,15 @@ class EmailLogModel {
     const params = [];
     
     if (purpose) {
-      whereClause += ' AND purpose = ?';
-      params.push(purpose);
+      whereClause += ' AND subject LIKE ?';
+      params.push(`%${purpose}%`);
     }
     if (status) {
       whereClause += ' AND status = ?';
       params.push(status);
     }
     if (receiver_email) {
-      whereClause += ' AND receiver_email = ?';
+      whereClause += ' AND recipient = ?';
       params.push(receiver_email);
     }
     
@@ -103,14 +104,14 @@ class EmailLogModel {
    * Get email logs by receiver email
    */
   static async getByReceiverEmail(email, limit = 50) {
-    return get(`SELECT * FROM email_logs WHERE receiver_email = ? ORDER BY created_at DESC LIMIT ?`, [email, limit]);
+    return get(`SELECT * FROM email_logs WHERE recipient = ? ORDER BY created_at DESC LIMIT ?`, [email, limit]);
   }
 
   /**
    * Get email logs by purpose
    */
   static async getByPurpose(purpose, limit = 50) {
-    return get(`SELECT * FROM email_logs WHERE purpose = ? ORDER BY created_at DESC LIMIT ?`, [purpose, limit]);
+    return get(`SELECT * FROM email_logs WHERE subject LIKE ? ORDER BY created_at DESC LIMIT ?`, [`%${purpose}%`, limit]);
   }
 
   /**

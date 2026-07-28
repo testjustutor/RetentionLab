@@ -4,12 +4,13 @@
  */
 
 const express = require('express');
+const registryController = require('../controllers/registry/registryController');
 
 // Route definitions with metadata
 const routeRegistry = [
   // Health & Stats
-  { method: 'get', path: '/health', handler: 'index', action: 'health' },
-  { method: 'get', path: '/storage/stats', handler: 'index', action: 'storageStats' },
+  { method: 'get', path: '/health', handler: 'registry', action: 'health' },
+  { method: 'get', path: '/storage/stats', handler: 'registry', action: 'storageStats' },
   
   // Auth
   { method: 'get', path: '/auth/google/callback', handler: 'index', action: 'googleCallback' },
@@ -67,7 +68,7 @@ const routeRegistry = [
   
   // Header & Sidebar
   { method: 'use', path: '/api/header-config', handler: 'header-config' },
-  { method: 'get', path: '/api/sidebar/menu', handler: 'sidebar-api', middleware: ['auth'] },
+  { method: 'get', path: '/api/sidebar/menu', handler: 'sidebar-api', middleware: ['auth'], action: 'getMenu' },
   { method: 'use', path: '/api/sidebar-menu-admin', handler: 'sidebar-menu-admin' },
   
   // Menu Management
@@ -117,80 +118,14 @@ function registerRoutes(app) {
     if (route.method === 'use') {
       router.use(route.path, ...middleware, routeHandler);
     } else if (route.method === 'get') {
-      router.get(route.path, ...middleware, (req, res, next) => {
-        // For inline handlers in index.js
-        if (route.handler === 'index') {
-          const indexRouter = require('./index');
-          // Map action to handler function
-          const actionHandlers = {
-            health: () => res.json({ status: 'OK', timestamp: new Date() }),
-            storageStats: async () => {
-              try {
-                const fs = require('fs');
-                const path = require('path');
-                const storageDir = './storage';
-                let totalSize = 0;
-                
-                if (fs.existsSync(storageDir)) {
-                  function scanDir(dir) {
-                    const files = fs.readdirSync(dir);
-                    for (const file of files) {
-                      const fullPath = path.join(dir, file);
-                      const stat = fs.statSync(fullPath);
-                      if (stat.isFile()) {
-                        totalSize += stat.size;
-                      } else if (stat.isDirectory()) {
-                        scanDir(fullPath);
-                      }
-                    }
-                  }
-                  scanDir(storageDir);
-                }
-                
-                const totalKB = Math.round(totalSize / 1024);
-                const totalMB = (totalKB / 1024).toFixed(1);
-                res.json({
-                  total: totalMB > 1 ? `${totalMB} MB` : `${totalKB} KB`,
-                  bytes: totalSize
-                });
-              } catch (err) {
-                res.status(500).json({ total: '0 KB' });
-              }
-            },
-            googleCallback: async () => {
-              // This is handled in index.js directly
-              res.status(500).send('Use /auth/google/callback');
-            },
-            calendarCallback: (req, res, next) => {
-              const { state } = req.query;
-              if (state && state.startsWith('eyJ')) {
-                try {
-                  const jwt = require('jsonwebtoken');
-                  const VERIFY_SECRET = process.env.INSTRUCTOR_CALENDAR_SECRET || process.env.JWT_SECRET || 'instructor_cal_secure_key_change_me';
-                  const payload = jwt.verify(state, VERIFY_SECRET);
-                  if (payload?.purpose === 'instructor-calendar-verify') {
-                    const ctrl = require('../controllers/calendar/instructorCalendarController');
-                    return ctrl.handleCallback(req, res, next);
-                  }
-                } catch { /* not our JWT, pass through */ }
-              }
-              next();
-            }
-          };
-          
-          if (actionHandlers[route.action]) {
-            // Only pass next for handlers that need it (like calendarCallback)
-            if (route.action === 'calendarCallback') {
-              return actionHandlers[route.action](req, res, next);
-            }
-            return actionHandlers[route.action](req, res);
-          }
-        }
-        
-        // For regular route handlers
-        const ctrl = routeHandler[route.action] || routeHandler;
-        return ctrl(req, res);
-      });
+      // For registry actions, use registryController
+      // For other handlers, use the route handler's action method
+      const ctrl = route.handler === 'registry' 
+        ? registryController[route.action] 
+        : (routeHandler[route.action] || routeHandler);
+      if (typeof ctrl === 'function') {
+        router.get(route.path, ...middleware, ctrl);
+      }
     }
   }
   

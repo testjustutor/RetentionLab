@@ -1,11 +1,11 @@
 # root/services/engine/ai_audit_service/audit_worker.py
 
 import json
-import sqlite3
 import re
 import sys
 import time
 import traceback
+from database.python_db import get_cursor, execute, fetch_all
 from services.engine.ai_audit_service.rubric_loader import RubricLoader
 
 
@@ -38,9 +38,8 @@ class AuditWorker:
 
 
 class AiAuditService:
-    def __init__(self, db_path, ai_config):
+    def __init__(self, ai_config):
         from services.engine.ai_api_service import AiApiService
-        self.db_path = db_path
         self.ai_api = AiApiService(ai_config)
 
     def _load_rubric_schema(self, admin_user_id=None):
@@ -48,53 +47,49 @@ class AiAuditService:
         Load rubric schema from admin_rubric_categories and admin_rubric_indicators
         when admin_user_id is provided, otherwise fall back to master tables.
         """
-        print("[AUDIT MICROSERVICE] Status: Opening local database stream...", file=sys.stderr, flush=True)
+        print("[AUDIT MICROSERVICE] Status: Opening database stream...", file=sys.stderr, flush=True)
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
-            if admin_user_id:
-                print(f"[AUDIT MICROSERVICE] Status: Loading admin-specific rubric for admin_user_id={admin_user_id}...", flush=True)
-                cursor.execute(
-                    "SELECT original_category_id, name, weight FROM admin_rubric_categories WHERE admin_user_id = ?",
-                    (admin_user_id,)
-                )
-                categories = cursor.fetchall()
-
-                schema = []
-                for cat in categories:
-                    cat_dict = {
-                        "category": cat["name"],
-                        "weight": cat["weight"],
-                        "category_id": cat["original_category_id"],
-                        "indicators": []
-                    }
+            with get_cursor() as cursor:
+                if admin_user_id:
+                    print(f"[AUDIT MICROSERVICE] Status: Loading admin-specific rubric for admin_user_id={admin_user_id}...", flush=True)
                     cursor.execute(
-                        "SELECT original_indicator_id, name, type, is_gate, value FROM admin_rubric_indicators WHERE admin_user_id = ? AND original_category_id = ?",
-                        (admin_user_id, cat["original_category_id"])
+                        "SELECT original_category_id, name, weight FROM admin_rubric_categories WHERE admin_user_id = %s",
+                        (admin_user_id,)
                     )
-                    indicators = cursor.fetchall()
-                    for ind in indicators:
-                        cat_dict["indicators"].append({
-                            "indicator_id": ind["original_indicator_id"],
-                            "name": ind["name"],
-                            "type": ind["type"] or "AI",
-                            "is_gate": bool(ind["is_gate"]),
-                            "value": ind["value"] or 1
-                        })
-                    schema.append(cat_dict)
+                    categories = cursor.fetchall()
 
-                if not schema:
-                    print("[AUDIT MICROSERVICE] WARNING: No admin-specific rubric found. Falling back to master rubric.", flush=True)
-                    schema = self._load_master_rubric_schema(cursor)
+                    schema = []
+                    for cat in categories:
+                        cat_dict = {
+                            "category": cat["name"],
+                            "weight": cat["weight"],
+                            "category_id": cat["original_category_id"],
+                            "indicators": []
+                        }
+                        cursor.execute(
+                            "SELECT original_indicator_id, name, type, is_gate, value FROM admin_rubric_indicators WHERE admin_user_id = %s AND original_category_id = %s",
+                            (admin_user_id, cat["original_category_id"])
+                        )
+                        indicators = cursor.fetchall()
+                        for ind in indicators:
+                            cat_dict["indicators"].append({
+                                "indicator_id": ind["original_indicator_id"],
+                                "name": ind["name"],
+                                "type": ind["type"] or "AI",
+                                "is_gate": bool(ind["is_gate"]),
+                                "value": ind["value"] or 1
+                            })
+                        schema.append(cat_dict)
+
+                    if not schema:
+                        print("[AUDIT MICROSERVICE] WARNING: No admin-specific rubric found. Falling back to master rubric.", flush=True)
+                        schema = self._load_master_rubric_schema(cursor)
+                    else:
+                        print("[AUDIT MICROSERVICE] Status: Admin-specific rubric parameters successfully cached.", flush=True)
                 else:
-                    print("[AUDIT MICROSERVICE] Status: Admin-specific rubric parameters successfully cached.", flush=True)
-            else:
-                print("[AUDIT MICROSERVICE] Status: Loading master rubric...", flush=True)
-                schema = self._load_master_rubric_schema(cursor)
+                    print("[AUDIT MICROSERVICE] Status: Loading master rubric...", flush=True)
+                    schema = self._load_master_rubric_schema(cursor)
 
-            conn.close()
             return schema
         except Exception as e:
             print(f"[AUDIT MICROSERVICE] WARNING: DB read failed ({str(e)}). Deploying structural fallbacks.", flush=True)
@@ -125,7 +120,7 @@ class AiAuditService:
                 "indicators": []
             }
             cursor.execute(
-                "SELECT indicator_id, name, type, is_gate, value FROM rubric_indicators WHERE category_id = ?",
+                "SELECT indicator_id, name, type, is_gate, value FROM rubric_indicators WHERE category_id = %s",
                 (cat["category_id"],)
             )
             indicators = cursor.fetchall()
@@ -264,11 +259,7 @@ class AiAuditService:
         each indicator's score against its category_id and indicator_id.
         """
         print(f"[AUDIT MICROSERVICE] Status: Storing audit results for meeting_id={meeting_id}...", flush=True)
-        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
             oqi_score = ai_result.get("oqi_score", 0.0)
             evidence_quote = ai_result.get("evidence_quote", "")
             talk_ratio_json = json.dumps(talk_ratio or {})
@@ -302,8 +293,8 @@ class AiAuditService:
                         }
 
             # Clear previous audit results for this meeting and session
-            cursor.execute(
-                "DELETE FROM ai_audit_results WHERE meeting_id = ? AND session_id = ?",
+            execute(
+                "DELETE FROM ai_audit_results WHERE meeting_id = %s AND session_id = %s",
                 (meeting_id, session_id)
             )
 
@@ -348,12 +339,19 @@ class AiAuditService:
 
                         print(f"[AUDIT DEBUG] ind_name={ind_name} | ind_data={ind_data} | ai_score={ai_score} | ai_max={ai_max}", flush=True)
 
-                        cursor.execute(
-                            """INSERT OR REPLACE INTO ai_audit_results
+                        execute(
+                            """INSERT INTO ai_audit_results
                                (meeting_id, session_id, category_id, indicator_id,
                                 ai_score, ai_max_score, ai_raw_response, oqi_score,
                                 evidence_quote, talk_ratio)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               ON DUPLICATE KEY UPDATE
+                                ai_score = VALUES(ai_score),
+                                ai_max_score = VALUES(ai_max_score),
+                                ai_raw_response = VALUES(ai_raw_response),
+                                oqi_score = VALUES(oqi_score),
+                                evidence_quote = VALUES(evidence_quote),
+                                talk_ratio = VALUES(talk_ratio)""",
                             (
                                 meeting_id, session_id,
                                 category_id, indicator_id,
@@ -368,12 +366,19 @@ class AiAuditService:
                 for cat_name, score in domain_scores.items():
                     category_id = rubric_lookup.get(cat_name, {}).get("category_id", "")
 
-                    cursor.execute(
-                        """INSERT OR REPLACE INTO ai_audit_results
+                    execute(
+                        """INSERT INTO ai_audit_results
                            (meeting_id, session_id, category_id, indicator_id,
                             ai_score, ai_max_score, ai_raw_response, oqi_score,
                             evidence_quote, talk_ratio)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           ON DUPLICATE KEY UPDATE
+                            ai_score = VALUES(ai_score),
+                            ai_max_score = VALUES(ai_max_score),
+                            ai_raw_response = VALUES(ai_raw_response),
+                            oqi_score = VALUES(oqi_score),
+                            evidence_quote = VALUES(evidence_quote),
+                            talk_ratio = VALUES(talk_ratio)""",
                         (
                             meeting_id, session_id,
                             category_id, cat_name,
@@ -383,12 +388,8 @@ class AiAuditService:
                     )
                     indicator_count += 1
 
-            conn.commit()
             print(f"[AUDIT MICROSERVICE] Status: Successfully stored {indicator_count} indicator results in ai_audit_results table.", flush=True)
 
         except Exception as e:
             print(f"[AUDIT MICROSERVICE] ERROR: Failed to store audit results in database: {str(e)}", flush=True)
             traceback.print_exc()
-        finally:
-            if conn:
-                conn.close()

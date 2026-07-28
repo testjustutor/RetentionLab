@@ -465,3 +465,16 @@ function generateComment(indicatorId, rating) {
 }
 
 module.exports = { seedSessionQuality };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedSessionQuality()
+    .then(() => {
+      console.log('[Seed] ✓ Session quality seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Session quality seeder failed:', err);
+      process.exit(1);
+    });
+}

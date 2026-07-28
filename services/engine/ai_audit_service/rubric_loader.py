@@ -1,13 +1,10 @@
 # root/services/engine/ai_audit_service/rubric_loader.py
 
-from services.shared.database.connection_manager import get_connection_manager
+from database.python_db import get_cursor
 
 class RubricLoader:
-    def __init__(self):
-        self.manager = get_connection_manager()
-
     def load_rubric(self):
-        with self.manager.get_cursor() as cursor:
+        with get_cursor() as cursor:
             cursor.execute("""
                 SELECT category_id,
                        name,
@@ -30,6 +27,6 @@ class RubricLoader:
             indicators = cursor.fetchall()
 
         return {
-            "categories": [dict(r) for r in categories],
-            "indicators": [dict(r) for r in indicators]
+            "categories": categories,
+            "indicators": indicators
         }

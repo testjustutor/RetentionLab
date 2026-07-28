@@ -49,3 +49,16 @@ const seedAdminUser = async () => {
 };
 
 module.exports = { seedAdminUser };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedAdminUser()
+    .then(() => {
+      console.log('[Seed] ✓ Admin user seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Admin user seeder failed:', err);
+      process.exit(1);
+    });
+}

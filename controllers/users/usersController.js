@@ -5,6 +5,7 @@
 
 const UsersModel = require('../../models/users/UsersModel');
 const RolesModel = require('../../models/roles/RolesModel');
+const AuthModel = require('../../models/auth/AuthModel');
 
 function ok(data, message) {
   return { success: true, message: message || null, ...(data || {}) };
@@ -61,6 +62,21 @@ const userController = {
           return err('Admin may only create reviewer and instructor accounts', 403);
         }
       }
+
+      // Set default password if not provided
+      if (!data.password && !data.password_hash) {
+        data.password = 'Password@123';
+      }
+
+      // Hash new password
+      const password_hash = AuthModel.hashPassword(data.password);
+
+      // If password is provided (not password_hash), use it
+      if (data.password && !data.password_hash) {
+        data.password_hash = data.password;
+      }
+      // Remove plain password from data object
+      delete data.password;
 
       const created = await UsersModel.createUser(req.user, data);
       return ok({ data: created }, 'User created', 201);

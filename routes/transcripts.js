@@ -4,8 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
-const TranscriptModel = require('../models/transcripts/transcriptModel');
-
+const transcriptsController = require('../controllers/transcripts/transcriptsController');
 const { generateCSV, generateTXT } = require('../utils/transcriptUtils');
 
 const fs = require('fs');

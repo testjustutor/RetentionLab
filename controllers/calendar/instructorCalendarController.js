@@ -78,16 +78,15 @@ const controller = {
   async listConnections(req) {
     try {
       const userRole = req.user?.role_name;
-      const userEmail = req.user?.email;
-      const userCompanyId = req.user?.company_id;
+      const userId = req.user?.id;
 
       // For solo_instructor or instructor: return only their own connection
       if (userRole === 'solo_instructor' || userRole === 'instructor') {
-        if (!userEmail) {
+        if (!userId) {
           return ok({ count: 0, data: [] });
         }
 
-        const row = await CalendarUsersModel.getUser(userEmail);
+        const row = await CalendarUsersModel.getUser(userId);
         if (!row) {
           return ok({ count: 0, data: [] });
         }
@@ -99,7 +98,7 @@ const controller = {
             status: row.status || 'disconnected',
             provider: row.provider || null,
             updated_at: row.updated_at,
-            user_id: row.user_id || row.user_id_ref,
+            user_id: row.user_id,
             role_name: userRole
           }]
         });
@@ -119,20 +118,20 @@ const controller = {
           return ok({ count: 0, data: [] });
         }
 
-        // Get calendar connections for all instructors
-        const instructorEmails = instructors.map(i => i.email).filter(Boolean);
+        // Get calendar connections for all instructors (using user_id)
+        const instructorIds = instructors.map(i => i.id).filter(Boolean);
         const connections = [];
         
-        for (const email of instructorEmails) {
-          const conn = await CalendarUsersModel.getUser(email);
+        for (const instructorId of instructorIds) {
+          const conn = await CalendarUsersModel.getUser(instructorId);
           if (conn) {
-            const instructor = instructors.find(i => i.email === email);
+            const instructor = instructors.find(i => i.id === instructorId);
             connections.push({
               email: conn.email,
               status: conn.status || 'disconnected',
               provider: conn.provider || null,
               updated_at: conn.updated_at,
-              user_id: conn.user_id || conn.user_id_ref,
+              user_id: conn.user_id,
               role_name: instructor?.role_name || 'instructor'
             });
           }
@@ -158,16 +157,19 @@ const controller = {
       const { email } = req.body;
       if (!email) return err('Email is required', 400);
 
+      // Look up user by email to get user_id
+      const user = await UsersModel.getUserByEmail(email);
+      if (!user) {
+        return err('User not found', 404);
+      }
+
       // Sign a JWT token (encrypted, expiring, single-use)
       // NOTE: This JWT MUST be the same value stored in calendar_verifications.token,
       // otherwise verifyToken() cannot find the row and status will stay 'pending'.
       const token = signVerifyToken(email);
 
-      // Also create DB record for tracking using the SAME token value
-      // (CalendarVerificationModel.create() currently generates its own random token internally,
-      // so we update it immediately after creation to match the JWT used in the verification link).
-      await CalendarVerificationModel.create(email);
-      await CalendarVerificationModel.updateTokenByEmail(email, token);
+      // Create DB record for tracking using the SAME token value
+      await CalendarVerificationModel.create(user.id, token);
 
 
       // Build secure verification URL
@@ -458,12 +460,27 @@ const controller = {
         user.role_id = 3;
       }
 
-      logger.info(`[InstructorCalendar] handleCallback: about to save tokens to calendar_integrations for email=${email} userId=${user.id}`);
-      await CalendarUsersModel.createOrUpdateUser(email, {
+      logger.info(`[InstructorCalendar] handleCallback: about to save tokens to calendar_integrations for userId=${user.id}`);
+      
+      // Get provider_id from calendar_providers table (name = 'google-meet')
+      let providerId = null;
+      try {
+        const CalendarProvidersModel = require('../../models/calendar/CalendarProvidersModel');
+        const providerResult = await CalendarProvidersModel.getByName('google-meet');
+        if (providerResult && providerResult.length > 0) {
+          providerId = providerResult[0].id;
+        }
+      } catch (err) {
+        logger.warn(`[InstructorCalendar] Could not lookup provider_id for google-meet:`, err.message);
+      }
+      
+      await CalendarUsersModel.createOrUpdateUser(user.id, {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        expiry_date: tokens.expiry_date
-      }, user.id);
+        expiry_date: tokens.expiry_date,
+        provider: 'google',
+        provider_id: providerId
+      });
 
       return res.send(`
         <html>
@@ -487,24 +504,89 @@ const controller = {
   /** POST /api/instructor-calendar/disconnect */
   async disconnect(req) {
     try {
-      const { email } = req.body;
-      if (!email) return err('Email is required', 400);
-      await CalendarUsersModel.deleteUser(email);
+      const { email, user_id } = req.body;
+      if (!email && !user_id) return err('Email or user_id is required', 400);
+      
+      let userId = user_id;
+      if (!userId && email) {
+        const user = await UsersModel.getUserByEmail(email);
+        if (!user) return err('User not found', 404);
+        userId = user.id;
+      }
+      
+      await CalendarUsersModel.deleteUser(userId);
       return ok({}, 'Calendar disconnected');
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/instructor-calendar/status/:email */
+  /** GET /api/instructor-calendar/status/:emailOrUserId */
   async getStatus(req) {
     try {
-      const { email } = req.params;
-      if (!email) return err('Email is required', 400);
-      const integration = await CalendarUsersModel.getUser(email);
+      const { emailOrUserId } = req.params;
+      if (!emailOrUserId) return err('Email or user_id is required', 400);
+      
+      let userId = emailOrUserId;
+      // If it's not a number, treat it as email and look up the user
+      if (isNaN(emailOrUserId)) {
+        const user = await UsersModel.getUserByEmail(emailOrUserId);
+        if (!user) return err('User not found', 404);
+        userId = user.id;
+      }
+      
+      const integration = await CalendarUsersModel.getUser(userId);
       return ok({
-        email,
+        user_id: userId,
+        email: integration?.email || null,
         connected: !!integration,
         status: integration ? (integration.status || 'active') : 'not_connected',
         updated_at: integration ? integration.updated_at : null
+      });
+    } catch (e) { return err(e.message); }
+  },
+
+  /**
+   * POST /api/instructor-calendar/sync
+   * Sync calendar meetings to local database
+   * - Instructors: sync their own calendar
+   * - Admins: sync all instructors in their company
+   */
+  async syncCalendar(req) {
+    try {
+      const user = req.user;
+      const { daysBack = 30, daysForward = 90 } = req.body;
+      
+      const { syncGoogleCalendar } = require('../../services/calendarSyncService');
+      
+      // For instructors: sync their own calendar
+      // For admins: sync all instructors in their company
+      let syncResults = [];
+      
+      if (user.role_name === 'instructor' || user.role_name === 'solo_instructor') {
+        // Sync only their own calendar
+        const result = await syncGoogleCalendar(user.email, user.id, daysBack, daysForward);
+        syncResults.push({ email: user.email, ...result });
+      } else if (user.role_name === 'admin' || user.role_name === 'super_admin') {
+        // Sync all instructors in their company
+        const allUsers = await UsersModel.listUsers(user, { limit: 1000 });
+        const instructors = allUsers.filter(u => 
+          u.role_name === 'instructor' || u.role_name === 'solo_instructor'
+        );
+        
+        for (const instructor of instructors) {
+          try {
+            const result = await syncGoogleCalendar(instructor.email, instructor.id, daysBack, daysForward);
+            syncResults.push({ email: instructor.email, ...result });
+          } catch (err) {
+            logger.error(`[InstructorCalendar] Failed to sync ${instructor.email}:`, err);
+            syncResults.push({ email: instructor.email, error: err.message });
+          }
+        }
+      }
+      
+      const totalSynced = syncResults.reduce((sum, r) => sum + (r.synced || 0), 0);
+      return ok({ 
+        message: `Synced ${totalSynced} meetings`,
+        results: syncResults 
       });
     } catch (e) { return err(e.message); }
   }

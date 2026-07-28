@@ -37,3 +37,16 @@ const seedCompanies = async () => {
 };
 
 module.exports = { seedCompanies };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedCompanies()
+    .then(() => {
+      console.log('[Seed] ✓ Companies seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Companies seeder failed:', err);
+      process.exit(1);
+    });
+}

@@ -232,3 +232,16 @@ const seedRubric = async () => {
 };
 
 module.exports = { seedRubric };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedRubric()
+    .then(() => {
+      console.log('[Seed] ✓ Rubric seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Rubric seeder failed:', err);
+      process.exit(1);
+    });
+}

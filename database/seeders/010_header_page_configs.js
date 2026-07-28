@@ -115,3 +115,16 @@ const seedHeaderPageConfigs = async () => {
 };
 
 module.exports = { seedHeaderPageConfigs };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedHeaderPageConfigs()
+    .then(() => {
+      console.log('[Seed] ✓ Header page configs seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Header page configs seeder failed:', err);
+      process.exit(1);
+    });
+}

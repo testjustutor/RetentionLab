@@ -120,9 +120,9 @@ const controller = {
     const rows = await new Promise((r, j) => db.all(
       `SELECT m.*, ma.*, ms.transcript_file_name as session_transcript_file
        FROM meetings m 
-       LEFT JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
-       LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.meeting_id
-       WHERE LOWER(m.calendar_account)=LOWER(?) ORDER BY m.start_time DESC LIMIT ?`, [conn.email, limit], (e, rr) => e ? j(e) : r(rr || [])));
+       LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
+       LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.external_meeting_id
+       WHERE LOWER(m.calendar_account)=LOWER(?) ORDER BY m.scheduled_start_time DESC LIMIT ?`, [conn.email, limit], (e, rr) => e ? j(e) : r(rr || [])));
     return mapFn(rows);
   },
 

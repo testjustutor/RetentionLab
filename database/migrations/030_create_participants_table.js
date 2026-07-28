@@ -1,5 +1,6 @@
 /**
  * Migration: Create participants table
+ * Includes all columns from subsequent fix migrations (062)
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -21,8 +22,12 @@ CREATE TABLE IF NOT EXISTS participants (
     participant_role VARCHAR(50),
     join_time DATETIME,
     leave_time DATETIME,
+    deleted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_part_meeting (meeting_id)
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_part_meeting (meeting_id),
+    INDEX idx_part_deleted_at (deleted_at),
+    FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

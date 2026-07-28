@@ -1,5 +1,6 @@
 /**
  * Migration: Create participant_attendance_sessions table
+ * Includes all columns from subsequent fix migrations (062)
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -22,9 +23,14 @@ CREATE TABLE IF NOT EXISTS participant_attendance_sessions (
     left_at DATETIME,
     duration_seconds INT,
     attendance_status VARCHAR(50),
+    deleted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_pas_meeting (meeting_id),
-    INDEX idx_pas_participant (participant_id)
+    INDEX idx_pas_participant (participant_id),
+    INDEX idx_pas_deleted_at (deleted_at),
+    FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id) ON DELETE CASCADE,
+    FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

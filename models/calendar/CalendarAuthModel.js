@@ -37,9 +37,19 @@ class CalendarAuthModel {
 
   /**
    * Get user tokens from database
+   * @param {number|string} userIdOrEmail - User ID or email address
    */
-  static async getUserTokens(email) {
-    const user = await CalendarUsersModel.getUser(email);
+  static async getUserTokens(userIdOrEmail) {
+    if (!userIdOrEmail) return null;
+    
+    let user;
+    // If it's a number, query by user_id; if it's an email, query by email
+    if (typeof userIdOrEmail === 'number' || /^\d+$/.test(String(userIdOrEmail))) {
+      user = await CalendarUsersModel.getUser(Number(userIdOrEmail));
+    } else {
+      user = await CalendarUsersModel.getUserByEmail(userIdOrEmail);
+    }
+    
     if (!user || !user.access_token) {
       return null;
     }
@@ -53,19 +63,37 @@ class CalendarAuthModel {
   /**
    * Save user tokens to database
    */
-  static async saveUserTokens(email, tokens, userId = null) {
-    await CalendarUsersModel.createOrUpdateUser(email, {
+  static async saveUserTokens(userId, tokens) {
+    if (!userId) throw new Error('Missing userId');
+    
+    // Try to get provider_id from calendar_providers for Google
+    let providerId = null;
+    try {
+      const CalendarProvidersModel = require('./CalendarProvidersModel');
+      // Look up by name 'google-meet' (as stored in calendar_providers.name)
+      const providerResult = await CalendarProvidersModel.getByName('google-meet');
+      if (providerResult && providerResult.length > 0) {
+        providerId = providerResult[0].id;
+      }
+    } catch (err) {
+      logger.warn(`[CalendarAuthModel] Could not lookup provider_id for google:`, err.message);
+    }
+    
+    await CalendarUsersModel.createOrUpdateUser(userId, {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      expiry_date: tokens.expiry_date
-    }, userId);
+      expiry_date: tokens.expiry_date,
+      provider: 'google',
+      provider_id: providerId
+    });
   }
 
   /**
    * Delete user tokens
    */
-  static async deleteUserTokens(email) {
-    await CalendarUsersModel.deleteUser(email);
+  static async deleteUserTokens(userId) {
+    if (!userId) throw new Error('Missing userId');
+    await CalendarUsersModel.deleteUser(userId);
   }
 
   /**

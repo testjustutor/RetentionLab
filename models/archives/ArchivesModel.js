@@ -158,16 +158,16 @@ class ArchivesModel {
       // date filter
       if (from) {
         const dateStr = from.toISOString().slice(0, 10);
-        dataQuery += ' AND date(m.start_time) >= date(?)';
-        countQuery += ' AND date(m.start_time) >= date(?)';
+        dataQuery += ' AND date(m.scheduled_start_time) >= date(?)';
+        countQuery += ' AND date(m.scheduled_start_time) >= date(?)';
         params.push(dateStr);
         countParams.push(dateStr);
       }
 
       if (to) {
         const dateStr = to.toISOString().slice(0, 10);
-        dataQuery += ' AND date(m.end_time) <= date(?)';
-        countQuery += ' AND date(m.end_time) <= date(?)';
+        dataQuery += ' AND date(m.scheduled_end_time) <= date(?)';
+        countQuery += ' AND date(m.scheduled_end_time) <= date(?)';
         params.push(dateStr);
         countParams.push(dateStr);
       }

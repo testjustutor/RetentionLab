@@ -84,7 +84,7 @@ const departmentController = {
     } catch (e) { return err(e.message); }
   },
 
-  /** Add member to department */
+  /** Add member to department (auto-fetches user's role_id from users table) */
   async addMember(req) {
     try {
       const deptId = parseInt(req.params.id);
@@ -93,12 +93,40 @@ const departmentController = {
       const dept = await DepartmentsModel.getById(deptId);
       if (!dept) return err('Department not found', 404);
       if (dept.company_id !== req.user.company_id) return err('Forbidden', 403);
-      const result = await DepartmentsModel.addMember(deptId, userId);
+
+      // Fetch the user's role_id from the users table automatically
+      const { getAsync } = require('../../database/db');
+      const userRow = await getAsync('SELECT role_id FROM users WHERE id = ?', [userId]);
+
+      const result = await DepartmentsModel.addMember(deptId, userId, {
+        role_id: userRow ? userRow.role_id : null,
+        created_by: req.user.id,
+        joined_by: req.user.id
+      });
       return ok({ data: result }, 'Member added', 201);
     } catch (e) { return err(e.message); }
   },
 
-  /** Remove member from department */
+  /** Update member role, status, etc. */
+  async updateMember(req) {
+    try {
+      const deptId = parseInt(req.params.id);
+      const userId = parseInt(req.params.userId);
+      if (isNaN(deptId) || isNaN(userId)) return err('Invalid IDs', 400);
+      const dept = await DepartmentsModel.getById(deptId);
+      if (!dept) return err('Department not found', 404);
+      if (dept.company_id !== req.user.company_id) return err('Forbidden', 403);
+      const { role_id, status } = req.body;
+      const result = await DepartmentsModel.updateMember(deptId, userId, {
+        role_id: role_id || null,
+        status: status || 'active',
+        updated_by: req.user.id
+      });
+      return ok({ result }, 'Member updated');
+    } catch (e) { return err(e.message); }
+  },
+
+  /** Remove member from department (soft delete) */
   async removeMember(req) {
     try {
       const deptId = parseInt(req.params.id);
@@ -107,7 +135,7 @@ const departmentController = {
       const dept = await DepartmentsModel.getById(deptId);
       if (!dept) return err('Department not found', 404);
       if (dept.company_id !== req.user.company_id) return err('Forbidden', 403);
-      const result = await DepartmentsModel.removeMember(deptId, userId);
+      const result = await DepartmentsModel.removeMember(deptId, userId, req.user.id);
       return ok({ result }, 'Member removed');
     } catch (e) { return err(e.message); }
   },

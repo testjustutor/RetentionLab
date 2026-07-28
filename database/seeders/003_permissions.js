@@ -128,3 +128,16 @@ const seedPermissions = async () => {
 };
 
 module.exports = { seedPermissions, PERMISSIONS, DEFAULT_ROLE_PERMISSIONS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedPermissions()
+    .then(() => {
+      console.log('[Seed] ✓ Permissions seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Permissions seeder failed:', err);
+      process.exit(1);
+    });
+}

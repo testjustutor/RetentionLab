@@ -23,12 +23,12 @@ const controller = {
 
       return ok({
         meetings: (meetings || []).map(m => ({
-          meetingId: m.meeting_id,
+          meetingId: m.external_meeting_id,
           title: m.title,
           platform: m.platform,
           meetingLink: m.meeting_link,
-          startTime: m.start_time,
-          endTime: m.end_time,
+          startTime: m.scheduled_start_time,
+          endTime: m.scheduled_end_time,
           status: m.status,
           calendarAccount: m.calendar_account,
           sessionId: m.session_id
@@ -49,12 +49,12 @@ const controller = {
 
       return ok({
         meetings: (meetings || []).map(m => ({
-          meetingId: m.meeting_id,
+          meetingId: m.external_meeting_id,
           title: m.title,
           platform: m.platform,
           meetingLink: m.meeting_link,
-          startTime: m.start_time,
-          endTime: m.end_time,
+          startTime: m.scheduled_start_time,
+          endTime: m.scheduled_end_time,
           status: m.status,
           sessionId: m.session_id
         }))
@@ -75,12 +75,12 @@ const controller = {
 
       return ok({
         meetings: (meetings || []).map(m => ({
-          meetingId: m.meeting_id,
+          meetingId: m.external_meeting_id,
           title: m.title,
           platform: m.platform,
           meetingLink: m.meeting_link,
-          startTime: m.start_time,
-          endTime: m.end_time,
+          startTime: m.scheduled_start_time,
+          endTime: m.scheduled_end_time,
           status: m.status,
           calendarAccount: m.calendar_account,
           sessionId: m.session_id

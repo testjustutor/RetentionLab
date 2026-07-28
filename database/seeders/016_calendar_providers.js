@@ -64,3 +64,16 @@ const seedCalendarProviders = async () => {
 };
 
 module.exports = { seedCalendarProviders, CALENDAR_PROVIDERS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedCalendarProviders()
+    .then(() => {
+      console.log('[Seed] ✓ Calendar providers seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Calendar providers seeder failed:', err);
+      process.exit(1);
+    });
+}

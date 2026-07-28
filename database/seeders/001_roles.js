@@ -27,3 +27,16 @@ const seedRoles = async () => {
 };
 
 module.exports = { seedRoles };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedRoles()
+    .then(() => {
+      console.log('[Seed] ✓ Roles seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Roles seeder failed:', err);
+      process.exit(1);
+    });
+}

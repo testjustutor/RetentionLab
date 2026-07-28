@@ -4,7 +4,6 @@
  */
 
 const { google } = require('googleapis');
-const { db } = require('../database/db');
 const CalendarUsersModel = require('../models/calendar/CalendarUsersModel');
 const MeetingsModel = require('../models/meetings/MeetingModel');
 const { logger } = require('../utils/logger');
@@ -18,10 +17,10 @@ const { logger } = require('../utils/logger');
  */
 async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward = 90) {
   try {
-    // Get stored calendar credentials
-    const calendarUser = await CalendarUsersModel.getUser(userEmail);
+    // Get stored calendar credentials using user_id (not email)
+    const calendarUser = await CalendarUsersModel.getUser(userId);
     if (!calendarUser || !calendarUser.access_token) {
-      logger.info(`[CalendarSync] No calendar connection for ${userEmail}`);
+      logger.info(`[CalendarSync] No calendar connection for user ${userId}`);
       return { synced: 0, message: 'Calendar not connected' };
     }
 
@@ -41,17 +40,19 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
     });
 
     // Check if token needs refresh
-    if (calendarUser.expiry_date && new Date(calendarUser.expiry_date).getTime() < Date.now()) {
-      logger.info(`[CalendarSync] Refreshing token for ${userEmail}`);
+    if (calendarUser.token_expiry && new Date(calendarUser.token_expiry).getTime() < Date.now()) {
+      logger.info(`[CalendarSync] Refreshing token for user ${userId}`);
       const { token } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(token);
       
-      // Save new tokens
-      await CalendarUsersModel.createOrUpdateUser(userEmail, {
+      // Save new tokens using user_id
+      await CalendarUsersModel.createOrUpdateUser(userId, {
         access_token: token.access_token,
         refresh_token: token.refresh_token || calendarUser.refresh_token,
-        expiry_date: token.expiry_date
-      }, userId);
+        expiry_date: token.expiry_date,
+        provider: 'google',
+        provider_id: calendarUser.provider_id // Preserve existing provider_id
+      });
     }
 
     // Fetch events from Google Calendar
@@ -67,7 +68,8 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
     });
 
     const events = response.data.items || [];
-    logger.info(`[CalendarSync] Found ${events.length} events for ${userEmail}`);
+    logger.info(`[CalendarSync] Found ${events.length} events for user ${userId}`);
+
 
     // Sync each event to local database
     let synced = 0;
@@ -94,63 +96,26 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
         }
 
         // Check if meeting already exists (by title + time + owner)
-        const existingMeeting = await new Promise((resolve, reject) => {
-          db.get(
-            `SELECT meeting_id FROM meetings WHERE title = ? AND start_time = ? AND owner_user_id = ?`,
-            [eventTitle, event.start.dateTime, userId],
-            (err, row) => err ? reject(err) : resolve(row || null)
-          );
-        });
+        const existingMeeting = await MeetingsModel.findMeetingByTitleAndTime(eventTitle, event.start.dateTime, userId);
 
         if (existingMeeting) {
-          // Update existing meeting
-          await new Promise((resolve, reject) => {
-            db.run(
-              `UPDATE meetings 
-               SET title = ?, platform = ?, start_time = ?, end_time = ?, updated_at = CURRENT_TIMESTAMP
-               WHERE meeting_id = ?`,
-              [
-                eventTitle,
-                'Google Calendar',
-                event.start.dateTime,
-                event.end.dateTime,
-                existingMeeting.meeting_id
-              ],
-              (err) => {
-                if (err) {
-                  logger.error(`[CalendarSync] Error updating meeting ${existingMeeting.meeting_id}:`, err);
-                  return reject(err);
-                }
-                logger.info(`[CalendarSync] Updated meeting ${existingMeeting.meeting_id}: ${eventTitle}`);
-                resolve();
-              }
-            );
-          });
+          // Update existing meeting using model method
+          await MeetingsModel.updateMeetingFromCalendar(
+            existingMeeting.meeting_id,
+            eventTitle,
+            'Google Calendar',
+            event.start.dateTime,
+            event.end.dateTime
+          );
         } else {
-          // Create new meeting
-          await new Promise((resolve, reject) => {
-            db.run(
-              `INSERT INTO meetings 
-               (title, platform, start_time, end_time, owner_user_id, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-              [
-                eventTitle,
-                'Google Calendar',
-                event.start.dateTime,
-                event.end.dateTime,
-                userId,
-                'scheduled'
-              ],
-              (err) => {
-                if (err) {
-                  logger.error(`[CalendarSync] Error creating meeting for ${eventTitle}:`, err);
-                  return reject(err);
-                }
-                logger.info(`[CalendarSync] Created meeting: ${eventTitle} at ${event.start.dateTime}`);
-                resolve();
-              }
-            );
-          });
+          // Create new meeting using model method
+          await MeetingsModel.createMeetingFromCalendar(
+            eventTitle,
+            'Google Calendar',
+            event.start.dateTime,
+            event.end.dateTime,
+            userId
+          );
         }
 
         synced++;

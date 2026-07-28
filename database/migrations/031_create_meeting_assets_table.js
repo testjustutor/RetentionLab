@@ -15,11 +15,18 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS meeting_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
+    meeting_id VARCHAR(255) NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
     audio_path TEXT,
+    wav_audio_path TEXT,
     transcript_path TEXT,
     audit_json_path TEXT,
     screenshots_json JSON,
+    oqi_score DECIMAL(5,2) DEFAULT NULL,
+    audit_summary JSON DEFAULT NULL,
+    audit_completed_at DATETIME DEFAULT NULL,  
+    status VARCHAR(50) DEFAULT NULL,
+    processed_at DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ma_meeting (meeting_id)

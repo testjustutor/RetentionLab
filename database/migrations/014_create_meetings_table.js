@@ -1,5 +1,6 @@
 /**
  * Migration: Create meetings table
+ * Includes all columns from subsequent fix migrations (058)
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -15,15 +16,19 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS meetings (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255) UNIQUE,
+    external_meeting_id VARCHAR(255),
     title VARCHAR(500),
     description TEXT,
-    start_time DATETIME,
-    end_time DATETIME,
+    scheduled_start_time DATETIME,
+    scheduled_end_time DATETIME,
+    actual_start_time DATETIME NULL,
+    actual_end_time DATETIME NULL,
     platform VARCHAR(50),
     calendar_account VARCHAR(255),
     meeting_link TEXT,
     passcode VARCHAR(255),
+    event_id VARCHAR(255),
+    timezone VARCHAR(100),
     status VARCHAR(50) DEFAULT 'scheduled',
     created_by INT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -31,7 +36,16 @@ CREATE TABLE IF NOT EXISTS meetings (
     INDEX idx_meetings_status (status),
     INDEX idx_meetings_platform (platform),
     INDEX idx_meetings_calendar (calendar_account),
-    INDEX idx_meetings_start (start_time)
+    INDEX idx_meetings_start (scheduled_start_time),
+    INDEX idx_meetings_event_id (event_id),
+    INDEX idx_meetings_owner_user_id (owner_user_id),
+    INDEX idx_meetings_company_id (company_id),
+    INDEX idx_meetings_session_id (session_id),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

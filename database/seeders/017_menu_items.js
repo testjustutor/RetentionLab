@@ -12,10 +12,10 @@ const MENU_ITEMS = [
   // People & Access
   { menu_key: 'people', label: 'People & Access', icon: 'users', route_path: null, parent_id: null, sort_order: 2,
     children: [
-      { menu_key: 'add-user', label: 'Add User', icon: null, route_path: '/super_admin/people/add-user', parent_id: 'people', sort_order: 1 },
-      { menu_key: 'manage-users', label: 'Manage Users', icon: null, route_path: '/super_admin/people/manage-users', parent_id: 'people', sort_order: 2 },
-      { menu_key: 'access-control', label: 'Access Control', icon: null, route_path: '/super_admin/people/access-control', parent_id: 'people', sort_order: 3 },
-      { menu_key: 'permission-rubrics', label: 'Permission Rubrics', icon: null, route_path: '/super_admin/people/permission-rubrics', parent_id: 'people', sort_order: 4 }
+      { menu_key: 'add-user', label: 'Add User', icon: null, route_path: '/super_admin/people/add-user.html', parent_id: 'people', sort_order: 1 },
+      { menu_key: 'manage-users', label: 'Manage Users', icon: null, route_path: '/super_admin/people/manage-users.html', parent_id: 'people', sort_order: 2 },
+      { menu_key: 'access-control', label: 'Access Control', icon: null, route_path: '/super_admin/people/access-control.html', parent_id: 'people', sort_order: 3 },
+      { menu_key: 'permission-rubrics', label: 'Permission Rubrics', icon: null, route_path: '/super_admin/people/permission-rubrics.html', parent_id: 'people', sort_order: 4 }
     ]
   },
   
@@ -41,15 +41,18 @@ const MENU_ITEMS = [
   { menu_key: 'monitoring', label: 'Monitoring', icon: 'activity', route_path: null, parent_id: null, sort_order: 5,
     children: [
       { menu_key: 'server-performance', label: 'Server Performance', icon: null, route_path: '/super_admin/monitoring/server', parent_id: 'monitoring', sort_order: 1 },
-      { menu_key: 'audit-logs', label: 'Audit Logs', icon: null, route_path: '/super_admin/reports/audit', parent_id: 'monitoring', sort_order: 2 }
+      { menu_key: 'audit-logs', label: 'Audit Logs', icon: null, route_path: '/super_admin/reports/audit.html', parent_id: 'monitoring', sort_order: 2 }
     ]
   },
 
   // Sidebar Menu Management
   { menu_key: 'sidebar-menu-management', label: 'Manage Menu', icon: 'menu', route_path: '/super_admin/settings/sidebar-menu-management', parent_id: null, sort_order: 6 },
 
-  // Profile (moved to header/avatar menu - kept here for backward compatibility)
-  { menu_key: 'profile', label: 'Profile', icon: 'user', route_path: '/super_admin/people/profile', parent_id: null, sort_order: 7 },
+  // Profile
+  { menu_key: 'profile', label: 'Profile', icon: 'user', route_path: '/super_admin/people/profile.html', parent_id: null, sort_order: 7 },
+
+  // Logout (always visible at bottom of sidebar for all roles)
+  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999 },
 
   // People & Access - Admin view
   { menu_key: 'users', label: 'Users', icon: 'users', route_path: '/super_admin/people/manage-users', parent_id: null, sort_order: 10 },
@@ -199,3 +202,16 @@ const seedMenuItems = async () => {
 };
 
 module.exports = { seedMenuItems, MENU_ITEMS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedMenuItems()
+    .then(() => {
+      console.log('[Seed] ✓ Menu items seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Menu items seeder failed:', err);
+      process.exit(1);
+    });
+}

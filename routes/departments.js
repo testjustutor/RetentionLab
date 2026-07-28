@@ -18,6 +18,7 @@ router.put('/:id', requireAuth, handle(ctrl.update));
 router.delete('/:id', requireAuth, handle(ctrl.delete));
 router.get('/:id/members', requireAuth, handle(ctrl.listMembers));
 router.post('/:id/members', requireAuth, handle(ctrl.addMember));
+router.put('/:id/members/:userId', requireAuth, handle(ctrl.updateMember));
 router.delete('/:id/members/:userId', requireAuth, handle(ctrl.removeMember));
 
 module.exports = router;

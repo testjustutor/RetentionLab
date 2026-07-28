@@ -241,3 +241,16 @@ module.exports = {
   SETTINGS_BY_GROUP,
   ROLE_DEFAULTS,
 };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedSettings()
+    .then(() => {
+      console.log('[Seed] ✓ Settings seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Settings seeder failed:', err);
+      process.exit(1);
+    });
+}

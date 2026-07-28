@@ -10,7 +10,7 @@ function safeParseJson(raw, fallback = null) {
   if (!raw) return fallback;
   try { return JSON.parse(raw); }
   catch (e) { 
-    logger.error('HeaderConfigModel JSON parse error:', e.message, '| raw value:', raw); 
+    // logger.error('HeaderConfigModel JSON parse error:', e.message, '| raw value:', raw); 
     return fallback; 
   }
 }

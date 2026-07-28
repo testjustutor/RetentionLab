@@ -24,9 +24,9 @@ const controller = {
                u.email as owner_email
         FROM meetings m
         LEFT JOIN users u ON u.id = m.owner_user_id
-        WHERE m.start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-           OR m.start_time IS NULL
-        ORDER BY m.start_time DESC
+        WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
+           OR m.scheduled_start_time IS NULL
+        ORDER BY m.scheduled_start_time DESC
         LIMIT 100
       `;
 
@@ -44,8 +44,8 @@ const controller = {
       let totalDuration = 0;
       let countWithDuration = 0;
       meetings.forEach(m => {
-        if (m.start_time && m.end_time) {
-          const diff = new Date(m.end_time) - new Date(m.start_time);
+        if (m.scheduled_start_time && m.scheduled_end_time) {
+          const diff = new Date(m.scheduled_end_time) - new Date(m.scheduled_start_time);
           if (diff > 0) {
             totalDuration += diff / 60000; // Convert to minutes
             countWithDuration++;

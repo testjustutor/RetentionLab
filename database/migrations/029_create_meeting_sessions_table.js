@@ -16,7 +16,6 @@ const up = async () => {
 CREATE TABLE IF NOT EXISTS meeting_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     meeting_id VARCHAR(255),
-    session_id VARCHAR(255),
     transcript_file_name TEXT,
     audio_file_name TEXT,
     start_time DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -82,3 +82,16 @@ const seedHeaderRoleConfigs = async () => {
 };
 
 module.exports = { seedHeaderRoleConfigs, DEFAULT_NAV_BY_ROLE };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedHeaderRoleConfigs()
+    .then(() => {
+      console.log('[Seed] ✓ Header role configs seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Header role configs seeder failed:', err);
+      process.exit(1);
+    });
+}

@@ -50,3 +50,16 @@ const seedUserMenuPermissions = async () => {
 };
 
 module.exports = { seedUserMenuPermissions };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedUserMenuPermissions()
+    .then(() => {
+      console.log('[Seed] ✓ User menu permissions seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ User menu permissions seeder failed:', err);
+      process.exit(1);
+    });
+}

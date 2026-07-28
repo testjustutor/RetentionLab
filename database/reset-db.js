@@ -92,25 +92,12 @@ const extractSQLFromFile = (content) => {
 };
 
 const runMigrations = async () => {
-  console.log('   Running comprehensive schema migration...');
+  console.log('   Running individual migration files...');
   const migrationsDir = path.join(__dirname, 'migrations');
   
-  // Run the comprehensive schema first (creates all 57 tables with proper schema)
-  const schemaPath = path.join(migrationsDir, '000_comprehensive_schema.js');
-  try {
-    delete require.cache[require.resolve(schemaPath)];
-    const schema = require(schemaPath);
-    if (typeof schema.up === 'function') {
-      await schema.up();
-      console.log('   ✓ 000_comprehensive_schema.js (57 tables with AUTO_INCREMENT, indexes, FKs)');
-    }
-  } catch (err) {
-    console.log(`   ⚠️  Comprehensive schema: ${err.message.substring(0, 60)}`);
-  }
-  
-  // Run remaining individual migrations (they use IF NOT EXISTS / DROP + CREATE)
+  // Run individual migrations in order (they use IF NOT EXISTS / DROP + CREATE)
   const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.js') && f !== '000_comprehensive_schema.js')
+    .filter(f => f.endsWith('.js'))
     .sort();
   
   let success = 0;

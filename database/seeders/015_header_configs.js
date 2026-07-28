@@ -81,3 +81,16 @@ const seedHeaderConfigs = async () => {
 };
 
 module.exports = { seedHeaderConfigs, HEADER_CONFIGS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedHeaderConfigs()
+    .then(() => {
+      console.log('[Seed] ✓ Header configs seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Header configs seeder failed:', err);
+      process.exit(1);
+    });
+}

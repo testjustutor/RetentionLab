@@ -66,7 +66,7 @@ async function loadLive() {
       html += '<div class="bg-slate-900 border border-emerald-500/20 rounded-lg overflow-hidden animate-fade-up" style="animation-delay:'+(uIdx*100)+'ms">';
       html += '<div class="p-3 border-b border-emerald-500/10 flex items-center gap-2 bg-emerald-500/5">';
       html += '<div class="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold text-xs">'+(u.email||'?').charAt(0).toUpperCase()+'</div>';
-      html += '<div class="flex-1 min-w-0"><p class="text-xs font-semibold text-white truncate">'+escHtml(u.email)+'</p><p class="text-[10px] text-emerald-600">'+escHtml(u.role_name||'instructor')+' &middot; '+events.length+' live meeting'+(events.length!==1?'s':'')+'</p></div>';
+      html += '<div class="flex-1 min-w-0"><p class="text-xs font-semibold truncate">'+escHtml(u.email)+'</p><p class="text-[10px] text-emerald-600">'+escHtml(u.role_name||'instructor')+' &middot; '+events.length+' live meeting'+(events.length!==1?'s':'')+'</p></div>';
       html += '<span class="live-pulse inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">LIVE</span>';
       html += '</div><div class="p-3 space-y-2">';
 
@@ -81,12 +81,12 @@ async function loadLive() {
         var endStr = end ? ' - '+end.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
         var statusId = 'bot-status-live-'+uIdx+'-'+eIdx;
         var mKey = 'live-meeting-'+uIdx+'-'+eIdx;
-        window._liveMeetingData[mKey] = { platform:e.platform||'google-meet', meetingId:e.id, passcode:'', meetingUrl:e.link||'' };
+        window._liveMeetingData[mKey] = { platform:e.platform||'google-meet', meetingId:e.meeting_id || e.id, passcode:e.passcode||'', meetingUrl:e.meeting_link || e.link || '' };
 
         html += '<div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">';
         html += '<div class="flex items-start justify-between gap-2 mb-2">';
         html += '<div class="flex-1 min-w-0">';
-        html += '<p class="text-xs font-semibold text-white truncate">'+escHtml(e.title||'Untitled Meeting')+'</p>';
+        html += '<p class="text-xs font-semibold truncate">'+escHtml(e.title||'Untitled Meeting')+'</p>';
         html += '<p class="text-[10px] text-slate-400 mt-0.5">'+timeStr+endStr+'</p>';
         html += '<div class="flex items-center gap-2 mt-1.5">';
         html += '<span class="text-[10px] text-slate-500">Started '+elapsedMin+'m ago</span>';

@@ -9,6 +9,14 @@ class CalendarProvidersModel {
     return getAsync(`SELECT * FROM calendar_providers WHERE id=?`, [id]);
   }
 
+  static async getByName(name) {
+    return allAsync(`SELECT * FROM calendar_providers WHERE name=? ORDER BY id ASC`, [name]);
+  }
+
+  static async getByProviderId(provider_id) {
+    return allAsync(`SELECT * FROM calendar_providers WHERE provider_id=? ORDER BY id ASC`, [provider_id]);
+  }
+
   static async getAll({ includeInactive = false } = {}) {
     const where = includeInactive ? '' : 'WHERE is_active = 1';
     return allAsync(`SELECT * FROM calendar_providers ${where} ORDER BY display_name ASC, name ASC`);

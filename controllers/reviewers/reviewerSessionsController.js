@@ -47,10 +47,10 @@ const controller = {
       if (!instructorId) return err('instructor_id is required', 400);
 
       let sql = `
-        SELECT m.meeting_id,
+        SELECT m.external_meeting_id as meeting_id,
                m.title as meeting_title,
-               m.start_time,
-               m.end_time,
+               m.scheduled_start_time as start_time,
+               m.scheduled_end_time as end_time,
                m.platform,
                m.meeting_link,
                m.status as meeting_status,
@@ -96,7 +96,7 @@ const controller = {
         params.push(`%${search}%`, `%${search}%`, `%${search}%`);
       }
 
-      sql += ` ORDER BY m.start_time DESC LIMIT 100`;
+      sql += ` ORDER BY m.scheduled_start_time DESC LIMIT 100`;
 
       const rows = await new Promise((resolve, reject) => {
         db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
@@ -181,9 +181,9 @@ const controller = {
                   ma.reviewer_comments,
                   u.first_name || ' ' || u.last_name as owner_name
            FROM meetings m
-           LEFT JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
+           LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
            LEFT JOIN users u ON u.id = m.owner_user_id
-           WHERE m.meeting_id = ?`,
+           WHERE m.external_meeting_id = ?`,
           [meetingId],
           (err, row) => err ? reject(err) : resolve(row)
         );

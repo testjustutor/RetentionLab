@@ -41,19 +41,32 @@ class MenuModel {
   static async getRoleMenuPermissions(roleId) {
     const { allAsync } = this.getHelpers();
     const rows = await allAsync(
-      `SELECT menu_item_id, is_visible, sort_order, parent_id
+      `SELECT id, menu_item_id, is_visible, sort_order, parent_id
        FROM role_menu_permissions 
        WHERE role_id = ?`,
       [roleId]
     );
     
-    // Convert to map for efficient lookup
+    // Convert to map for efficient lookup.
+    // The parent_id column may contain either:
+    // 1) a parent menu_item_id (new seeding format), or
+    // 2) another role_menu_permissions row id (legacy/older seed format).
+    const permissionRowIdToMenuItemId = {};
+    for (const row of rows) {
+      permissionRowIdToMenuItemId[row.id] = row.menu_item_id;
+    }
+
     const permissionsMap = {};
     for (const row of rows) {
+      let parentMenuItemId = row.parent_id;
+      if (parentMenuItemId && permissionRowIdToMenuItemId[parentMenuItemId]) {
+        parentMenuItemId = permissionRowIdToMenuItemId[parentMenuItemId];
+      }
+
       permissionsMap[row.menu_item_id] = {
         is_visible: row.is_visible,
         sort_order: row.sort_order,
-        parent_id: row.parent_id
+        parent_id: parentMenuItemId
       };
     }
     return permissionsMap;
@@ -61,7 +74,7 @@ class MenuModel {
 
   /**
    * Get user menu overrides for a specific user
-   * Returns map: menu_item_id -> { is_visible, sort_order }
+   * Returns map: menu_item_id -> { is_visible, sort_order, parent_id }
    */
   static async getUserMenuOverrides(userId) {
     const { allAsync } = this.getHelpers();
@@ -71,8 +84,7 @@ class MenuModel {
        WHERE user_id = ?`,
       [userId]
     );
-    
-    // Convert to map for efficient lookup
+
     const overridesMap = {};
     for (const row of rows) {
       overridesMap[row.menu_item_id] = {
@@ -97,14 +109,12 @@ class MenuModel {
     // Apply user overrides on top of role defaults
     for (const [menuItemId, override] of Object.entries(userOverrides)) {
       if (merged[menuItemId]) {
-        // Merge with role default - preserve parent_id from role default
         merged[menuItemId] = {
           is_visible: override.is_visible !== null ? override.is_visible : merged[menuItemId].is_visible,
           sort_order: override.sort_order !== null ? override.sort_order : merged[menuItemId].sort_order,
-          parent_id: merged[menuItemId].parent_id // Keep role's parent structure
+          parent_id: merged[menuItemId].parent_id
         };
       } else {
-        // New override for menu item not in role defaults
         merged[menuItemId] = override;
       }
     }
@@ -312,18 +322,14 @@ class MenuModel {
       return this.menuCache[cacheKey].tree;
     }
 
-    // Fetch all menu items, role permissions, and user overrides in parallel
-    const [menuItems, rolePermissions, userOverrides] = await Promise.all([
+    // Fetch all menu items and role permissions in parallel
+    const [menuItems, rolePermissions] = await Promise.all([
       this.getAllMenuItems(),
-      this.getRoleMenuPermissions(roleId),
-      this.getUserMenuOverrides(userId)
+      this.getRoleMenuPermissions(roleId)
     ]);
 
-    // Merge role defaults with user overrides
-    const mergedPermissions = this.mergePermissions(rolePermissions, userOverrides);
-
-    // Build and cache tree
-    const tree = this.buildMenuTree(menuItems, mergedPermissions);
+    // Build and cache tree from role defaults only
+    const tree = this.buildMenuTree(menuItems, rolePermissions);
     this.menuCache[cacheKey] = { tree, roleId };
     
     return tree;

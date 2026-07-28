@@ -24,10 +24,6 @@ class UsersModel {
     const clean = { ...row };
     delete clean.password_hash;
     delete clean.email_verified_at;
-    delete clean.email_verification_token;
-    delete clean.email_verification_expires_at;
-    delete clean.password_reset_token;
-    delete clean.password_reset_expires_at;
     delete clean.is_deleted;
     delete clean.deleted_by;
     delete clean.deleted_at;
@@ -58,17 +54,12 @@ class UsersModel {
       first_name: data.first_name || null,
       last_name: data.last_name || null,
       email: data.email,
-      password_hash: data.password_hash || null,
+      password_hash: data.password_hash,
       phone: data.phone || null,
       profile_image: data.profile_image || null,
       status: data.status || 'active',
       email_verified: data.email_verified || 0,
       email_verified_at: data.email_verified_at || null,
-      email_verification_token: data.email_verification_token || null,
-      email_verification_expires_at: data.email_verification_expires_at || null,
-      password_reset_token: data.password_reset_token || null,
-      password_reset_expires_at: data.password_reset_expires_at || null,
-      is_company_owner: data.is_company_owner ? 1 : 0,
       created_by: user ? user.id : null
     };
 
@@ -101,12 +92,17 @@ class UsersModel {
       }
     }
 
-    if (insertData.password_hash && !isHashedPassword(insertData.password_hash)) {
-      insertData.password_hash = hashPassword(insertData.password_hash);
+    // Hash password if provided as plain text
+    if (insertData.password_hash) {
+      if (!isHashedPassword(insertData.password_hash)) {
+        insertData.password_hash = hashPassword(insertData.password_hash);
+      }
+    } else {
+      throw new Error('Password is required');
     }
 
     return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, email_verified, email_verified_at, email_verification_token, email_verification_expires_at, password_reset_token, password_reset_expires_at, is_company_owner, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      const sql = `INSERT INTO users (user_uuid, company_id, role_id, first_name, last_name, email, password_hash, phone, profile_image, status, email_verified, email_verified_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
       db.run(sql, [
         insertData.user_uuid,
         insertData.company_id,
@@ -120,11 +116,6 @@ class UsersModel {
         insertData.status,
         insertData.email_verified,
         insertData.email_verified_at,
-        insertData.email_verification_token,
-        insertData.email_verification_expires_at,
-        insertData.password_reset_token,
-        insertData.password_reset_expires_at,
-        insertData.is_company_owner,
         insertData.created_by
       ], function(err) {
         if (err) {

@@ -9,19 +9,20 @@ class MeetingAssetsModel {
   /**
    * Step 0: Initialize a record with placeholders.
    */
-  static initializeAssets(meetingId, audioPath, wav_audio_path) {
+  static initializeAssets(meetingId, sessionId, audioPath, wav_audio_path) {
 
     return new Promise((resolve, reject) => {
 
       const sql = `
         INSERT INTO meeting_assets (
             meeting_id,
+            session_id,
             audio_path,
             wav_audio_path,
             status,
             processed_at
         )
-        VALUES (?, ?, ?, 'Conversion', CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, 'Conversion', CURRENT_TIMESTAMP)
 
         ON DUPLICATE KEY UPDATE
             wav_audio_path = VALUES(wav_audio_path),
@@ -33,6 +34,7 @@ class MeetingAssetsModel {
         sql,
         [
           meetingId,
+          sessionId,
           audioPath,
           wav_audio_path
         ],

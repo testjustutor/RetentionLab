@@ -21,12 +21,12 @@ class BotPollingController {
 
       for (const meeting of queued) {
         const minutesUntilStart =
-          (new Date(meeting.start_time).getTime() - Date.now()) / 60000;
+          (new Date(meeting.scheduled_start_time).getTime() - Date.now()) / 60000;
 
         // Timed out — mark expired and skip
         if (minutesUntilStart < -5) {
           logger.warn(
-            `Skipping ${meeting.meeting_id}: timed out by ${Math.abs(Math.round(minutesUntilStart))} mins`
+            `Skipping ${meeting.external_meeting_id}: timed out by ${Math.abs(Math.round(minutesUntilStart))} mins`
           );
           await MeetingModel.updateMeetingStatus(meeting.event_id, 'expired');
           continue;
@@ -36,8 +36,8 @@ class BotPollingController {
         if (minutesUntilStart > 3 || minutesUntilStart < 1) continue;
 
         // Validate ID
-        if (!meeting.meeting_id || meeting.meeting_id === 'null') {
-          logger.warn('Skipping: no valid meeting_id');
+        if (!meeting.external_meeting_id || meeting.external_meeting_id === 'null') {
+          logger.warn('Skipping: no valid external_meeting_id');
           continue;
         }
 
@@ -47,9 +47,9 @@ class BotPollingController {
         try {
           await botManager.launchFromDb(meeting);
           await MeetingModel.updateMeetingStatus(meeting.event_id, 'in_progress');
-          logger.info(`Launched meeting ${meeting.meeting_id}`);
+          logger.info(`Launched meeting ${meeting.external_meeting_id}`);
         } catch (launchErr) {
-          logger.error(`Launch failed for ${meeting.meeting_id}:`, launchErr);
+          logger.error(`Launch failed for ${meeting.external_meeting_id}:`, launchErr);
           // Roll back so it can be retried, or set 'failed' to stop retrying
           await MeetingModel.updateMeetingStatus(meeting.event_id, 'failed');
         }

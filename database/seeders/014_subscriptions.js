@@ -91,3 +91,16 @@ const seedSubscriptions = async () => {
 };
 
 module.exports = { seedSubscriptions, SUBSCRIPTION_PLANS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedSubscriptions()
+    .then(() => {
+      console.log('[Seed] ✓ Subscriptions seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Subscriptions seeder failed:', err);
+      process.exit(1);
+    });
+}

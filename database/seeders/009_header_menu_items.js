@@ -108,12 +108,21 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   reviewer: [
-    { id: 'dashboard', label: 'Session Quality Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'sessions', label: 'Sessions', icon: 'calendar', href: '/reviewer/sessions', color: 'blue', section: 'main', submenu: null },
+    { id: 'reviews', label: 'Reviews', icon: 'check-circle', href: '/reviewer/reviews', color: 'emerald', section: 'main', submenu: null },
+    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/reviewer/evaluations', color: 'amber', section: 'main', submenu: null },
+    { id: 'score', label: 'Score', icon: 'bar-chart', href: '/reviewer/score', color: 'indigo', section: 'main', submenu: null },
+    { id: 'analytics', label: 'Analytics', icon: 'activity', href: '/reviewer/analytics', color: 'cyan', section: 'main', submenu: null },
     { id: 'profile', label: 'My Profile', icon: 'user', href: '/reviewer/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   instructor: [
-    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile', submenu: null },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', color: 'violet', section: 'main', submenu: null },
+    { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/instructor/meetings.html', color: 'blue', section: 'main', submenu: null },
+    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/instructor/evaluations.html', color: 'emerald', section: 'main', submenu: null },
+    { id: 'reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports.html', color: 'indigo', section: 'main', submenu: null },
+    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile.html', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   solo_instructor: [
@@ -203,3 +212,16 @@ const seedHeaderMenuItems = async () => {
 };
 
 module.exports = { seedHeaderMenuItems, DEFAULT_MENU_BY_ROLE };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedHeaderMenuItems()
+    .then(() => {
+      console.log('[Seed] ✓ Header menu items seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Header menu items seeder failed:', err);
+      process.exit(1);
+    });
+}

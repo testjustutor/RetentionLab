@@ -119,6 +119,35 @@ class MeetingSessionScoresModel {
       );
     });
   }
+
+  /**
+   * Get all scores with meeting and reviewer details for reports
+   * @param {number} days - Number of days to look back
+   * @returns {Promise<Array>} Array of scores with meeting and reviewer information
+   */
+  static async getAllScoresWithDetails(days = 90) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date,
+               CONCAT(u.first_name, ' ', u.last_name) as reviewer_name,
+               u.id as reviewer_id
+        FROM meeting_scores ms
+        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
+        LEFT JOIN users u ON u.id = ms.reviewer_id
+        WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        ORDER BY ms.scored_at DESC
+        LIMIT 200
+      `;
+
+      db.all(sql, [days], (err, rows) => {
+        if (err) {
+          logger.error('Model(MeetingSessionScoresModel): Error fetching all scores:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      });
+    });
+  }
 }
 
 module.exports = MeetingSessionScoresModel;

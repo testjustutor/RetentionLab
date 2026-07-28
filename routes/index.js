@@ -126,9 +126,6 @@ router.use('/api/auth', require('./auth'));
 router.use('/api/dashboard', require('./dashboard'));
 router.use('/api/instructor-dashboard', require('./instructor-dashboard'));
 
-// Sidebar navigation API
-router.get('/api/sidebar/menu', requireAuth, require('./sidebar-api'));
-
 // Header config API
 router.use('/api/header-config', require('./header-config'));
 
@@ -153,6 +150,9 @@ router.use('/api/calendar-integrations', require('./calendar-integrations'));
 
 // Menu management
 router.use('/api/menu', require('./menu'));
+
+// Sidebar API (dynamic menu for frontend)
+router.use('/api/sidebar', require('./sidebar-api'));
 
 // Configuration pages (super admin)
 router.use('/super_admin/configuration', require('./configuration'));

@@ -1,5 +1,6 @@
 /**
  * Migration: Create calendar_verifications table
+ * Includes all columns from subsequent fix migrations (066)
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -16,10 +17,17 @@ const up = async () => {
 CREATE TABLE IF NOT EXISTS calendar_verifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
+    provider VARCHAR(50) DEFAULT NULL,
     code VARCHAR(255),
+    token TEXT DEFAULT NULL,
     status VARCHAR(50) DEFAULT 'pending',
+    expires_at DATETIME DEFAULT NULL,
+    verified_at DATETIME DEFAULT NULL,
+    connected_at DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_cv_user (user_id)
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_cv_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

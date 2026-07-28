@@ -5,9 +5,7 @@
  */
 
 let currentRoleId = null;
-let currentUserId = null;
 let allRoles = [];
-let allUsers = [];
 let currentFlatItems = [];
 
 async function loadRoles() {
@@ -29,24 +27,6 @@ async function loadRoles() {
   }
 }
 
-async function loadUsers() {
-  try {
-    const response = await fetch('/api/users');
-    if (!response.ok) throw new Error('Failed to fetch users');
-    const result = await response.json();
-    allUsers = result.data || result.users || [];
-    const select = document.getElementById('userSelector');
-    select.innerHTML = '<option value="">All Users (Role Defaults)</option>';
-    allUsers.forEach(user => {
-      if (user.role_name !== 'super_admin') {
-        select.innerHTML += '<option value="' + user.id + '">' + (user.first_name || '') + ' ' + (user.last_name || '') + ' (' + user.email + ')</option>';
-      }
-    });
-  } catch (err) {
-    console.error('Error loading users:', err);
-  }
-}
-
 async function loadMenuItems() {
   const container = document.getElementById('treeContainer');
   if (!currentRoleId) {
@@ -57,25 +37,14 @@ async function loadMenuItems() {
   try {
     let result;
 
-    if (currentUserId) {
-      // Use resolved view for user - shows role defaults merged with personal overrides
-      const response = await fetch('/api/menu/admin/menu-permissions/resolved', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(currentUserId) })
-      });
-      if (!response.ok) throw new Error('Failed to fetch resolved user menu');
-      result = await response.json();
-    } else {
-      const response = await fetch('/api/menu/admin/menu-permissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_id: parseInt(currentRoleId) })
-      });
-      if (!response.ok) throw new Error('Failed to fetch menu items');
-      result = await response.json();
-    }
-    
+    const response = await fetch('/api/menu/admin/menu-permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_id: parseInt(currentRoleId) })
+    });
+    if (!response.ok) throw new Error('Failed to fetch menu items');
+    result = await response.json();
+
     if (!result.success || !result.data) {
       throw new Error('Invalid response format');
     }
@@ -180,20 +149,11 @@ async function deleteMenuItemById(id) {
       sort_order: item.display_order || 0
     }));
 
-    let resp;
-    if (currentUserId) {
-      resp = await fetch('/api/menu/admin/menu-permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(currentUserId), overrides: permissions })
-      });
-    } else {
-      resp = await fetch('/api/menu/admin/menu-permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
-      });
-    }
+    const resp = await fetch('/api/menu/admin/menu-permissions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
+    });
 
     if (!resp.ok) throw new Error('Update failed');
     alert('Menu item hidden');
@@ -286,20 +246,11 @@ function saveModalForm() {
 
 async function savePermissions(permissions) {
   try {
-    let resp;
-    if (currentUserId) {
-      resp = await fetch('/api/menu/admin/menu-permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(currentUserId), overrides: permissions })
-      });
-    } else {
-      resp = await fetch('/api/menu/admin/menu-permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
-      });
-    }
+    const resp = await fetch('/api/menu/admin/menu-permissions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
+    });
 
     if (!resp.ok) {
       const err = await resp.json();
@@ -317,27 +268,17 @@ async function savePermissions(permissions) {
 function init() {
   attachEventListeners();
   loadRoles();
-  loadUsers();
 }
 
 function attachEventListeners() {
   document.getElementById('roleSelector').addEventListener('change', async (e) => {
     currentRoleId = e.target.value || null;
-    currentUserId = null;
-    document.getElementById('userSelector').value = '';
     if (currentRoleId) {
       await loadMenuItems();
     } else {
       currentFlatItems = [];
       renderMenuTree();
       renderFlatTable();
-    }
-  });
-
-  document.getElementById('userSelector').addEventListener('change', async (e) => {
-    currentUserId = e.target.value || null;
-    if (currentRoleId) {
-      await loadMenuItems();
     }
   });
 

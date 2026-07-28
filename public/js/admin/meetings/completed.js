@@ -3,12 +3,17 @@ var PLAT = { 'google-meet':'Google Meet', 'zoom':'Zoom', 'teams':'Teams' };
 
 function fmtTime(iso) { if (!iso) return '--'; var d = new Date(iso); return d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
 function fmtDuration(start, end) { if (!start||!end) return '--'; var m = Math.round((new Date(end)-new Date(start))/60000); if (m<60) return m+'m'; var h=Math.floor(m/60); m=m%60; return h+'h'+ (m>0?' '+m+'m':''); }
+function fmtDurationFromMinutes(minutes) { if (!minutes && minutes !== 0) return '--'; if (minutes < 60) return minutes+'m'; var h=Math.floor(minutes/60); var m=minutes%60; return h+'h'+(m>0?' '+m+'m':''); }
 
 async function loadCompleted() {
   var c = document.getElementById('completedContainer');
   c.innerHTML = '<div class="flex items-center justify-center py-20"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-400">Loading completed sessions...</span></div>';
   try {
-    var json = await apiFetch('/api/meeting-schedule/completed?hours='+document.getElementById('hoursSelect').value);
+    var json = await apiFetch('/api/meeting-schedule/completed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hours: parseInt(document.getElementById('hoursSelect').value) || 168 })
+    });
     var users = json.users || [];
     var total = json.totalEvents || 0;
     var totalDur = 0;
@@ -32,12 +37,15 @@ async function loadCompleted() {
       html += '<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3 text-right">Status</th></tr></thead><tbody class="divide-y divide-slate-800/50">';
 
       for (var j = 0; j < events.length; j++) {
-        var e = events[j]; var dur = fmtDuration(e.start, e.end); var status = e.status || 'completed';
+        var e = events[j];
+        // Use pre-calculated duration if available, otherwise calculate
+        var dur = e.duration !== null && e.duration !== undefined ? fmtDurationFromMinutes(e.duration) : fmtDuration(e.start_time, e.end_time);
+        var status = e.status || 'completed';
         var statusCls = status==='completed'?'bg-emerald-500/10 text-emerald-600 border-emerald-500/20':status==='failed'?'bg-red-500/10 text-red-400 border-red-500/20':'bg-amber-500/10 text-amber-800 border-amber-500/20';
         var platName = PLAT[e.platform] || (e.platform||'Unknown');
         html += '<tr class="hover:bg-slate-800/30 transition-colors">';
         html += '<td class="py-2 px-3"><p class="font-medium truncate max-w-[150px]">'+escHtml(e.title||'Untitled')+'</p></td>';
-        html += '<td class="py-2 px-3 text-slate-400">'+fmtTime(e.start)+'</td>';
+        html += '<td class="py-2 px-3 text-slate-400">'+fmtTime(e.start_time)+'</td>';
         html += '<td class="py-2 px-3 text-slate-400">'+dur+'</td>';
         html += '<td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">'+escHtml(platName)+'</span></td>';
         html += '<td class="py-2 px-3 text-right"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+statusCls+'">'+status+'</span></td>';

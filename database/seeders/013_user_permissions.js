@@ -45,3 +45,16 @@ const seedUserPermissions = async () => {
 };
 
 module.exports = { seedUserPermissions };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedUserPermissions()
+    .then(() => {
+      console.log('[Seed] ✓ User permissions seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ User permissions seeder failed:', err);
+      process.exit(1);
+    });
+}

@@ -28,7 +28,8 @@ const ROLE_MENU_DEFAULTS = {
     { menu_key: 'server-performance', is_visible: true, sort_order: 1, parent_key: 'monitoring' },
     { menu_key: 'audit-logs', is_visible: true, sort_order: 2, parent_key: 'monitoring' },
     { menu_key: 'sidebar-menu-management', is_visible: true, sort_order: 6 },
-    { menu_key: 'profile', is_visible: true, sort_order: 7 }
+    { menu_key: 'profile', is_visible: true, sort_order: 7 },
+    { menu_key: 'logout', is_visible: true, sort_order: 999 }
   ],
   admin: [
     { menu_key: 'dashboard', is_visible: true, sort_order: 1 },
@@ -78,15 +79,26 @@ const ROLE_MENU_DEFAULTS = {
     { menu_key: 'organization', is_visible: true, sort_order: 1, parent_key: 'settings' },
     { menu_key: 'notifications', is_visible: true, sort_order: 2, parent_key: 'settings' },
     { menu_key: 'meeting-rules', is_visible: true, sort_order: 3, parent_key: 'settings' },
-    { menu_key: 'integrations', is_visible: true, sort_order: 4, parent_key: 'settings' }
+    { menu_key: 'integrations', is_visible: true, sort_order: 4, parent_key: 'settings' },
+    { menu_key: 'logout', is_visible: true, sort_order: 999 }
   ],
   reviewer: [
     { menu_key: 'dashboard', is_visible: true, sort_order: 1 },
-    { menu_key: 'profile', is_visible: true, sort_order: 2 }
+    { menu_key: 'sessions', is_visible: true, sort_order: 2 },
+    { menu_key: 'reviews', is_visible: true, sort_order: 3 },
+    { menu_key: 'evaluations', is_visible: true, sort_order: 4 },
+    { menu_key: 'score', is_visible: true, sort_order: 5 },
+    { menu_key: 'analytics', is_visible: true, sort_order: 6 },
+    { menu_key: 'profile', is_visible: true, sort_order: 7 },
+    { menu_key: 'logout', is_visible: true, sort_order: 999 }
   ],
   instructor: [
     { menu_key: 'dashboard', is_visible: true, sort_order: 1 },
-    { menu_key: 'profile', is_visible: true, sort_order: 2 }
+    { menu_key: 'meetings', is_visible: true, sort_order: 2 },
+    { menu_key: 'evaluations', is_visible: true, sort_order: 3 },
+    { menu_key: 'reports', is_visible: true, sort_order: 4 },
+    { menu_key: 'profile', is_visible: true, sort_order: 5 },
+    { menu_key: 'logout', is_visible: true, sort_order: 999 }
   ],
   solo_instructor: [
     { menu_key: 'dashboard', is_visible: true, sort_order: 1 },
@@ -104,49 +116,181 @@ const ROLE_MENU_DEFAULTS = {
     { menu_key: 'decisions', is_visible: true, sort_order: 3, parent_key: 'insights' },
     { menu_key: 'analytics', is_visible: true, sort_order: 4, parent_key: 'insights' },
     { menu_key: 'reports', is_visible: true, sort_order: 6, parent_key: null },
-    { menu_key: 'profile', is_visible: true, sort_order: 7, parent_key: null }
+    { menu_key: 'profile', is_visible: true, sort_order: 7, parent_key: null },
+    { menu_key: 'logout', is_visible: true, sort_order: 999 }
   ]
 };
 
 const seedRoleMenuPermissions = async () => {
   console.log('[Seed] Starting role menu permissions seed...');
 
-  const { count } = await getAsync(`SELECT COUNT(*) as count FROM role_menu_permissions`);
-  if (count > 0) {
-    console.log(`[Seed] role_menu_permissions already seeded (${count} records found), skipping...`);
-    return;
+  // Get unique roles (deduplicate by role_name)
+  const roles = await allAsync('SELECT id, role_name FROM roles GROUP BY role_name ORDER BY MIN(id)');
+
+  const seededRoleNames = Object.keys(ROLE_MENU_HIERARCHY);
+  const seededRoleIds = roles
+    .filter(role => seededRoleNames.includes(role.role_name))
+    .map(role => role.id);
+
+  if (seededRoleIds.length > 0) {
+    await runAsync(
+      `DELETE FROM role_menu_permissions WHERE role_id IN (${seededRoleIds.map(() => '?').join(',')})`,
+      seededRoleIds
+    );
   }
 
-  // Get all roles
-  const roles = await allAsync('SELECT id, role_name FROM roles');
-  
-  // Get all menu items
+  // Get menu_items id map
   const menuItems = await allAsync('SELECT id, menu_key FROM menu_items');
-  const menuItemIdMap = {};
+  const menuKeyToId = {};
   for (const item of menuItems) {
-    menuItemIdMap[item.menu_key] = item.id;
+    menuKeyToId[item.menu_key] = item.id;
   }
+
+  // Define parent-child hierarchy for each role using menu_keys
+  // Format: [menu_key, parent_menu_key or null for top-level]
+  const ROLE_MENU_HIERARCHY = {
+    super_admin: [
+      ['dashboard', null],
+      ['people', null],
+        ['add-user', 'people'],
+        ['manage-users', 'people'],
+        ['access-control', 'people'],
+        ['permission-rubrics', 'people'],
+      ['content', null],
+        ['archives', 'content'],
+        ['media-assets', 'content'],
+      ['settings', null],
+        ['bot-config', 'settings'],
+        ['ai-providers', 'settings'],
+        ['platforms', 'settings'],
+        ['user-defaults', 'settings'],
+      ['monitoring', null],
+        ['server-performance', 'monitoring'],
+        ['audit-logs', 'monitoring'],
+      ['sidebar-menu-management', null],
+      ['profile', null],
+    ],
+    admin: [
+      ['dashboard', null],
+      ['people', null],
+        ['users', 'people'],
+        ['departments', 'people'],
+        ['roles', 'people'],
+        ['profile', 'people'],
+      ['meetings', null],
+        ['schedule', 'meetings'],
+        ['live', 'meetings'],
+        ['completed', 'meetings'],
+        ['calendar', 'meetings'],
+      ['content', null],
+        ['recordings', 'content'],
+        ['transcripts', 'content'],
+        ['summaries', 'content'],
+        ['archives', 'content'],
+      ['evaluation', null],
+        ['rubrics', 'evaluation'],
+        ['reviews', 'evaluation'],
+        ['scores', 'evaluation'],
+        ['performance', 'evaluation'],
+      ['insights', null],
+        ['engagement', 'insights'],
+        ['actions', 'insights'],
+        ['decisions', 'insights'],
+        ['risks', 'insights'],
+        ['analytics', 'insights'],
+      ['reports', null],
+        ['meeting-reports', 'reports'],
+        ['evaluation-reports', 'reports'],
+        ['team-reports', 'reports'],
+        ['audit-reports', 'reports'],
+      ['session-quality', null],
+        ['sq-hub', 'session-quality'],
+        ['sq-rubric', 'session-quality'],
+        ['sq-analysis', 'session-quality'],
+        ['sq-impact', 'session-quality'],
+        ['sq-parent-summary', 'session-quality'],
+        ['sq-coaching', 'session-quality'],
+        ['sq-better-alt', 'session-quality'],
+        ['sq-next-plan', 'session-quality'],
+        ['sq-flags', 'session-quality'],
+        ['sq-final-eval', 'session-quality'],
+      ['settings', null],
+        ['organization', 'settings'],
+        ['notifications', 'settings'],
+        ['meeting-rules', 'settings'],
+        ['integrations', 'settings'],
+    ],
+    instructor: [
+      ['dashboard', null],
+      ['meetings', null],
+      ['evaluations', null],
+      ['reports', null],
+      ['profile', null],
+    ],
+    reviewer: [
+      ['dashboard', null],
+      ['profile', null],
+      ['evaluations', null],
+      ['reviews', null],
+      ['analytics', null],
+    ],
+    solo_instructor: [
+      ['dashboard', null],
+      ['meetings', null],
+        ['upcoming-meetings', 'meetings'],
+        ['completed-meetings', 'meetings'],
+      ['content', null],
+        ['recordings', 'content'],
+        ['transcripts', 'content'],
+        ['summaries', 'content'],
+        ['archives', 'content'],
+      ['evaluations', null],
+      ['insights', null],
+        ['engagement', 'insights'],
+        ['action-items', 'insights'],
+        ['decisions', 'insights'],
+        ['analytics', 'insights'],
+      ['reports', null],
+      ['profile', null],
+    ]
+  };
 
   let totalInserted = 0;
 
   for (const role of roles) {
-    const defaults = ROLE_MENU_DEFAULTS[role.role_name] || [];
+    const hierarchy = ROLE_MENU_HIERARCHY[role.role_name] || [];
+    const permIdByMenuKey = {};
     
-    for (const perm of defaults) {
-      const menuItemId = menuItemIdMap[perm.menu_key];
+    // First pass: insert all items with NULL parent_id, track insert IDs
+    for (const [menuKey, parentKey] of hierarchy) {
+      const menuItemId = menuKeyToId[menuKey];
       if (!menuItemId) {
-        console.warn(`[Seed] Menu item "${perm.menu_key}" not found for role "${role.role_name}"`);
+        console.warn(`[Seed] Menu key "${menuKey}" not found for role "${role.role_name}"`);
         continue;
       }
-
-      const parentId = perm.parent_key ? (menuItemIdMap[perm.parent_key] || null) : null;
-
-      await runAsync(
-        `INSERT IGNORE INTO role_menu_permissions (role_id, menu_item_id, is_visible, sort_order, parent_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [role.id, menuItemId, perm.is_visible ? 1 : 0, perm.sort_order || 0, parentId]
+      
+      const result = await runAsync(
+        `INSERT INTO role_menu_permissions (role_id, menu_item_id, is_visible, sort_order, parent_id)
+         VALUES (?, ?, 1, 0, NULL)`,
+        [role.id, menuItemId]
       );
+      permIdByMenuKey[menuKey] = result.lastID;
       totalInserted++;
+    }
+    
+    // Second pass: update parent_id for child items using the parent menu item id
+    for (const [menuKey, parentKey] of hierarchy) {
+      if (!parentKey) continue; // top-level item
+      
+      const childPermId = permIdByMenuKey[menuKey];
+      const parentMenuItemId = menuKeyToId[parentKey];
+      
+      if (childPermId && parentMenuItemId) {
+        await runAsync(
+          `UPDATE role_menu_permissions SET parent_id = ? WHERE id = ?`,
+          [parentMenuItemId, childPermId]
+        );
+      }
     }
   }
 
@@ -154,3 +298,16 @@ const seedRoleMenuPermissions = async () => {
 };
 
 module.exports = { seedRoleMenuPermissions, ROLE_MENU_DEFAULTS };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedRoleMenuPermissions()
+    .then(() => {
+      console.log('[Seed] ✓ Role menu permissions seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Role menu permissions seeder failed:', err);
+      process.exit(1);
+    });
+}

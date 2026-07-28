@@ -7,6 +7,7 @@ const MeetingModel = require('../../models/meetings/MeetingModel');
 const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const CalendarEventController = require('../calendar/CalendarEventController');
 const CalendarHelper = require('../../utils/calendarHelper');
+const TranscriptModel = require('../../models/transcripts/transcriptModel');
 const { logger } = require('../../utils/logger');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
@@ -17,18 +18,41 @@ function groupByAccount(rows) {
   rows.forEach(r => {
     const email = (r.calendar_account || '').toLowerCase();
     if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
+    
+    // Calculate duration in minutes
+    let duration = null;
+    if (r.scheduled_start_time && r.scheduled_end_time) {
+      const start = new Date(r.scheduled_start_time);
+      const end = new Date(r.scheduled_end_time);
+      duration = Math.round((end - start) / 60000); // Convert ms to minutes
+    }
+    
     groups[email].events.push({
       title: r.title || 'Untitled',
-      start_time: r.start_time,
-      end_time: r.end_time,
+      start_time: r.scheduled_start_time,
+      end_time: r.scheduled_end_time,
+      duration: duration,
       platform: r.platform || null
     });
   });
   return Object.values(groups).map(g => ({ email: g.email, role_name: g.role_name, total: g.events.length, events: g.events }));
 }
 
-async function getActiveEmails() {
-  const connections = await CalendarUsersModel.getAllUsers();
+async function getActiveEmails(adminId = null, userRole = null) {
+  // For admin: only get users they created with instructor/reviewer roles
+  const filterOptions = {
+    status: 'active',
+    email: true
+  };
+  
+  if (userRole === 'admin' && adminId) {
+    filterOptions.createdBy = adminId;
+    filterOptions.roles = ['instructor', 'solo_instructor', 'reviewer'];
+    filterOptions.excludeSelf = true;
+    filterOptions.adminId = adminId;
+  }
+  
+  const connections = await CalendarUsersModel.getAllUsers(filterOptions);
   return (connections || []).filter(c => c.status === 'active' && c.email && (c.access_token || c.token_expiry)).map(c => c.email.toLowerCase());
 }
 
@@ -38,7 +62,18 @@ const controller = {
     try {
       const hours = parseInt(req.query.hours) || 24;
       const adminId = req.user ? req.user.id : null;
-      const connections = await CalendarUsersModel.getAllUsers();
+      const userRole = req.user ? req.user.role_name : null;
+      
+      // For admin: only get users they created with instructor/reviewer roles
+      const filterOptions = {};
+      if (userRole === 'admin' && adminId) {
+        filterOptions.createdBy = adminId;
+        filterOptions.roles = ['instructor', 'solo_instructor', 'reviewer'];
+        filterOptions.excludeSelf = true;
+        filterOptions.adminId = adminId;
+      }
+      
+      const connections = await CalendarUsersModel.getAllUsers(filterOptions);
       const activeConnections = (connections || []).filter(c => c.status === 'active' && c.email && (c.access_token || c.token_expiry));
       if (!activeConnections.length) return ok({ users: [], totalUsers: 0, totalEvents: 0, synced: 0, message: 'No connected accounts' });
 
@@ -117,9 +152,19 @@ const controller = {
     try {
       const hours = parseInt(req.query.hours) || 24;
       const adminId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role_name : null;
+      
+      // For admin: only get users they created with instructor/reviewer roles
+      const filterOptions = {};
+      if (userRole === 'admin' && adminId) {
+        filterOptions.createdBy = adminId;
+        filterOptions.roles = ['instructor', 'solo_instructor', 'reviewer'];
+        filterOptions.excludeSelf = true;
+        filterOptions.adminId = adminId;
+      }
       
       // Get ALL connected users (not just those with meetings)
-      const connections = await CalendarUsersModel.getAllUsers();
+      const connections = await CalendarUsersModel.getAllUsers(filterOptions);
       const activeConnections = (connections || []).filter(c => c.status === 'active' && c.email);
       
       // Get meetings for all active emails
@@ -165,20 +210,48 @@ const controller = {
   /** GET /api/meeting-schedule/live */
   async getLiveMeetings(req) {
     try {
-      const activeEmails = await getActiveEmails();
+      const adminId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role_name : null;
+      const activeEmails = await getActiveEmails(adminId, userRole);
       if (!activeEmails.length) return ok({ users: [], totalUsers: 0, totalEvents: 0 });
+      
+      // Get full meeting rows including external_meeting_id, meeting_link, passcode, event_id
       const rows = await MeetingModel.getLiveMeetingsByAccounts(activeEmails);
-      const users = groupByAccount(rows);
+      
+      // Group meetings by account - include ALL fields needed for bot join
+      const groups = {};
+      rows.forEach(r => {
+        const email = (r.calendar_account || '').toLowerCase();
+        if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
+        groups[email].events.push({
+          id: r.id,
+          meeting_id: r.external_meeting_id,
+          event_id: r.event_id,
+          title: r.title || 'Untitled',
+          start: r.scheduled_start_time,
+          end: r.scheduled_end_time,
+          start_time: r.scheduled_start_time,
+          end_time: r.scheduled_end_time,
+          platform: r.platform || null,
+          meeting_link: r.meeting_link || null,
+          passcode: r.passcode || null,
+          link: r.meeting_link || null,
+          status: r.status || null,
+          calendar_account: r.calendar_account || null
+        });
+      });
+      const users = Object.values(groups).map(g => g);
+      
       return ok({ users, totalUsers: users.length, totalEvents: rows.length });
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/meeting-schedule/completed?hours=24 */
+  /** POST /api/meeting-schedule/completed */
   async getCompletedMeetings(req) {
     try {
-      const hours = parseInt(req.query.hours) || 24;
+      const hours = parseInt(req.body.hours) || 24;
       const adminId = req.user ? req.user.id : null;
-      // Get ALL completed meetings (not filtered by calendar connections — show all data)
+      // Get completed meetings (filtered by SQL: status='completed' OR has transcript+audio)
       const rows = await MeetingModel.getCompletedMeetingsByAccounts([], hours);
       const users = groupByAccount(rows);
       

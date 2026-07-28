@@ -54,3 +54,16 @@ const seedSuperAdmin = async () => {
 };
 
 module.exports = { seedSuperAdmin };
+
+// Run seeder if executed directly
+if (require.main === module) {
+  seedSuperAdmin()
+    .then(() => {
+      console.log('[Seed] ✓ Super admin seeder completed successfully');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('[Seed] ✗ Super admin seeder failed:', err);
+      process.exit(1);
+    });
+}

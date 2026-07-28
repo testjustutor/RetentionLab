@@ -100,10 +100,16 @@ const up = async () => {
     company_id INT,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    deleted_at DATETIME DEFAULT NULL,
+    deleted_by INT DEFAULT NULL,
+    updated_by INT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_dept_company (company_id),
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+    INDEX idx_dept_deleted_at (deleted_at),
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+    FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   // ─── 7. department_members ────────────────────────────────────────────────
@@ -111,43 +117,70 @@ const up = async () => {
     id INT AUTO_INCREMENT PRIMARY KEY,
     department_id INT NOT NULL,
     user_id INT NOT NULL,
-    role VARCHAR(50) DEFAULT 'member',
+    role_id INT,
+    joined_by INT,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'active',
+    created_by INT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by INT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME,
+    deleted_by INT,
     UNIQUE KEY unique_dept_user (department_id, user_id),
     INDEX idx_dm_department (department_id),
     INDEX idx_dm_user (user_id),
+    INDEX idx_dm_role (role_id),
+    INDEX idx_dm_status (status),
+    INDEX idx_dm_deleted_at (deleted_at),
     FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (joined_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   // ─── 8. meetings ──────────────────────────────────────────────────────────
   await runAsync(`CREATE TABLE IF NOT EXISTS meetings (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255) UNIQUE,
+    external_meeting_id VARCHAR(255),
     title VARCHAR(500),
     description TEXT,
-    start_time DATETIME,
-    end_time DATETIME,
+    scheduled_start_time DATETIME,
+    scheduled_end_time DATETIME,
+    actual_start_time DATETIME NULL,
+    actual_end_time DATETIME NULL,
     platform VARCHAR(50),
     calendar_account VARCHAR(255),
     meeting_link TEXT,
     passcode VARCHAR(255),
     status VARCHAR(50) DEFAULT 'scheduled',
+    event_id VARCHAR(255),
+    timezone VARCHAR(100),
     created_by INT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_meetings_status (status),
     INDEX idx_meetings_platform (platform),
     INDEX idx_meetings_calendar (calendar_account),
-    INDEX idx_meetings_start (start_time),
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    INDEX idx_meetings_start (scheduled_start_time),
+    INDEX idx_meetings_event_id (event_id),
+    INDEX idx_meetings_owner_user_id (owner_user_id),
+    INDEX idx_meetings_company_id (company_id),
+    INDEX idx_meetings_session_id (session_id),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   // ─── 9. meeting_sessions ──────────────────────────────────────────────────
   await runAsync(`CREATE TABLE IF NOT EXISTS meeting_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     meeting_id VARCHAR(255),
-    session_id VARCHAR(255),
     transcript_file_name TEXT,
     audio_file_name TEXT,
     start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -169,8 +202,11 @@ const up = async () => {
     participant_role VARCHAR(50),
     join_time DATETIME,
     leave_time DATETIME,
+    deleted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_part_meeting (meeting_id),
+    INDEX idx_part_deleted_at (deleted_at),
     FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
@@ -202,9 +238,12 @@ const up = async () => {
     left_at DATETIME,
     duration_seconds INT,
     attendance_status VARCHAR(50),
+    deleted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_pas_meeting (meeting_id),
     INDEX idx_pas_participant (participant_id),
+    INDEX idx_pas_deleted_at (deleted_at),
     FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id) ON DELETE CASCADE,
     FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
@@ -212,11 +251,18 @@ const up = async () => {
   // ─── 13. meeting_assets ───────────────────────────────────────────────────
   await runAsync(`CREATE TABLE IF NOT EXISTS meeting_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
-    audio_path TEXT,
+    meeting_id VARCHAR(255) NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    audio_path TEXT,    
+    wav_audio_path TEXT,
     transcript_path TEXT,
     audit_json_path TEXT,
     screenshots_json JSON,
+    oqi_score DECIMAL(5,2) DEFAULT NULL,
+    audit_summary JSON DEFAULT NULL,
+    audit_completed_at DATETIME DEFAULT NULL,    
+    status VARCHAR(50) DEFAULT NULL,
+    processed_at DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ma_meeting (meeting_id),
@@ -229,7 +275,10 @@ const up = async () => {
     meeting_id VARCHAR(255),
     reviewer_id INT,
     assigned_by INT,
-    status VARCHAR(50) DEFAULT 'pending',
+    review_status VARCHAR(50) DEFAULT 'pending',
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    comments TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_mr_meeting (meeting_id),
     INDEX idx_mr_reviewer (reviewer_id),
@@ -660,23 +709,36 @@ const up = async () => {
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
     platform VARCHAR(50),
+    provider VARCHAR(50) DEFAULT 'google',
+    provider_id INT DEFAULT NULL,
     access_token TEXT,
     refresh_token TEXT,
     expires_at DATETIME,
+    token_expiry DATETIME,
     status VARCHAR(50) DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ci_user (user_id),
     INDEX idx_ci_platform (platform),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    INDEX idx_ci_provider (provider),
+    INDEX idx_ci_provider_id (provider_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider_id) REFERENCES calendar_providers(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   // ─── 42. calendar_verifications ───────────────────────────────────────────
   await runAsync(`CREATE TABLE IF NOT EXISTS calendar_verifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
+    provider VARCHAR(50) DEFAULT NULL,
     code VARCHAR(255),
+    token TEXT DEFAULT NULL,
     status VARCHAR(50) DEFAULT 'pending',
+    expires_at DATETIME DEFAULT NULL,
+    verified_at DATETIME DEFAULT NULL,
+    connected_at DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_cv_user (user_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);

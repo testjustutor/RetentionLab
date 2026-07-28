@@ -8,10 +8,14 @@ async function loadRoles() {
     // Controller returns { success, data: [...] }
     const roles = json.data || [];
 
-    // For each role, fetch its pages
+    // For each role, fetch its pages using POST to avoid caching
     allRoleData = await Promise.all(roles.map(async r => {
       try {
-        const pagesJson = await apiFetch('/api/roles/' + r.id + '/pages');
+        const pagesJson = await apiFetch('/api/roles/pages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId: r.id })
+        });
         const pagesArr = pagesJson.data || [];
         const pages = {};
         pagesArr.forEach(p => { pages[p.pageKey] = p; });

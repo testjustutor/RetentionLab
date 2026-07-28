@@ -76,15 +76,16 @@ class DepartmentsModel {
     });
   }
 
-  /** Get members of a department with user details */
+  /** Get members of a department with user details and role */
   static getMembers(departmentId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT u.id, u.first_name, u.last_name, u.email, u.status, r.role_name,
-                dm.id as member_id, dm.joined_at
+        `SELECT u.id, u.first_name, u.last_name, u.email, u.status as user_status,
+                r.id as role_id, r.role_name,
+                dm.id as member_id, dm.joined_at, dm.status as membership_status
          FROM department_members dm
          JOIN users u ON u.id = dm.user_id
-         LEFT JOIN roles r ON r.id = u.role_id
+         LEFT JOIN roles r ON r.id = dm.role_id
          WHERE dm.department_id = ? AND dm.deleted_at IS NULL AND u.deleted_at IS NULL
          ORDER BY dm.joined_at DESC`,
         [departmentId],
@@ -93,30 +94,79 @@ class DepartmentsModel {
     });
   }
 
-  /** Add a member to a department */
-  static addMember(departmentId, userId) {
+  /** Add a member to a department (or restore if soft-deleted) */
+  static addMember(departmentId, userId, { role_id, created_by, joined_by } = {}) {
     return new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO department_members (department_id, user_id, joined_at) VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      // First check if a soft-deleted record exists for this dept+user
+      db.get(
+        `SELECT id FROM department_members WHERE department_id = ? AND user_id = ? AND deleted_at IS NOT NULL`,
         [departmentId, userId],
-        function(err) {
-          if (err) {
-            if (err.message.includes('UNIQUE')) return reject(new Error('User is already a member of this department'));
-            logger.error('DepartmentsModel.addMember:', err);
-            return reject(err);
+        (err, existing) => {
+          if (err) { logger.error('DepartmentsModel.addMember:', err); return reject(err); }
+
+          if (existing) {
+            // Restore the soft-deleted record
+            db.run(
+              `UPDATE department_members 
+               SET deleted_at = NULL, deleted_by = NULL, 
+                   role_id = ?, status = 'active',
+                   updated_by = ?, updated_at = CURRENT_TIMESTAMP,
+                   joined_by = ?, joined_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [role_id || null, created_by || null, joined_by || null, existing.id],
+              function(updateErr) {
+                if (updateErr) { logger.error('DepartmentsModel.addMember (restore):', updateErr); return reject(updateErr); }
+                resolve({ id: existing.id, restored: true });
+              }
+            );
+          } else {
+            // Insert new record
+            db.run(
+              `INSERT INTO department_members (department_id, user_id, role_id, created_by, joined_by, joined_at)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+              [departmentId, userId, role_id || null, created_by || null, joined_by || null],
+              function(insertErr) {
+                if (insertErr) {
+                  if (insertErr.message.includes('UNIQUE')) return reject(new Error('User is already an active member of this department'));
+                  logger.error('DepartmentsModel.addMember:', insertErr);
+                  return reject(insertErr);
+                }
+                resolve({ id: this.lastID, restored: false });
+              }
+            );
           }
-          resolve({ id: this.lastID });
         }
       );
     });
   }
 
-  /** Remove a member from a department */
-  static removeMember(departmentId, userId) {
+  /** Update a member's role and/or status */
+  static updateMember(departmentId, userId, { role_id, status, updated_by } = {}) {
+    return new Promise((resolve, reject) => {
+      const fields = [];
+      const params = [];
+      if (role_id !== undefined) { fields.push('role_id = ?'); params.push(role_id); }
+      if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+      if (!fields.length) return resolve({ updated: false });
+      fields.push('updated_by = ?', 'updated_at = CURRENT_TIMESTAMP');
+      params.push(updated_by || null, departmentId, userId);
+      db.run(
+        `UPDATE department_members SET ${fields.join(', ')} WHERE department_id = ? AND user_id = ? AND deleted_at IS NULL`,
+        params,
+        function(err) {
+          if (err) { logger.error('DepartmentsModel.updateMember:', err); return reject(err); }
+          resolve({ updated: this.changes > 0 });
+        }
+      );
+    });
+  }
+
+  /** Remove a member from a department (soft delete) */
+  static removeMember(departmentId, userId, deleted_by) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE department_members SET deleted_at = CURRENT_TIMESTAMP WHERE department_id = ? AND user_id = ? AND deleted_at IS NULL`,
-        [departmentId, userId],
+        `UPDATE department_members SET deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE department_id = ? AND user_id = ? AND deleted_at IS NULL`,
+        [deleted_by || null, departmentId, userId],
         function(err) {
           if (err) { logger.error('DepartmentsModel.removeMember:', err); return reject(err); }
           resolve({ removed: this.changes > 0 });
