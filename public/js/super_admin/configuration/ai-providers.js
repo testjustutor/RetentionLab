@@ -217,11 +217,3 @@ function showToast(message, type = 'info') {
     toast.classList.add('translate-y-20', 'opacity-0');
   }, 3000);
 }
-</parameter>
-<parameter=task_progress>
-- [x] Read current AI providers HTML
-- [x] Remove API Key fields from HTML
-- [x] Remove API Key logic from JS
-- [ ] Verify changes
-</parameter>
-</write_to_file>

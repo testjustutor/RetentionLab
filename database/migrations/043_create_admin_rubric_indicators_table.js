@@ -18,7 +18,7 @@ const up = async () => {
       original_indicator_id VARCHAR(255) NOT NULL,
       original_category_id VARCHAR(10) NOT NULL,
       admin_user_id INT NOT NULL,
-      category_id INT,
+      source ENUM('master', 'custom') DEFAULT 'master',
       name VARCHAR(255) NOT NULL,
       type ENUM('AI', 'HUMAN') DEFAULT 'HUMAN',
       is_gate TINYINT(1) DEFAULT 0,
@@ -27,10 +27,9 @@ const up = async () => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY unique_admin_indicator (original_indicator_id, admin_user_id),
-      INDEX idx_ari_admin (admin_user_id),
-      INDEX idx_ari_category (category_id)
+      INDEX idx_ari_admin (admin_user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`);
+  `);
 
   console.log('[Migration admin_rubric_indicators] Complete.');
 };

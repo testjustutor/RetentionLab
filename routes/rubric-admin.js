@@ -1,65 +1,37 @@
 /**
- * root/routes/rubric-admin.js
- * 
- * Super Admin + Admin Rubric Management Endpoints
+ * routes/rubric-admin.js
+ * Routes for admin rubric management
  */
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireRole } = require('../middleware/auth');
-const {
-  requireAdminRubricOwnership,
-  requireAdminCategoryOwnership,
-  requireAdminIndicatorOwnership,
-  requireRubricAssignmentPrivilege
-} = require('../middleware/adminRubricAuth');
-const rubricAdminController = require('../controllers/rubric-admin/rubricAdminController');
+const { requireAuth } = require('../middleware/auth');
+const ctrl = require('../controllers/admin/adminRubricController');
 
-// ─── MIDDLEWARE ─────────────────────────────────────────────────────────────
-router.use((req, res, next) => {
-  res.locals.userId = req.user ? req.user.id : null;
-  next();
-});
+// GET /api/admin/rubrics/master-categories - Get master categories
+router.get('/master-categories', requireAuth, (req, res) => ctrl.getMasterCategories(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── MASTER CATEGORIES CRUD (Super Admin only) ────────────────────────────
-router.get('/categories', requireAuth, requireRole('super_admin'), rubricAdminController.getCategories);
-router.get('/categories/:category_id', requireAuth, requireRole('super_admin'), rubricAdminController.getCategoryById);
-router.post('/categories', requireAuth, requireRole('super_admin'), rubricAdminController.createCategory);
-router.put('/categories/:category_id', requireAuth, requireRole('super_admin'), rubricAdminController.updateCategory);
-router.delete('/categories/:category_id', requireAuth, requireRole('super_admin'), rubricAdminController.deleteCategory);
+// GET /api/admin/rubrics/master-indicators - Get master indicators
+router.get('/master-indicators', requireAuth, (req, res) => ctrl.getMasterIndicators(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── MASTER INDICATORS CRUD (Super Admin only) ────────────────────────────
-router.get('/indicators', requireAuth, requireRole('super_admin'), rubricAdminController.getIndicators);
-router.post('/indicators', requireAuth, requireRole('super_admin'), rubricAdminController.createIndicator);
-router.put('/indicators/:indicator_id', requireAuth, requireRole('super_admin'), rubricAdminController.updateIndicator);
-router.delete('/indicators/:indicator_id', requireAuth, requireRole('super_admin'), rubricAdminController.deleteIndicator);
+// GET /api/admin/rubrics/categories - Get admin's categories
+router.get('/categories', requireAuth, (req, res) => ctrl.getAdminCategories(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── ASSIGNMENTS ───────────────────────────────────────────────────────────
-router.post('/assign', requireAuth, requireRole('super_admin'), requireRubricAssignmentPrivilege, rubricAdminController.assignCategory);
-router.delete('/assign', requireAuth, requireRole('super_admin'), requireRubricAssignmentPrivilege, rubricAdminController.unassignCategory);
-router.get('/assignments', requireAuth, requireRole('super_admin'), rubricAdminController.getAssignments);
+// GET /api/admin/rubrics/indicators - Get admin's indicators
+router.get('/indicators', requireAuth, (req, res) => ctrl.getAdminIndicators(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── ADMIN-SPECIFIC DATA ───────────────────────────────────────────────────
-router.get('/admin-categories/:admin_user_id', requireAuth, requireAdminRubricOwnership, rubricAdminController.getAdminCategories);
-router.get('/admin-indicators/:admin_user_id', requireAuth, requireAdminRubricOwnership, rubricAdminController.getAdminIndicators);
-router.put('/admin-categories/:admin_user_id/:original_category_id', requireAuth, requireAdminCategoryOwnership, rubricAdminController.updateAdminCategoryWeight);
-router.put('/admin-indicators/:admin_user_id/:original_indicator_id', requireAuth, requireAdminIndicatorOwnership, rubricAdminController.updateAdminIndicatorValue);
-router.post('/admin-categories/bulk/:admin_user_id', requireAuth, requireAdminCategoryOwnership, rubricAdminController.bulkUpdateAdminCategories);
-router.post('/admin-indicators/bulk/:admin_user_id', requireAuth, requireAdminIndicatorOwnership, rubricAdminController.bulkUpdateAdminIndicators);
-router.get('/admin-summary/:admin_user_id', requireAuth, requireAdminRubricOwnership, rubricAdminController.getAdminSummary);
+// POST /api/admin/rubrics/copy-from-master - Copy from master
+router.post('/copy-from-master', requireAuth, (req, res) => ctrl.copyFromMaster(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── SYNC ───────────────────────────────────────────────────────────────────
-router.post('/sync-admin/:admin_user_id', requireAuth, requireRole('super_admin'), rubricAdminController.syncAdmin);
+// POST /api/admin/rubrics/categories - Create category
+router.post('/categories', requireAuth, (req, res) => ctrl.createCategory(req).then(r => res.status(r.statusCode || 201).json(r)));
 
-// ─── FULL RUBRIC STRUCTURE ─────────────────────────────────────────────────
-router.get('/full/:admin_user_id', requireAuth, requireAdminRubricOwnership, rubricAdminController.getFullRubric);
-router.get('/master-full', requireAuth, rubricAdminController.getMasterFull);
+// POST /api/admin/rubrics/indicators - Create indicator
+router.post('/indicators', requireAuth, (req, res) => ctrl.createIndicator(req).then(r => res.status(r.statusCode || 201).json(r)));
 
-// ─── MEETING REPORTS ───────────────────────────────────────────────────────
-router.get('/meeting-report/:meetingId', requireAuth, rubricAdminController.getMeetingReport);
-router.get('/weighted-score/:meetingId', requireAuth, rubricAdminController.getWeightedScore);
+// DELETE /api/admin/rubrics/categories/:id - Delete category
+router.delete('/categories/:id', requireAuth, (req, res) => ctrl.deleteCategory(req).then(r => res.status(r.statusCode || 200).json(r)));
 
-// ─── AUDIT LOGS ────────────────────────────────────────────────────────────
-router.get('/audit-logs', requireAuth, requireRole('super_admin'), rubricAdminController.getAuditLogs);
-router.post('/audit-log', requireAuth, requireRole('super_admin'), rubricAdminController.addAuditLog);
+// DELETE /api/admin/rubrics/indicators/:id - Delete indicator
+router.delete('/indicators/:id', requireAuth, (req, res) => ctrl.deleteIndicator(req).then(r => res.status(r.statusCode || 200).json(r)));
 
 module.exports = router;

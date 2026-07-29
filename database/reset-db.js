@@ -3,6 +3,12 @@
  * 
  * DEVELOPMENT ONLY — Drops all tables, runs migrations, then seeds.
  * 
+ * Database Structure:
+ * - Migrations: 57 files (001-057) creating tables for roles, users, meetings,
+ *   sessions, transcripts, rubrics, calendar, archives, and more
+ * - Seeders: 19 files (001-019) seeding roles, companies, permissions, users,
+ *   settings, menu items, and role-based menu permissions
+ * 
  * Usage: npm run db:reset
  *        node database/reset-db.js
  * 
@@ -36,7 +42,7 @@ const getTables = () => new Promise((resolve, reject) => {
   db.all(
     `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
      WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`,
-    [process.env.DB_NAME || 'retention_lab'],
+    [process.env.DB_NAME],
     (err, rows) => {
       if (err) return reject(err);
       resolve(rows.map(r => r.TABLE_NAME));
@@ -100,6 +106,8 @@ const runMigrations = async () => {
     .filter(f => f.endsWith('.js'))
     .sort();
   
+  console.log(`   Found ${files.length} migration files (001-057)`);
+  
   let success = 0;
   let fail = 0;
   
@@ -108,34 +116,39 @@ const runMigrations = async () => {
     const content = fs.readFileSync(filePath, 'utf8');
     
     // Try to load as module
+    let moduleError = null;
+    let migrationFn = null;
     try {
       delete require.cache[require.resolve(filePath)];
       const mod = require(filePath);
-      const fn = typeof mod.run === 'function' ? mod.run :
-                 typeof mod.up === 'function' ? mod.up : null;
-      if (fn) {
+      migrationFn = typeof mod.run === 'function' ? mod.run :
+                    typeof mod.up === 'function' ? mod.up : null;
+      if (migrationFn) {
         try {
-          await fn();
+          await migrationFn();
           console.log(`   ✓ ${file}`);
           success++;
           continue;
         } catch (err) {
-          // Fall through
+          moduleError = err;
+          // Fall through to SQL extraction
         }
       }
     } catch (err) {
-      // Module can't be loaded - skip
+      moduleError = err;
+      // Module can't be loaded - try SQL extraction
     }
     
     // Extract and execute CREATE TABLE statements as fallback
     const statements = extractSQLFromFile(content);
     let created = 0;
+    let sqlErrors = [];
     for (const stmt of statements) {
       try {
         await runAsync(stmt);
         created++;
       } catch (err) {
-        // Table already exists - fine
+        sqlErrors.push(err.message);
       }
     }
     
@@ -143,12 +156,19 @@ const runMigrations = async () => {
       console.log(`   ✓ ${file} (${created} table${created > 1 ? 's' : ''})`);
       success++;
     } else {
-      console.log(`   ⚠️  ${file} (skipped - already exists)`);
+      if (moduleError) {
+        console.log(`   ❌ ${file} (migration function failed: ${moduleError.message})`);
+      } else if (sqlErrors.length > 0) {
+        console.log(`   ⚠️  ${file} (SQL failed: ${sqlErrors[0].substring(0, 100)})`);
+      } else {
+        console.log(`   ⚠️  ${file} (skipped - no tables to create)`);
+      }
       fail++;
     }
   }
   
   console.log(`   ✓ Migrations complete — ${success} succeeded, ${fail} skipped`);
+  console.log(`   Total: ${files.length} migration files processed`);
 };
 
 const resetDB = async () => {
@@ -213,14 +233,17 @@ const resetDB = async () => {
   }
 
   if (!migrateOnly) {
-    console.log('🔧 Step 4/4: Running seeders...');
-    try {
-      await runSeeder();
-      console.log('   ✅ Seeders complete\n');
-    } catch (err) {
-      console.error('   ❌ Seeders failed:', err.message);
-      process.exit(1);
-    }
+  console.log('🔧 Step 4/4: Running seeders...');
+  try {
+    await runSeeder();
+    console.log('   ✅ Seeders complete\n');
+  } catch (err) {
+    console.error('   ❌ Seeders failed:', err.message);
+    process.exit(1);
+  }
+  
+  console.log('   Seeded: roles, companies, permissions, admin user, settings,');
+  console.log('           menu items, role menu permissions, and more');
   } else {
     console.log('⏭️  Step 4/4: Skipping seeders (--migrate-only)\n');
   }

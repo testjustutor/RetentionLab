@@ -7,7 +7,9 @@ const { logger } = require('../../utils/logger');
 
 function hashPassword(password, salt = null) {
   salt = salt || crypto.randomBytes(16).toString('hex');
-  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  const secretKey = process.env.PASSWORD_SECRET_KEY || '';
+  const pepperedPassword = secretKey + password;
+  const derived = crypto.scryptSync(pepperedPassword, salt, 64).toString('hex');
   return `${salt}:${derived}`;
 }
 
@@ -181,9 +183,9 @@ class UsersModel {
           `SELECT users.*, roles.role_name as role_name
            FROM users
            LEFT JOIN roles ON users.role_id = roles.id
-           WHERE users.deleted_at IS NULL AND users.company_id = ? AND users.id != ?
+           WHERE users.deleted_at IS NULL AND users.company_id = ? AND users.created_by = ? AND users.id != ?
            ORDER BY users.created_at DESC LIMIT ?`,
-          [user.company_id, user.id, limit],
+          [user.company_id, user.id, user.id, limit],
           (err, rows) => {
             if (err) return reject(err);
             resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));

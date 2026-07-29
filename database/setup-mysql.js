@@ -33,7 +33,7 @@ async function setupMySQL() {
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_SCHEMA = ?
                 ORDER BY TABLE_NAME
-            `, [process.env.DB_NAME || 'retention_lab']);
+            `, [process.env.DB_NAME]);
             
             if (result && result.length > 0) {
                 console.log(`   ✅ Found ${result.length} tables`);

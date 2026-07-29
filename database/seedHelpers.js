@@ -1,6 +1,7 @@
 /**
  * root/database/seedHelpers.js
  */
+const crypto = require('crypto');
 const { db } = require('./db');
 
 const runAsync = (sql, params = []) => new Promise((resolve, reject) => {
@@ -24,4 +25,11 @@ const allAsync = (sql, params = []) => new Promise((resolve, reject) => {
     });
 });
 
-module.exports = { db, runAsync, getAsync, allAsync };
+const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
+    const secretKey = process.env.PASSWORD_SECRET_KEY || '';
+    const pepperedPassword = secretKey + password;
+    const derived = crypto.scryptSync(pepperedPassword, salt, 64).toString('hex');
+    return `${salt}:${derived}`;
+};
+
+module.exports = { db, runAsync, getAsync, allAsync, hashPassword };

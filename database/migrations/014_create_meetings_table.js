@@ -38,14 +38,7 @@ CREATE TABLE IF NOT EXISTS meetings (
     INDEX idx_meetings_calendar (calendar_account),
     INDEX idx_meetings_start (scheduled_start_time),
     INDEX idx_meetings_event_id (event_id),
-    INDEX idx_meetings_owner_user_id (owner_user_id),
-    INDEX idx_meetings_company_id (company_id),
-    INDEX idx_meetings_session_id (session_id),
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

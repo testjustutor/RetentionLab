@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="contentVideos">
+  <title>Videos | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div id="header-buttons-container"></div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="card mb-6">
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
+            <div class="icon-box icon-box-primary">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+              </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-slate-900">Filters</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="form-group">
+              <label class="form-label">Start Date</label>
+              <input type="date" id="filter-start-date" class="input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Date</label>
+              <input type="date" id="filter-end-date" class="input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Instructor</label>
+              <select id="filter-instructor" class="select">
+                <option value="">All Instructors</option>
+              </select>
+            </div>
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button id="apply-filters" class="btn btn-primary">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+              </svg>
+              Apply Filters
+            </button>
+            <button id="clear-filters" class="btn btn-outline">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Videos Table -->
+        <div class="card">
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
+            <div class="icon-box icon-box-info">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-slate-900">Video Recordings</h2>
+            <span id="videos-count" class="ml-auto text-sm text-slate-600">0 videos</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Instructor</th>
+                  <th>Platform</th>
+                  <th>Date</th>
+                  <th>Duration</th>
+                  <th>OQI Score</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="videos-table-body">
+                <tr>
+                  <td colspan="7" class="text-center py-8 text-slate-500">Loading videos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Video Modal -->
+  <div id="video-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-screen overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-slate-200">
+        <h3 id="modal-title" class="text-lg font-semibold text-slate-900">Video Recording</h3>
+        <button id="close-modal" class="text-slate-500 hover:text-slate-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto flex-1">
+        <video id="video-player" controls class="w-full rounded-lg bg-black">
+          <source id="video-source" src="" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <div id="video-details" class="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span class="font-semibold text-slate-700">Instructor:</span>
+            <span id="modal-instructor" class="text-slate-600"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Platform:</span>
+            <span id="modal-platform" class="text-slate-600"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Date:</span>
+            <span id="modal-date" class="text-slate-600"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Duration:</span>
+            <span id="modal-duration" class="text-slate-600"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/content/videos.js"></script>
+</body>
+</html>

@@ -84,10 +84,10 @@ const ROLE_MENU_DEFAULTS = {
   ],
   reviewer: [
     { menu_key: 'dashboard', is_visible: true, sort_order: 1 },
-    { menu_key: 'sessions', is_visible: true, sort_order: 2 },
+    { menu_key: 'reviewer-sessions', is_visible: true, sort_order: 2 },
     { menu_key: 'reviews', is_visible: true, sort_order: 3 },
     { menu_key: 'evaluations', is_visible: true, sort_order: 4 },
-    { menu_key: 'score', is_visible: true, sort_order: 5 },
+    { menu_key: 'reviewer-score', is_visible: true, sort_order: 5 },
     { menu_key: 'analytics', is_visible: true, sort_order: 6 },
     { menu_key: 'profile', is_visible: true, sort_order: 7 },
     { menu_key: 'logout', is_visible: true, sort_order: 999 }
@@ -124,28 +124,6 @@ const ROLE_MENU_DEFAULTS = {
 const seedRoleMenuPermissions = async () => {
   console.log('[Seed] Starting role menu permissions seed...');
 
-  // Get unique roles (deduplicate by role_name)
-  const roles = await allAsync('SELECT id, role_name FROM roles GROUP BY role_name ORDER BY MIN(id)');
-
-  const seededRoleNames = Object.keys(ROLE_MENU_HIERARCHY);
-  const seededRoleIds = roles
-    .filter(role => seededRoleNames.includes(role.role_name))
-    .map(role => role.id);
-
-  if (seededRoleIds.length > 0) {
-    await runAsync(
-      `DELETE FROM role_menu_permissions WHERE role_id IN (${seededRoleIds.map(() => '?').join(',')})`,
-      seededRoleIds
-    );
-  }
-
-  // Get menu_items id map
-  const menuItems = await allAsync('SELECT id, menu_key FROM menu_items');
-  const menuKeyToId = {};
-  for (const item of menuItems) {
-    menuKeyToId[item.menu_key] = item.id;
-  }
-
   // Define parent-child hierarchy for each role using menu_keys
   // Format: [menu_key, parent_menu_key or null for top-level]
   const ROLE_MENU_HIERARCHY = {
@@ -169,6 +147,7 @@ const seedRoleMenuPermissions = async () => {
         ['audit-logs', 'monitoring'],
       ['sidebar-menu-management', null],
       ['profile', null],
+      ['logout', null],
     ],
     admin: [
       ['dashboard', null],
@@ -219,6 +198,7 @@ const seedRoleMenuPermissions = async () => {
         ['notifications', 'settings'],
         ['meeting-rules', 'settings'],
         ['integrations', 'settings'],
+      ['logout', null],
     ],
     instructor: [
       ['dashboard', null],
@@ -226,13 +206,17 @@ const seedRoleMenuPermissions = async () => {
       ['evaluations', null],
       ['reports', null],
       ['profile', null],
+      ['logout', null],
     ],
     reviewer: [
       ['dashboard', null],
-      ['profile', null],
-      ['evaluations', null],
+      ['reviewer-sessions', null],
       ['reviews', null],
+      ['evaluations', null],
+      ['reviewer-score', null],
       ['analytics', null],
+      ['profile', null],
+      ['logout', null],
     ],
     solo_instructor: [
       ['dashboard', null],
@@ -252,11 +236,29 @@ const seedRoleMenuPermissions = async () => {
         ['analytics', 'insights'],
       ['reports', null],
       ['profile', null],
+      ['logout', null],
     ]
   };
 
+  // Get unique roles (deduplicate by role_name)
+  const roles = await allAsync('SELECT id, role_name FROM roles GROUP BY role_name ORDER BY MIN(id)');
+  const seededRoleNames = Object.keys(ROLE_MENU_HIERARCHY);
+  const seededRoleIds = roles
+    .filter(role => seededRoleNames.includes(role.role_name))
+    .map(role => role.id);
+  if (seededRoleIds.length > 0) {
+    await runAsync(
+      `DELETE FROM role_menu_permissions WHERE role_id IN (${seededRoleIds.map(() => '?').join(',')})`,
+      seededRoleIds
+    );
+  }
+  // Get menu_items id map
+  const menuItems = await allAsync('SELECT id, menu_key FROM menu_items');
+  const menuKeyToId = {};
+  for (const item of menuItems) {
+    menuKeyToId[item.menu_key] = item.id;
+  }
   let totalInserted = 0;
-
   for (const role of roles) {
     const hierarchy = ROLE_MENU_HIERARCHY[role.role_name] || [];
     const permIdByMenuKey = {};
@@ -278,27 +280,26 @@ const seedRoleMenuPermissions = async () => {
       totalInserted++;
     }
     
-    // Second pass: update parent_id for child items using the parent menu item id
+    // Second pass: update parent_id for child items using the parent's role_menu_permissions id
     for (const [menuKey, parentKey] of hierarchy) {
       if (!parentKey) continue; // top-level item
       
       const childPermId = permIdByMenuKey[menuKey];
-      const parentMenuItemId = menuKeyToId[parentKey];
+      const parentPermId = permIdByMenuKey[parentKey];
       
-      if (childPermId && parentMenuItemId) {
+      if (childPermId && parentPermId) {
         await runAsync(
           `UPDATE role_menu_permissions SET parent_id = ? WHERE id = ?`,
-          [parentMenuItemId, childPermId]
+          [parentPermId, childPermId]
         );
+      } else {
+        console.warn(`[Seed] Could not resolve parent "${parentKey}" for "${menuKey}" (role: ${role.role_name})`);
       }
     }
   }
-
   console.log(`[Seed] ✓ role_menu_permissions seeded successfully (${totalInserted} permissions)`);
 };
-
 module.exports = { seedRoleMenuPermissions, ROLE_MENU_DEFAULTS };
-
 // Run seeder if executed directly
 if (require.main === module) {
   seedRoleMenuPermissions()

@@ -23,4 +23,28 @@ router.put('/admin/:adminUserId/indicator/:indId', requireAuth, handle(ctrl.upda
 // Bulk update all
 router.post('/admin/:adminUserId/bulk', requireAuth, handle(ctrl.bulkUpdate));
 
+// Master categories
+router.get('/master-categories', requireAuth, handle(ctrl.getMasterCategories));
+
+// Assigned category IDs for admin
+router.get('/admin/:adminUserId/assigned-ids', requireAuth, handle(ctrl.getAssignedCategoryIds));
+
+// Master indicators
+router.get('/master-indicators', requireAuth, handle(ctrl.getMasterIndicators));
+
+// Copy from master
+router.post('/admin/:adminUserId/copy-from-master', requireAuth, handle(ctrl.copyFromMaster));
+
+// Create custom category
+router.post('/admin/:adminUserId/categories', requireAuth, handle(ctrl.createAdminCategory));
+
+// Create custom indicator
+router.post('/admin/:adminUserId/indicators', requireAuth, handle(ctrl.createAdminIndicator));
+
+// Delete admin category
+router.delete('/admin/:adminUserId/categories/:id', requireAuth, handle(ctrl.deleteAdminCategory));
+
+// Delete admin indicator
+router.delete('/admin/:adminUserId/indicators/:id', requireAuth, handle(ctrl.deleteAdminIndicator));
+
 module.exports = router;

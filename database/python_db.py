@@ -34,10 +34,6 @@ def init_pool(
     
     Args:
         host: Database host (defaults to DB_HOST env var or 'localhost')
-        port: Database port (defaults to DB_PORT env var or 3306)
-        user: Database user (defaults to DB_USER env var or 'root')
-        password: Database password (defaults to DB_PASSWORD env var or '')
-        database: Database name (defaults to DB_NAME env var or 'retention_lab')
         pool_size: Connection pool size (defaults to DB_POOL_SIZE env var or 10)
     
     Returns:

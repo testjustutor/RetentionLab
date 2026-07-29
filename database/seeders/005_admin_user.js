@@ -3,12 +3,7 @@
  * Seeds the default admin user
  */
 const crypto = require('crypto');
-const { runAsync, getAsync } = require('../seedHelpers');
-
-const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
-    const derived = crypto.scryptSync(password, salt, 64).toString('hex');
-    return `${salt}:${derived}`;
-};
+const { runAsync, getAsync, hashPassword } = require('../seedHelpers');
 
 const seedAdminUser = async () => {
     const email = process.env.ADMIN_EMAIL;

@@ -366,8 +366,8 @@ class RubricAdminModel {
       // 4. Create admin copy of the category (with master's weight)
       await new Promise((resolve, reject) => {
         db.run(
-          `INSERT IGNORE INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT IGNORE INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight, source)
+           VALUES (?, ?, ?, ?, 'master')`,
           [category_id, admin_user_id, category.name, category.weight || 0],
           function(err) {
             if (err) return reject(err);
@@ -376,14 +376,14 @@ class RubricAdminModel {
         );
       });
 
-      // 5. Create admin copies of each indicator (with master's value)
+      // 5. Create admin copies of each indicator (with master's value and description)
       for (const ind of indicators) {
         await new Promise((resolve, reject) => {
           db.run(
             `INSERT IGNORE INTO admin_rubric_indicators 
-             (original_indicator_id, original_category_id, admin_user_id, name, type, is_gate, value)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [ind.indicator_id, category_id, admin_user_id, ind.name, ind.type || 'HUMAN', ind.is_gate || 0, ind.value || 1],
+             (original_indicator_id, original_category_id, admin_user_id, name, type, is_gate, value, description, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'master')`,
+            [ind.indicator_id, category_id, admin_user_id, ind.name, ind.type || 'HUMAN', ind.is_gate || 0, ind.value || 1, ind.description || null],
             function(err) {
               if (err) return reject(err);
               resolve();

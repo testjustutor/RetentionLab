@@ -3,30 +3,32 @@
  * Seeds test users (instructor, solo_instructor, reviewer) for the manage-users page
  */
 const crypto = require('crypto');
-const { runAsync, getAsync } = require('../seedHelpers');
-
-const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
-    const derived = crypto.scryptSync(password, salt, 64).toString('hex');
-    return `${salt}:${derived}`;
-};
+const { runAsync, getAsync, allAsync, hashPassword } = require('../seedHelpers');
 
 const seedTestUsers = async () => {
-    const passwordHash = hashPassword('Password123!');
-    const company = await getAsync(`SELECT id FROM companies LIMIT 1`);
-    if (!company) return;
+    
+    const testPassword = process.env.TESTING_PASSWORD;
+    const passwordHash = hashPassword(testPassword);
+    
+    // Get admin user to set as created_by and get company_id
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminUser = await getAsync(
+        `SELECT id, company_id FROM users WHERE email = ? AND status = 'active' LIMIT 1`,
+        [adminEmail]
+    );
+    if (!adminUser) {
+        console.log('[Seed] ⚠ Admin user not found. Cannot create test users.');
+        return;
+    }
+    console.log(`[Seed] Found admin user (ID: ${adminUser.id}, Company ID: ${adminUser.company_id})`);
 
-    const roles = await new Promise((resolve, reject) => {
-        const { db } = require('../db');
-        db.all(`SELECT id, role_name FROM roles WHERE role_name IN ('instructor', 'solo_instructor', 'reviewer')`, (err, rows) => {
-            if (err) return reject(err);
-            resolve(rows || []);
-        });
-    });
+    const roles = await allAsync(
+        `SELECT id, role_name FROM roles WHERE role_name IN ('instructor', 'reviewer')`
+    );
 
     const testUsers = [
-        { first_name: 'John', last_name: 'Instructor', email: 'instructor@test.com', role_name: 'instructor' },
-        { first_name: 'Jane', last_name: 'Solo', email: 'solo@test.com', role_name: 'solo_instructor' },
-        { first_name: 'Bob', last_name: 'Reviewer', email: 'reviewer@test.com', role_name: 'reviewer' }
+        { first_name: 'John', last_name: 'Instructor', email: 'instructor@automationbot.com', role_name: 'instructor' },
+        { first_name: 'Bob', last_name: 'Reviewer', email: 'reviewer@automationbot.com', role_name: 'reviewer' }
     ];
 
     for (const user of testUsers) {
@@ -45,7 +47,7 @@ const seedTestUsers = async () => {
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
                 crypto.randomUUID(),
-                company.id,
+                adminUser.company_id,
                 role.id,
                 user.first_name,
                 user.last_name,
@@ -56,12 +58,12 @@ const seedTestUsers = async () => {
                 'active',
                 1,
                 new Date().toISOString(),
-                null
+                adminUser ? adminUser.id : null
             ]
         );
-        console.log(`[Seed] Created test user: ${user.email}`);
+        console.log(`[Seed] Created test user: ${user.email} (created_by: ${adminUser ? adminUser.id : 'NULL'})`);
     }
-    console.log('[Seed] ✓ Test users seeded successfully (3 users)');
+    console.log('[Seed] ✓ Test users seeded successfully (2 users)');
 };
 
 module.exports = { seedTestUsers };

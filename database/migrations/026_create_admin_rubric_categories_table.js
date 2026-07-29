@@ -17,6 +17,7 @@ const up = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       original_category_id VARCHAR(10) NOT NULL,
       admin_user_id INT NOT NULL,
+      source ENUM('master', 'custom') DEFAULT 'master',
       name TEXT NOT NULL,
       weight DOUBLE DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -16,7 +16,7 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS participant_attendance_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
+    meeting_id INT,
     participant_id INT,
     session_number INT,
     joined_at DATETIME,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS participant_attendance_sessions (
     INDEX idx_pas_meeting (meeting_id),
     INDEX idx_pas_participant (participant_id),
     INDEX idx_pas_deleted_at (deleted_at),
-    FOREIGN KEY (meeting_id) REFERENCES meetings(meeting_id) ON DELETE CASCADE,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
     FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);

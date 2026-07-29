@@ -379,9 +379,7 @@ class SocraticBot {
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
-              // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
-              // engine_main.py expects an input like REC_<id>.mp3 (relative to storage/recordings),
-              // but `finalAudioPath` is an absolute Windows path. Pass only the filename.
+              await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
 
               await MeetingAssetsModel.initializeAssets(this.meetingId, finalAudioPath);
 
@@ -390,7 +388,6 @@ class SocraticBot {
 
 
               if (auditResults) {
-                await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
                 logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
               }
             }

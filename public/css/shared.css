@@ -698,6 +698,13 @@ a.link-button-ghost:hover {
   margin-bottom: var(--form-group-gap);
 }
 
+.form-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0;
+}
+
 .form-label {
   color: var(--form-label-color);
   font-weight: var(--form-label-weight);
@@ -1469,8 +1476,145 @@ body.sidebar-collapsed > div:not(#sidebarNav) {
 }
 
 /* ==========================================
-   AUTH PAGE LAYOUT
-   ========================================== */
+    PROFILE PAGE COMPONENTS
+    ========================================== */
+
+/* Profile Hero Section */
+.profile-hero {
+  background: linear-gradient(135deg, var(--card-bg) 0%, var(--color-accent-light) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, var(--color-primary-light) 0%, transparent 70%);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* Profile Avatars */
+.profile-avatar-large {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--btn-primary-bg) 0%, var(--btn-primary-bg-hover) 100%);
+  color: var(--btn-primary-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(31, 101, 194, 0.2);
+  border: 3px solid var(--card-bg);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-avatar-medium {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--btn-primary-bg) 0%, var(--btn-primary-bg-hover) 100%);
+  color: var(--btn-primary-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  box-shadow: 0 2px 12px rgba(31, 101, 194, 0.15);
+  border: 2px solid var(--card-bg);
+}
+
+.profile-avatar-small {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--btn-primary-bg) 0%, var(--btn-primary-bg-hover) 100%);
+  color: var(--btn-primary-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(31, 101, 194, 0.15);
+  border: 2px solid var(--card-bg);
+}
+
+/* Icon Boxes */
+.icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-box-primary {
+  background: rgba(31, 101, 194, 0.1);
+  color: var(--btn-primary-bg);
+}
+
+.icon-box-info {
+  background: rgba(3, 105, 161, 0.1);
+  color: #0369a1;
+}
+
+.icon-box-success {
+  background: rgba(5, 122, 27, 0.1);
+  color: #057a1b;
+}
+
+.icon-box-warning {
+  background: rgba(180, 83, 9, 0.1);
+  color: #b45309;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-active {
+  background: rgba(5, 122, 27, 0.1);
+  color: #057a1b;
+}
+
+.status-inactive {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.status-suspended {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.status-pending {
+  background: rgba(180, 83, 9, 0.1);
+  color: #b45309;
+}
+
+/* ==========================================
+    AUTH PAGE LAYOUT
+    ========================================== */
 
 .auth-page {
   min-height: 100vh;
