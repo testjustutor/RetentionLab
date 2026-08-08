@@ -22,7 +22,7 @@ const seedMeetings = async () => {
         const instructors = await allAsync(`SELECT id, first_name, last_name, email FROM users WHERE company_id = ? AND role_id = (SELECT id FROM roles WHERE role_name = 'instructor') AND status = 'active' LIMIT 10`, [adminUser.company_id]);
         if (instructors.length === 0) { console.log('[Manual Seeder] ℹ No instructors found. Run 02_seed_users.js first.'); return; }
 
-        const platforms = ['zoom', 'google_meet', 'teams'];
+        const platforms = ['zoom', 'google-meet', 'teams'];
         const statuses = ['scheduled', 'active', 'completed', 'joining'];
         const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History', 'Geography', 'Computer Science', 'Economics', 'Psychology'];
         const timezones = ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo', 'Asia/Kolkata', 'Australia/Sydney', 'Europe/Berlin'];
@@ -83,7 +83,7 @@ const seedMeetings = async () => {
 
                 let meetingLink = '';
                 if (platform === 'zoom') meetingLink = `https://zoom.us/j/${externalMeetingId.split('_')[1]}?pwd=${passcode}`;
-                else if (platform === 'google_meet') meetingLink = `https://meet.google.com/${externalMeetingId.split('_')[1]}`;
+                else if (platform === 'google-meet') meetingLink = `https://meet.google.com/${externalMeetingId.split('_')[1]}`;
                 else if (platform === 'teams') meetingLink = `https://teams.microsoft.com/l/meetup-join/${externalMeetingId.split('_')[1]}`;
 
                 const existing = await getAsync(`SELECT id FROM meetings WHERE title = ? AND created_by = ? LIMIT 1`, [title, instructor.id]);

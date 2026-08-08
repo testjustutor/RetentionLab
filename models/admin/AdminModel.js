@@ -15,7 +15,7 @@ class AdminModel {
         if (err) return reject(err);
         resolve(tables
           .map(t => ({ name: t.name }))
-          .filter(t => !t.name.startsWith('sqlite_'))
+          .filter(t => !t.name.startsWith('mysql_'))
         );
       });
     });
@@ -168,25 +168,41 @@ class AdminModel {
       const trends = await new Promise((resolve, reject) => {
         db.all(`SELECT DATE(scheduled_start_time) as date, COUNT(*) as count FROM meetings WHERE scheduled_start_time >= ? GROUP BY DATE(scheduled_start_time) ORDER BY date ASC`, [weekAgo], (err, rows) => {
           if (err) return reject(err);
-          resolve(rows || []);
+          // Format dates to YYYY-MM-DD format
+          resolve((rows || []).map(row => ({
+            ...row,
+            date: row.date ? new Date(row.date).toISOString().split('T')[0] : row.date
+          })));
         });
       });
 
-      // Get score distribution
+      // Get score distribution (scores are stored on 1-10 scale, convert to percentage)
       const scoreDistribution = await new Promise((resolve, reject) => {
         db.all(`SELECT 
           CASE 
-            WHEN score >= 80 THEN 'Excellent (80-100)'
-            WHEN score >= 60 THEN 'Good (60-79)'
-            WHEN score >= 40 THEN 'Average (40-59)'
+            WHEN score >= 8.0 THEN 'Excellent (80-100)'
+            WHEN score >= 6.0 THEN 'Good (60-79)'
+            WHEN score >= 4.0 THEN 'Average (40-59)'
             ELSE 'Needs Improvement (<40)'
           END as score_range,
           COUNT(*) as count
         FROM meeting_session_scores 
-        WHERE score IS NOT NULL
+        WHERE score IS NOT NULL AND score > 0
         GROUP BY score_range`, (err, rows) => {
           if (err) return reject(err);
-          resolve(rows || []);
+          // Ensure all categories exist even if count is 0
+          const categories = {
+            'Excellent (80-100)': 0,
+            'Good (60-79)': 0,
+            'Average (40-59)': 0,
+            'Needs Improvement (<40)': 0
+          };
+          (rows || []).forEach(row => {
+            if (categories.hasOwnProperty(row.score_range)) {
+              categories[row.score_range] = row.count;
+            }
+          });
+          resolve(Object.entries(categories).map(([score_range, count]) => ({ score_range, count })));
         });
       });
 
@@ -198,11 +214,31 @@ class AdminModel {
         });
       });
 
-      // Get platform usage
+      // Get platform usage (consolidate similar platform names)
       const platformUsage = await new Promise((resolve, reject) => {
         db.all(`SELECT platform, COUNT(*) as count FROM meetings WHERE platform IS NOT NULL GROUP BY platform ORDER BY count DESC LIMIT 10`, (err, rows) => {
           if (err) return reject(err);
-          resolve(rows || []);
+          // Consolidate platform names
+          const consolidated = {};
+          (rows || []).forEach(row => {
+            let platform = row.platform.toLowerCase().replace(/[-\s]/g, '_');
+            // Consolidate google meet variants
+            if (platform.includes('google') || platform.includes('gmeet')) {
+              platform = 'Google Meet';
+            } else if (platform.includes('zoom')) {
+              platform = 'Zoom';
+            } else if (platform.includes('teams') || platform.includes('microsoft')) {
+              platform = 'Microsoft Teams';
+            } else {
+              // Capitalize first letter of each word
+              platform = row.platform.replace(/\b\w/g, l => l.toUpperCase());
+            }
+            consolidated[platform] = (consolidated[platform] || 0) + row.count;
+          });
+          const result = Object.entries(consolidated)
+            .map(([platform, count]) => ({ platform, count }))
+            .sort((a, b) => b.count - a.count);
+          resolve(result);
         });
       });
 

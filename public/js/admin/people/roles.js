@@ -2,7 +2,7 @@ let allRoleData = [];
 const COLORS = { reviewer: 'violet', instructor: 'emerald', admin: 'blue', super_admin: 'purple' };
 
 async function loadRoles() {
-  const container = document.getElementById('rolesContainer');
+  const container = document.getElementById('rolesTableBody');
   try {
     const json = await apiFetch('/api/roles/list');
     // Controller returns { success, data: [...] }
@@ -30,13 +30,13 @@ async function loadRoles() {
 
     renderRoles(allRoleData);
   } catch (err) {
-    container.innerHTML = '<div class="py-8 text-center text-red-400">Failed to load roles</div>';
+    container.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-red-400 font-medium">Failed to load roles</td></tr>';
   }
 }
 
 function renderRoles(data) {
-  const container = document.getElementById('rolesContainer');
-  if (!data.length) { container.innerHTML = '<div class="py-8 text-center text-slate-500">No roles found</div>'; return; }
+  const container = document.getElementById('rolesTableBody');
+  if (!data.length) { container.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-700 font-medium">No roles found</td></tr>'; return; }
 
   container.innerHTML = data.map(r => {
     const color = COLORS[r.role_name] || 'slate';
@@ -83,13 +83,26 @@ function renderRoles(data) {
       '</div></div>';
   }).join('');
 
+  // Add click handlers for expand/collapse
   document.querySelectorAll('.role-card').forEach(card => {
     const chevron = card.querySelector('.chevron-icon');
     const content = card.querySelector('.expanded-content');
-    new MutationObserver(() => {
-      if (card.classList.contains('expanded')) { content.classList.remove('hidden'); chevron.style.transform = 'rotate(180deg)'; }
-      else { content.classList.add('hidden'); chevron.style.transform = ''; }
-    }).observe(card, { attributes: true, attributeFilter: ['class'] });
+    const header = card.querySelector('[onclick]');
+    
+    if (header && chevron && content) {
+      header.addEventListener('click', () => {
+        const isExpanded = card.classList.contains('expanded');
+        if (isExpanded) {
+          card.classList.remove('expanded');
+          content.classList.add('hidden');
+          chevron.style.transform = '';
+        } else {
+          card.classList.add('expanded');
+          content.classList.remove('hidden');
+          chevron.style.transform = 'rotate(180deg)';
+        }
+      });
+    }
   });
 }
 

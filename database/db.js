@@ -27,7 +27,7 @@ const promisePool = pool.promise();
 
 // 3. Build a custom compatibility object to act as 'db'
 const db = {
-    // Maps exactly to SQLite's db.get(sql, params, callback)
+    // Maps exactly to mysql's db.get(sql, params, callback)
     get: function (sql, params, callback) {
         // normalize args: (sql, cb) OR (sql, params, cb) OR (sql, params)
         if (typeof params === 'function') {
@@ -45,7 +45,7 @@ const db = {
         });
     },
 
-    // Maps exactly to SQLite's db.all(sql, params, callback)
+    // Maps exactly to mysql's db.all(sql, params, callback)
     all: function (sql, params, callback) {
         if (typeof params === 'function') {
             callback = params;
@@ -61,8 +61,8 @@ const db = {
         });
     },
 
-    // Maps exactly to SQLite's db.run(sql, params, callback)
-    // Simulates SQLite's `this.lastID` and `this.changes` using MySQL's result metadata
+    // Maps exactly to mysql's db.run(sql, params, callback)
+    // Simulates mysql's `this.lastID` and `this.changes` using MySQL's result metadata
     run: function (sql, params, callback) {
         if (typeof params === 'function') {
             callback = params;
@@ -75,8 +75,8 @@ const db = {
                 return;
             }
 
-            // SQLite binds metadata to `this` context inside the callback.
-            // We map MySQL's metadata fields to match what SQLite code expects.
+            // mysql binds metadata to `this` context inside the callback.
+            // We map MySQL's metadata fields to match what mysql code expects.
             const context = {
                 lastID: result ? result.insertId : null,
                 changes: result ? result.affectedRows : 0
@@ -86,8 +86,8 @@ const db = {
         });
     },
 
-    // SQLite compatibility: db.prepare(sql)
-    // Some code paths are written for sqlite3's prepared statements API.
+    // mysql compatibility: db.prepare(sql)
+    // Some code paths are written for mysql's prepared statements API.
     // We provide a minimal shim for MySQL so `db.prepare(...).run/get/all` works.
     prepare: function (sql) {
         return {
@@ -113,7 +113,7 @@ const db = {
                 }
                 return db.run(sql, params, callback);
             },
-            // sqlite3 prepared statements sometimes support .finalize/.close
+            // mysql prepared statements sometimes support .finalize/.close
             finalize: function () {},
             close: function () {}
         };

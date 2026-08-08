@@ -1,7 +1,7 @@
 /**
  * root/routes/scores.js
  * Scoring endpoints for meeting and session-level indicator assessments
- * Uses MeetingSessionScoresModel (Node.js data layer for SQLite)
+ * Uses MeetingSessionScoresModel (Node.js data layer for MySQL)
  */
 const express = require('express');
 const router = express.Router();

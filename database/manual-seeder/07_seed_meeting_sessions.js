@@ -35,7 +35,7 @@ const seedMeetingSessions = async () => {
             'scheduled': ['scheduled', 'scheduled', 'scheduled', 'cancelled', 'no_show'],
         };
         
-        const platforms = ['zoom', 'google_meet', 'teams'];
+        const platforms = ['zoom', 'google-meet', 'teams'];
         let count = 0;
 
         for (const meeting of meetings) {

@@ -876,8 +876,41 @@ textarea.text-white {
 }
 
 /* ==========================================
-   BASE & TYPOGRAPHY
-   ========================================== */
+    CUSTOM SCROLLBAR
+    ========================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================
+    BASE & TYPOGRAPHY
+    ========================================== */
 
 body {
   font-family: var(--font-primary);

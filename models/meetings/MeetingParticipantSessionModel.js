@@ -118,7 +118,7 @@ class MeetingParticipantSessionModel {
                     0
                   );
 
-                  // In SQLite, we need to calculate duration differently
+                  // In mysql, we need to calculate duration differently
                   // Update the row with calculated values
                   const now = Date.now();
                   const joinedAt = new Date(row.joined_at).getTime();
