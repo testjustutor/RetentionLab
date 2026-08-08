@@ -7,7 +7,10 @@
   <meta name="header-page" content="meetingsCompleted">
   <title>Completed Sessions | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="../../css/shared.css">
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script src="../../js/common-ui.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
@@ -18,21 +21,21 @@
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
         <!-- Filter Bar -->
-        <div class="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-4">
           <div class="flex flex-wrap items-end gap-3">
             <div>
-              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">From Date</label>
-              <input type="date" id="filterFromDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">From Date</label>
+              <input type="date" id="filterFromDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
             </div>
             <div>
-              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">To Date</label>
-              <input type="date" id="filterToDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">To Date</label>
+              <input type="date" id="filterToDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
             </div>
             <div>
-              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Instructor</label>
+              <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Instructor</label>
               <div id="instructorFilterContainer"></div>
             </div>
-            <button onclick="loadCompleted()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5">
+            <button onclick="loadCompleted()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors shadow-sm flex items-center gap-1.5">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
               Get Data
             </button>
@@ -40,14 +43,26 @@
         </div>
 
         <!-- Stats -->
-        <div id="statsBar" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-emerald-700" id="statConnected">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Connected</p></div>
-          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-violet-700" id="statMeetings">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Sessions</p></div>
-          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-emerald-700" id="statCompleted">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Completed</p></div>
-          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-amber-700" id="statDuration">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Duration</p></div>
+        <div id="statsBar" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg p-3 shadow-md flex items-center justify-between gap-2">
+            <p class="text-[11px] font-bold text-emerald-900 uppercase tracking-wider truncate">Connected</p>
+            <p class="text-xl font-bold text-emerald-950 flex-shrink-0" id="statConnected">-</p>
+          </div>
+          <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg p-3 shadow-md flex items-center justify-between gap-2">
+            <p class="text-[11px] font-bold text-violet-900 uppercase tracking-wider truncate">Sessions</p>
+            <p class="text-xl font-bold text-violet-950 flex-shrink-0" id="statMeetings">-</p>
+          </div>
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg p-3 shadow-md flex items-center justify-between gap-2">
+            <p class="text-[11px] font-bold text-emerald-900 uppercase tracking-wider truncate">Completed</p>
+            <p class="text-xl font-bold text-emerald-950 flex-shrink-0" id="statCompleted">-</p>
+          </div>
+          <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-200 rounded-lg p-3 shadow-md flex items-center justify-between gap-2">
+            <p class="text-[11px] font-bold text-amber-900 uppercase tracking-wider truncate">Duration</p>
+            <p class="text-xl font-bold text-amber-950 flex-shrink-0" id="statDuration">-</p>
+          </div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-200 rounded-lg shadow-md overflow-hidden">
           <div id="completedContainer">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 p-4">
               <div class="border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-100 rounded w-1/3 mb-3"></div><div class="h-2.5 bg-slate-100 rounded w-2/3 mb-2"></div><div class="h-2.5 bg-slate-100 rounded w-1/2"></div></div>

@@ -51,19 +51,19 @@ async function loadLive() {
     document.getElementById('liveCount').textContent = totalEvents + ' Live';
 
     if (!totalEvents) {
-      container.innerHTML = '<div class="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">' +
-        '<div class="px-4 py-3 border-b border-slate-300 bg-slate-300">' +
-          '<h3 class="text-xs font-semibold text-slate-700">Live Sessions</h3>' +
+      container.innerHTML = '<div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-200 rounded-lg shadow-md overflow-hidden">' +
+        '<div class="px-4 py-3 border-b-2 border-slate-200 bg-slate-200">' +
+          '<h3 class="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Live Sessions</h3>' +
         '</div>' +
-        '<div class="overflow-x-auto">' +
+        '<div class="overflow-x-auto overflow-y-auto max-h-96 custom-scrollbar">' +
           '<table class="w-full">' +
-            '<thead>' +
-              '<tr class="text-[10px] text-slate-600 uppercase border-b border-slate-300 bg-slate-300">' +
-                '<th class="py-2.5 px-4 text-left font-medium">Instructor</th>' +
-                '<th class="py-2.5 px-4 text-left font-medium">Meeting</th>' +
-                '<th class="py-2.5 px-4 text-left font-medium">Time</th>' +
-                '<th class="py-2.5 px-4 text-left font-medium">Status</th>' +
-                '<th class="py-2.5 px-4 text-left font-medium">Action</th>' +
+            '<thead class="sticky top-0">' +
+              '<tr class="text-[10px] font-bold text-slate-950 uppercase border-b-2 border-slate-300 bg-slate-200">' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Instructor</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Meeting</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Time</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Status</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Action</th>' +
               '</tr>' +
             '</thead>' +
             '<tbody>' +

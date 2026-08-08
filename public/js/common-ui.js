@@ -457,7 +457,7 @@ function createDateFilter(options = {}) {
   };
 }
 
-// ── Select Filter Service (lightweight, no HTML rendering) ──
+// ── Select Filter Service (Select2-based) ──
 // Options:
 //   containerId: ID of the container element to render into
 //   placeholder: Placeholder text for the search input
@@ -476,26 +476,32 @@ function createSelectFilter(options = {}) {
 
   let selectedValue = null;
   let items = [];
-  let isOpen = false;
+  let $select = null;
 
-  container.innerHTML = `
-    <div class="flex items-center gap-2">
-      <div class="relative flex-1">
-        <input type="text" id="selectFilterInput" placeholder="${placeholder || 'Select...'}"
-               class="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-950 placeholder-slate-400 focus:outline-none focus:border-violet-500 cursor-pointer">
-        <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-        <div id="selectFilterDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-          <div id="selectFilterOptions"></div>
-        </div>
-      </div>
-      <button id="selectFilterBtn" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-4 py-1.5 rounded-md transition-colors whitespace-nowrap">Get Data</button>
-    </div>
-  `;
+  // Create a native select element for Select2 to enhance
+  container.innerHTML = '<div class="flex items-center gap-2">' +
+    '<div class="flex-1"><select id="selectFilter_' + containerId + '" class="w-full text-xs" style="width:100%"></select></div>' +
+    '<button id="selectFilterBtn_' + containerId + '" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-4 py-1.5 rounded-md transition-colors whitespace-nowrap">Get Data</button>' +
+  '</div>';
 
-  const input = document.getElementById('selectFilterInput');
-  const dropdown = document.getElementById('selectFilterDropdown');
-  const optionsContainer = document.getElementById('selectFilterOptions');
-  const btn = document.getElementById('selectFilterBtn');
+  const selectEl = document.getElementById('selectFilter_' + containerId);
+  const btn = document.getElementById('selectFilterBtn_' + containerId);
+  $select = $(selectEl);
+
+  // Initialize Select2
+  $select.select2({
+    placeholder: placeholder || 'Select...',
+    allowClear: true,
+    width: '100%',
+    minimumResultsForSearch: 1,
+    matcher: function(params, data) {
+      if ($.trim(params.term) === '') return data;
+      const term = params.term.toLowerCase();
+      const text = (data.text || '').toLowerCase();
+      if (text.indexOf(term) > -1) return data;
+      return null;
+    }
+  });
 
   async function loadItems(searchTerm = '') {
     try {
@@ -515,60 +521,27 @@ function createSelectFilter(options = {}) {
   }
 
   function renderOptions(itemsToRender) {
-    if (!itemsToRender.length) {
-      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">No items found</div>';
-      return;
-    }
-
-    optionsContainer.innerHTML = itemsToRender.map(item => {
+    const currentVal = $select.val();
+    $select.empty();
+    $select.append('<option value=""></option>');
+    itemsToRender.forEach(item => {
       const value = item[valueField];
       const display = item[displayField] || '--';
-      const isSelected = value === selectedValue;
-      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-50 transition-colors ' + (isSelected ? 'bg-violet-100 text-violet-700' : 'text-slate-700') + '">' + escHtml(display) + '</div>';
-    }).join('');
-
-    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
-      el.addEventListener('click', () => {
-        const value = el.getAttribute('data-value');
-        selectItem(value);
-      });
+      $select.append('<option value="' + escHtml(String(value)) + '">' + escHtml(display) + '</option>');
     });
-  }
-
-  function selectItem(value) {
-    selectedValue = value;
-    const item = items.find(i => String(i[valueField]) === String(value));
-    if (item) {
-      input.value = item[displayField] || '';
+    if (currentVal) {
+      $select.val(currentVal);
     }
-    closeDropdown();
-    renderOptions(items);
+    $select.trigger('change');
   }
 
-  function openDropdown() {
-    isOpen = true;
-    dropdown.classList.remove('hidden');
-    loadItems(input.value);
-  }
-
-  function closeDropdown() {
-    isOpen = false;
-    dropdown.classList.add('hidden');
-  }
-
-  input.addEventListener('focus', () => { openDropdown(); });
-  input.addEventListener('input', () => {
-    if (!isOpen) { openDropdown(); }
-    else { loadItems(input.value); }
+  // Handle selection
+  $select.on('change', function() {
+    selectedValue = $select.val() || null;
   });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeDropdown(); }
-  });
+
   btn.addEventListener('click', () => {
     if (onFilter) onFilter(selectedValue);
-  });
-  document.addEventListener('click', (e) => {
-    if (!container.contains(e.target)) { closeDropdown(); }
   });
 
   loadItems();
@@ -577,13 +550,11 @@ function createSelectFilter(options = {}) {
     getValue: () => selectedValue,
     setValue: (value) => {
       selectedValue = value;
-      const item = items.find(i => String(i[valueField]) === String(value));
-      if (item) { input.value = item[displayField] || ''; }
+      $select.val(value ? String(value) : null).trigger('change');
     },
     clear: () => {
       selectedValue = null;
-      input.value = '';
-      renderOptions(items);
+      $select.val(null).trigger('change');
     },
     on: (event, callback) => {
       if (event === 'filter' && onFilter) {
@@ -596,7 +567,7 @@ function createSelectFilter(options = {}) {
   };
 }
 
-// ── Searchable Select Component (lightweight, no HTML rendering) ──
+// ── Searchable Select Component (Select2-based) ──
 // Options:
 //   containerId: ID of the container element to render into
 //   placeholder: Placeholder text for the search input
@@ -616,23 +587,32 @@ function createSearchableSelect(options = {}) {
 
   let selectedItems = [];
   let items = [];
-  let isOpen = false;
+  let selectEl = null;
+  let $select = null;
 
-  container.innerHTML = `
-    <div class="relative">
-      <input type="text" id="searchableSelectInput" placeholder="${placeholder || 'Select...'}"
-             class="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-950 placeholder-slate-400 focus:outline-none focus:border-violet-500 cursor-pointer">
-      <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      <div id="searchableSelectDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-        <div id="searchableSelectOptions"></div>
-      </div>
-    </div>
-  `;
+  // Create a native select element for Select2 to enhance
+  container.innerHTML = '<select id="searchableSelect_' + containerId + '" class="w-full text-xs" style="width:100%"></select>';
+  selectEl = document.getElementById('searchableSelect_' + containerId);
+  $select = $(selectEl);
 
-  const input = document.getElementById('searchableSelectInput');
-  const dropdown = document.getElementById('searchableSelectDropdown');
-  const optionsContainer = document.getElementById('searchableSelectOptions');
+  // Initialize Select2
+  $select.select2({
+    placeholder: placeholder || 'Select...',
+    allowClear: true,
+    multiple: multiSelect,
+    width: '100%',
+    minimumResultsForSearch: 1,
+    matcher: function(params, data) {
+      // Custom matcher for client-side filtering
+      if ($.trim(params.term) === '') return data;
+      const term = params.term.toLowerCase();
+      const text = (data.text || '').toLowerCase();
+      if (text.indexOf(term) > -1) return data;
+      return null;
+    }
+  });
 
+  // Load items
   async function loadItems(searchTerm = '') {
     try {
       let data;
@@ -651,82 +631,35 @@ function createSearchableSelect(options = {}) {
   }
 
   function renderOptions(itemsToRender) {
-    if (!itemsToRender.length) {
-      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">No items found</div>';
-      return;
+    // Preserve current selection
+    const currentVal = $select.val();
+    $select.empty();
+    if (!multiSelect) {
+      $select.append('<option value=""></option>');
     }
-
-    optionsContainer.innerHTML = itemsToRender.map(item => {
+    itemsToRender.forEach(item => {
       const value = item[valueField];
       const display = item[displayField] || '--';
-      const isSelected = multiSelect 
-        ? selectedItems.some(s => String(s[valueField]) === String(value))
-        : selectedItems.length > 0 && String(selectedItems[0][valueField]) === String(value);
-      
-      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-50 transition-colors ' + (isSelected ? 'bg-violet-100 text-violet-700' : 'text-slate-700') + '">' + 
-        (multiSelect ? '<input type="checkbox" class="mr-2" ' + (isSelected ? 'checked' : '') + '>' : '') +
-        escHtml(display) + '</div>';
-    }).join('');
-
-    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
-      el.addEventListener('click', () => {
-        const value = el.getAttribute('data-value');
-        const item = items.find(i => String(i[valueField]) === String(value));
-        if (item) { selectItem(item); }
-      });
+      $select.append('<option value="' + escHtml(String(value)) + '">' + escHtml(display) + '</option>');
     });
+    if (currentVal) {
+      $select.val(currentVal);
+    }
+    $select.trigger('change');
   }
 
-  function selectItem(item) {
+  // Handle selection
+  $select.on('change', function() {
+    const val = $select.val();
     if (multiSelect) {
-      const index = selectedItems.findIndex(s => String(s[valueField]) === String(item[valueField]));
-      if (index > -1) {
-        selectedItems.splice(index, 1);
-      } else {
-        selectedItems.push(item);
-      }
-      input.value = selectedItems.length > 0 
-        ? selectedItems.map(i => i[displayField]).join(', ')
-        : '';
-      renderOptions(items);
+      const vals = Array.isArray(val) ? val : (val ? [val] : []);
+      selectedItems = items.filter(i => vals.includes(String(i[valueField])));
       if (onSelect) onSelect(selectedItems.map(i => i[valueField]));
     } else {
-      selectedItems = [item];
-      input.value = item[displayField] || '';
-      closeDropdown();
-      renderOptions(items);
-      if (onSelect) onSelect(item[valueField]);
+      const selectedVal = val || null;
+      selectedItems = selectedVal ? items.filter(i => String(i[valueField]) === String(selectedVal)) : [];
+      if (onSelect) onSelect(selectedVal);
     }
-  }
-
-  function openDropdown() {
-    isOpen = true;
-    dropdown.classList.remove('hidden');
-    loadItems(input.value);
-  }
-
-  function closeDropdown() {
-    isOpen = false;
-    dropdown.classList.add('hidden');
-  }
-
-  // Open dropdown when clicking on the container or focusing the input
-  container.addEventListener('click', () => {
-    if (!isOpen) { openDropdown(); }
-    input.focus();
-  });
-  input.addEventListener('focus', () => {
-    if (!isOpen) { openDropdown(); }
-  });
-  input.addEventListener('input', () => {
-    if (!isOpen) { openDropdown(); }
-    else { loadItems(input.value); }
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeDropdown(); }
-  });
-  document.addEventListener('click', (e) => {
-    if (!container.contains(e.target)) { closeDropdown(); }
   });
 
   loadItems();
@@ -737,34 +670,34 @@ function createSearchableSelect(options = {}) {
       if (multiSelect) {
         if (Array.isArray(value)) {
           selectedItems = items.filter(i => value.includes(String(i[valueField])));
-          input.value = selectedItems.map(i => i[displayField]).join(', ');
+          $select.val(selectedItems.map(i => String(i[valueField]))).trigger('change');
         }
       } else {
         const item = items.find(i => String(i[valueField]) === String(value));
         if (item) {
           selectedItems = [item];
-          input.value = item[displayField] || '';
+          $select.val(String(value)).trigger('change');
         }
       }
     },
     clear: () => {
       selectedItems = [];
-      input.value = '';
-      renderOptions(items);
+      $select.val(null).trigger('change');
     },
     on: (event, callback) => {
       if (event === 'select' && onSelect) {
         const originalOnSelect = onSelect;
-        options.onSelect = (value) => {
-          originalOnSelect(value);
-          callback(value);
-        };
+        $select.on('change', function() {
+          const val = $select.val();
+          originalOnSelect(val);
+          callback(val);
+        });
       }
     }
   };
 }
 
-// ── Dark Searchable Select Component (for dark theme modals) ──
+// ── Dark Searchable Select Component (Select2-based, for dark theme modals) ──
 // Same as createSearchableSelect but with dark theme styling
 function createDarkSearchableSelect(options = {}) {
   const { containerId, placeholder, dataSource, onSelect, multiSelect = false, displayField = 'name', valueField = 'id' } = options;
@@ -776,22 +709,30 @@ function createDarkSearchableSelect(options = {}) {
 
   let selectedItems = [];
   let items = [];
-  let isOpen = false;
+  let $select = null;
 
-  container.innerHTML = `
-    <div class="relative">
-      <input type="text" id="darkSelect_${containerId}" placeholder="${placeholder || 'Select...'}"
-             class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 cursor-pointer">
-      <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      <div id="darkSelectDropdown_${containerId}" class="hidden absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-        <div id="darkSelectOptions_${containerId}"></div>
-      </div>
-    </div>
-  `;
+  // Create a native select element for Select2 to enhance
+  container.innerHTML = '<select id="darkSelect_' + containerId + '" class="w-full text-xs" style="width:100%"></select>';
+  const selectEl = document.getElementById('darkSelect_' + containerId);
+  $select = $(selectEl);
 
-  const input = document.getElementById(`darkSelect_${containerId}`);
-  const dropdown = document.getElementById(`darkSelectDropdown_${containerId}`);
-  const optionsContainer = document.getElementById(`darkSelectOptions_${containerId}`);
+  // Initialize Select2 with dark theme styling
+  $select.select2({
+    placeholder: placeholder || 'Select...',
+    allowClear: true,
+    multiple: multiSelect,
+    width: '100%',
+    minimumResultsForSearch: 1,
+    dropdownCssClass: 'dark-select2-dropdown',
+    containerCssClass: 'dark-select2-container',
+    matcher: function(params, data) {
+      if ($.trim(params.term) === '') return data;
+      const term = params.term.toLowerCase();
+      const text = (data.text || '').toLowerCase();
+      if (text.indexOf(term) > -1) return data;
+      return null;
+    }
+  });
 
   async function loadItems(searchTerm = '') {
     try {
@@ -811,82 +752,34 @@ function createDarkSearchableSelect(options = {}) {
   }
 
   function renderOptions(itemsToRender) {
-    if (!itemsToRender.length) {
-      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-400">No items found</div>';
-      return;
+    const currentVal = $select.val();
+    $select.empty();
+    if (!multiSelect) {
+      $select.append('<option value=""></option>');
     }
-
-    optionsContainer.innerHTML = itemsToRender.map(item => {
+    itemsToRender.forEach(item => {
       const value = item[valueField];
       const display = item[displayField] || '--';
-      const isSelected = multiSelect 
-        ? selectedItems.some(s => String(s[valueField]) === String(value))
-        : selectedItems.length > 0 && String(selectedItems[0][valueField]) === String(value);
-      
-      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-500/20 transition-colors ' + (isSelected ? 'bg-violet-500/30 text-violet-300' : 'text-slate-300') + '">' + 
-        (multiSelect ? '<input type="checkbox" class="mr-2" ' + (isSelected ? 'checked' : '') + '>' : '') +
-        escHtml(display) + '</div>';
-    }).join('');
-
-    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
-      el.addEventListener('click', () => {
-        const value = el.getAttribute('data-value');
-        const item = items.find(i => String(i[valueField]) === String(value));
-        if (item) { selectItem(item); }
-      });
+      $select.append('<option value="' + escHtml(String(value)) + '">' + escHtml(display) + '</option>');
     });
+    if (currentVal) {
+      $select.val(currentVal);
+    }
+    $select.trigger('change');
   }
 
-  function selectItem(item) {
+  // Handle selection
+  $select.on('change', function() {
+    const val = $select.val();
     if (multiSelect) {
-      const index = selectedItems.findIndex(s => String(s[valueField]) === String(item[valueField]));
-      if (index > -1) {
-        selectedItems.splice(index, 1);
-      } else {
-        selectedItems.push(item);
-      }
-      input.value = selectedItems.length > 0 
-        ? selectedItems.map(i => i[displayField]).join(', ')
-        : '';
-      renderOptions(items);
+      const vals = Array.isArray(val) ? val : (val ? [val] : []);
+      selectedItems = items.filter(i => vals.includes(String(i[valueField])));
       if (onSelect) onSelect(selectedItems.map(i => i[valueField]));
     } else {
-      selectedItems = [item];
-      input.value = item[displayField] || '';
-      closeDropdown();
-      renderOptions(items);
-      if (onSelect) onSelect(item[valueField]);
+      const selectedVal = val || null;
+      selectedItems = selectedVal ? items.filter(i => String(i[valueField]) === String(selectedVal)) : [];
+      if (onSelect) onSelect(selectedVal);
     }
-  }
-
-  function openDropdown() {
-    isOpen = true;
-    dropdown.classList.remove('hidden');
-    loadItems(input.value);
-  }
-
-  function closeDropdown() {
-    isOpen = false;
-    dropdown.classList.add('hidden');
-  }
-
-  // Open dropdown when clicking on the container or focusing the input
-  container.addEventListener('click', () => {
-    if (!isOpen) { openDropdown(); }
-    input.focus();
-  });
-  input.addEventListener('focus', () => {
-    if (!isOpen) { openDropdown(); }
-  });
-  input.addEventListener('input', () => {
-    if (!isOpen) { openDropdown(); }
-    else { loadItems(input.value); }
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeDropdown(); }
-  });
-  document.addEventListener('click', (e) => {
-    if (!container.contains(e.target)) { closeDropdown(); }
   });
 
   loadItems();
@@ -897,20 +790,19 @@ function createDarkSearchableSelect(options = {}) {
       if (multiSelect) {
         if (Array.isArray(value)) {
           selectedItems = items.filter(i => value.includes(String(i[valueField])));
-          input.value = selectedItems.map(i => i[displayField]).join(', ');
+          $select.val(selectedItems.map(i => String(i[valueField]))).trigger('change');
         }
       } else {
         const item = items.find(i => String(i[valueField]) === String(value));
         if (item) {
           selectedItems = [item];
-          input.value = item[displayField] || '';
+          $select.val(String(value)).trigger('change');
         }
       }
     },
     clear: () => {
       selectedItems = [];
-      input.value = '';
-      renderOptions(items);
+      $select.val(null).trigger('change');
     },
     setDataSource: (newDataSource) => {
       dataSource = newDataSource;
@@ -919,10 +811,11 @@ function createDarkSearchableSelect(options = {}) {
     on: (event, callback) => {
       if (event === 'select' && onSelect) {
         const originalOnSelect = onSelect;
-        options.onSelect = (value) => {
-          originalOnSelect(value);
-          callback(value);
-        };
+        $select.on('change', function() {
+          const val = $select.val();
+          originalOnSelect(val);
+          callback(val);
+        });
       }
     }
   };

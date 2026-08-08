@@ -81,20 +81,20 @@ async function loadCompleted() {
     document.getElementById('statDuration').textContent = totalDur >= 60 ? Math.floor(totalDur/60)+'h '+totalDur%60+'m' : totalDur+'m';
 
     if (!total) { 
-      c.innerHTML = '<div class="bg-white border border-slate-200 rounded-lg overflow-hidden">' +
-        '<div class="px-4 py-3 border-b border-slate-200 bg-slate-50">' +
-          '<h3 class="text-xs font-bold text-slate-800">Completed Sessions</h3>' +
+      c.innerHTML = '<div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-200 rounded-lg shadow-md overflow-hidden">' +
+        '<div class="px-4 py-3 border-b-2 border-slate-200 bg-slate-200">' +
+          '<h3 class="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Completed Sessions</h3>' +
         '</div>' +
-        '<div class="overflow-x-auto">' +
+        '<div class="overflow-x-auto overflow-y-auto max-h-96 custom-scrollbar">' +
           '<table class="w-full">' +
-            '<thead>' +
-              '<tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">' +
-                '<th class="py-2.5 px-4 text-left font-bold">Instructor</th>' +
-                '<th class="py-2.5 px-4 text-left font-bold">Meeting</th>' +
-                '<th class="py-2.5 px-4 text-left font-bold">Date & Time</th>' +
-                '<th class="py-2.5 px-4 text-left font-bold">Duration</th>' +
-                '<th class="py-2.5 px-4 text-left font-bold">Platform</th>' +
-                '<th class="py-2.5 px-4 text-left font-bold">Status</th>' +
+            '<thead class="sticky top-0">' +
+              '<tr class="text-[10px] font-bold text-slate-950 uppercase border-b-2 border-slate-300 bg-slate-200">' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Instructor</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Meeting</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Date & Time</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Duration</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Platform</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Status</th>' +
               '</tr>' +
             '</thead>' +
             '<tbody>' +
@@ -184,7 +184,7 @@ async function loadCompleted() {
         html += '<div class="w-8 h-8 rounded-md bg-'+color+'-500/10 border border-'+color+'-500/20 flex items-center justify-center text-'+color+'-800 font-bold text-[10px]">'+(u.email||'?').charAt(0).toUpperCase()+'</div>';
         html += '<div class="flex-1 min-w-0"><p class="text-xs font-semibold truncate">'+escHtml(u.email)+'</p><p class="text-[10px] text-slate-500">'+escHtml(u.role_name||'instructor')+' &middot; '+events.length+' completed</p></div>';
         html += '<span class="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-'+color+'-500/10 text-'+color+'-800 border border-'+color+'-500/20">'+events.length+'</span></div>';
-        html += '<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3 text-right">Status</th></tr></thead><tbody class="divide-y divide-slate-200">';
+        html += '<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="sticky top-0"><tr class="border-b-2 border-slate-300 bg-slate-200 text-[10px] font-bold text-slate-950 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3 text-right">Status</th></tr></thead><tbody class="divide-y divide-slate-200">';
 
         events.forEach(function(e) {
           var dur = e.duration !== null && e.duration !== undefined ? fmtDurationFromMinutes(e.duration) : fmtDuration(e.start_time, e.end_time);

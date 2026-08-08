@@ -128,7 +128,7 @@ function renderSchedule(json) {
     users.map((u, idx) => {
       const events = (u.events || []).sort((a,b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
 
-      const eventItems = events.map(e => {
+      const eventItems = events.map((e, eventIdx) => {
         const start = e.start_time ? new Date(e.start_time) : null;
         const end = e.end_time ? new Date(e.end_time) : null;
 
@@ -148,27 +148,28 @@ function renderSchedule(json) {
         const platformLabel = platform.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
         const platformColor = platformColors[platform] || platformColors['unknown'];
 
-        return '<div class="flex items-start gap-3 p-3 mb-2 bg-slate-20 rounded-lg hover:bg-slate-100 transition-colors">' +
-          '<div class="flex-shrink-0 w-16 text-center"><p class="text-xs font-semibold text-slate-900">' + dateStr + '</p><p class="text-[10px] text-slate-900">' + timeStr + endStr + '</p></div>' +
+        return '<div class="flex items-start gap-3 p-0 bg-blue-50/40 rounded-lg hover:bg-blue-50 transition-colors">' +
+          '<div class="flex-shrink-0 w-16 text-center"><p class="text-[11px] font-bold text-blue-950">' + dateStr + '</p><p class="text-[10px] font-semibold text-blue-700">' + timeStr + endStr + '</p></div>' +
           '<div class="flex-1 min-w-0">' +
-            '<p class="text-sm font-medium text-slate-900 truncate">' + escHtml(e.title || 'Untitled Meeting') + '</p>' +
-            '<div class="text-[10px] text-slate-900 mt-0.5">' +
-              '<span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium ' + platformColor.badge + '">' + platformLabel + '</span>' +
-              (e.link ? '<a href="' + e.link + '" target="_blank" class="text-[10px] text-violet-600 hover:text-violet-700 font-medium ml-2">Join Meeting →</a>' : '') +
+            '<p class="text-[12px] font-bold text-slate-900 truncate">' + escHtml(e.title || 'Untitled Meeting') + '</p>' +
+            '<div class="text-[10px] text-blue-700 mt-0.5">' +
+              '<span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ' + platformColor.badge + '">' + platformLabel + '</span>' +
+              (e.link ? '<a href="' + e.link + '" target="_blank" class="text-[10px] text-blue-700 hover:text-blue-800 font-semibold ml-2">Join Meeting →</a>' : '') +
             '</div>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        (eventIdx < events.length - 1 ? '<div class="border-t border-blue-200 my-2"></div>' : '');
       }).join('');
 
-      return '<div class="bg-white border border-slate-200 rounded-lg p-2 shadow-sm hover:shadow-md transition-shadow">' +
-        '<div class="flex items-center gap-3 mb-2 pb-2 border-b border-slate-200">' +
-          '<div class="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-sm">' + (u.email || '?').charAt(0).toUpperCase() + '</div>' +
+      return '<div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">' +
+        '<div class="flex items-center gap-3 mb-2 pb-2 border-b-2 border-blue-200">' +
+          '<div class="w-10 h-10 rounded-full bg-white border border-blue-200 flex items-center justify-center text-blue-700 font-bold text-sm">' + (u.email || '?').charAt(0).toUpperCase() + '</div>' +
           '<div class="flex-1 min-w-0">' +
-            '<p class="text-sm font-semibold text-slate-900 truncate">' + escHtml(u.email) + '</p>' +
-            '<p class="text-xs text-slate-500">' + events.length + ' meeting' + (events.length !== 1 ? 's' : '') + ' scheduled</p>' +
+            '<p class="text-[12px] font-bold text-blue-950 truncate">' + escHtml(u.email) + '</p>' +
+            '<p class="text-[11px] font-semibold text-blue-800">' + events.length + ' meeting' + (events.length !== 1 ? 's' : '') + ' scheduled</p>' +
           '</div>' +
         '</div>' +
-        '<div class="flex-1 overflow-y-auto p-3 max-h-64">' + eventItems + '</div>' +
+        '<div class="flex-1 overflow-y-auto p-3 max-h-64 custom-scrollbar">' + eventItems + '</div>' +
       '</div>';
     }).join('') + '</div>';
 }
