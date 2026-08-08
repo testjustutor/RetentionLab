@@ -866,6 +866,16 @@ a[class*="shadow-purple-600\/10"] {
 .border-pink-500 { border-color:#ec4899!important; }
 .border-pink-600 { border-color:#db2777!important; }
 
+
+.font-bold-100 { font-weight: 100; }
+.font-bold-200 { font-weight: 200; }
+.font-bold-300 { font-weight: 300; }
+.font-bold-400 { font-weight: 400; }
+.font-bold-500 { font-weight: 500; }
+.font-bold-600 { font-weight: 600; }
+.font-bold-700 { font-weight: 700; }
+.font-bold-800 { font-weight: 800; }
+.font-bold-900 { font-weight: 900; }
 /* Preserve white text on interactive elements */
 button.text-white,
 a.text-white,

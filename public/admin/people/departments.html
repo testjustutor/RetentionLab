@@ -17,10 +17,10 @@
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
-        <!-- Filter Section -->
+        <!-- Action Section -->
         <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div id="deptFilterContainer"></div>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-bold text-violet-900">Departments Management</h2>
             <button id="openDeptModalBtn" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors shadow-sm whitespace-nowrap">Create Department</button>
           </div>
         </div>
@@ -96,41 +96,6 @@
     setupModal('deptModal', 'openDeptModalBtn', ['closeDeptModalBtn', 'cancelDeptModalBtn']);
     setupModal('memberModal', null, ['closeMemberModalBtn', 'cancelMemberModalBtn']);
 
-    // Initialize select filter for departments
-    const deptFilter = createSelectFilter({
-      containerId: 'deptFilterContainer',
-      placeholder: 'Select department...',
-      dataSource: async (searchTerm) => {
-        try {
-          const json = await apiFetch('/api/departments');
-          let depts = json.data || [];
-          if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            depts = depts.filter(d => (d.name || '').toLowerCase().includes(term));
-          }
-          return depts;
-        } catch {
-          return [];
-        }
-      },
-      onFilter: (selectedId) => {
-        if (!selectedId) {
-          loadDepts();
-          return;
-        }
-        const selected = allDepts.find(d => String(d.id) === String(selectedId));
-        if (selected) {
-          // Scroll to and highlight the selected department
-          const deptEl = document.querySelector('[data-dept-id="' + selectedId + '"]');
-          if (deptEl) {
-            deptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            deptEl.classList.add('ring-2', 'ring-violet-500');
-            setTimeout(() => deptEl.classList.remove('ring-2', 'ring-violet-500'), 2000);
-          }
-        }
-      }
-    });
-
     async function loadDepts() {
       const c = document.getElementById('deptsContainer');
       try {
@@ -174,7 +139,7 @@
           
           return '<div class="bg-gradient-to-br ' + bgGradient + ' border ' + borderColor + ' rounded-lg shadow-md overflow-hidden" data-dept-id="' + d.id + '">' +
             '<div class="p-3 flex items-center gap-3">' +
-              '<div class="w-8 h-8 rounded-md bg-' + color + '-500/10 border border-' + color + '-500/20 flex items-center justify-center text-' + color + '-400 font-bold text-xs">' + d.member_count + '</div>' +
+              '<div class="w-8 h-8 rounded-md bg-' + color + '-100 border border-' + color + '-300 flex items-center justify-center text-' + color + '-700 font-bold text-xs">' + d.member_count + '</div>' +
               '<div class="flex-1"><h3 class="text-xs font-bold ' + textColor + '">' + escHtml(d.name) + '</h3><p class="text-[11px] text-slate-600">' + escHtml(d.description || '') + ' &middot; ' + d.member_count + ' members</p></div>' +
               '<div class="flex gap-1">' +
                 '<button onclick="openAddMember(' + d.id + ')" class="text-[12px] px-1.5 py-0.5 rounded bg-white/50 text-slate-700 hover:text-white hover:bg-' + color + '-600 transition-colors" title="Add Member">+Member</button>' +
