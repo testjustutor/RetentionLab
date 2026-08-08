@@ -20,11 +20,26 @@ function handle(fn) {
 // GET /api/users
 router.get('/', requireAuth, handle(userController.list));
 
+// POST /api/users (list with filters)
+router.post('/', requireAuth, handle(userController.list));
+
+// GET /api/admin/users/list - Admin list endpoint
+router.get('/admin/list', requireAuth, handle(userController.list));
+
+// POST /api/admin/users/list - Admin list with filters
+router.post('/admin/list', requireAuth, handle(userController.list));
+
+// POST /api/users/list - Admin panel list endpoint
+router.post('/list', requireAuth, handle(userController.list));
+
 // GET /api/users/:id
 router.get('/:id', requireAuth, handle(userController.getById));
 
-// POST /api/users
-router.post('/', requireAuth, handle(userController.create));
+// POST /api/users (create)
+router.post('/create', requireAuth, handle(userController.create));
+
+// POST /api/admin/users/add - Admin add user endpoint
+router.post('/add', requireAuth, handle(userController.create));
 
 // PUT /api/users/:id
 router.put('/:id', requireAuth, handle(userController.update));

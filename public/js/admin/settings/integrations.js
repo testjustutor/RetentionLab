@@ -105,7 +105,7 @@ async function loadIntegrations() {
     `;
 
     // Fetch integration status
-    const response = await apiFetch('/api/calendar-integrations/integration-status');
+    const response = await apiFetch('/api/admin/calendar-integrations/integration-status');
     
     if (response.success && response.data) {
       renderIntegrations(response.data);

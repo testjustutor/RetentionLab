@@ -18,7 +18,7 @@ class RubricModel {
         db.run('BEGIN TRANSACTION');
 
         // Upsert Categories
-        const catSql = `INSERT INTO rubric_categories (category_id, name, weight) 
+        const catSql = `INSERT INTO admin_rubric_categories (category_id, name, weight) 
                         VALUES (?, ?, ?) 
                         ON DUPLICATE KEY UPDATE name=VALUES(name), weight=VALUES(weight)`;
         
@@ -27,7 +27,7 @@ class RubricModel {
         });
 
         // Upsert Indicators
-        const indSql = `INSERT INTO rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
+        const indSql = `INSERT INTO admin_rubric_indicators (indicator_id, category_id, name, type, is_gate, value) 
                         VALUES (?, ?, ?, ?, ?, ?) 
                         ON DUPLICATE KEY UPDATE 
                         name=VALUES(name), type=VALUES(type), is_gate=VALUES(is_gate), value=VALUES(value)`;
@@ -122,8 +122,8 @@ class RubricModel {
             ms.comment,
             ms.scored_at
           FROM meeting_scores ms
-          JOIN rubric_indicators ri ON ms.indicator_id = ri.indicator_id
-          JOIN rubric_categories rc ON ri.category_id = rc.category_id
+          JOIN admin_rubric_indicators ri ON ms.indicator_id = ri.indicator_id
+          JOIN admin_rubric_categories rc ON ri.category_id = rc.category_id
           WHERE ms.meeting_id = ?
         `;
         params = [meetingId];
@@ -147,8 +147,8 @@ class RubricModel {
     return new Promise((resolve, reject) => {
       const sql = `
         SELECT rc.name as category, ri.* 
-        FROM rubric_indicators ri 
-        JOIN rubric_categories rc ON ri.category_id = rc.category_id
+        FROM admin_rubric_indicators ri 
+        JOIN admin_rubric_categories rc ON ri.category_id = rc.category_id
       `;
       db.all(sql, [], (err, rows) => {
         if (err) reject(err);

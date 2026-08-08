@@ -5,6 +5,8 @@ let allUsers = [];
 let editingUserId = null;
 let calendarMap = {};
 let currentUserId = null;
+let currentPage = 1;
+const perPage = 10;
 
 // ── Modal setup ──
 setupModal('userModal', 'openUserModalBtn', ['closeUserModalBtn', 'cancelUserModalBtn']);
@@ -13,7 +15,7 @@ setupModal('userModal', 'openUserModalBtn', ['closeUserModalBtn', 'cancelUserMod
 async function loadRoleOptions() {
   const sel = document.getElementById('formRole');
   try {
-    const json = await apiFetch('/api/roles');
+    const json = await apiFetch('/api/roles/list');
     const roles = json.data || [];
     sel.innerHTML = '<option value="">Select a role...</option>' +
       roles.map(r => '<option value="' + r.id + '" data-name="' + r.role_name + '">' + r.role_name + '</option>').join('');
@@ -45,7 +47,11 @@ document.getElementById('formRole').addEventListener('change', function() {
 // ── Load calendar connections ──
 async function loadCalendarConnections() {
   try {
-    const json = await apiFetch('/api/instructor-calendar/connections');
+    const json = await apiFetch('/api/instructor-calendar/connections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
     const connections = json.data || [];
     connections.forEach(c => {
       if (c.email) calendarMap[c.email.toLowerCase()] = c.status === 'active' ? 'connected' : 'pending';
@@ -55,7 +61,22 @@ async function loadCalendarConnections() {
   }
 }
 
-// ── Load users ──
+// ── Format date helper ──
+function formatDate(dateStr) {
+  if (!dateStr) return '--';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return dateStr;
+  }
+}
+
+// ── Initialize Pagination Service ──
+let pagination = null;
+
+// ── Load users with pagination and date filter ──
 async function loadUsers() {
   try {
     if (!currentUserId) {
@@ -63,19 +84,52 @@ async function loadUsers() {
       currentUserId = me.id;
     }
 
-    const usersJson = await apiFetch('/api/users');
+    const { fromDate, toDate } = dateFilter.getDates();
+    const body = {
+      page: currentPage,
+      per_page: perPage
+    };
+    if (fromDate) body.from_date = fromDate;
+    if (toDate) body.to_date = toDate;
+
+    const usersJson = await apiFetch('/api/users/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     allUsers = (usersJson.data || []).filter(u => u.id !== currentUserId);
-    loadCalendarConnections().then(() => renderTable(allUsers));
+    const totalCount = usersJson.count || allUsers.length;
+    const totalPages = Math.ceil(totalCount / perPage) || 1;
+
+    loadCalendarConnections().then(() => renderTable(allUsers, totalCount, totalPages));
   } catch (err) {
     console.error(err);
   }
 }
 
-function renderTable(users) {
+function renderTable(users, totalCount, totalPages) {
   const tbody = document.getElementById('usersTableBody');
-  document.getElementById('usersCount').textContent = 'Showing ' + users.length + ' users';
+  const count = totalCount || users.length;
+  const pages = totalPages || Math.ceil(count / perPage) || 1;
+  document.getElementById('usersCount').textContent = 'Showing ' + count + ' users';
+
+  // Render pagination with page numbers using common-ui service
+  if (!pagination) {
+    pagination = createPagination({
+      containerId: 'paginationControls',
+      currentPage: currentPage,
+      totalPages: pages,
+      onPageChange: (page) => {
+        currentPage = page;
+        loadUsers();
+      }
+    });
+  }
+  // Always render/update pagination
+  pagination.render();
+
   if (!users.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500">No users found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500">No users found</td></tr>';
     return;
   }
 
@@ -106,6 +160,7 @@ function renderTable(users) {
       '<td class="py-3 px-4"><span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/10 text-violet-600 border border-violet-500/20">' + escHtml(u.role_name || 'user') + '</span></td>' +
       '<td class="py-3 px-4">' + calCell + '</td>' +
       '<td class="py-3 px-4"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ' + (isActive ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20') + '">' + (isActive ? 'Active' : 'Disabled') + '</span></td>' +
+      '<td class="py-3 px-4 text-[10px] text-slate-500 whitespace-nowrap">' + formatDate(u.created_at) + '</td>' +
       '<td class="py-3 px-4 text-right space-x-1">' +
       calAction +
       '<button onclick="editUser(' + u.id + ')" class="text-xs text-violet-600 hover:text-violet-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors">Edit</button>' +
@@ -188,7 +243,6 @@ document.getElementById('userForm').addEventListener('submit', async (e) => {
   let payload = { role_id: roleId };
 
   if (isInstructor) {
-    // Instructor: name and email required, no password
     const firstName = document.getElementById('instFirstName').value.trim();
     const email = document.getElementById('instEmail').value.trim();
     if (!firstName || !email) {
@@ -198,9 +252,7 @@ document.getElementById('userForm').addEventListener('submit', async (e) => {
     }
     payload.first_name = firstName;
     payload.email = email;
-    // No password_hash for instructor
   } else {
-    // Reviewer/other: name, email, password required
     const firstName = document.getElementById('formFirstName').value.trim();
     const email = document.getElementById('formEmail').value.trim();
     const password = document.getElementById('formPassword').value;
@@ -224,12 +276,11 @@ document.getElementById('userForm').addEventListener('submit', async (e) => {
     if (editingUserId) {
       await apiFetch('/api/users/' + editingUserId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } else {
-      await apiFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      await apiFetch('/api/admin/users/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     }
     msgEl.textContent = editingUserId ? 'User updated!' : 'User created!';
     msgEl.className = 'text-sm text-emerald-600';
     document.getElementById('userForm').reset();
-    // Reset field visibility back to default
     document.getElementById('reviewerFields').classList.add('hidden');
     document.getElementById('instructorFields').classList.add('hidden');
     loadUsers();
@@ -247,7 +298,6 @@ document.getElementById('openUserModalBtn').addEventListener('click', () => {
   document.getElementById('editUserId').value = '';
   document.getElementById('userForm').reset();
   document.getElementById('formMessage').textContent = '';
-  // Reset to default: show reviewer fields, hide instructor fields
   document.getElementById('formRole').value = '';
   document.getElementById('reviewerFields').classList.add('hidden');
   document.getElementById('instructorFields').classList.add('hidden');
@@ -267,7 +317,7 @@ window.sendVerification = async function(email) {
     });
     showToast('Verification link sent to ' + email);
     calendarMap[email.toLowerCase()] = 'pending';
-    renderTable(allUsers);
+    renderTable(allUsers, allUsers.length, Math.ceil(allUsers.length / perPage));
   } catch (err) {
     showToast(err.message, true);
   }
@@ -282,7 +332,7 @@ window.disconnectCalendar = async function(email) {
     });
     showToast('Calendar disconnected');
     delete calendarMap[email.toLowerCase()];
-    renderTable(allUsers);
+    renderTable(allUsers, allUsers.length, Math.ceil(allUsers.length / perPage));
   } catch (err) {
     showToast(err.message, true);
   }
@@ -290,17 +340,30 @@ window.disconnectCalendar = async function(email) {
 
 // ── Search/Filter ──
 function filterTable() {
-  const query = (document.getElementById('userSearch').value || '').toLowerCase();
+  const searchInput = document.getElementById('userSearch');
+  if (!searchInput) return;
+  const query = searchInput.value.toLowerCase();
   const filtered = allUsers.filter(u => 
     (u.first_name || '').toLowerCase().includes(query) ||
     (u.email || '').toLowerCase().includes(query) ||
     (u.role_name || '').toLowerCase().includes(query)
   );
-  renderTable(filtered);
+  currentPage = 1;
+  renderTable(filtered, filtered.length, Math.ceil(filtered.length / perPage));
 }
 
-// Make filterTable globally accessible for inline oninput handler
-window.filterTable = filterTable;
+// ── Initialize Date Filter Service (lightweight, no HTML rendering) ──
+const dateFilter = createDateFilter({
+  onFilter: (fromDate, toDate) => {
+    currentPage = 1;
+    loadUsers();
+  },
+  onClear: () => {
+    currentPage = 1;
+    loadUsers();
+  },
+  onSearch: (e) => filterTable()
+});
 
 // Initialize
 loadUsers();

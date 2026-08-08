@@ -14,10 +14,11 @@ const controller = {
    */
   async getRecordings(req) {
     try {
+      // Support both GET (query params) and POST (request body)
       const filters = {
-        startDate: req.query.startDate || null,
-        endDate: req.query.endDate || null,
-        instructorId: req.query.instructorId ? parseInt(req.query.instructorId) : null
+        startDate: req.body?.startDate || req.query.startDate || null,
+        endDate: req.body?.endDate || req.query.endDate || null,
+        instructorId: req.body?.instructorId ? parseInt(req.body.instructorId) : (req.query.instructorId ? parseInt(req.query.instructorId) : null)
       };
 
       const recordings = await VideoRecordingsModel.getRecordings(
@@ -73,17 +74,37 @@ const controller = {
    */
   async getInstructors(req) {
     try {
-      const instructors = await VideoRecordingsModel.getInstructors(
-        req.user.id,
-        req.user.role_name
-      );
+      // Use CalendarUsersModel to get instructors who have connected calendars
+      const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
+      const adminId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role_name : null;
+      
+      // Build filter options
+      const filterOptions = {
+        status: 'active',
+        email: true,
+        roles: ['instructor', 'solo_instructor']
+      };
+      
+      // For admin: only get users they created
+      if (userRole === 'admin' && adminId) {
+        filterOptions.createdBy = adminId;
+        filterOptions.excludeSelf = true;
+        filterOptions.adminId = adminId;
+      }
+      
+      const conns = await CalendarUsersModel.getAllUsers(filterOptions);
+      const instructors = (conns || [])
+        .filter(c => c.email) // Only require email
+        .map(c => ({
+          // id: c.user_id || c.user_id_ref,
+          uuid: c.user_uuid,
+          name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email,
+          email: c.email
+        }));
 
       return ok({ 
-        instructors: instructors.map(inst => ({
-          id: inst.id,
-          name: `${inst.first_name} ${inst.last_name}`,
-          email: inst.email
-        }))
+        instructors: instructors
       });
     } catch (e) {
       return err(e.message, 500);

@@ -23,10 +23,10 @@ const controller = {
                CONCAT(u.first_name, ' ', u.last_name) as owner_name,
                u.email as owner_email
         FROM meetings m
-        LEFT JOIN users u ON u.id = m.owner_user_id
-        WHERE m.start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-           OR m.start_time IS NULL
-        ORDER BY m.start_time DESC
+        LEFT JOIN users u ON u.email = m.calendar_account
+        WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
+           OR m.scheduled_start_time IS NULL
+        ORDER BY m.scheduled_start_time DESC
         LIMIT 100
       `;
 

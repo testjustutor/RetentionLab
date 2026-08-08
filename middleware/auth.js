@@ -10,6 +10,7 @@ const JWT_EXPIRES_MS = Number(process.env.JWT_EXPIRES_MS) || 2 * 60 * 60 * 1000;
 function signToken(user) {
   const payload = {
     id: user.id,
+    user_uuid: user.user_uuid || null,
     role_id: user.role_id ?? user.role_id,
     role_name: user.role_name,
     company_id: user.company_id || null,
@@ -53,6 +54,7 @@ function requireAuth(req, res, next) {
 
   req.user = {
     id: payload.id,
+    user_uuid: payload.user_uuid || null,
     role_id: payload.role_id || null,
     role_name: payload.role_name,
     company_id: payload.company_id,

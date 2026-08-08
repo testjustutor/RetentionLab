@@ -65,22 +65,22 @@ class MeetingModel {
           if (failedStatuses.includes(row.status)) {
             db.run(
               `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
-              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.title, meetingData.eventId],
+              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.title, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, reset: true, ...meetingData }); });
           } else {
             // Update existing meeting with fresh data from calendar sync
             db.run(
               `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, scheduled_end_time = ?, title = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
-              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.startTime, meetingData.endTime || null, meetingData.title, meetingData.timezone || null, meetingData.eventId],
+              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.scheduled_end_time || null, meetingData.title, meetingData.timezone || null, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, updated: true, ...meetingData }); }
             );
           }
         } else {
-          const insertSql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, meeting_link, scheduled_start_time, title, scheduled_end_time, timezone, status, session_id, company_id, owner_user_id, reviewer_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+          const insertSql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, meeting_link, scheduled_start_time, title, scheduled_end_time, timezone, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, CURRENT_TIMESTAMP)`;
           const insertParams = [
             meetingData.meetingId, meetingData.platform, meetingData.passcode || null, meetingData.eventId,
-            meetingData.account, meetingData.meetingLink, meetingData.startTime, meetingData.title,
-            meetingData.endTime || null, meetingData.timezone || null, meetingData.sessionId || null,
+            meetingData.account, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.title,
+            meetingData.scheduled_end_time || null, meetingData.timezone || null, meetingData.sessionId || null,
             meetingData.company_id || null, meetingData.owner_user_id || null, meetingData.reviewer_id || null,
             meetingData.created_by_user_id || null
           ];
@@ -136,7 +136,7 @@ class MeetingModel {
 
       const now = new Date();
       const future = new Date(now.getTime() + hours * 3600000);
-      const futureStr = future.toISOString().slice(0, 19).replace('T', ' ');
+      const futureStr = future.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
 
       const placeholders = emails.map(() => '?').join(',');
       const params = [...emails, futureStr];
@@ -148,6 +148,36 @@ class MeetingModel {
          LEFT JOIN users u ON u.email = m.calendar_account 
          LEFT JOIN roles r ON r.id = u.role_id 
          WHERE LOWER(m.calendar_account) IN (${placeholders}) 
+           AND m.scheduled_start_time <= ?
+         ORDER BY m.scheduled_start_time ASC`,
+        params,
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        }
+      );
+    });
+  }
+
+  static getMeetingsByDateRange(emails, fromDate, toDate) {
+    return new Promise((resolve, reject) => {
+      if (!emails || !emails.length) return resolve([]);
+
+      const fromStr = fromDate.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
+      const toStr = toDate.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
+
+      const placeholders = emails.map(() => '?').join(',');
+      const params = [...emails, fromStr, toStr];
+
+      db.all(
+        `SELECT m.title, m.scheduled_start_time, m.scheduled_end_time, m.platform, m.calendar_account,
+                u.first_name, u.last_name, r.role_name,
+                TIMESTAMPDIFF(MINUTE, m.scheduled_start_time, m.scheduled_end_time) as duration
+         FROM meetings m 
+         LEFT JOIN users u ON u.email = m.calendar_account 
+         LEFT JOIN roles r ON r.id = u.role_id 
+         WHERE LOWER(m.calendar_account) IN (${placeholders}) 
+           AND m.scheduled_start_time >= ?
            AND m.scheduled_start_time <= ?
          ORDER BY m.scheduled_start_time ASC`,
         params,
@@ -325,7 +355,18 @@ class MeetingModel {
   // wrong day's row (e.g. tomorrow's queued row instead of today's).
   static updateMeetingStatus(eventId, status, sessionId = null) {
     return new Promise((resolve, reject) => {
-      db.run(`UPDATE meetings SET status = ?, session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status IN ('queued', 'launching')`, [status, sessionId, eventId], function (err) { if (err) { logger.error('Model(MeetingModel): Error updating meeting status:', err); reject(err); } else resolve({ success: true, updated: this.changes > 0, changes: this.changes, eventId }); });
+      db.run(
+        `UPDATE meetings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status IN ('queued', 'launching')`,
+        [status, eventId],
+        function (err) {
+          if (err) {
+            logger.error('Model(MeetingModel): Error updating meeting status:', err);
+            reject(err);
+          } else {
+            resolve({ success: true, updated: this.changes > 0, changes: this.changes, eventId });
+          }
+        }
+      );
     });
   }
 
@@ -407,9 +448,17 @@ class MeetingModel {
   static async getMeetingsWithOwnerDetails(days = 90) {
     return new Promise((resolve, reject) => {
       const sql = `
-        SELECT m.*,
+        SELECT m.id,
+               m.external_meeting_id as meeting_id,
+               m.title,
+               m.scheduled_start_time,
+               m.scheduled_end_time,
+               m.platform,
+               m.calendar_account,
+               m.status,
                CONCAT(u.first_name, ' ', u.last_name) as owner_name,
-               u.email as owner_email
+               u.email as owner_email,
+               u.id as owner_user_id
         FROM meetings m
         LEFT JOIN users u ON u.email = m.calendar_account
         WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY) OR m.scheduled_start_time IS NULL

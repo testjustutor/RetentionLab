@@ -818,6 +818,7 @@ async function fetchAndRenderProfile() {
     // Cache for other legacy scripts
     try {
       localStorage.setItem('rl_user', JSON.stringify(user));
+      sessionStorage.setItem('rl_user', JSON.stringify(user));
     } catch {
       // ignore
     }

@@ -1,7 +1,8 @@
 /**
- * controllers/rubricController.js
- * Business logic for admin rubric management (categories + indicators).
- * Wraps RubricAdminModel calls — no raw DB queries here.
+ * controllers/rubrics/rubricController.js
+ * Business logic for ADMIN-specific rubric management (categories + indicators).
+ * Uses RubricAdminModel — no master rubric logic here.
+ * For master rubric operations, see masterRubricController.js
  */
 const RubricAdminModel = require('../../models/rubrics/RubricAdminModel');
 
@@ -9,11 +10,11 @@ function ok(data, msg) { return { success: true, message: msg || null, ...(data 
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
 const rubricController = {
-  /** GET /api/rubrics/admin/:adminUserId — Get full rubric (categories + indicators) for an admin */
+  /** POST /api/evaluation/rubrics/list — Get full rubric (categories + indicators) for an admin */
   async getAdminFull(req) {
     try {
-      const id = parseInt(req.params.adminUserId);
-      const result = await RubricAdminModel.getFullRubricForAdmin(id);
+      const adminUserId = parseInt(req.body.admin_user_id);
+      const result = await RubricAdminModel.getFullRubricForAdmin(adminUserId);
       return ok({ categories: result.categories, indicators: result.indicators });
     } catch (e) { return err(e.message); }
   },
@@ -58,28 +59,12 @@ const rubricController = {
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/rubrics/master-categories — Get all master categories */
-  async getMasterCategories(req) {
-    try {
-      const categories = await RubricAdminModel.getCategories();
-      return ok({ categories });
-    } catch (e) { return err(e.message); }
-  },
-
   /** GET /api/rubrics/admin/:adminUserId/assigned-ids — Get assigned category IDs for admin */
   async getAssignedCategoryIds(req) {
     try {
       const adminId = parseInt(req.params.adminUserId);
       const ids = await RubricAdminModel.getAdminAssignedCategoryIds(adminId);
       return ok({ assignedIds: ids });
-    } catch (e) { return err(e.message); }
-  },
-
-  /** GET /api/rubrics/master-indicators — Get all master indicators */
-  async getMasterIndicators(req) {
-    try {
-      const indicators = await RubricAdminModel.getIndicators();
-      return ok({ indicators });
     } catch (e) { return err(e.message); }
   },
 
@@ -106,7 +91,7 @@ const rubricController = {
     } catch (e) { return err(e.message); }
   },
 
-  /** POST /api/rubrics/admin/:adminUserId/categories — Create custom category for admin */
+  /** POST /api/rubrics/admin/:adminUserId/categories — Create custom category for admin (admin tables only) */
   async createAdminCategory(req) {
     try {
       const adminId = parseInt(req.params.adminUserId);
@@ -116,24 +101,16 @@ const rubricController = {
         return err('Category name is required', 400);
       }
 
-      const categoryId = 'CUSTOM_' + Date.now();
-      await RubricAdminModel.createCategory({
-        category_id: categoryId,
-        name: name.trim(),
-        weight: parseFloat(weight) || 0
-      });
-
-      // Assign to admin
-      await RubricAdminModel.assignCategoryToAdmin(categoryId, adminId, req.user?.id);
+      const result = await RubricAdminModel.createCustomCategory(adminId, name.trim(), weight);
 
       return ok({ 
-        categoryId,
+        categoryId: result.categoryId,
         message: 'Category created successfully'
       }, 201);
     } catch (e) { return err(e.message); }
   },
 
-  /** POST /api/rubrics/admin/:adminUserId/indicators — Create custom indicator for admin */
+  /** POST /api/rubrics/admin/:adminUserId/indicators — Create custom indicator for admin (admin tables only) */
   async createAdminIndicator(req) {
     try {
       const adminId = parseInt(req.params.adminUserId);
@@ -143,48 +120,17 @@ const rubricController = {
         return err('Category and indicator name are required', 400);
       }
 
-      const indicatorId = 'IND_' + Date.now();
-      await RubricAdminModel.createIndicator({
-        indicator_id: indicatorId,
-        category_id: category_id,
+      const result = await RubricAdminModel.createCustomIndicator(adminId, {
+        category_id,
         name: name.trim(),
-        type: type || 'HUMAN',
-        is_gate: is_gate ? 1 : 0,
-        value: parseFloat(value) || 1
+        type,
+        is_gate,
+        value,
+        description
       });
 
-      // Also create in admin_rubric_indicators
-      const adminIndicators = await RubricAdminModel.getAdminIndicatorsByCategory(adminId, category_id);
-      const adminIndicator = adminIndicators.find(i => i.original_indicator_id === indicatorId);
-      
-      if (!adminIndicator) {
-        await new Promise((resolve, reject) => {
-          const { db } = require('../../database/db');
-          db.run(
-            `INSERT INTO admin_rubric_indicators 
-             (original_indicator_id, original_category_id, admin_user_id, category_id, name, type, is_gate, value, description, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            [
-              indicatorId,
-              category_id,
-              adminId,
-              category_id,
-              name.trim(),
-              type || 'HUMAN',
-              is_gate ? 1 : 0,
-              parseFloat(value) || 1,
-              description || null
-            ],
-            function(err) {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        });
-      }
-
       return ok({ 
-        indicatorId,
+        indicatorId: result.indicatorId,
         message: 'Indicator created successfully'
       }, 201);
     } catch (e) { return err(e.message); }
@@ -212,19 +158,48 @@ const rubricController = {
       const adminId = parseInt(req.params.adminUserId);
       const indicatorId = req.params.id;
 
-      await new Promise((resolve, reject) => {
-        const { db } = require('../../database/db');
-        db.run(
-          `DELETE FROM admin_rubric_indicators WHERE id = ? AND admin_user_id = ?`,
-          [indicatorId, adminId],
-          function(err) {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      const result = await RubricAdminModel.deleteAdminIndicator(adminId, indicatorId);
+
+      if (!result.deleted) {
+        return err('Indicator not found', 404);
+      }
 
       return ok({ message: 'Indicator deleted successfully' });
+    } catch (e) { return err(e.message); }
+  },
+
+  // Update indicator status
+  async updateIndicatorStatus(req, res) {
+    try {
+      const adminId = req.user?.id;
+      const { indicator_id, status } = req.body;
+      
+      if (!indicator_id) {
+        return res.status(400).json({ success: false, error: 'indicator_id is required' });
+      }
+      
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ success: false, error: 'Invalid status. Must be active or inactive' });
+      }
+
+      // Update indicator status via model
+      await RubricAdminModel.updateIndicatorStatus(adminId, indicator_id, status);
+
+      // Check if all indicators in this category are inactive
+      const categoryRow = await RubricAdminModel.getCategoryIdForIndicator(adminId, indicator_id);
+
+      if (categoryRow) {
+        const indicators = await RubricAdminModel.getIndicatorsByCategoryForAdmin(adminId, categoryRow.original_category_id);
+
+        const allInactive = indicators.length > 0 && indicators.every(ind => ind.status === 'inactive');
+        
+        if (allInactive) {
+          // Auto-deactivate category via model
+          await RubricAdminModel.updateCategoryStatus(adminId, categoryRow.original_category_id, 'inactive');
+        }
+      }
+
+      return ok({ message: 'Status updated successfully' });
     } catch (e) { return err(e.message); }
   }
 };

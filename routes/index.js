@@ -136,7 +136,7 @@ router.use('/api/assets', require('./assets'));
 router.use('/api/archives', require('./archives'));
 
 // Rubric management (super admin)
-router.use('/api/rubrics', require('./rubrics'));
+router.use('/api/evaluation/rubrics', require('./rubrics'));
 router.use('/api/rubric-admin', require('./rubric-admin'));
 
 // Sidebar menu management (super admin)
@@ -157,20 +157,7 @@ router.use('/api/sidebar', require('./sidebar-api'));
 // Configuration pages (super admin)
 router.use('/super_admin/configuration', require('./configuration'));
 
-// Tutoring/session-quality endpoints
-router.use('/api/meeting-schedule', require('./meeting-schedule'));
-router.use('/api/recordings', require('./recordings-dashboard'));
-router.use('/api/instructor-calendar', require('./instructor-calendar'));
-router.use('/api/instructor-meetings', require('./instructor-meetings'));
-router.use('/api/departments', require('./departments'));
-router.use('/api/tutoring', require('./tutoring'));
-router.use('/api/participants', require('./participants'));
-
-// Report controllers (MVC pattern)
-router.use('/api/meetings/reports', require('./meeting-reports'));
-router.use('/api/evaluations/reports', require('./evaluation-reports'));
-
-// Serve page routes (must be after API routes to avoid intercepting API calls)
-router.use('/', require('./pages'));
+// NOTE: This file is deprecated. All routes are now registered via routes/registry.js
+// This file is kept for reference only and is NOT used by server.js
 
 module.exports = router;

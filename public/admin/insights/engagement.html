@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
   <meta name="header-page" content="insightsEngagement">
-  <title>Engagement | RetentionLab</title>
+  <title>Engagement Insights | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
   <div class="flex h-screen">
@@ -15,19 +16,88 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div></div>
+        
+        <!-- Date Filter -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">From Date</label>
+              <input type="date" id="filterFromDate" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-100 focus:border-violet-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">To Date</label>
+              <input type="date" id="filterToDate" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-100 focus:border-violet-500 focus:outline-none">
+            </div>
+          </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4"><div class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-center"><p class="text-[12px] text-slate-400">Participation Rate</p><p class="text-2xl font-bold text-violet-400 mt-1.5">78%</p></div><div class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-center"><p class="text-[12px] text-slate-400">Avg Speaking Time</p><p class="text-2xl font-bold text-emerald-400 mt-1.5">12.4m</p></div><div class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-center"><p class="text-[12px] text-slate-400">Interaction Level</p><p class="text-2xl font-bold text-amber-800 mt-1.5">High</p></div></div>
+
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[12px] text-slate-400">Total Sessions</p>
+            <p class="text-2xl font-bold text-violet-400 mt-1.5" id="totalSessions">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[12px] text-slate-400">Avg Engagement</p>
+            <p class="text-2xl font-bold text-emerald-400 mt-1.5" id="avgEngagement">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[12px] text-slate-400">Avg Learning Impact</p>
+            <p class="text-2xl font-bold text-blue-400 mt-1.5" id="avgLearningImpact">-</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+            <p class="text-[12px] text-slate-400">Avg Score</p>
+            <p class="text-2xl font-bold text-amber-800 mt-1.5" id="avgScore">-</p>
+          </div>
+        </div>
+
+        <!-- Engagement Level Distribution -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+          <h3 class="text-sm font-bold text-slate-100 mb-3">Engagement Level Distribution</h3>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 text-center">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide">High (70%+)</p>
+              <p class="text-xl font-bold text-emerald-600 mt-1" id="highEngagement">-</p>
+            </div>
+            <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 text-center">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide">Medium (40-69%)</p>
+              <p class="text-xl font-bold text-amber-800 mt-1" id="mediumEngagement">-</p>
+            </div>
+            <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 text-center">
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide">Low (<40%)</p>
+              <p class="text-xl font-bold text-red-400 mt-1" id="lowEngagement">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instructor Breakdown -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 mb-4">
+          <h3 class="text-sm font-bold text-slate-100 mb-3">Instructor Performance Breakdown</h3>
+          <div id="instructorBreakdown" class="space-y-2">
+            <div class="animate-pulse space-y-2">
+              <div class="h-16 bg-slate-800/50 rounded-md"></div>
+              <div class="h-16 bg-slate-800/50 rounded-md"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Sessions -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <h3 class="text-sm font-bold text-slate-100 mb-3">Recent Sessions with Engagement Data</h3>
+          <div id="recentSessions" class="space-y-2">
+            <div class="animate-pulse space-y-2">
+              <div class="h-20 bg-slate-800/50 rounded-md"></div>
+              <div class="h-20 bg-slate-800/50 rounded-md"></div>
+            </div>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
+
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/insights/engagement.js"></script>
 </body>
 </html>
-
-
-
-
-

@@ -14,6 +14,16 @@ const controller = {
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
 
+  async getDashboardOverview(req, res) {
+    try {
+      const overview = await AdminModel.getDashboardOverview();
+      res.json(overview);
+    } catch (err) {
+      console.error('[Dashboard] Error fetching overview:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
   async getSuperAdmin(req, res) {
     try {
       const counts = await AdminModel.getDashboardCounts();

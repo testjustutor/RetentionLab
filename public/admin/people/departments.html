@@ -17,10 +17,22 @@
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div>
+        <!-- Filter Section -->
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-3 mb-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div id="deptFilterContainer"></div>
+            <button id="openDeptModalBtn" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors whitespace-nowrap">Create Department</button>
           </div>
-          <button id="openDeptModalBtn" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors">Create Department</button>
+        </div>
+
+        <!-- Data Display Section -->
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200">
+            <h3 class="text-xs font-semibold text-slate-700">Departments List</h3>
+          </div>
+          <div id="deptsContainer" class="p-4">
+            <div class="py-8 text-center text-slate-500">Loading departments...</div>
+          </div>
         </div>
 
         <!-- Department Modal -->
@@ -69,11 +81,6 @@
           </div>
         </div>
 
-        <!-- Departments List -->
-        <div class="space-y-3" id="deptsContainer">
-          <div class="py-8 text-center text-slate-500">Loading departments...</div>
-        </div>
-
       </main>
     </div>
   </div>
@@ -89,15 +96,57 @@
     setupModal('deptModal', 'openDeptModalBtn', ['closeDeptModalBtn', 'cancelDeptModalBtn']);
     setupModal('memberModal', null, ['closeMemberModalBtn', 'cancelMemberModalBtn']);
 
+    // Initialize select filter for departments
+    const deptFilter = createSelectFilter({
+      containerId: 'deptFilterContainer',
+      placeholder: 'Select department...',
+      dataSource: async (searchTerm) => {
+        try {
+          const json = await apiFetch('/api/departments');
+          let depts = json.data || [];
+          if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            depts = depts.filter(d => (d.name || '').toLowerCase().includes(term));
+          }
+          return depts;
+        } catch {
+          return [];
+        }
+      },
+      onFilter: (selectedId) => {
+        if (!selectedId) {
+          loadDepts();
+          return;
+        }
+        const selected = allDepts.find(d => String(d.id) === String(selectedId));
+        if (selected) {
+          // Scroll to and highlight the selected department
+          const deptEl = document.querySelector('[data-dept-id="' + selectedId + '"]');
+          if (deptEl) {
+            deptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            deptEl.classList.add('ring-2', 'ring-violet-500');
+            setTimeout(() => deptEl.classList.remove('ring-2', 'ring-violet-500'), 2000);
+          }
+        }
+      }
+    });
+
     async function loadDepts() {
       const c = document.getElementById('deptsContainer');
       try {
         const json = await apiFetch('/api/departments');
         allDepts = json.data || [];
-        if (!allDepts.length) { c.innerHTML = '<div class="py-8 text-center text-slate-500">No departments yet. Create one!</div>'; return; }
-        c.innerHTML = allDepts.map((d,i) => {
+        if (!allDepts.length) { 
+          c.innerHTML = '<div class="py-12 text-center">' +
+            '<svg class="w-12 h-12 text-slate-400 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>' +
+            '<p class="text-sm text-slate-500 mb-1">No departments found</p>' +
+            '<p class="text-xs text-slate-400">Create a department to get started</p>' +
+          '</div>'; 
+          return; 
+        }
+        c.innerHTML = '<div class="space-y-3">' + allDepts.map((d,i) => {
           const color = COLORS[i % COLORS.length];
-          return '<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">' +
+          return '<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden" data-dept-id="' + d.id + '">' +
             '<div class="p-3 flex items-center gap-3">' +
               '<div class="w-8 h-8 rounded-md bg-' + color + '-500/10 border border-' + color + '-500/20 flex items-center justify-center text-' + color + '-400 font-bold text-xs">' + d.member_count + '</div>' +
               '<div class="flex-1"><h3 class="text-xs font-semibold text-slate-900">' + escHtml(d.name) + '</h3><p class="text-[12px] text-slate-500">' + escHtml(d.description || '') + ' &middot; ' + d.member_count + ' members</p></div>' +
@@ -111,7 +160,7 @@
             '<div class="hidden members-content border-t border-slate-800 px-3 py-1.5 bg-slate-900/50" id="members-' + d.id + '">' +
               '<div class="text-[12px] text-slate-500 py-1.5">Click chevron to load members</div>' +
             '</div></div>';
-        }).join('');
+        }).join('') + '</div>';
       } catch (err) { c.innerHTML = '<div class="py-8 text-center text-red-400">Failed to load departments</div>'; }
     }
 

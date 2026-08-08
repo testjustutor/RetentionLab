@@ -39,14 +39,16 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
       expiry_date: calendarUser.expiry_date
     });
 
+    const new_data =  new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+
     // Check if token needs refresh
-    if (calendarUser.token_expiry && new Date(calendarUser.token_expiry).getTime() < Date.now()) {
+    if (calendarUser.token_expiry && new Date(calendarUser.token_expiry) < new Date(new_data) ) {
       logger.info(`[CalendarSync] Refreshing token for user ${userId}`);
       const { token } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(token);
       
       // Save new tokens using user_id
-      await CalendarUsersModel.createOrUpdateUser(userId, {
+      await CalendarUsersModel.createOrUpdateUserCalendar(userId, {
         access_token: token.access_token,
         refresh_token: token.refresh_token || calendarUser.refresh_token,
         expiry_date: token.expiry_date,

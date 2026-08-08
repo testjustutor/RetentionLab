@@ -130,6 +130,30 @@ router.get('/support', (req, res) => { serveHTML(req, res, 'marketing/support.ht
 router.get('/404', (req, res) => { serveHTML(req, res, 'marketing/404.html'); });
 
 // ---------------------------------------------------------
+// LOGOUT ROUTE (direct access for sidebar links)
+// ---------------------------------------------------------
+
+router.get('/logout', (req, res) => {
+  try {
+    // Clear the auth cookie
+    res.clearCookie('auth_token', { 
+      httpOnly: true, 
+      sameSite: 'lax', 
+      secure: process.env.NODE_ENV === 'production' 
+    });
+    
+    // Clear any other cookies if needed
+    res.clearCookie('connect.sid');
+    
+    // Redirect to login page
+    return res.redirect('/login.html');
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.redirect('/login.html');
+  }
+});
+
+// ---------------------------------------------------------
 // PROTECTED DYNAMIC DASHBOARD ALIAS
 // Redirects /dashboard to role-based URL so /dashboard never shows in the browser
 // ---------------------------------------------------------

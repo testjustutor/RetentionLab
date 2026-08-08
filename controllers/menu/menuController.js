@@ -17,14 +17,13 @@ const menuController = {
   /**
    * GET /api/menu
    * Get resolved menu for current logged-in user
-   * Returns nested tree structure with role defaults + user overrides
+   * Returns nested tree structure with role defaults
    */
   async getMyMenu(req, res) {
     try {
-      const userId = req.user.id;
       const roleId = req.user.role_id;
 
-      const menuTree = await MenuModel.getResolvedMenuForUser(userId, roleId);
+      const menuTree = await MenuModel.getResolvedMenuForUser(roleId);
       
       return ok({ data: menuTree });
     } catch (e) {
@@ -34,22 +33,19 @@ const menuController = {
 
   /**
    * POST /api/admin/menu-permissions/resolved
-   * Get resolved menu for a specific user (role defaults merged with personal overrides)
-   * Returns the full resolved view with flags indicating which items are overridden
+   * Get resolved menu for a specific user (role defaults only, no user overrides)
    */
   async getResolvedUserMenu(req, res) {
     try {
       const { user_id } = req.body;
       if (!user_id) return err('user_id is required', 400);
 
-      // User-specific overrides are not currently enabled.
-      // Return the role-default menu for this user's role only.
       const { getAsync } = require('../../database/seedHelpers');
       const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
       if (!user) return err('User not found', 404);
 
       const [menuItems, rolePermissions] = await Promise.all([
-        MenuModel.getAllMenuItems(),
+        MenuModel.getAllMenuItems(user.role_id),
         MenuModel.getRoleMenuPermissions(user.role_id)
       ]);
 
@@ -77,7 +73,7 @@ const menuController = {
         };
       });
 
-      return ok({ data: resolvedView, message: 'User-specific menu overrides are not currently enabled.' });
+      return ok({ data: resolvedView });
     } catch (e) {
       return err(e.message);
     }
@@ -85,22 +81,19 @@ const menuController = {
 
   /**
    * POST /api/admin/menu-permissions
-   * Get menu permissions (role or user based on body payload)
+   * Get menu permissions (role based)
    */
   async getMenuPermissions(req, res) {
     try {
       const { role_id, user_id } = req.body;
       
-      // Get all menu items
-      const menuItems = await MenuModel.getAllMenuItems();
-      
       if (user_id) {
-        // User-specific menu overrides are not currently enabled.
-        // Return role defaults for the user's role instead.
+        // Get role defaults for the user's role
         const { getAsync } = require('../../database/seedHelpers');
         const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
         if (!user) return err('User not found', 404);
 
+        const menuItems = await MenuModel.getAllMenuItems(user.role_id);
         const rolePermissions = await MenuModel.getRoleMenuPermissions(user.role_id);
         const permissions = menuItems.map(item => {
           const perm = rolePermissions[item.id];
@@ -133,14 +126,13 @@ const menuController = {
 
         return ok({ data: permissions });
       } else if (role_id) {
-        // Get role permissions
+        // Get role permissions - only show menu items for this role
+        const menuItems = await MenuModel.getAllMenuItems(role_id);
         const rolePermissions = await MenuModel.getRoleMenuPermissions(role_id);
         
         const permissions = menuItems.map(item => {
           const perm = rolePermissions[item.id];
           const parentId = perm?.parent_id ?? item.parent_id;
-          // Only include items that have a permission entry for this role
-          // If no entry exists, the item is not configured for this role (hidden)
           if (!perm) {
             return {
               menu_item_id: item.id,
@@ -176,14 +168,14 @@ const menuController = {
 
   /**
    * PUT /api/admin/menu-permissions
-   * Update menu permissions (role or user based on body payload)
+   * Update menu permissions (role based)
    */
   async updateMenuPermissions(req, res) {
     try {
-      const { role_id, user_id, permissions, overrides } = req.body;
+      const { role_id, user_id, permissions } = req.body;
 
       if (user_id) {
-        return err('User-specific menu overrides are not currently enabled', 400);
+        return err('User-specific menu overrides are not supported', 400);
       } else if (role_id) {
         if (!Array.isArray(permissions)) {
           return err('Permissions must be an array', 400);
@@ -215,29 +207,19 @@ const menuController = {
         return err('Role not found', 404);
       }
 
-      // Import default menu config
-      const { ROLE_MENU_DEFAULTS } = require('../../database/seeders/018_role_menu_permissions');
-      const { MENU_ITEMS } = require('../../database/seeders/017_menu_items');
-      
-      const defaults = ROLE_MENU_DEFAULTS[role.role_name] || [];
-      
-      if (defaults.length === 0) {
-        return err('No default menu configuration for this role', 400);
-      }
-
-      // Get menu item IDs
-      const menuItems = await MenuModel.getAllMenuItems();
+      // Get menu items for this role
+      const menuItems = await MenuModel.getAllMenuItems(role_id);
       const menuItemIdMap = {};
       for (const item of menuItems) {
         menuItemIdMap[item.menu_key] = item.id;
       }
 
-      // Build permissions array
-      const permissions = defaults.map(menuDefault => ({
-        menu_item_id: menuItemIdMap[menuDefault.menu_key],
-        is_visible: menuDefault.is_visible,
-        sort_order: menuDefault.sort_order
-      })).filter(p => p.menu_item_id);
+      // Build permissions array - all items visible by default
+      const permissions = menuItems.map(item => ({
+        menu_item_id: item.id,
+        is_visible: 1,
+        sort_order: item.sort_order
+      }));
 
       // Save permissions
       const result = await MenuModel.saveRoleMenuPermissions(role_id, permissions);

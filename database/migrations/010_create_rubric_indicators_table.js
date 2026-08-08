@@ -19,12 +19,13 @@ CREATE TABLE IF NOT EXISTS rubric_indicators (
     value INT DEFAULT 1,
     benchmark TEXT,
     requires_video TINYINT(1) DEFAULT 0,
+    status ENUM('active', 'inactive') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ri_category (category_id),
     FOREIGN KEY (category_id) REFERENCES rubric_categories(category_id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`);
+ `);
   console.log('[Migration rubric_indicators] Complete.');
 };
 const down = async () => {

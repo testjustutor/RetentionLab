@@ -1,19 +1,102 @@
+// ── Filter Helpers ──
+function getDateFilterParams() {
+  // For Get Data: From Date, To Date, Instructor
+  const fromDate = document.getElementById('filterFromDate')?.value || '';
+  const toDate = document.getElementById('filterToDate')?.value || '';
+  const instructorId = window.instructorFilter ? window.instructorFilter.getValue() : null;
+  const params = new URLSearchParams();
+  if (fromDate) params.append('from_date', fromDate);
+  if (toDate) params.append('to_date', toDate);
+  if (instructorId) params.append('instructor_id', instructorId);
+  return params.toString();
+}
+
+function getSyncFilterParams() {
+  // For Sync: Range (hours) only
+  const hours = document.getElementById('hoursSelect')?.value || '24';
+  const params = new URLSearchParams();
+  params.append('hours', hours);
+  return params.toString();
+}
+
+function setDefaultDateRange() {
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const fromEl = document.getElementById('filterFromDate');
+  const toEl = document.getElementById('filterToDate');
+  if (fromEl && !fromEl.value) fromEl.value = weekAgo.toISOString().split('T')[0];
+  if (toEl && !toEl.value) toEl.value = now.toISOString().split('T')[0];
+}
+
+async function loadInstructors() {
+  // Use searchable select component for instructor filter
+  const instructorFilter = createSearchableSelect({
+    containerId: 'instructorFilterContainer',
+    placeholder: 'Select instructor...',
+    dataSource: async (searchTerm) => {
+      try {
+        const json = await apiFetch('/api/admin/content/instructors');
+        let instructors = json.instructors || [];
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          instructors = instructors.filter(inst => 
+            (inst.name || '').toLowerCase().includes(term) ||
+            (inst.email || '').toLowerCase().includes(term)
+          );
+        }
+        return instructors;
+      } catch {
+        return [];
+      }
+    },
+    displayField: 'name',
+    valueField: 'uuid',
+    onSelect: (selectedId) => {
+      // Store selected instructor ID for filtering
+      window.selectedInstructorId = selectedId || null;
+    }
+  });
+
+  // Store reference globally for getDateFilterParams
+  window.instructorFilter = instructorFilter;
+}
+
 // ── Initial load from DB only (no sync) ──
 async function loadFromDB() {
+  const container = document.getElementById('scheduleContainer');
+  container.innerHTML = '<div class="flex items-center justify-center py-20"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-500">Loading...</span></div>';
   try {
-    const hours = document.getElementById('hoursSelect').value;
-    const json = await apiFetch('/api/meeting-schedule/all?hours=' + hours);
+    const fromDate = document.getElementById('filterFromDate')?.value || '';
+    const toDate = document.getElementById('filterToDate')?.value || '';
+    const instructorId = window.instructorFilter ? window.instructorFilter.getValue() : null;
+    
+    const json = await apiFetch('/api/admin/meeting-schedule/all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
+        instructor_id: instructorId || undefined
+      })
+    });
     renderSchedule(json);
-  } catch (err) { console.error(err); }
+  } catch (err) {
+    container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-red-600"><p class="text-sm">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
+  }
 }
 
 // ── Sync: fetch from Google → store in DB → display ──
 async function doSync() {
-  const hours = document.getElementById('hoursSelect').value;
   const container = document.getElementById('scheduleContainer');
   container.innerHTML = '<div class="flex flex-col items-center justify-center py-20"><div class="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin"></div><p class="mt-3 text-sm text-slate-600">Syncing meetings from Google Calendar...</p></div>';
   try {
-    const json = await apiFetch('/api/meeting-schedule/sync?hours=' + hours, { method: 'POST' });
+    const hours = document.getElementById('hoursSelect')?.value || '24';
+    const json = await apiFetch('/api/admin/meeting-schedule/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hours: parseInt(hours) })
+    });
     if (json.synced !== undefined) showToast(json.synced + ' meetings synced successfully');
     renderSchedule(json);
   } catch (err) {
@@ -26,11 +109,11 @@ function renderSchedule(json) {
   const users = json.users || [];
   const totalEvents = json.totalEvents || 0;
 
-  document.getElementById('statUsers').textContent = json.connectedUsers || 0;
+  document.getElementById('statUsers').textContent =  json.totalUsers || json.connectedUsers || 0;
   document.getElementById('statMeetings').textContent = totalEvents;
 
   if (!users.length) {
-    container.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p class="text-sm font-medium text-slate-700">No meetings found</p><p class="text-xs mt-1 text-slate-500">Connect instructor calendars from the Users page, then sync to see meetings</p></div>';
+    container.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p class="text-sm font-medium text-slate-700">No meetings found</p><p class="text-xs mt-1 text-slate-500">Try adjusting your date range or filters</p></div>';
     return;
   }
 
@@ -41,7 +124,6 @@ function renderSchedule(json) {
     'unknown': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-700' }
   };
 
-  // Grid redesign: many users visible; each user has its own scrollable meeting list.
   container.innerHTML = '<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">' +
     users.map((u, idx) => {
       const events = (u.events || []).sort((a,b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
@@ -50,7 +132,6 @@ function renderSchedule(json) {
         const start = e.start_time ? new Date(e.start_time) : null;
         const end = e.end_time ? new Date(e.end_time) : null;
 
-        // Avoid “Invalid Date” rendering
         const dateStr = start && !Number.isNaN(start.getTime())
           ? start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : '—';
@@ -63,23 +144,17 @@ function renderSchedule(json) {
           ? ' - ' + end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
           : '';
 
-        const durationMin = (end && start && !Number.isNaN(end.getTime()) && !Number.isNaN(start.getTime()))
-          ? Math.round((end - start) / 60000)
-          : null;
-
-        const durationStr = durationMin ? durationMin + ' min' : '';
-
         const platform = e.platform || 'unknown';
         const platformLabel = platform.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
         const platformColor = platformColors[platform] || platformColors['unknown'];
 
-        return '<div class="flex items-start gap-3 p-3 mb-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">' +
+        return '<div class="flex items-start gap-3 p-3 mb-2 bg-slate-20 rounded-lg hover:bg-slate-100 transition-colors">' +
           '<div class="flex-shrink-0 w-16 text-center"><p class="text-xs font-semibold text-slate-900">' + dateStr + '</p><p class="text-[10px] text-slate-900">' + timeStr + endStr + '</p></div>' +
           '<div class="flex-1 min-w-0">' +
             '<p class="text-sm font-medium text-slate-900 truncate">' + escHtml(e.title || 'Untitled Meeting') + '</p>' +
             '<div class="text-[10px] text-slate-900 mt-0.5">' +
               '<span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium ' + platformColor.badge + '">' + platformLabel + '</span>' +
-              (e.link ? '<a href="' + e.link + '" target="_blank" class="text-[10px] text-violet-600 hover:text-violet-700 font-medium">Join Meeting →</a>' : '') +
+              (e.link ? '<a href="' + e.link + '" target="_blank" class="text-[10px] text-violet-600 hover:text-violet-700 font-medium ml-2">Join Meeting →</a>' : '') +
             '</div>' +
           '</div>' +
         '</div>';
@@ -98,5 +173,14 @@ function renderSchedule(json) {
     }).join('') + '</div>';
 }
 
-document.getElementById('hoursSelect').addEventListener('change', loadFromDB);
+function escHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+// Initialize
+setDefaultDateRange();
+loadInstructors();
 loadFromDB();

@@ -7,26 +7,50 @@ const { logger } = require('../../utils/logger');
 
 class CalendarVerificationModel {
   /**
-   * Create a new verification record
+   * Create a new verification record or update existing one
    * @param {number} userId - User ID
    * @param {string} token - Verification token (optional, will generate if not provided)
-   * @returns {Promise<Object>} Created verification record
+   * @param {string} provider - Provider name (default: 'google')
+   * @returns {Promise<Object>} Created or updated verification record
    */
-  static async create(userId, token = null) {
+  static async create(userId, provider , token = null ) {
     if (!userId) throw new Error('User ID is required');
     
     const verificationToken = token || this.generateToken();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+    const expiresAtFormatted = expiresAt.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
+    const current_time = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
+    // Check if a record already exists for this user_id and provider
 
-    const result = await runAsync(
-      `INSERT INTO calendar_verifications
-       (user_id, token, provider, status, expires_at)
-       VALUES (?, ?, 'google', 'pending', ?)`,
-      [userId, verificationToken, expiresAt.toISOString().slice(0, 19).replace('T', ' ')]
+    const existing = await getAsync(
+      `SELECT id FROM calendar_verifications WHERE user_id=? AND provider=?`,
+      [userId, provider]
     );
 
-    logger.info(`Model(CalendarVerificationModel): Created verification for userId=${userId}`);
-    return this.getById(result.insertId);
+    if (existing) {
+      // Update existing record - reset verification state
+      await runAsync(
+        `UPDATE calendar_verifications
+         SET token=?, expires_at=?, status='pending',
+             code=NULL, verified_at=NULL, connected_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+         WHERE id=?`,
+        [verificationToken, expiresAtFormatted, existing.id]
+      );
+
+      logger.info(`Model(CalendarVerificationModel): Updated verification for userId=${userId}, provider=${provider}`);
+      return this.getById(existing.id);
+    } else {
+      // Insert new record
+      const result = await runAsync(
+        `INSERT INTO calendar_verifications
+         (user_id, token, provider, status, expires_at, connected_at)
+         VALUES (?, ?, ?, 'pending', ?, ?)`,
+        [userId, verificationToken, provider, expiresAtFormatted, current_time]
+      );
+
+      logger.info(`Model(CalendarVerificationModel): Created verification for userId=${userId}, provider=${provider}`);
+      return this.getById(result.insertId);
+    }
   }
 
   /**
@@ -86,7 +110,7 @@ class CalendarVerificationModel {
       `UPDATE calendar_verifications
        SET token=?, expires_at=?, updated_at=CURRENT_TIMESTAMP
        WHERE user_id=? AND status='pending'`,
-      [token, expiresAt.toISOString().slice(0, 19).replace('T', ' '), userId]
+      [token, expiresAt.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }), userId]
     );
 
     logger.info(`Model(CalendarVerificationModel): Updated token for userId=${userId}`);
@@ -105,9 +129,11 @@ class CalendarVerificationModel {
     if (!verification) {
       return null;
     }
-
+     
+    const new_data =  new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+     
     // Check if expired
-    if (verification.expires_at && new Date(verification.expires_at) < new Date()) {
+    if (verification.expires_at && new Date(verification.expires_at) < new Date(new_data)) {
       // Mark as expired
       await runAsync(
         `UPDATE calendar_verifications SET status='expired', updated_at=CURRENT_TIMESTAMP WHERE id=?`,

@@ -43,7 +43,6 @@ class CalendarEventController {
     if (!tokens || !tokens.access_token) {
       throw new Error('No valid access token. Complete Google OAuth authorization first.');
     }
-
     if (CalendarAuthModel.isTokenExpired(tokens.expiry_date)) {
       if (!tokens.refresh_token) {
         throw new Error('Token expired and no refresh_token available');
@@ -89,6 +88,8 @@ class CalendarEventController {
     };
 
     const params = { ...defaultOptions, ...options };
+
+    // console.log(calendar.events.list(params));
     const response = await calendar.events.list(params);
     return response.data.items || [];
   }

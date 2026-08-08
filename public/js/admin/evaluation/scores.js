@@ -1,110 +1,333 @@
-let allScores = [];
+let allCategories = [];
 let currentFilter = '';
+let filterState = {
+  instructorId: '',
+  sessionId: '',
+  reviewerId: ''
+};
+let instructorDropdown = null;
+let sessionDropdown = null;
+let reviewerDropdown = null;
+let dateFilter = null;
+let scoresTable = null;
 
 (async () => {
+  // Initialize centralized date filter (30 days default)
+  dateFilter = createDateFilter({
+    days: 30,
+    onFilter: (fromDate, toDate) => {
+      loadData();
+    }
+  });
+
+  await loadFilters();
   await loadData();
   updateStats();
   renderScores();
-  
-  // Set up filter
-  document.getElementById('scoreTypeFilter').addEventListener('change', (e) => {
-    currentFilter = e.target.value;
-    renderScores();
-  });
 })();
 
-async function loadData() {
+async function loadFilters() {
   try {
-    const data = await apiFetch('/api/scores');
-    allScores = data.scores || [];
+    const [instructorsData, reviewersData] = await Promise.all([
+      apiFetch('/api/admin/scores/evaluation/instructors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }),
+      apiFetch('/api/admin/scores/evaluation/reviewers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+    ]);
+
+    const instructors = instructorsData.instructors || [];
+    const reviewers = reviewersData.reviewers || [];
+
+    // Custom instructor dropdown
+    const instructorData = instructors.map(i => ({ id: i.id, name: (i.first_name || '') + ' ' + (i.last_name || '') + ' (' + i.email + ')' }));
+    instructorDropdown = createDarkSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All Instructors',
+      dataSource: instructorData,
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: (value) => {
+        filterState.instructorId = value || '';
+        if (value) {
+          loadSessions(value);
+        } else {
+          sessionDropdown = createDarkSearchableSelect({
+            containerId: 'sessionFilterContainer',
+            placeholder: 'All Sessions',
+            dataSource: [],
+            displayField: 'name',
+            valueField: 'id',
+            onSelect: () => {}
+          });
+        }
+        loadData();
+      }
+    });
+
+    // Custom session dropdown (initially empty)
+    sessionDropdown = createDarkSearchableSelect({
+      containerId: 'sessionFilterContainer',
+      placeholder: 'All Sessions',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
+
+    // Custom reviewer dropdown
+    const reviewerData = reviewers.map(r => ({ id: r.id, name: r.first_name + ' ' + (r.last_name || '') + ' (' + r.email + ')' }));
+    reviewerDropdown = createDarkSearchableSelect({
+      containerId: 'reviewerFilterContainer',
+      placeholder: 'All Reviewers',
+      dataSource: reviewerData,
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: (value) => {
+        filterState.reviewerId = value || '';
+        loadData();
+      }
+    });
   } catch(e) {
-    document.getElementById('scoresRoot').innerHTML = `<p class="text-red-400">Failed to load scores: ${e.message}</p>`;
+    console.error('Failed to load filters:', e);
+    showToast('Failed to load filters', true);
+  }
+}
+
+async function loadSessions(instructorId) {
+  if (!instructorId) {
+    sessionDropdown = createDarkSearchableSelect({
+      containerId: 'sessionFilterContainer',
+      placeholder: 'All Sessions',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
+    return;
+  }
+
+  // Loading state
+  sessionDropdown = createDarkSearchableSelect({
+    containerId: 'sessionFilterContainer',
+    placeholder: 'Loading sessions...',
+    dataSource: [],
+    displayField: 'name',
+    valueField: 'id',
+    onSelect: () => {}
+  });
+
+  try {
+    const data = await apiFetch(`/api/scores/sessions/${instructorId}`);
+    const sessions = data.sessions || [];
+    
+    const sessionData = sessions.length > 0
+      ? sessions.map(s => ({ id: s.session_id, name: s.meeting_title + ' - ' + (s.start_time ? formatDate(s.start_time) : 'No date') }))
+      : [{ id: '', name: 'No sessions found' }];
+
+    sessionDropdown = createDarkSearchableSelect({
+      containerId: 'sessionFilterContainer',
+      placeholder: 'All Sessions',
+      dataSource: sessionData,
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: (value) => {
+        filterState.sessionId = value || '';
+        loadData();
+      }
+    });
+  } catch(e) {
+    console.error('Failed to load sessions:', e);
+    sessionDropdown = createDarkSearchableSelect({
+      containerId: 'sessionFilterContainer',
+      placeholder: 'Failed to load',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
+  }
+}
+
+async function loadData(page = 1) {
+  try {
+    // Get dates from centralized date filter
+    const { fromDate, toDate } = dateFilter.getDates();
+    
+    const body = {
+      from_date: fromDate,
+      to_date: toDate,
+      page: page,
+      per_page: 20
+    };
+    
+    if (filterState.instructorId) body.instructor_id = filterState.instructorId;
+    if (filterState.sessionId) body.session_id = filterState.sessionId;
+    if (filterState.reviewerId) body.reviewer_id = filterState.reviewerId;
+
+    const data = await apiFetch('/api/admin/scores/filtered', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    
+    // Store the entire response including message and totalCount
+    allCategories = data.categories || [];
+    allCategories.message = data.message || 'No data available';
+    allCategories.totalCount = data.totalCount || 0;
+    allCategories.totalPages = data.totalPages || 1;
+    allCategories.currentPage = data.currentPage || 1;
+    
+    // Update stats and render
+    updateStats();
+    renderScores(page);
+    
+    showToast(data.message || 'Data loaded successfully');
+  } catch(e) {
+    console.error('Failed to load scores:', e);
+    showToast('Failed to load data: ' + e.message, true);
+    allCategories = [];
+    updateStats();
+    renderScores(1);
   }
 }
 
 function updateStats() {
-  const total = allScores.length;
-  const aiScores = allScores.filter(s => s.score_type === 'AI').length;
-  const humanScores = allScores.filter(s => s.score_type === 'HUMAN').length;
-  const avgScore = total > 0 ? (allScores.reduce((sum, s) => sum + (+s.score || 0), 0) / total).toFixed(1) : '0.0';
+  let totalScores = 0;
+  let totalScoreValue = 0;
+  let aiCount = 0;
+  let humanCount = 0;
+
+  allCategories.forEach(cat => {
+    Object.values(cat.indicators).forEach(ind => {
+      ind.scores.forEach(score => {
+        totalScores++;
+        totalScoreValue += (+score.score || 0);
+        if (score.score_type === 'AI') aiCount++;
+        else humanCount++;
+      });
+    });
+  });
+
+  const avgScore = totalScores > 0 ? (totalScoreValue / totalScores).toFixed(1) : '0.0';
   
-  document.getElementById('totalScores').textContent = total;
+  document.getElementById('totalScores').textContent = totalScores;
   document.getElementById('avgScore').textContent = avgScore;
-  document.getElementById('aiScores').textContent = aiScores;
-  document.getElementById('humanScores').textContent = humanScores;
+  document.getElementById('aiScores').textContent = aiCount;
+  document.getElementById('humanScores').textContent = humanCount;
 }
 
-function renderScores() {
+function renderScores(page = 1) {
   const root = document.getElementById('scoresRoot');
-  const filtered = currentFilter ? allScores.filter(s => s.score_type === currentFilter) : allScores;
 
-  if (!filtered.length) {
-    root.innerHTML = '<p class="text-slate-500 text-center py-16">No scores found</p>';
+  // Flatten all categories into a simple array for the table
+  let flatScores = [];
+  allCategories.forEach(cat => {
+    Object.values(cat.indicators || {}).forEach(ind => {
+      ind.scores.forEach(score => {
+        flatScores.push({
+          ...score,
+          category_name: cat.category_name,
+          indicator_name: ind.indicator_name
+        });
+      });
+    });
+  });
+
+  if (!flatScores.length) {
+    // Use centralized table component for empty state
+    if (!scoresTable) {
+      scoresTable = createTable({
+        containerId: 'scoresRoot',
+        headers: [
+          { label: 'Category', key: 'category_name' },
+          { label: 'Indicator', key: 'indicator_name' },
+          { label: 'Meeting', key: 'meeting_title' },
+          { label: 'Date', key: 'meeting_date', render: (v) => formatDate(v) },
+          { label: 'Type', key: 'score_type', render: (v) => v === 'AI' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">AI</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">HUMAN</span>' },
+          { label: 'Score', key: 'score', render: (v) => `<span class="font-bold ${getScoreColorClass(+v || 0)}">${(+v || 0).toFixed(1)}</span>`, width: '80px' },
+          { label: 'Reviewer', key: 'reviewer_name' }
+        ],
+        data: [],
+        emptyMessage: allCategories.message || 'No scores available. Try adjusting your filters or date range.',
+        pagination: {
+          perPage: 20,
+          currentPage: page,
+          onPageChange: (newPage) => loadData(newPage)
+        }
+      });
+    } else {
+      scoresTable.setData([]);
+      scoresTable.setPaginationPage(page);
+    }
     return;
   }
 
-  // Group by meeting
-  const byMeeting = {};
-  filtered.forEach(score => {
-    const key = score.meeting_id || 'unknown';
-    if (!byMeeting[key]) byMeeting[key] = [];
-    byMeeting[key].push(score);
-  });
-
-  let html = '<div class="space-y-6">';
-  Object.entries(byMeeting).forEach(([meetingId, scores]) => {
-    const firstScore = scores[0];
-    const avgMeetingScore = scores.length > 0 ? (scores.reduce((sum, s) => sum + (+s.score || 0), 0) / scores.length).toFixed(1) : '0.0';
-    
-    html += `<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-      <div class="px-3 py-2.5 border-b border-slate-800 bg-slate-800/30">
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-xs font-semibold text-white">${escapeHtml(firstScore.meeting_title || 'Untitled Meeting')}</h3>
-            <p class="text-[10px] text-slate-400 mt-0.5">${formatDate(firstScore.meeting_date)} • ${scores.length} score${scores.length !== 1 ? 's' : ''}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xl font-bold text-white">${avgMeetingScore}</p>
-            <p class="text-[10px] text-slate-500">Average</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead>
-            <tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider">
-              <th class="py-2 px-3">Indicator</th>
-              <th class="py-2 px-3 w-16">Type</th>
-              <th class="py-2 px-3 w-16 text-center">Score</th>
-              <th class="py-2 px-3 w-28">Reviewer</th>
-              <th class="py-2 px-3 w-28">Date</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-800/50">`;
-    
-    scores.forEach(score => {
-      const typeColor = score.score_type === 'AI' ? 'bg-violet-500/10 text-violet-400' : 'bg-emerald-500/10 text-emerald-600';
-      const scoreColor = getScoreColor(+score.score || 0);
-      
-      html += `<tr class="hover:bg-slate-800/30">
-        <td class="py-2 px-3 text-white">${escapeHtml(score.indicator_name || 'Unknown')}</td>
-        <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${typeColor}">${score.score_type || 'HUMAN'}</span></td>
-        <td class="py-2 px-3 text-center"><span class="font-bold ${scoreColor}">${(+score.score || 0).toFixed(1)}</span></td>
-        <td class="py-2 px-3 text-slate-400">${escapeHtml(score.reviewer_name || 'System')}</td>
-        <td class="py-2 px-3 text-slate-500">${formatDate(score.created_at)}</td>
-      </tr>`;
+  // Use centralized table component with pagination
+  if (!scoresTable) {
+    scoresTable = createTable({
+      containerId: 'scoresRoot',
+      headers: [
+        { label: 'Category', key: 'category_name' },
+        { label: 'Indicator', key: 'indicator_name' },
+        { label: 'Meeting', key: 'meeting_title' },
+        { label: 'Date', key: 'meeting_date', render: (v) => formatDate(v) },
+        { label: 'Type', key: 'score_type', render: (v) => v === 'AI' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">AI</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">HUMAN</span>' },
+        { label: 'Score', key: 'score', render: (v) => `<span class="font-bold ${getScoreColorClass(+v || 0)}">${(+v || 0).toFixed(1)}</span>`, width: '80px' },
+        { label: 'Reviewer', key: 'reviewer_name' }
+      ],
+      data: flatScores,
+      emptyMessage: allCategories.message || 'No scores available',
+      pagination: {
+        perPage: 20,
+        currentPage: page,
+        onPageChange: (newPage) => loadData(newPage)
+      }
     });
-    
-    html += '</tbody></table></div></div>';
-  });
-  html += '</div>';
-  root.innerHTML = html;
+  } else {
+    scoresTable.setData(flatScores);
+    scoresTable.setPaginationPage(page);
+  }
+}
+
+function toggleCategory(categoryId) {
+  const content = document.getElementById(categoryId);
+  const chevron = document.getElementById(`chevron-${categoryId}`);
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    chevron.style.transform = 'rotate(0deg)';
+  } else {
+    content.classList.add('hidden');
+    chevron.style.transform = 'rotate(-90deg)';
+  }
+}
+
+function getScoreColorClass(score) {
+  if (score >= 4.0) return 'text-emerald-600';
+  if (score >= 3.0) return 'text-blue-400';
+  if (score >= 2.0) return 'text-amber-800';
+  return 'text-red-400';
 }
 
 async function exportScores() {
   try {
-    const filtered = currentFilter ? allScores.filter(s => s.score_type === currentFilter) : allScores;
+    // Flatten all categories into a single array for export
+    let allScoresFlat = [];
+    allCategories.forEach(cat => {
+      Object.values(cat.indicators || {}).forEach(ind => {
+        ind.scores.forEach(score => {
+          allScoresFlat.push(score);
+        });
+      });
+    });
+
+    const filtered = currentFilter ? allScoresFlat.filter(s => s.score_type === currentFilter) : allScoresFlat;
     
     if (!filtered.length) {
       showToast('No scores to export', true);
@@ -112,12 +335,13 @@ async function exportScores() {
     }
 
     // Create CSV content
-    const headers = ['Meeting Title', 'Meeting Date', 'Indicator', 'Score Type', 'Score', 'Reviewer', 'Date'];
+    const headers = ['Meeting Title', 'Meeting Date', 'Category', 'Indicator', 'Score Type', 'Score', 'Reviewer', 'Date'];
     const csvContent = [
       headers.join(','),
       ...filtered.map(score => [
         `"${(score.meeting_title || 'Untitled Meeting').replace(/"/g, '""')}"`,
         formatDate(score.meeting_date),
+        `"${(score.category_name || 'Unknown').replace(/"/g, '""')}"`,
         `"${(score.indicator_name || 'Unknown').replace(/"/g, '""')}"`,
         score.score_type || 'HUMAN',
         (+score.score || 0).toFixed(1),

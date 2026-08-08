@@ -5,37 +5,70 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
   <meta name="header-page" content="meetingsCalendar">
-  <title>Calendar | RetentionLab</title>
+  <title>Calendar Connections | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
   <script src="../../js/common-ui.js"></script>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div></div>
-          <button onclick="loadConnections()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-            Refresh
-          </button>
-        </div>
-
-        <div id="statsBar" class="grid grid-cols-3 gap-2 mb-3">
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-emerald-400" id="statActive">-</p><p class="text-[12px] text-slate-500 uppercase mt-0.5">Connected</p></div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-violet-400" id="statTotal">-</p><p class="text-[12px] text-slate-500 uppercase mt-0.5">Total</p></div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-amber-800" id="statProviders">-</p><p class="text-[12px] text-slate-500 uppercase mt-0.5">Providers</p></div>
-        </div>
-
-        <div id="connectionsContainer">
-          <div class="space-y-2">
-            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/3 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-1/2"></div></div>
-            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/3 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-1/2"></div></div>
+        <!-- Filter Bar -->
+        <div class="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Search</label>
+              <input type="text" id="searchInput" placeholder="Search by email or provider..." class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 min-w-[200px]">
+            </div>
+            <button onclick="loadConnections()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Get Data
+            </button>
           </div>
+        </div>
+
+        <!-- Stats -->
+        <div id="statsBar" class="grid grid-cols-3 gap-2 mb-3">
+          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-emerald-700" id="statActive">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Connected</p></div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-violet-700" id="statTotal">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Total</p></div>
+          <div class="bg-white border border-slate-200 rounded-lg p-2.5 text-center"><p class="text-xl font-bold text-amber-700" id="statProviders">-</p><p class="text-[12px] text-slate-500 uppercase tracking-wider mt-0.5">Providers</p></div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div id="connectionsContainer">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">
+                    <th class="py-2.5 px-4 text-left font-bold">Instructor</th>
+                    <th class="py-2.5 px-4 text-left font-bold">Provider</th>
+                    <th class="py-2.5 px-4 text-left font-bold">Status</th>
+                    <th class="py-2.5 px-4 text-left font-bold">Last Updated</th>
+                    <th class="py-2.5 px-4 text-left font-bold">Role</th>
+                    <th class="py-2.5 px-4 text-right font-bold">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200" id="connectionsBody">
+                  <tr>
+                    <td colspan="6" class="px-4 py-12">
+                      <div class="flex items-center justify-center">
+                        <div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="ml-3 text-sm text-slate-500">Loading...</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Table Footer with Pagination -->
+          <div id="connectionsPagination" class="border-t border-slate-200 bg-slate-200 px-4 py-2.5 flex justify-end"></div>
         </div>
 
       </main>
@@ -45,8 +78,3 @@
   <script src="../../js/load-components.js"></script>
   <script src="../../js/admin/meetings/calendar.js"></script>
 </body></html>
-
-
-
-
-

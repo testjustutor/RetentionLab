@@ -13,21 +13,25 @@ let teamChart = null;
 
 async function loadUsers() {
   try {
-    const data = await apiFetch('/api/users');
+    const data = await apiFetch('/api/admin/users/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: 1, per_page: 100 })
+    });
     allUsers = data.users || data.data || [];
   } catch(e) { console.error('Failed to load users:', e); }
 }
 
 async function loadScores() {
   try {
-    const data = await apiFetch('/api/scores');
+    const data = await apiFetch('/api/admin/scores');
     allScores = data.scores || [];
   } catch(e) { console.error('Failed to load scores:', e); }
 }
 
 async function loadDepartments() {
   try {
-    const data = await apiFetch('/api/departments');
+    const data = await apiFetch('/api/admin/departments');
     departments = data.data || data.departments || [];
     if (!departments.length) {
       // Fallback: derive from users

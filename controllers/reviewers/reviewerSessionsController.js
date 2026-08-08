@@ -21,7 +21,7 @@ const controller = {
         FROM users u
         LEFT JOIN roles r ON r.id = u.role_id
         INNER JOIN meetings m ON LOWER(m.calendar_account) = LOWER(u.email)
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.meeting_id AND mr.reviewer_id = ?
+        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
         WHERE u.deleted_at IS NULL
         AND u.is_active = 1
         AND r.role_name IN ('solo_instructor', 'instructor')
@@ -70,12 +70,12 @@ const controller = {
                ma.topic_clusters_path,
                ma.oqi_score,
                ma.evidence_quote,
-               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.meeting_id) as score_count,
-               (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.meeting_id) as avg_score,
-               (SELECT COUNT(*) FROM participant_sessions ps WHERE ps.meeting_id = m.meeting_id) as participant_count
+               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as score_count,
+               (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as avg_score,
+               (SELECT COUNT(*) FROM participant_sessions ps WHERE ps.meeting_id = m.external_meeting_id) as participant_count
         FROM meetings m
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.meeting_id AND mr.reviewer_id = ?
-        LEFT JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
+        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
+        LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
         WHERE LOWER(m.calendar_account) = (SELECT LOWER(email) FROM users WHERE id = ?)`;
       const params = [reviewerId, instructorId];
 
@@ -182,7 +182,7 @@ const controller = {
                   u.first_name || ' ' || u.last_name as owner_name
            FROM meetings m
            LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
-           LEFT JOIN users u ON u.id = m.owner_user_id
+           LEFT JOIN users u ON u.email = m.calendar_account
            WHERE m.external_meeting_id = ?`,
           [meetingId],
           (err, row) => err ? reject(err) : resolve(row)

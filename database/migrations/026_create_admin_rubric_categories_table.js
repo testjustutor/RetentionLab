@@ -20,6 +20,7 @@ const up = async () => {
       source ENUM('master', 'custom') DEFAULT 'master',
       name TEXT NOT NULL,
       weight DOUBLE DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_arc_admin (admin_user_id)

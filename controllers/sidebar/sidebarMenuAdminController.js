@@ -18,8 +18,8 @@ const controller = {
   async getItems(req, res) {
     try {
       const roleId = parseInt(req.params.roleId);
-      const items = await MenuModel.getAllMenuItems();
-      const tree = await MenuModel.getResolvedMenuForUser(0, roleId);
+      const items = await MenuModel.getAllMenuItems(roleId);
+      const tree = await MenuModel.getResolvedMenuForUser(roleId);
       res.json({ count: items.length, flat: items, tree });
     } catch (err) {
       res.status(500).json({ error: err.message });

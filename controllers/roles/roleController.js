@@ -68,8 +68,8 @@ const roleController = {
       // 1. Get ONLY the role's default menu permissions (no user overrides)
       const rolePermissions = await MenuModel.getRoleMenuPermissions(roleId);
       
-      // 2. Get all menu items to build the tree
-      const allMenuItems = await MenuModel.getAllMenuItems();
+      // 2. Get menu items for this role only
+      const allMenuItems = await MenuModel.getAllMenuItems(roleId);
       
       // 3. Build menu tree from role defaults only (no user overrides)
       const menuItems = MenuModel.buildMenuTree(allMenuItems, rolePermissions);

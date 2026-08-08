@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS calendar_integrations (
     status VARCHAR(50) DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_provider (user_id, provider_id),
     INDEX idx_ci_user (user_id),
     INDEX idx_ci_platform (platform),
     INDEX idx_ci_provider (provider),

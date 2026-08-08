@@ -1,44 +1,141 @@
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
+var allSummaries = [];
+var summariesTable = null;
+
 function fmtTime(iso){if(!iso)return'--';var d=new Date(iso);return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-async function loadUsers() {
-  var sel = document.getElementById('userSelect');
-  try {
-    var json = await apiFetch('/api/recordings/users');
-    var users = json.users || [];
-    sel.innerHTML = '<option value="">Select an instructor...</option>' + users.map(function(u){return '<option value="'+u.user_id+'">'+escHtml(u.email)+' ('+escHtml(u.role_name||'instructor')+')</option>';}).join('');
-  } catch(e) { sel.innerHTML = '<option value="">Failed to load</option>'; }
+function setDefaultDateRange() {
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const fromEl = document.getElementById('filterFromDate');
+  const toEl = document.getElementById('filterToDate');
+  if (fromEl && !fromEl.value) fromEl.value = weekAgo.toISOString().split('T')[0];
+  if (toEl && !toEl.value) toEl.value = now.toISOString().split('T')[0];
+}
+
+async function loadInstructors() {
+  const instructorFilter = createSearchableSelect({
+    containerId: 'instructorFilterContainer',
+    placeholder: 'Select instructor...',
+    dataSource: async (searchTerm) => {
+      try {
+        const json = await apiFetch('/api/admin/content/instructors');
+        let instructors = json.instructors || [];
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          instructors = instructors.filter(inst => 
+            (inst.name || '').toLowerCase().includes(term) ||
+            (inst.email || '').toLowerCase().includes(term)
+          );
+        }
+        return instructors;
+      } catch { return []; }
+    },
+    displayField: 'name',
+    valueField: 'uuid',
+    onSelect: (selectedId) => {
+      window.selectedInstructorId = selectedId || null;
+    }
+  });
+  window.instructorFilter = instructorFilter;
 }
 
 async function loadSummaries() {
-  var userId = document.getElementById('userSelect').value;
-  var c = document.getElementById('summariesContainer');
-  if (!userId) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div><p class="text-sm">Select an instructor</p></div>'; return; }
-  c.innerHTML = '<div class="flex items-center justify-center py-16"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-400">Loading summaries...</span></div>';
+  if (summariesTable) summariesTable.setLoading(true);
   try {
-    var json = await apiFetch('/api/recordings/summaries/' + userId);
-    var sums = json.summaries || [];
-    if (!sums.length) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div><p class="text-sm">No summaries found</p></div>'; return; }
-    var selOpt = document.getElementById('userSelect').selectedOptions[0];
-    var label = selOpt ? selOpt.textContent : 'Instructor';
-    var html = '<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden animate-fade-up"><div class="p-3 border-b border-slate-800 flex items-center justify-between"><div><p class="text-xs font-semibold text-white">'+label+'</p><p class="text-[10px] text-slate-500">'+sums.length+' summary item'+(sums.length!==1?'s':'')+'</p></div></div><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3">OQI Score</th><th class="py-2 px-3">Artifacts</th><th class="py-2 px-3">Status</th><th class="py-2 px-3 text-right">View</th></tr></thead><tbody class="divide-y divide-slate-800/50">';
-    for (var i = 0; i < sums.length; i++) {
-      var s = sums[i];
-      var ss = s.has_summary ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700';
-      var sl = s.has_summary ? 'Available' : (s.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
-      var sc = s.status==='completed'?'bg-emerald-500/10 text-emerald-600 border-emerald-500/20':'bg-amber-500/10 text-amber-800 border-amber-500/20';
-      var od = s.oqi_score ? (Number(s.oqi_score).toFixed(1)+'/10') : '--';
-      var oc = s.oqi_score >= 8 ? 'text-emerald-600' : s.oqi_score >= 6 ? 'text-amber-800' : 'text-red-400';
-      var ab = [];
-      if (s.summary_url) ab.push('<a href="'+s.summary_url+'" target="_blank" class="text-violet-400 hover:text-violet-300">Summary</a>');
-      if (s.action_items_url) ab.push('<a href="'+s.action_items_url+'" target="_blank" class="text-amber-800 hover:text-amber-300">Actions</a>');
-      if (s.topic_clusters_url) ab.push('<a href="'+s.topic_clusters_url+'" target="_blank" class="text-emerald-600 hover:text-emerald-300">Topics</a>');
-      var viewBtn = s.has_summary && s.summary_url ? '<a href="'+s.summary_url+'" target="_blank" class="text-xs text-violet-400 hover:text-violet-300 px-2 py-1 rounded hover:bg-slate-800 transition-colors">View</a>' : '<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium '+ss+'">'+sl+'</span>';
-      html += '<tr class="hover:bg-slate-800/30 transition-colors"><td class="py-2 px-3"><p class="font-medium truncate max-w-[150px]">'+escHtml(s.title||'Untitled')+'</p>'+(s.evidence_quote?'<p class="text-[10px] text-slate-600 italic mt-0.5 truncate max-w-[150px]">"'+escHtml(s.evidence_quote.slice(0,80))+'..."</p>':'')+'</td><td class="py-2 px-3 text-slate-400">'+fmtTime(s.start_time)+'</td><td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">'+escHtml(PLAT[s.platform]||s.platform||'Unknown')+'</span></td><td class="py-2 px-3"><span class="font-mono font-bold '+oc+'">'+od+'</span></td><td class="py-2 px-3"><div class="flex gap-1.5">'+(ab.length?ab.join('<span class="text-slate-700">|</span>'):'<span class="text-[10px] text-slate-600">--</span>')+'</div></td><td class="py-2 px-3"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+sc+'">'+(s.status||'unknown')+'</span></td><td class="py-2 px-3 text-right">'+viewBtn+'</td></tr>';
+    const userId = window.instructorFilter ? window.instructorFilter.getValue() : null;
+    const fromDate = document.getElementById('filterFromDate')?.value || '';
+    const toDate = document.getElementById('filterToDate')?.value || '';
+    const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    
+    // Get logged-in user UUID from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('rl_user') || '{}');
+    const loggedInUser = currentUser?.user_uuid || null;
+
+    var json = await apiFetch('/api/admin/content/summaries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: userId || undefined,
+        startDate: fromDate || undefined,
+        endDate: toDate || undefined,
+        loggedInUser: loggedInUser || undefined
+      })
+    });
+    allSummaries = json.summaries || [];
+
+    var filtered = allSummaries;
+    if (searchTerm) {
+      filtered = allSummaries.filter(function(s) {
+        return (s.title || '').toLowerCase().includes(searchTerm);
+      });
     }
-    html += '</tbody></table></div></div>';
-    c.innerHTML = html;
-  } catch(err) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-red-400"><p>Failed to load</p><p class="text-xs mt-1">'+escHtml(err.message)+'</p></div>'; }
+
+    if (!summariesTable) {
+      summariesTable = createTable({
+        containerId: 'summariesContainer',
+        headers: [
+          { label: 'Meeting', key: 'title', render: function(value, row) {
+            return '<p class="font-medium truncate max-w-[150px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>' +
+              (row.evidence_quote ? '<p class="text-[10px] text-slate-500 italic mt-0.5 truncate max-w-[150px]">"' + escHtml(row.evidence_quote.slice(0, 80)) + '..."</p>' : '');
+          }},
+          { label: 'Date & Time', key: 'start_time', render: function(value) {
+            return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
+          }},
+          { label: 'Platform', key: 'platform', render: function(value) {
+            return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
+          }},
+          { label: 'OQI Score', key: 'oqi_score', render: function(value) {
+            if (!value) return '<span class="text-slate-600">--</span>';
+            var od = Number(value).toFixed(1) + '/10';
+            var oc = value >= 8 ? 'text-emerald-600' : value >= 6 ? 'text-amber-800' : 'text-red-400';
+            return '<span class="font-mono font-bold ' + oc + '">' + od + '</span>';
+          }},
+          { label: 'Artifacts', key: 'summary_url', render: function(value, row) {
+            var ab = [];
+            if (row.summary_url) ab.push('<a href="' + row.summary_url + '" target="_blank" class="text-violet-600 hover:text-violet-700">Summary</a>');
+            if (row.action_items_url) ab.push('<a href="' + row.action_items_url + '" target="_blank" class="text-amber-800 hover:text-amber-700">Actions</a>');
+            if (row.topic_clusters_url) ab.push('<a href="' + row.topic_clusters_url + '" target="_blank" class="text-emerald-600 hover:text-emerald-700">Topics</a>');
+            return ab.length ? '<div class="flex gap-1.5">' + ab.join('<span class="text-slate-300">|</span>') + '</div>' : '<span class="text-[10px] text-slate-600">--</span>';
+          }},
+          { label: 'Status', key: 'status', render: function(value) {
+            var cls = value === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
+            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
+          }},
+          { label: 'View', key: 'has_summary', render: function(value, row) {
+            if (value && row.summary_url) {
+              return '<a href="' + row.summary_url + '" target="_blank" class="text-xs text-violet-600 hover:text-violet-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors">View</a>';
+            }
+            var cls = value ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
+            var label = value ? 'Available' : (row.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
+            return '<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + label + '</span>';
+          }}
+        ],
+        data: filtered,
+        emptyMessage: 'No summaries found',
+        pagination: { perPage: 10 }
+      });
+      summariesTable.render();
+    } else {
+      summariesTable.setData(filtered);
+    }
+  } catch(err) {
+    if (summariesTable) summariesTable.setData([]);
+    document.getElementById('summariesContainer').innerHTML = '<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-red-600"><p class="text-sm font-medium">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
+  }
 }
 
-loadUsers();
+function escHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+// Initialize
+setDefaultDateRange();
+loadInstructors();
+
+// Auto-load data on page load
+setTimeout(function() { loadSummaries(); }, 500);

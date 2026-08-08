@@ -21,9 +21,15 @@ const controller = {
   },
   async createCategory(req, res) {
     try {
-      const { category_id, name, weight, company_id } = req.body;
+      const { category_id, name, weight, status, company_id } = req.body;
       if (!category_id || !name) return res.status(400).json({ error: 'category_id and name are required' });
-      const result = await RubricAdminModel.createCategory({ category_id, name, weight: weight !== undefined ? parseFloat(weight) : 0, company_id: company_id ? parseInt(company_id) : 0 });
+      const result = await RubricAdminModel.createCategory({ 
+        category_id, 
+        name, 
+        weight: weight !== undefined ? parseFloat(weight) : 0, 
+        status: status || 'active',
+        company_id: company_id ? parseInt(company_id) : 0 
+      });
       res.status(201).json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
@@ -32,6 +38,7 @@ const controller = {
       const updates = {};
       if (req.body.name !== undefined) updates.name = req.body.name;
       if (req.body.weight !== undefined) updates.weight = parseFloat(req.body.weight);
+      if (req.body.status !== undefined) updates.status = req.body.status;
       const result = await RubricAdminModel.updateCategory(req.params.category_id, updates, res.locals.userId);
       res.json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -52,9 +59,18 @@ const controller = {
   },
   async createIndicator(req, res) {
     try {
-      const { indicator_id, category_id, name, type, is_gate, value, company_id } = req.body;
+      const { indicator_id, category_id, name, type, is_gate, value, status, company_id } = req.body;
       if (!indicator_id || !category_id || !name) return res.status(400).json({ error: 'indicator_id, category_id, and name are required' });
-      const result = await RubricAdminModel.createIndicator({ indicator_id, category_id, name, type: type || 'HUMAN', is_gate: is_gate ? 1 : 0, value: value !== undefined ? parseFloat(value) : 1, company_id: company_id ? parseInt(company_id) : 0 });
+      const result = await RubricAdminModel.createIndicator({ 
+        indicator_id, 
+        category_id, 
+        name, 
+        type: type || 'HUMAN', 
+        is_gate: is_gate ? 1 : 0, 
+        value: value !== undefined ? parseFloat(value) : 1,
+        status: status || 'active',
+        company_id: company_id ? parseInt(company_id) : 0 
+      });
       res.status(201).json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
@@ -66,6 +82,7 @@ const controller = {
       if (req.body.is_gate !== undefined) updates.is_gate = req.body.is_gate ? 1 : 0;
       if (req.body.category_id !== undefined) updates.category_id = req.body.category_id;
       if (req.body.value !== undefined) updates.value = parseFloat(req.body.value);
+      if (req.body.status !== undefined) updates.status = req.body.status;
       const result = await RubricAdminModel.updateIndicator(req.params.indicator_id, updates, res.locals.userId);
       res.json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }

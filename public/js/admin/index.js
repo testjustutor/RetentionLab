@@ -1,336 +1,168 @@
-async function loadDashboard() {
+/**
+ * Admin Dashboard
+ * Loads dashboard statistics and renders charts
+ */
+
+let dashboardData = null;
+
+(async () => {
+  await loadDashboardData();
+  renderDashboard();
+})();
+
+async function loadDashboardData() {
   try {
-    const now = new Date();
-    document.getElementById('lastUpdated').textContent = `Updated: ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-
-    // Load all data in parallel
-    const [meetingsData, reviewsData, scoresData, usersData] = await Promise.all([
-      apiFetch('/api/meetings/list?days=7'),
-      apiFetch('/api/reviews/queue?status=pending'),
-      apiFetch('/api/scores'),
-      apiFetch('/api/users')
-    ]);
-
-    const meetings = meetingsData.meetings || [];
-    const scores = scoresData.scores || [];
-    const users = usersData.users || usersData.data || [];
-
-    // Update KPIs
-    const today = new Date().toDateString();
-    const todayMeetings = meetings.filter(m => new Date(m.start_time).toDateString() === today).length;
-    const weekMeetings = meetings.length;
-    const pendingReviews = (reviewsData.reviews || []).length;
-    const avgScore = scores.length > 0 ? (scores.reduce((sum, s) => sum + (+s.score || 0), 0) / scores.length).toFixed(1) : '--';
-    const completedMeetings = meetings.filter(m => m.status === 'completed').length;
-    const completionRate = meetings.length > 0 ? Math.round((completedMeetings / meetings.length) * 100) : 0;
-
-    // Update KPI cards
-    const kpis = document.querySelectorAll('h3');
-    kpis[0].textContent = todayMeetings || 0;
-    kpis[1].textContent = pendingReviews;
-    kpis[2].textContent = avgScore;
-    kpis[3].textContent = users.length;
-    kpis[4].textContent = weekMeetings;
-    kpis[5].textContent = completionRate + '%';
-
-    // Recent Activity Table
-    const activityTable = document.getElementById('activityTable');
-    if (activityTable && meetings.length > 0) {
-      const recent = meetings.slice(0, 8);
-      activityTable.innerHTML = recent.map(m => {
-        const time = new Date(m.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        const statusColor = m.status === 'completed' ? 'text-emerald-600' : m.status === 'active' ? 'text-blue-400' : 'text-slate-400';
-        return `<tr class="hover:bg-slate-800/30">
-          <td class="py-1.5 px-2 text-slate-500">${time}</td>
-          <td class="py-1.5 px-2 text-slate-500">${escapeHtml(m.title || 'Untitled')}</td>
-          <td class="py-1.5 px-2 text-slate-400">${escapeHtml(m.platform || '-')}</td>
-          <td class="py-1.5 px-2 ${statusColor} capitalize">${m.status || 'unknown'}</td>
-        </tr>`;
-      }).join('');
-    }
-
-    // Quick Stats
-    const quickStats = document.getElementById('quickStats');
-    if (quickStats) {
-      const avgDuration = meetings.length > 0 
-        ? Math.round(meetings.reduce((sum, m) => {
-            if (m.start_time && m.end_time) {
-              return sum + (new Date(m.end_time) - new Date(m.start_time)) / 60000;
-            }
-            return sum;
-          }, 0) / meetings.length)
-        : 0;
-      
-      quickStats.innerHTML = `
-        <div class="flex justify-between text-[10px]">
-          <span class="text-slate-400">Avg Duration:</span>
-          <span class="text-slate-400 font-medium">${avgDuration} min</span>
-        </div>
-        <div class="flex justify-between text-[10px]">
-          <span class="text-slate-400">Total Users:</span>
-          <span class="text-slate-400 font-medium">${users.length}</span>
-        </div>
-        <div class="flex justify-between text-[10px]">
-          <span class="text-slate-400">Total Scores:</span>
-          <span class="text-slate-400 font-medium">${scores.length}</span>
-        </div>
-        <div class="flex justify-between text-[10px]">
-          <span class="text-slate-400">Completion:</span>
-          <span class="text-emerald-600 font-medium">${completionRate}%</span>
-        </div>
-      `;
-    }
-
-    // Render all charts
-    if (typeof ApexCharts !== 'undefined') {
-      renderTrendsChart(meetings);
-      renderScoreChart(scores);
-      renderStatusChart(meetings);
-      renderPlatformChart(meetings);
-    }
-  } catch (error) {
-    console.error('Failed to load dashboard:', error);
+    const data = await apiFetch('/api/admin/dashboard/overview');
+    dashboardData = data;
+  } catch (e) {
+    console.error('Failed to load dashboard:', e);
+    showToast('Failed to load dashboard data', true);
   }
 }
 
-function renderTrendsChart(meetings) {
-  const byDate = {};
-  meetings.forEach(m => {
-    const d = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}) : 'Unknown';
-    byDate[d] = (byDate[d] || 0) + 1;
-  });
-  
-  const labels = Object.keys(byDate).slice(-7);
-  const data = labels.map(l => byDate[l]);
-  
-  const chartEl = document.querySelector('#trendsChart');
-  if (chartEl && labels.length > 0) {
-    const options = {
-      series: [{ name: 'Meetings', data: data }],
-      chart: {
-        type: 'bar',
-        height: 160,
-        background: 'transparent',
-        toolbar: { show: false },
-        animations: { enabled: true, easing: 'easeinout', speed: 800 }
-      },
-      plotOptions: {
-        bar: {
-          borderRadius: 6,
-          columnWidth: '60%'
-        }
-      },
-      colors: ['#8b5cf6'],
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shade: 'dark',
-          type: 'vertical',
-          shadeIntensity: 0.3,
-          gradientToColors: ['#8b5cf6'],
-          inverseColors: false,
-          opacityFrom: 0.9,
-          opacityTo: 0.5,
-          stops: [0, 100]
-        }
-      },
-      dataLabels: { enabled: false },
-      stroke: { show: true, width: 2, colors: ['transparent'] },
-      xaxis: {
-        categories: labels,
-        labels: { style: { colors: '#94a3b8', fontSize: '9px', fontWeight: 500 } },
-        axisBorder: { show: false },
-        axisTicks: { show: false }
-      },
-      yaxis: {
-        labels: { style: { colors: '#94a3b8', fontSize: '9px', fontWeight: 500 }, formatter: (val) => Math.round(val) }
-      },
-      grid: { borderColor: 'rgba(51, 65, 85, 0.5)', strokeDashArray: 4, xaxis: { lines: { show: false } } },
-      tooltip: { theme: 'dark', style: { fontSize: '10px' } }
-    };
-    
-    new ApexCharts(chartEl, options).render();
+function renderDashboard() {
+  if (!dashboardData) return;
+
+  // Update KPI cards
+  if (dashboardData.kpis) {
+    document.getElementById('todayMeetings').textContent = dashboardData.kpis.todayMeetings || 0;
+    document.getElementById('pendingReviews').textContent = dashboardData.kpis.pendingReviews || 0;
+    document.getElementById('avgScore').textContent = dashboardData.kpis.avgScore ? dashboardData.kpis.avgScore + '%' : '0%';
+    document.getElementById('activeUsers').textContent = dashboardData.kpis.activeUsers || 0;
+    document.getElementById('weekMeetings').textContent = dashboardData.kpis.weekMeetings || 0;
+    document.getElementById('completionRate').textContent = dashboardData.kpis.completionRate ? dashboardData.kpis.completionRate + '%' : '0%';
   }
+
+  // Update last updated timestamp
+  const lastUpdatedEl = document.getElementById('lastUpdated');
+  if (lastUpdatedEl) {
+    lastUpdatedEl.textContent = 'Updated: ' + new Date().toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }
+
+  // Render charts
+  if (dashboardData.trends) {
+    renderTrendsChart(dashboardData.trends);
+  }
+  if (dashboardData.scoreDistribution) {
+    renderScoreChart(dashboardData.scoreDistribution);
+  }
+  if (dashboardData.statusDistribution) {
+    renderStatusChart(dashboardData.statusDistribution);
+  }
+  if (dashboardData.platformUsage) {
+    renderPlatformChart(dashboardData.platformUsage);
+  }
+
+  // Render recent activity
+  if (dashboardData.recentActivity) {
+    renderActivityTable(dashboardData.recentActivity);
+  }
+
+  // Render quick stats
+  renderQuickStats(dashboardData);
+}
+
+function renderTrendsChart(trends) {
+  const chart = new ApexCharts(document.querySelector('#trendsChart'), {
+    series: [{ name: 'Meetings', data: trends.scores || [] }],
+    chart: { type: 'area', height: 160, toolbar: { show: false } },
+    xaxis: { categories: trends.dates || [], labels: { style: { colors: '#64748b', fontSize: '10px' } } },
+    yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' } } },
+    colors: ['#8b5cf6'],
+    stroke: { curve: 'smooth', width: 2 },
+    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1 } }
+  });
+  chart.render();
 }
 
 function renderScoreChart(scores) {
-  const chartEl = document.querySelector('#scoreChart');
-  if (!chartEl || !scores.length) return;
-
-  const bins = { 'Excellent (4-5)': 0, 'Good (3-4)': 0, 'Needs Work (<3)': 0 };
-  scores.forEach(s => {
-    const val = +s.score || 0;
-    if (val >= 4) bins['Excellent (4-5)']++;
-    else if (val >= 3) bins['Good (3-4)']++;
-    else bins['Needs Work (<3)']++;
+  const chart = new ApexCharts(document.querySelector('#scoreChart'), {
+    series: scores.data || [],
+    chart: { type: 'donut', height: 160 },
+    labels: scores.labels || [],
+    colors: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+    legend: { position: 'bottom', labels: { colors: '#e2e8f0', fontSize: '10px' } }
   });
-
-  const options = {
-    series: Object.values(bins),
-    chart: {
-      type: 'donut',
-      height: 160,
-      background: 'transparent',
-      animations: { enabled: true, easing: 'easeinout', speed: 1200 }
-    },
-    labels: Object.keys(bins),
-    colors: ['#22c55e', '#3b82f6', '#f59e0b'],
-    fill: { type: 'solid', opacity: 0.85 },
-    stroke: { show: true, width: 2, colors: ['#22c55e', '#3b82f6', '#f59e0b'] },
-    dataLabels: {
-      enabled: true,
-      style: { fontSize: '10px', fontWeight: 600, colors: ['#fff'] },
-      dropShadow: { enabled: false }
-    },
-    plotOptions: {
-      pie: {
-        donut: {
-          size: '65%',
-          labels: {
-            show: true,
-            name: { show: true, fontSize: '9px', fontWeight: 500, color: '#94a3b8' },
-            value: { show: true, fontSize: '14px', fontWeight: 700, color: '#e2e8f0' }
-          }
-        }
-      }
-    },
-    legend: {
-      position: 'bottom',
-      fontSize: '9px',
-      fontWeight: 500,
-      labels: { colors: '#e2e8f0' },
-      markers: { width: 8, height: 8, radius: 4, offsetX: -3 },
-      itemMargin: { horizontal: 8, vertical: 4 }
-    },
-    tooltip: { theme: 'dark', style: { fontSize: '10px' } }
-  };
-  
-  new ApexCharts(chartEl, options).render();
+  chart.render();
 }
 
-function renderStatusChart(meetings) {
-  const chartEl = document.querySelector('#statusChart');
-  if (!chartEl || !meetings.length) return;
-
-  const statuses = {};
-  meetings.forEach(m => {
-    const s = m.status || 'unknown';
-    statuses[s] = (statuses[s] || 0) + 1;
+function renderStatusChart(status) {
+  const chart = new ApexCharts(document.querySelector('#statusChart'), {
+    series: status.data || [],
+    chart: { type: 'pie', height: 128 },
+    labels: status.labels || [],
+    colors: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#64748b'],
+    legend: { position: 'bottom', labels: { colors: '#e2e8f0', fontSize: '9px' } }
   });
-
-  const statusColors = {
-    'completed': '#22c55e',
-    'active': '#3b82f6',
-    'joining': '#8b5cf6',
-    'scheduled': '#f59e0b'
-  };
-
-  const labels = Object.keys(statuses);
-  const data = Object.values(statuses);
-
-  const options = {
-    series: data,
-    chart: {
-      type: 'pie',
-      height: 128,
-      background: 'transparent',
-      animations: { enabled: true, easing: 'easeinout', speed: 1200 }
-    },
-    labels: labels,
-    colors: labels.map(l => statusColors[l] || '#94a3b8'),
-    fill: { type: 'solid', opacity: 0.85 },
-    stroke: { show: true, width: 2, colors: labels.map(l => statusColors[l] || '#94a3b8') },
-    dataLabels: {
-      enabled: true,
-      style: { fontSize: '9px', fontWeight: 600, colors: ['#fff'] },
-      dropShadow: { enabled: false }
-    },
-    plotOptions: {
-      pie: {
-        expandOnClick: true,
-        dataLabels: { offset: -15 }
-      }
-    },
-    legend: {
-      position: 'bottom',
-      fontSize: '9px',
-      fontWeight: 500,
-      labels: { colors: '#e2e8f0' },
-      markers: { width: 8, height: 8, radius: 4, offsetX: -3 },
-      itemMargin: { horizontal: 6, vertical: 3 }
-    },
-    tooltip: { theme: 'dark', style: { fontSize: '10px' } }
-  };
-  
-  new ApexCharts(chartEl, options).render();
+  chart.render();
 }
 
-function renderPlatformChart(meetings) {
-  const chartEl = document.querySelector('#platformChart');
-  if (!chartEl || !meetings.length) return;
-
-  const platforms = {};
-  meetings.forEach(m => {
-    const p = m.platform || 'Unknown';
-    platforms[p] = (platforms[p] || 0) + 1;
+function renderPlatformChart(platform) {
+  const chart = new ApexCharts(document.querySelector('#platformChart'), {
+    series: platform.data || [],
+    chart: { type: 'bar', height: 128 },
+    xaxis: { categories: platform.labels || [], labels: { style: { colors: '#64748b', fontSize: '10px' } } },
+    colors: ['#8b5cf6'],
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '60%' } }
   });
+  chart.render();
+}
 
-  const labels = Object.keys(platforms);
-  const data = Object.values(platforms);
+function renderActivityTable(activities) {
+  const tbody = document.getElementById('activityTable');
+  if (!activities || activities.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="py-3 text-center text-slate-500">No recent activity</td></tr>';
+    return;
+  }
 
-  const options = {
-    series: [{ name: 'Meetings', data: data }],
-    chart: {
-      type: 'bar',
-      height: 128,
-      background: 'transparent',
-      toolbar: { show: false },
-      animations: { enabled: true, easing: 'easeinout', speed: 800 }
-    },
-    plotOptions: {
-      bar: {
-        horizontal: true,
-        borderRadius: 6,
-        columnWidth: '70%'
-      }
-    },
-    colors: ['#3b82f6'],
-    fill: {
-      type: 'gradient',
-      gradient: {
-        shade: 'dark',
-        type: 'horizontal',
-        shadeIntensity: 0.3,
-        gradientToColors: ['#8b5cf6'],
-        inverseColors: false,
-        opacityFrom: 0.9,
-        opacityTo: 0.6,
-        stops: [0, 100]
-      }
-    },
-    dataLabels: { enabled: false },
-    stroke: { show: true, width: 2, colors: ['transparent'] },
-    xaxis: {
-      categories: labels,
-      labels: { 
-        style: { colors: '#e2e8f0', fontSize: '9px', fontWeight: 500 },
-        formatter: (val) => Math.round(val)
-      },
-      axisBorder: { show: false },
-      axisTicks: { show: false }
-    },
-    yaxis: {
-      labels: { style: { colors: '#e2e8f0', fontSize: '9px', fontWeight: 500 } }
-    },
-    grid: {
-      borderColor: 'rgba(51, 65, 85, 0.5)',
-      strokeDashArray: 4,
-      yaxis: { lines: { show: false } }
-    },
-    tooltip: { theme: 'dark', style: { fontSize: '10px' } }
+  tbody.innerHTML = activities.map(a => `
+    <tr class="border-b border-slate-200">
+      <td class="py-1.5 px-2 text-[11px] text-slate-600">${formatDate(a.time)}</td>
+      <td class="py-1.5 px-2 text-[11px] font-medium text-slate-900">${escapeHtml(a.meeting)}</td>
+      <td class="py-1.5 px-2 text-[11px] text-slate-600">${a.platform}</td>
+      <td class="py-1.5 px-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusClass(a.status)}">${a.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderQuickStats(data) {
+  const container = document.getElementById('quickStats');
+  if (!container) return;
+
+  const stats = [
+    { label: 'Total Meetings', value: data.kpis?.weekMeetings || 0 },
+    { label: 'Total Reviews', value: data.kpis?.pendingReviews || 0 },
+    { label: 'Active Users', value: data.kpis?.activeUsers || 0 },
+    { label: 'Avg Quality Score', value: (data.kpis?.avgScore || 0) + '%' },
+    { label: 'Completion Rate', value: (data.kpis?.completionRate || 0) + '%' }
+  ];
+
+  container.innerHTML = stats.map(stat => `
+    <div class="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+      <span class="text-[11px] text-slate-600">${stat.label}</span>
+      <span class="text-[11px] font-semibold text-slate-900">${stat.value}</span>
+    </div>
+  `).join('');
+}
+
+function getStatusClass(status) {
+  const classes = {
+    'completed': 'bg-emerald-100 text-emerald-700',
+    'active': 'bg-blue-100 text-blue-700',
+    'scheduled': 'bg-amber-100 text-amber-700',
+    'cancelled': 'bg-red-100 text-red-700'
   };
-  
-  new ApexCharts(chartEl, options).render();
+  return classes[status] || 'bg-slate-100 text-slate-700';
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '--';
+  return new Date(dateStr).toLocaleString('en-US', { 
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+  });
 }
 
 function escapeHtml(s) {
@@ -340,12 +172,6 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-// Initialize dashboard - dependencies should be loaded by now
-// common-ui.js (apiFetch) and apexcharts are loaded before this script
-setTimeout(() => {
-  if (typeof apiFetch === 'function') {
-    loadDashboard();
-  } else {
-    console.error('apiFetch not available - common-ui.js may not have loaded');
-  }
-}, 100);
+function showToast(msg, isError) {
+  console.log(isError ? 'Error: ' + msg : msg);
+}

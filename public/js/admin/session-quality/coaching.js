@@ -34,7 +34,7 @@ async function loadCoachingData(sessionId) {
   content.innerHTML = '<p class="text-[12px] text-slate-500">Loading coaching feedback...</p>';
 
   try {
-    const response = await apiFetch('/api/tutoring/report', {
+    const response = await apiFetch('/api/admin/tutoring/report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_internal_id: sessionId })

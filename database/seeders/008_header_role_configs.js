@@ -13,11 +13,11 @@ const DEFAULT_NAV_BY_ROLE = {
     settings: { label: 'Settings', href: '/super_admin/settings/settings' }
   },
   admin: {
-    home: { label: 'Dashboard', href: '/admin/index.html' },
-    events: { label: 'Events', href: '/admin/calendar-events.html' },
-    archives: { label: 'Archives', href: '/admin/archives.html' },
-    profile: { label: 'Profile', href: '/admin/profile.html' },
-    settings: { label: 'Settings', href: '/admin/settings.html' }
+    home: { label: 'Dashboard', href: '/admin/index' },
+    events: { label: 'Events', href: '/admin/calendar-events' },
+    archives: { label: 'Archives', href: '/admin/archives' },
+    profile: { label: 'Profile', href: '/admin/profile' },
+    settings: { label: 'Settings', href: '/admin/settings' }
   },
   reviewer: {
     home: { label: 'Dashboard', href: '/reviewer/dashboard' },
@@ -27,14 +27,14 @@ const DEFAULT_NAV_BY_ROLE = {
     settings: { label: 'Settings', href: '/reviewer/settings' }
   },
   instructor: {
-    home: { label: 'Dashboard', href: '/instructor/index.html' },
-    events: { label: 'Events', href: '/instructor/calendar-events.html' },
-    archives: { label: 'Archives', href: '/instructor/archives.html' },
-    profile: { label: 'Profile', href: '/instructor/profile.html' },
-    settings: { label: 'Settings', href: '/instructor/settings.html' }
+    home: { label: 'Dashboard', href: '/instructor/index' },
+    events: { label: 'Events', href: '/instructor/calendar-events' },
+    archives: { label: 'Archives', href: '/instructor/archives' },
+    profile: { label: 'Profile', href: '/instructor/profile' },
+    settings: { label: 'Settings', href: '/instructor/settings' }
   },
   solo_instructor: {
-    home: { label: 'Dashboard', href: '/instructor/index.html' },
+    home: { label: 'Dashboard', href: '/instructor/index' },
     events: { label: 'Meetings', href: '/meetings' },
     archives: { label: 'Content', href: '/content/recordings' },
     profile: { label: 'Profile', href: '/profile' },
@@ -66,15 +66,15 @@ const seedHeaderRoleConfigs = async () => {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 role.id,
-                nav.home?.href || '/dashboard.html',
+                nav.home?.href || '/dashboard',
                 nav.home?.label || 'Home',
-                nav.events?.href || '/events.html',
+                nav.events?.href || '/events',
                 nav.events?.label || 'Events',
-                nav.archives?.href || '/archives.html',
+                nav.archives?.href || '/archives',
                 nav.archives?.label || 'Archives',
-                nav.profile?.href || '/profile.html',
+                nav.profile?.href || '/profile',
                 nav.profile?.label || 'Profile',
-                nav.settings?.href || '/settings.html',
+                nav.settings?.href || '/settings',
                 nav.settings?.label || 'Settings'
             ]
         );

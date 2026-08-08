@@ -22,7 +22,7 @@ const meetingSelect = document.getElementById('meetingSelect');
 
 async function loadMeetings() {
   try {
-    const data = await apiFetch('/api/meetings/list?days=90');
+    const data = await apiFetch('/api/admin/meetings/list?days=90');
     const meetings = data.meetings || [];
     meetingSelect.innerHTML = '<option value="">Select a meeting...</option>' +
       meetings.map(m => `<option value="${escapeAttr(m.id)}">${escapeAttr(m.title || 'Untitled')} - ${escapeAttr(m.start_time ? new Date(m.start_time).toLocaleDateString() : 'No date')}</option>`).join('');
@@ -69,7 +69,7 @@ async function init() {
   sectionsEl.innerHTML = '';
 
   try {
-    const response = await apiFetch(`/api/tutoring/report/${encodeURIComponent(currentMeetingId)}`);
+    const response = await apiFetch(`/api/admin/tutoring/report/${encodeURIComponent(currentMeetingId)}`);
     if (!response || response.error) {
       throw new Error(response?.error || 'No response');
     }

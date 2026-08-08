@@ -19,6 +19,9 @@ function handle(fn) {
 // GET /api/roles
 router.get('/', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
 
+// GET /api/roles/list - Admin panel list endpoint
+router.get('/list', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
+
 // POST /api/roles/pages — must be before /:name
 router.post('/pages', requireAuth, requireRole('admin', 'super_admin'), handle(roleController.getPages));
 
@@ -27,5 +30,8 @@ router.get('/:name', requireAuth, requireRole('super_admin', 'admin'), handle(ro
 
 // POST /api/roles
 router.post('/', requireAuth, requireRole('super_admin'), handle(roleController.create));
+
+// POST /api/roles/list - Admin panel list endpoint
+router.post('/list', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
 
 module.exports = router;

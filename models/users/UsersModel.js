@@ -20,17 +20,26 @@ function isHashedPassword(value) {
 class UsersModel {
   /**
    * Strip sensitive/internal fields from a user row before returning it in API responses.
+   * Only returns fields that are safe and useful for the frontend.
    */
   static _sanitizeUser(row) {
     if (!row) return row;
-    const clean = { ...row };
-    delete clean.password_hash;
-    delete clean.email_verified_at;
-    delete clean.is_deleted;
-    delete clean.deleted_by;
-    delete clean.deleted_at;
-    delete clean.created_by;
-    delete clean.updated_by;
+
+    // Only keep the essential, safe fields for API responses
+    const clean = {
+      id: row.id,
+      user_uuid: row.user_uuid,
+      company_id: row.company_id,
+      role_id: row.role_id,
+      role_name: row.role_name || null,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      email: row.email,
+      phone: row.phone,
+      profile_image: row.profile_image,
+      status: row.status
+    };
+
     return clean;
   }
 
@@ -50,10 +59,10 @@ class UsersModel {
     }
 
     const insertData = {
-      user_uuid: data.user_uuid || data.email || `user-${Date.now()}`,
+      user_uuid: data.user_uuid,
       company_id: user ? (user.role_name === 'admin' ? user.company_id : data.company_id || null) : data.company_id || null,
-      role_id: data.role_id || null,
-      first_name: data.first_name || null,
+      role_id: data.role_id,
+      first_name: data.first_name,
       last_name: data.last_name || null,
       email: data.email,
       password_hash: data.password_hash,
@@ -144,6 +153,19 @@ class UsersModel {
     });
   }
 
+  static async getUserByUuid(userUuid) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT users.*, roles.role_name as role_name
+         FROM users
+         LEFT JOIN roles ON users.role_id = roles.id
+         WHERE users.user_uuid = ? AND users.deleted_at IS NULL`,
+        [userUuid],
+        (err, row) => err ? reject(err) : resolve(row || null)
+      );
+    });
+  }
+
   static async getUserById(user, id) {
     if (typeof id === 'undefined' && user != null && typeof user !== 'object') {
       id = user;
@@ -175,38 +197,66 @@ class UsersModel {
     return UsersModel._sanitizeUser(row);
   }
 
-  static async listUsers(user, { limit = 200 } = {}) {
+  static async listUsers(user, { limit = 200, page = 1, perPage = 10, fromDate = null, toDate = null, roleId = null } = {}) {
     UsersModel._ensureAdminOrSuper(user);
+
+    const offset = (page - 1) * perPage;
+    const conditions = [];
+    const params = [];
+
     if (user.role_name === 'admin') {
-      return new Promise((resolve, reject) => {
-        db.all(
-          `SELECT users.*, roles.role_name as role_name
-           FROM users
-           LEFT JOIN roles ON users.role_id = roles.id
-           WHERE users.deleted_at IS NULL AND users.company_id = ? AND users.created_by = ? AND users.id != ?
-           ORDER BY users.created_at DESC LIMIT ?`,
-          [user.company_id, user.id, user.id, limit],
-          (err, rows) => {
-            if (err) return reject(err);
-            resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));
-          }
-        );
-      });
+      conditions.push('users.company_id = ?');
+      params.push(user.company_id);
+      conditions.push('users.created_by = ?');
+      params.push(user.id);
     }
-    return new Promise((resolve, reject) => {
+
+    conditions.push('users.deleted_at IS NULL');
+    conditions.push('users.id != ?');
+    params.push(user.id);
+
+    if (roleId) {
+      conditions.push('users.role_id = ?');
+      params.push(roleId);
+    }
+
+    if (fromDate) {
+      conditions.push('DATE(users.created_at) >= DATE(?)');
+      params.push(fromDate);
+    }
+    if (toDate) {
+      conditions.push('DATE(users.created_at) <= DATE(?)');
+      params.push(toDate);
+    }
+
+    const whereClause = 'WHERE ' + conditions.join(' AND ');
+
+    // Get total count
+    const countRow = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT COUNT(*) as total FROM users ${whereClause}`,
+        params,
+        (err, row) => err ? reject(err) : resolve(row || { total: 0 })
+      );
+    });
+
+    // Get paginated rows
+    const rows = await new Promise((resolve, reject) => {
       db.all(
         `SELECT users.*, roles.role_name as role_name
          FROM users
          LEFT JOIN roles ON users.role_id = roles.id
-         WHERE users.deleted_at IS NULL AND users.id != ?
-         ORDER BY users.created_at DESC LIMIT ?`,
-        [user.id, limit],
+         ${whereClause}
+         ORDER BY users.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, perPage, offset],
         (err, rows) => {
           if (err) return reject(err);
           resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));
         }
       );
     });
+
+    return { count: countRow.total, rows };
   }
 
   static async updateUser(userOrId, maybeId, changes) {

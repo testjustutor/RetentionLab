@@ -2,7 +2,7 @@
  * controllers/userController.js
  * Business logic for user CRUD and management.
  */
-
+const crypto = require('crypto');
 const UsersModel = require('../../models/users/UsersModel');
 const RolesModel = require('../../models/roles/RolesModel');
 const AuthModel = require('../../models/auth/AuthModel');
@@ -18,12 +18,41 @@ function err(message, statusCode) {
 const userController = {
   /**
    * GET /api/users
-   * List users scoped to the requesting user's company.
+   * List users scoped to the requesting user's company with pagination and date filtering.
+   * Query params: page, per_page, from_date, to_date
+   * 
+   * POST /api/users
+   * List users with filters in request body (for role-based filtering).
+   * Body params: role_id, page, per_page, from_date, to_date
    */
   async list(req) {
     try {
-      const rows = await UsersModel.listUsers(req.user, { limit: 200 });
-      return ok({ count: rows.length, data: rows });
+      let page, perPage, fromDate, toDate, roleId;
+
+      if (req.method === 'POST' || req.body) {
+        // POST request - get params from body
+        roleId = req.body.role_id || null;
+        page = parseInt(req.body.page) || 1;
+        perPage = parseInt(req.body.per_page) || 10;
+        fromDate = req.body.from_date || null;
+        toDate = req.body.to_date || null;
+      } else {
+        // GET request - get params from query
+        page = parseInt(req.query.page) || 1;
+        perPage = parseInt(req.query.per_page) || 10;
+        fromDate = req.query.from_date || null;
+        toDate = req.query.to_date || null;
+      }
+
+      const result = await UsersModel.listUsers(req.user, { 
+        limit: 200,
+        page,
+        perPage,
+        fromDate,
+        toDate,
+        roleId
+      });
+      return ok({ count: result.count, data: result.rows });
     } catch (e) {
       if (e.message === 'Forbidden') return err('Forbidden', 403);
       return err(e.message);
@@ -66,6 +95,10 @@ const userController = {
       // Set default password if not provided
       if (!data.password && !data.password_hash) {
         data.password = 'Password@123';
+      }
+      // Set default password if not provided
+      if (!data.user_uuid) {
+        data.user_uuid = crypto.randomUUID();
       }
 
       // Hash new password

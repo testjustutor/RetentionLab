@@ -61,11 +61,876 @@ function escHtml(str) {
   return d.innerHTML;
 }
 
-// ── API helper ──
+// ── Pagination Service (lightweight, no HTML rendering) ──
+// Options:
+//   containerId: ID of the pagination container element
+//   currentPage: current page number
+//   totalPages: total number of pages
+//   onPageChange: callback when page changes (receives page number)
+// Returns: { render(), setPage(), getPage() }
+function createPagination(options = {}) {
+  const { containerId, currentPage = 1, totalPages = 1, onPageChange } = options;
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error('Pagination container not found:', containerId);
+    return null;
+  }
+
+  let current = currentPage;
+  let total = totalPages;
+
+  function generatePageNumbers(current, total) {
+    const pages = [];
+    
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      
+      if (current > 3) {
+        pages.push('...');
+      }
+      
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) {
+          pages.push(i);
+        }
+      }
+      
+      if (current < total - 2) {
+        pages.push('...');
+      }
+      
+      if (!pages.includes(total)) {
+        pages.push(total);
+      }
+    }
+    
+    return pages;
+  }
+
+  function render() {
+    if (total <= 1) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const pageNumbers = generatePageNumbers(current, total);
+    
+    // Previous button - darkest grey when enabled, light grey when disabled
+    let html = '<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' + (current <= 1 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800') + '" ' + (current <= 1 ? 'disabled' : '') + '>Previous</button>';
+    
+    html += '<div class="flex items-center gap-1">';
+    for (const page of pageNumbers) {
+      if (page === '...') {
+        html += '<span class="px-2 py-1 text-xs text-slate-500">...</span>';
+      } else {
+        const isActive = page === current;
+        html += '<button data-page="' + page + '" class="px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ' + (isActive ? 'bg-violet-600 text-white' : 'bg-white border border-slate-300 text-slate-600 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-300') + '">' + page + '</button>';
+      }
+    }
+    html += '</div>';
+    
+    // Next button - darkest grey when enabled, light grey when disabled
+    html += '<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' + (current >= total ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800') + '" ' + (current >= total ? 'disabled' : '') + '>Next</button>';
+    
+    container.innerHTML = html;
+
+    const buttons = container.querySelectorAll('button[data-page]');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = parseInt(btn.getAttribute('data-page'));
+        if (page !== current) {
+          current = page;
+          render();
+          if (onPageChange) onPageChange(page);
+        }
+      });
+    });
+
+    const prevBtn = container.querySelector('button:not([data-page]):first-child');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (current > 1) {
+          current--;
+          render();
+          if (onPageChange) onPageChange(current);
+        }
+      });
+    }
+
+    const nextBtn = container.querySelector('button:not([data-page]):last-child');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (current < total) {
+          current++;
+          render();
+          if (onPageChange) onPageChange(current);
+        }
+      });
+    }
+  }
+
+  return {
+    render,
+    setPage: (page) => {
+      current = page;
+      render();
+    },
+    setTotalPages: (newTotal) => {
+      total = newTotal;
+      if (current > total) current = total;
+      render();
+    },
+    getPage: () => current
+  };
+}
+
+// ── Unified Table Component ──
+// Options:
+//   containerId: ID of the container to render the table into
+//   headers: Array of { label: string, key: string, width?: string, render?: (value, row) => string }
+//   data: Array of objects (rows)
+//   onRowClick: (row) => void - callback when row is clicked
+//   emptyMessage: string - message when no data (default: "No data found")
+//   loading: boolean - show loading spinner
+//   pagination: { perPage: number, currentPage: number, onPageChange: (page) => void }
+// Returns: { render(), setData(data), setHeaders(headers), setLoading(bool), getPagination(), destroy() }
+function createTable(options = {}) {
+  const { containerId, headers = [], data = [], onRowClick, emptyMessage = 'No data found', loading = false, pagination } = options;
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error('Table container not found:', containerId);
+    return null;
+  }
+
+  let currentHeaders = headers;
+  let currentData = data;
+  let isLoading = loading;
+  let paginationObj = null;
+  let currentPage = pagination?.currentPage || 1;
+  let perPage = pagination?.perPage || 10;
+
+  function render() {
+    if (isLoading) {
+      container.innerHTML = '<div class="bg-white border border-slate-200 rounded-lg overflow-hidden">' +
+        '<div class="overflow-x-auto">' +
+          '<table class="w-full">' +
+            '<thead>' +
+              '<tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">' +
+                currentHeaders.map(h => '<th class="py-2.5 px-4 text-left font-bold' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' +
+              '<tr><td colspan="' + Math.max(1, currentHeaders.length) + '" class="px-4 py-12">' +
+                '<div class="flex items-center justify-center">' +
+                  '<div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>' +
+                  '<span class="ml-3 text-sm text-slate-500">Loading...</span>' +
+                '</div>' +
+              '</td></tr>' +
+            '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+      return;
+    }
+
+    // Determine which data to show (paginated or full)
+    let displayData = currentData;
+    const totalItems = currentData.length;
+    const totalPages = Math.ceil(totalItems / perPage) || 1;
+
+    if (pagination && totalItems > perPage) {
+      const start = (currentPage - 1) * perPage;
+      const end = start + perPage;
+      displayData = currentData.slice(start, end);
+    }
+
+    // Build table HTML
+    const hasData = displayData.length > 0;
+    const headerHtml = '<tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">' +
+      currentHeaders.map(h => '<th class="py-2.5 px-4 text-left font-bold' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
+    '</tr>';
+
+    let bodyHtml = '';
+    if (!hasData) {
+      bodyHtml = '<tr><td colspan="' + Math.max(1, currentHeaders.length) + '" class="px-4 py-12">' +
+        '<div class="flex flex-col items-center justify-center">' +
+          '<div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3">' +
+            '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">' +
+              '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>' +
+            '</svg>' +
+          '</div>' +
+          '<p class="text-sm font-bold text-slate-800 mb-1">' + escHtml(emptyMessage) + '</p>' +
+        '</div>' +
+      '</td></tr>';
+    } else {
+      bodyHtml = displayData.map((row, rowIdx) => {
+        const isClickable = typeof onRowClick === 'function';
+        return '<tr class="hover:bg-slate-100 transition-colors' + (isClickable ? ' cursor-pointer' : '') + '"' + (isClickable ? ' onclick="handleRowClick_' + containerId + '(' + rowIdx + ')"' : '') + '>' +
+          currentHeaders.map(h => {
+            const cellValue = h.render ? h.render(row[h.key], row) : (row[h.key] !== undefined && row[h.key] !== null ? escHtml(String(row[h.key])) : '--');
+            return '<td class="py-2.5 px-4 text-xs text-slate-700">' + cellValue + '</td>';
+          }).join('') +
+        '</tr>';
+      }).join('');
+    }
+
+    // Build full table HTML
+    let tableHtml = '<div class="bg-white border border-slate-200 rounded-lg overflow-hidden">' +
+      '<div class="overflow-x-auto">' +
+        '<table class="w-full">' +
+          '<thead>' + headerHtml + '</thead>' +
+          '<tbody class="divide-y divide-slate-200">' + bodyHtml + '</tbody>' +
+        '</table>' +
+      '</div>';
+
+    // Pagination footer
+    if (pagination && totalPages > 1) {
+      tableHtml += '<div id="tablePagination_' + containerId + '" class="border-t border-slate-200 bg-slate-200 px-4 py-2.5 flex justify-end"></div>';
+    }
+
+    tableHtml += '</div>';
+    container.innerHTML = tableHtml;
+
+    // Initialize pagination
+    if (pagination && totalPages > 1) {
+      paginationObj = createPagination({
+        containerId: 'tablePagination_' + containerId,
+        currentPage: currentPage,
+        totalPages: totalPages,
+        onPageChange: (page) => {
+          currentPage = page;
+          if (pagination.onPageChange) pagination.onPageChange(page);
+          render();
+        }
+      });
+      paginationObj.render();
+    }
+
+    // Store row click handler globally
+    if (typeof onRowClick === 'function') {
+      window['handleRowClick_' + containerId] = (rowIdx) => {
+        onRowClick(displayData[rowIdx]);
+      };
+    }
+  }
+
+  return {
+    render,
+    setData: (newData) => {
+      currentData = newData || [];
+      currentPage = 1;
+      render();
+    },
+    setHeaders: (newHeaders) => {
+      currentHeaders = newHeaders || [];
+      render();
+    },
+    setLoading: (bool) => {
+      isLoading = bool;
+      render();
+    },
+    setPaginationPage: (page) => {
+      currentPage = page;
+      if (paginationObj) {
+        paginationObj.setPage(page);
+      }
+      render();
+    },
+    getPagination: () => paginationObj,
+    destroy: () => {
+      container.innerHTML = '';
+      delete window['handleRowClick_' + containerId];
+    }
+  };
+}
+
+// ── Date Filter Service (lightweight, no HTML rendering) ──
+// Options:
+//   onFilter(fromDate, toDate)  - Called when Get Data is clicked
+//   onClear()                   - Called when Clear is clicked
+//   onSearch(query)             - Called when search input changes
+//   days                        - Number of days for default range (default: 7)
+// Returns: { getDates(), setDates(from, to), reset(), validate() }
+function createDateFilter(options = {}) {
+  const { onFilter, onClear, onSearch, days = 7 } = options;
+
+  const today = new Date();
+  const defaultFromDate = new Date(today);
+  defaultFromDate.setDate(defaultFromDate.getDate() - days);
+
+  const formatDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const defaultFrom = formatDate(defaultFromDate);
+  const defaultTo = formatDate(today);
+  const maxDate = formatDate(today);
+  const sixMonthsAgo = new Date(today);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const minDate = formatDate(sixMonthsAgo);
+
+  const fromInput = document.getElementById('filterFromDate');
+  const toInput = document.getElementById('filterToDate');
+  const errorEl = document.getElementById('dateFilterError');
+  const getDataBtn = document.getElementById('getDataBtn');
+  const clearBtn = document.getElementById('clearFilterBtn');
+  const searchInput = document.getElementById('userSearch');
+
+  if (fromInput) fromInput.value = defaultFrom;
+  if (toInput) toInput.value = defaultTo;
+  if (fromInput) fromInput.min = minDate;
+  if (fromInput) fromInput.max = maxDate;
+  if (toInput) toInput.min = minDate;
+  if (toInput) toInput.max = maxDate;
+
+  function validateDateRange(fromDate, toDate) {
+    if (!fromDate || !toDate) return true;
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    if (to < from) {
+      if (errorEl) {
+        errorEl.textContent = 'To date must be after from date';
+        errorEl.classList.remove('hidden');
+      }
+      return false;
+    }
+    const diffMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+    if (diffMonths > 6) {
+      if (errorEl) {
+        errorEl.textContent = 'Date range cannot exceed 6 months';
+        errorEl.classList.remove('hidden');
+      }
+      return false;
+    }
+    if (errorEl) errorEl.classList.add('hidden');
+    return true;
+  }
+
+  if (fromInput) {
+    fromInput.addEventListener('change', () => validateDateRange(fromInput.value, toInput.value));
+  }
+  if (toInput) {
+    toInput.addEventListener('change', () => validateDateRange(fromInput.value, toInput.value));
+  }
+  if (getDataBtn) {
+    getDataBtn.addEventListener('click', () => {
+      const fromDate = fromInput ? fromInput.value : '';
+      const toDate = toInput ? toInput.value : '';
+      if (!validateDateRange(fromDate, toDate)) return;
+      if (onFilter) onFilter(fromDate, toDate);
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (fromInput) fromInput.value = '';
+      if (toInput) toInput.value = '';
+      if (errorEl) errorEl.classList.add('hidden');
+      if (onClear) onClear();
+    });
+  }
+  if (searchInput && onSearch) {
+    searchInput.addEventListener('input', onSearch);
+  }
+
+  return {
+    getDates: () => ({ fromDate: fromInput ? fromInput.value : '', toDate: toInput ? toInput.value : '' }),
+    setDates: (from, to) => {
+      if (fromInput) fromInput.value = from || '';
+      if (toInput) toInput.value = to || '';
+    },
+    reset: () => {
+      if (fromInput) fromInput.value = defaultFrom;
+      if (toInput) toInput.value = defaultTo;
+      if (errorEl) errorEl.classList.add('hidden');
+    },
+    validate: () => validateDateRange(fromInput ? fromInput.value : '', toInput ? toInput.value : '')
+  };
+}
+
+// ── Select Filter Service (lightweight, no HTML rendering) ──
+// Options:
+//   containerId: ID of the container element to render into
+//   placeholder: Placeholder text for the search input
+//   dataSource: Array or async function(searchTerm) that returns array of items
+//   onFilter: Callback when filter is submitted (receives selected value)
+//   displayField: Field name to display in dropdown (default: 'name')
+//   valueField: Field name to use as value (default: 'id')
+// Returns: { getValue(), setValue(), clear(), on(event, callback) }
+function createSelectFilter(options = {}) {
+  const { containerId, placeholder, dataSource, onFilter, displayField = 'name', valueField = 'id' } = options;
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error('Select filter container not found:', containerId);
+    return null;
+  }
+
+  let selectedValue = null;
+  let items = [];
+  let isOpen = false;
+
+  container.innerHTML = `
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <input type="text" id="selectFilterInput" placeholder="${placeholder || 'Select...'}"
+               class="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-950 placeholder-slate-400 focus:outline-none focus:border-violet-500 cursor-pointer">
+        <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        <div id="selectFilterDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          <div id="selectFilterOptions"></div>
+        </div>
+      </div>
+      <button id="selectFilterBtn" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-4 py-1.5 rounded-md transition-colors whitespace-nowrap">Get Data</button>
+    </div>
+  `;
+
+  const input = document.getElementById('selectFilterInput');
+  const dropdown = document.getElementById('selectFilterDropdown');
+  const optionsContainer = document.getElementById('selectFilterOptions');
+  const btn = document.getElementById('selectFilterBtn');
+
+  async function loadItems(searchTerm = '') {
+    try {
+      let data;
+      if (typeof dataSource === 'function') {
+        data = await dataSource(searchTerm);
+      } else if (Array.isArray(dataSource)) {
+        data = dataSource;
+      }
+      items = data || [];
+      renderOptions(items);
+    } catch (err) {
+      console.error('Failed to load items:', err);
+      items = [];
+      renderOptions([]);
+    }
+  }
+
+  function renderOptions(itemsToRender) {
+    if (!itemsToRender.length) {
+      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">No items found</div>';
+      return;
+    }
+
+    optionsContainer.innerHTML = itemsToRender.map(item => {
+      const value = item[valueField];
+      const display = item[displayField] || '--';
+      const isSelected = value === selectedValue;
+      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-50 transition-colors ' + (isSelected ? 'bg-violet-100 text-violet-700' : 'text-slate-700') + '">' + escHtml(display) + '</div>';
+    }).join('');
+
+    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
+      el.addEventListener('click', () => {
+        const value = el.getAttribute('data-value');
+        selectItem(value);
+      });
+    });
+  }
+
+  function selectItem(value) {
+    selectedValue = value;
+    const item = items.find(i => String(i[valueField]) === String(value));
+    if (item) {
+      input.value = item[displayField] || '';
+    }
+    closeDropdown();
+    renderOptions(items);
+  }
+
+  function openDropdown() {
+    isOpen = true;
+    dropdown.classList.remove('hidden');
+    loadItems(input.value);
+  }
+
+  function closeDropdown() {
+    isOpen = false;
+    dropdown.classList.add('hidden');
+  }
+
+  input.addEventListener('focus', () => { openDropdown(); });
+  input.addEventListener('input', () => {
+    if (!isOpen) { openDropdown(); }
+    else { loadItems(input.value); }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeDropdown(); }
+  });
+  btn.addEventListener('click', () => {
+    if (onFilter) onFilter(selectedValue);
+  });
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) { closeDropdown(); }
+  });
+
+  loadItems();
+
+  return {
+    getValue: () => selectedValue,
+    setValue: (value) => {
+      selectedValue = value;
+      const item = items.find(i => String(i[valueField]) === String(value));
+      if (item) { input.value = item[displayField] || ''; }
+    },
+    clear: () => {
+      selectedValue = null;
+      input.value = '';
+      renderOptions(items);
+    },
+    on: (event, callback) => {
+      if (event === 'filter' && onFilter) {
+        btn.onclick = () => {
+          if (onFilter) onFilter(selectedValue);
+          if (callback) callback(selectedValue);
+        };
+      }
+    }
+  };
+}
+
+// ── Searchable Select Component (lightweight, no HTML rendering) ──
+// Options:
+//   containerId: ID of the container element to render into
+//   placeholder: Placeholder text for the search input
+//   dataSource: Array or async function(searchTerm) that returns array of items
+//   onSelect: Callback when item is selected (receives value or array of values for multi-select)
+//   multiSelect: Boolean - enable multi-select mode (default: false)
+//   displayField: Field name to display in dropdown (default: 'name')
+//   valueField: Field name to use as value (default: 'id')
+// Returns: { getValue(), setValue(), clear(), on(event, callback) }
+function createSearchableSelect(options = {}) {
+  const { containerId, placeholder, dataSource, onSelect, multiSelect = false, displayField = 'name', valueField = 'id' } = options;
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error('Searchable select container not found:', containerId);
+    return null;
+  }
+
+  let selectedItems = [];
+  let items = [];
+  let isOpen = false;
+
+  container.innerHTML = `
+    <div class="relative">
+      <input type="text" id="searchableSelectInput" placeholder="${placeholder || 'Select...'}"
+             class="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-950 placeholder-slate-400 focus:outline-none focus:border-violet-500 cursor-pointer">
+      <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      <div id="searchableSelectDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div id="searchableSelectOptions"></div>
+      </div>
+    </div>
+  `;
+
+  const input = document.getElementById('searchableSelectInput');
+  const dropdown = document.getElementById('searchableSelectDropdown');
+  const optionsContainer = document.getElementById('searchableSelectOptions');
+
+  async function loadItems(searchTerm = '') {
+    try {
+      let data;
+      if (typeof dataSource === 'function') {
+        data = await dataSource(searchTerm);
+      } else if (Array.isArray(dataSource)) {
+        data = dataSource;
+      }
+      items = data || [];
+      renderOptions(items);
+    } catch (err) {
+      console.error('Failed to load items:', err);
+      items = [];
+      renderOptions([]);
+    }
+  }
+
+  function renderOptions(itemsToRender) {
+    if (!itemsToRender.length) {
+      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">No items found</div>';
+      return;
+    }
+
+    optionsContainer.innerHTML = itemsToRender.map(item => {
+      const value = item[valueField];
+      const display = item[displayField] || '--';
+      const isSelected = multiSelect 
+        ? selectedItems.some(s => String(s[valueField]) === String(value))
+        : selectedItems.length > 0 && String(selectedItems[0][valueField]) === String(value);
+      
+      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-50 transition-colors ' + (isSelected ? 'bg-violet-100 text-violet-700' : 'text-slate-700') + '">' + 
+        (multiSelect ? '<input type="checkbox" class="mr-2" ' + (isSelected ? 'checked' : '') + '>' : '') +
+        escHtml(display) + '</div>';
+    }).join('');
+
+    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
+      el.addEventListener('click', () => {
+        const value = el.getAttribute('data-value');
+        const item = items.find(i => String(i[valueField]) === String(value));
+        if (item) { selectItem(item); }
+      });
+    });
+  }
+
+  function selectItem(item) {
+    if (multiSelect) {
+      const index = selectedItems.findIndex(s => String(s[valueField]) === String(item[valueField]));
+      if (index > -1) {
+        selectedItems.splice(index, 1);
+      } else {
+        selectedItems.push(item);
+      }
+      input.value = selectedItems.length > 0 
+        ? selectedItems.map(i => i[displayField]).join(', ')
+        : '';
+      renderOptions(items);
+      if (onSelect) onSelect(selectedItems.map(i => i[valueField]));
+    } else {
+      selectedItems = [item];
+      input.value = item[displayField] || '';
+      closeDropdown();
+      renderOptions(items);
+      if (onSelect) onSelect(item[valueField]);
+    }
+  }
+
+  function openDropdown() {
+    isOpen = true;
+    dropdown.classList.remove('hidden');
+    loadItems(input.value);
+  }
+
+  function closeDropdown() {
+    isOpen = false;
+    dropdown.classList.add('hidden');
+  }
+
+  // Open dropdown when clicking on the container or focusing the input
+  container.addEventListener('click', () => {
+    if (!isOpen) { openDropdown(); }
+    input.focus();
+  });
+  input.addEventListener('focus', () => {
+    if (!isOpen) { openDropdown(); }
+  });
+  input.addEventListener('input', () => {
+    if (!isOpen) { openDropdown(); }
+    else { loadItems(input.value); }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeDropdown(); }
+  });
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) { closeDropdown(); }
+  });
+
+  loadItems();
+
+  return {
+    getValue: () => multiSelect ? selectedItems.map(i => i[valueField]) : (selectedItems[0] ? selectedItems[0][valueField] : null),
+    setValue: (value) => {
+      if (multiSelect) {
+        if (Array.isArray(value)) {
+          selectedItems = items.filter(i => value.includes(String(i[valueField])));
+          input.value = selectedItems.map(i => i[displayField]).join(', ');
+        }
+      } else {
+        const item = items.find(i => String(i[valueField]) === String(value));
+        if (item) {
+          selectedItems = [item];
+          input.value = item[displayField] || '';
+        }
+      }
+    },
+    clear: () => {
+      selectedItems = [];
+      input.value = '';
+      renderOptions(items);
+    },
+    on: (event, callback) => {
+      if (event === 'select' && onSelect) {
+        const originalOnSelect = onSelect;
+        options.onSelect = (value) => {
+          originalOnSelect(value);
+          callback(value);
+        };
+      }
+    }
+  };
+}
+
+// ── Dark Searchable Select Component (for dark theme modals) ──
+// Same as createSearchableSelect but with dark theme styling
+function createDarkSearchableSelect(options = {}) {
+  const { containerId, placeholder, dataSource, onSelect, multiSelect = false, displayField = 'name', valueField = 'id' } = options;
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error('Dark searchable select container not found:', containerId);
+    return null;
+  }
+
+  let selectedItems = [];
+  let items = [];
+  let isOpen = false;
+
+  container.innerHTML = `
+    <div class="relative">
+      <input type="text" id="darkSelect_${containerId}" placeholder="${placeholder || 'Select...'}"
+             class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 pr-8 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 cursor-pointer">
+      <svg class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      <div id="darkSelectDropdown_${containerId}" class="hidden absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div id="darkSelectOptions_${containerId}"></div>
+      </div>
+    </div>
+  `;
+
+  const input = document.getElementById(`darkSelect_${containerId}`);
+  const dropdown = document.getElementById(`darkSelectDropdown_${containerId}`);
+  const optionsContainer = document.getElementById(`darkSelectOptions_${containerId}`);
+
+  async function loadItems(searchTerm = '') {
+    try {
+      let data;
+      if (typeof dataSource === 'function') {
+        data = await dataSource(searchTerm);
+      } else if (Array.isArray(dataSource)) {
+        data = dataSource;
+      }
+      items = data || [];
+      renderOptions(items);
+    } catch (err) {
+      console.error('Failed to load items:', err);
+      items = [];
+      renderOptions([]);
+    }
+  }
+
+  function renderOptions(itemsToRender) {
+    if (!itemsToRender.length) {
+      optionsContainer.innerHTML = '<div class="px-3 py-2 text-xs text-slate-400">No items found</div>';
+      return;
+    }
+
+    optionsContainer.innerHTML = itemsToRender.map(item => {
+      const value = item[valueField];
+      const display = item[displayField] || '--';
+      const isSelected = multiSelect 
+        ? selectedItems.some(s => String(s[valueField]) === String(value))
+        : selectedItems.length > 0 && String(selectedItems[0][valueField]) === String(value);
+      
+      return '<div data-value="' + value + '" class="px-3 py-2 text-xs cursor-pointer hover:bg-violet-500/20 transition-colors ' + (isSelected ? 'bg-violet-500/30 text-violet-300' : 'text-slate-300') + '">' + 
+        (multiSelect ? '<input type="checkbox" class="mr-2" ' + (isSelected ? 'checked' : '') + '>' : '') +
+        escHtml(display) + '</div>';
+    }).join('');
+
+    optionsContainer.querySelectorAll('[data-value]').forEach(el => {
+      el.addEventListener('click', () => {
+        const value = el.getAttribute('data-value');
+        const item = items.find(i => String(i[valueField]) === String(value));
+        if (item) { selectItem(item); }
+      });
+    });
+  }
+
+  function selectItem(item) {
+    if (multiSelect) {
+      const index = selectedItems.findIndex(s => String(s[valueField]) === String(item[valueField]));
+      if (index > -1) {
+        selectedItems.splice(index, 1);
+      } else {
+        selectedItems.push(item);
+      }
+      input.value = selectedItems.length > 0 
+        ? selectedItems.map(i => i[displayField]).join(', ')
+        : '';
+      renderOptions(items);
+      if (onSelect) onSelect(selectedItems.map(i => i[valueField]));
+    } else {
+      selectedItems = [item];
+      input.value = item[displayField] || '';
+      closeDropdown();
+      renderOptions(items);
+      if (onSelect) onSelect(item[valueField]);
+    }
+  }
+
+  function openDropdown() {
+    isOpen = true;
+    dropdown.classList.remove('hidden');
+    loadItems(input.value);
+  }
+
+  function closeDropdown() {
+    isOpen = false;
+    dropdown.classList.add('hidden');
+  }
+
+  // Open dropdown when clicking on the container or focusing the input
+  container.addEventListener('click', () => {
+    if (!isOpen) { openDropdown(); }
+    input.focus();
+  });
+  input.addEventListener('focus', () => {
+    if (!isOpen) { openDropdown(); }
+  });
+  input.addEventListener('input', () => {
+    if (!isOpen) { openDropdown(); }
+    else { loadItems(input.value); }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeDropdown(); }
+  });
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) { closeDropdown(); }
+  });
+
+  loadItems();
+
+  return {
+    getValue: () => multiSelect ? selectedItems.map(i => i[valueField]) : (selectedItems[0] ? selectedItems[0][valueField] : null),
+    setValue: (value) => {
+      if (multiSelect) {
+        if (Array.isArray(value)) {
+          selectedItems = items.filter(i => value.includes(String(i[valueField])));
+          input.value = selectedItems.map(i => i[displayField]).join(', ');
+        }
+      } else {
+        const item = items.find(i => String(i[valueField]) === String(value));
+        if (item) {
+          selectedItems = [item];
+          input.value = item[displayField] || '';
+        }
+      }
+    },
+    clear: () => {
+      selectedItems = [];
+      input.value = '';
+      renderOptions(items);
+    },
+    setDataSource: (newDataSource) => {
+      dataSource = newDataSource;
+      loadItems();
+    },
+    on: (event, callback) => {
+      if (event === 'select' && onSelect) {
+        const originalOnSelect = onSelect;
+        options.onSelect = (value) => {
+          originalOnSelect(value);
+          callback(value);
+        };
+      }
+    }
+  };
+}
+
 async function apiFetch(url, options) {
   const res = await fetch(url, { credentials: 'include', ...options });
   
-  // If server returns 401 (session expired), clear all caches and redirect to login
   if (res.status === 401) {
     try {
       sessionStorage.removeItem('cached_user');

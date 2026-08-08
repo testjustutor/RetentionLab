@@ -1,45 +1,149 @@
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
+var allRecordings = [];
+var recordingsTable = null;
+
 function fmtTime(iso){if(!iso)return'--';var d=new Date(iso);return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 function fmtDuration(s,e){if(!s||!e)return'--';var m=Math.round((new Date(e)-new Date(s))/60000);if(m<60)return m+'m';var h=Math.floor(m/60);m=m%60;return h+'h'+(m>0?' '+m+'m':'');}
 
-async function loadUsers() {
-  var sel = document.getElementById('userSelect');
-  try {
-    var json = await apiFetch('/api/recordings/users');
-    var users = json.users || [];
-    sel.innerHTML = '<option value="">Select an instructor...</option>' + users.map(function(u){return '<option value="'+u.user_id+'">'+escHtml(u.email)+' ('+escHtml(u.role_name||'instructor')+')</option>';}).join('');
-  } catch(e) { sel.innerHTML = '<option value="">Failed to load</option>'; }
+function getFilterParams() {
+  const fromDate = document.getElementById('filterFromDate')?.value || '';
+  const toDate = document.getElementById('filterToDate')?.value || '';
+  const userId = window.instructorFilter ? window.instructorFilter.getValue() : null;
+  const params = new URLSearchParams();
+  if (fromDate) params.append('from_date', fromDate);
+  if (toDate) params.append('to_date', toDate);
+  if (userId) params.append('user_id', userId);
+  return params.toString();
+}
+
+function setDefaultDateRange() {
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const fromEl = document.getElementById('filterFromDate');
+  const toEl = document.getElementById('filterToDate');
+  if (fromEl && !fromEl.value) fromEl.value = weekAgo.toISOString().split('T')[0];
+  if (toEl && !toEl.value) toEl.value = now.toISOString().split('T')[0];
+}
+
+async function loadInstructors() {
+  const instructorFilter = createSearchableSelect({
+    containerId: 'instructorFilterContainer',
+    placeholder: 'Select instructor...',
+    dataSource: async (searchTerm) => {
+      try {
+        const json = await apiFetch('/api/admin/content/instructors');
+        let instructors = json.instructors || [];
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          instructors = instructors.filter(inst => 
+            (inst.name || '').toLowerCase().includes(term) ||
+            (inst.email || '').toLowerCase().includes(term)
+          );
+        }
+        return instructors;
+      } catch { return []; }
+    },
+    displayField: 'name',
+    valueField: 'uuid',
+    onSelect: (selectedId) => {
+      window.selectedInstructorId = selectedId || null;
+    }
+  });
+  window.instructorFilter = instructorFilter;
 }
 
 async function loadRecordings() {
-  var userId = document.getElementById('userSelect').value;
-  var c = document.getElementById('recordingsContainer');
-  if (!userId) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><p class="text-sm">Select an instructor</p></div>'; return; }
-  c.innerHTML = '<div class="flex items-center justify-center py-16"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-400">Loading recordings...</span></div>';
+  if (recordingsTable) {
+    recordingsTable.setLoading(true);
+  }
   try {
-    var json = await apiFetch('/api/recordings/by-user/' + userId);
-    var recs = json.recordings || [];
-    if (!recs.length) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><p class="text-sm">No recordings found</p></div>'; return; }
-    var selOpt = document.getElementById('userSelect').selectedOptions[0];
-    var label = selOpt ? selOpt.textContent : 'Instructor';
-    var html = '<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden animate-fade-up"><div class="p-3 border-b border-slate-800 flex items-center justify-between"><div><p class="text-xs font-semibold text-white">'+label+'</p><p class="text-[10px] text-slate-500">'+recs.length+' recording'+(recs.length!==1?'s':'')+'</p></div></div><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="border-b border-slate-800 text-[10px] text-slate-500 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3">Recording</th><th class="py-2 px-3">Status</th><th class="py-2 px-3 text-right">Play</th></tr></thead><tbody class="divide-y divide-slate-800/50">';
-    for (var i = 0; i < recs.length; i++) {
-      var r = recs[i]; var dur = fmtDuration(r.start_time, r.end_time);
-      var rs = r.has_recording ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700';
-      var rl = r.has_recording ? 'Available' : (r.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
-      var sc = r.status==='completed'?'bg-emerald-500/10 text-emerald-600 border-emerald-500/20':'bg-amber-500/10 text-amber-800 border-amber-500/20';
-      html += '<tr class="hover:bg-slate-800/30 transition-colors">';
-      html += '<td class="py-2 px-3"><p class="font-medium truncate max-w-[150px]">'+escHtml(r.title||'Untitled')+'</p></td>';
-      html += '<td class="py-2 px-3 text-slate-400">'+fmtTime(r.start_time)+'</td>';
-      html += '<td class="py-2 px-3 text-slate-400">'+dur+'</td>';
-      html += '<td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">'+escHtml(PLAT[r.platform]||r.platform||'Unknown')+'</span></td>';
-      html += '<td class="py-2 px-3"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+rs+'">'+rl+'</span></td>';
-      html += '<td class="py-2 px-3"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+sc+'">'+(r.status||'unknown')+'</span></td>';
-      html += '<td class="py-2 px-3 text-right">' + (r.has_recording && r.play_url ? '<audio controls preload="none" class="h-6 w-32"><source src="'+r.play_url+'" type="audio/wav"></audio>' : '<span class="text-[10px] text-slate-600">--</span>') + '</td></tr>';
+    const userId = window.instructorFilter ? window.instructorFilter.getValue() : null;
+    const fromDate = document.getElementById('filterFromDate')?.value || '';
+    const toDate = document.getElementById('filterToDate')?.value || '';
+    const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    
+    // Get logged-in user UUID from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('rl_user') || '{}');
+    const loggedInUser = currentUser?.user_uuid || null;
+    
+    var json = await apiFetch('/api/admin/content/audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: userId || undefined,
+        startDate: fromDate || undefined,
+        endDate: toDate || undefined,
+        loggedInUser: loggedInUser || undefined
+      })
+    });
+    allRecordings = json.recordings || [];
+    
+    // Apply search filter
+    var filtered = allRecordings;
+    if (searchTerm) {
+      filtered = allRecordings.filter(function(r) {
+        return (r.title || '').toLowerCase().includes(searchTerm);
+      });
     }
-    html += '</tbody></table></div></div>';
-    c.innerHTML = html;
-  } catch(err) { c.innerHTML = '<div class="flex flex-col items-center justify-center py-16 text-red-400"><p>Failed to load</p><p class="text-xs mt-1">'+escHtml(err.message)+'</p></div>'; }
+    
+    if (!recordingsTable) {
+      recordingsTable = createTable({
+        containerId: 'recordingsContainer',
+        headers: [
+          { label: 'Meeting', key: 'title', render: function(value) {
+            return '<p class="font-medium truncate max-w-[150px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>';
+          }},
+          { label: 'Date & Time', key: 'start_time', render: function(value) {
+            return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
+          }},
+          { label: 'Duration', key: 'start_time', render: function(value, row) {
+            return '<span class="text-xs text-slate-500">' + fmtDuration(value, row.end_time) + '</span>';
+          }},
+          { label: 'Platform', key: 'platform', render: function(value) {
+            return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
+          }},
+          { label: 'Recording', key: 'has_recording', render: function(value, row) {
+            var cls = value ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
+            var label = value ? 'Available' : (row.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
+            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + label + '</span>';
+          }},
+          { label: 'Status', key: 'status', render: function(value) {
+            var cls = value === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
+            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
+          }},
+          { label: 'Play', key: 'has_recording', render: function(value, row) {
+            return value && row.play_url 
+              ? '<audio controls preload="none" class="h-6 w-32"><source src="' + row.play_url + '" type="audio/wav"></audio>'
+              : '<span class="text-[10px] text-slate-600">--</span>';
+          }}
+        ],
+        data: filtered,
+        emptyMessage: 'No recordings found',
+        pagination: { perPage: 10 }
+      });
+      recordingsTable.render();
+    } else {
+      recordingsTable.setData(filtered);
+    }
+  } catch(err) {
+    if (recordingsTable) {
+      recordingsTable.setData([]);
+    }
+    document.getElementById('recordingsContainer').innerHTML = '<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-red-600"><p class="text-sm font-medium">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
+  }
 }
 
-loadUsers();
+function escHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+// Initialize
+setDefaultDateRange();
+loadInstructors();
+
+// Auto-load data on page load
+setTimeout(function() { loadRecordings(); }, 500);

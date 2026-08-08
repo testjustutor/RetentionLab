@@ -28,16 +28,12 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'audit', label: 'Audit Log', href: '/super_admin/reports/audit' }
     ]},
 
-    { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
-      { id: 'sidebar-menu-management', label: 'Manage Menu', href: '/super_admin/settings/sidebar-menu-management' }
-    ]},
-
     { id: 'configuration', label: 'Configuration', icon: 'settings', href: null, submenu: [
       { id: 'bot-config', label: 'Bot Configuration', href: '/super_admin/configuration/bot-configuration' },
       { id: 'ai-providers', label: 'AI Providers', href: '/super_admin/configuration/ai-providers' },
       { id: 'platforms', label: 'Platforms', href: '/super_admin/configuration/platforms' }
     ]},
-    
+
     { id: 'monitoring', label: 'Monitoring', icon: 'activity', href: null, submenu: [
       { id: 'server-performance', label: 'Server Performance', href: '/super_admin/monitoring/server' }
     ]},
@@ -118,11 +114,11 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   instructor: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index.html', color: 'violet', section: 'main', submenu: null },
-    { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/instructor/meetings.html', color: 'blue', section: 'main', submenu: null },
-    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/instructor/evaluations.html', color: 'emerald', section: 'main', submenu: null },
-    { id: 'reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports.html', color: 'indigo', section: 'main', submenu: null },
-    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile.html', color: 'slate', section: 'account', submenu: null },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index', color: 'violet', section: 'main', submenu: null },
+    { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/instructor/meetings', color: 'blue', section: 'main', submenu: null },
+    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/instructor/evaluations', color: 'emerald', section: 'main', submenu: null },
+    { id: 'reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports', color: 'indigo', section: 'main', submenu: null },
+    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   solo_instructor: [

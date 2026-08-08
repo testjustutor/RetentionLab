@@ -48,7 +48,7 @@ class VideoRecordingsModel {
         LEFT JOIN users u ON m.created_by = u.id
         LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.id
         LEFT JOIN meeting_assets ma ON ma.meeting_id = m.id
-        WHERE m.deleted_at IS NULL
+        WHERE (ma.audio_path IS NOT NULL OR ma.wav_audio_path IS NOT NULL)
       `;
 
       const params = [];
@@ -75,9 +75,6 @@ class VideoRecordingsModel {
         sql += ` AND m.created_by = ?`;
         params.push(filters.instructorId);
       }
-
-      // Only show meetings with actual recordings
-      sql += ` AND (ma.audio_path IS NOT NULL OR ma.wav_audio_path IS NOT NULL)`;
 
       sql += ` ORDER BY m.scheduled_start_time DESC`;
 
@@ -166,7 +163,7 @@ class VideoRecordingsModel {
         LEFT JOIN users u ON m.created_by = u.id
         LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.id
         LEFT JOIN meeting_assets ma ON ma.meeting_id = m.id
-        WHERE m.id = ? AND m.deleted_at IS NULL
+        WHERE m.id = ?
         LIMIT 1
       `;
 

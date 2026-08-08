@@ -1,6 +1,8 @@
 /**
  * models/menu/MenuModel.js
- * Handles menu items, role permissions, and user overrides
+ * Handles menu items and role permissions
+ * Each role has its own set of menu items (role_id in menu_items table)
+ * No direct user-menu assignment exists
  */
 
 class MenuModel {
@@ -12,15 +14,22 @@ class MenuModel {
   }
 
   /**
-   * Get all active menu items
+   * Get all active menu items for a specific role
+   * @param {number} roleId - Role ID to filter menu items
    */
-  static async getAllMenuItems() {
+  static async getAllMenuItems(roleId = null) {
     const { allAsync } = this.getHelpers();
-    return allAsync(`
-      SELECT * FROM menu_items 
-      WHERE is_active = 1 
-      ORDER BY sort_order ASC, id ASC
-    `);
+    let sql = `SELECT * FROM menu_items WHERE is_active = 1`;
+    const params = [];
+    
+    if (roleId !== null) {
+      sql += ` AND role_id = ?`;
+      params.push(roleId);
+    }
+    
+    sql += ` ORDER BY sort_order ASC, id ASC`;
+    
+    return allAsync(sql, params);
   }
 
   /**
@@ -47,10 +56,7 @@ class MenuModel {
       [roleId]
     );
     
-    // Convert to map for efficient lookup.
-    // The parent_id column may contain either:
-    // 1) a parent menu_item_id (new seeding format), or
-    // 2) another role_menu_permissions row id (legacy/older seed format).
+    // Convert to map for efficient lookup
     const permissionRowIdToMenuItemId = {};
     for (const row of rows) {
       permissionRowIdToMenuItemId[row.id] = row.menu_item_id;
@@ -73,66 +79,15 @@ class MenuModel {
   }
 
   /**
-   * Get user menu overrides for a specific user
-   * Returns map: menu_item_id -> { is_visible, sort_order, parent_id }
-   */
-  static async getUserMenuOverrides(userId) {
-    const { allAsync } = this.getHelpers();
-    const rows = await allAsync(
-      `SELECT menu_item_id, is_visible, sort_order, parent_id
-       FROM user_menu_permissions 
-       WHERE user_id = ?`,
-      [userId]
-    );
-
-    const overridesMap = {};
-    for (const row of rows) {
-      overridesMap[row.menu_item_id] = {
-        is_visible: row.is_visible,
-        sort_order: row.sort_order,
-        parent_id: row.parent_id
-      };
-    }
-    return overridesMap;
-  }
-
-  /**
-   * Merge role defaults with user overrides
-   * User overrides win if present
-   * @param {Object} rolePermissions - Map from getRoleMenuPermissions()
-   * @param {Object} userOverrides - Map from getUserMenuOverrides()
-   * @returns {Object} Merged permissions map
-   */
-  static mergePermissions(rolePermissions, userOverrides) {
-    const merged = { ...rolePermissions };
-    
-    // Apply user overrides on top of role defaults
-    for (const [menuItemId, override] of Object.entries(userOverrides)) {
-      if (merged[menuItemId]) {
-        merged[menuItemId] = {
-          is_visible: override.is_visible !== null ? override.is_visible : merged[menuItemId].is_visible,
-          sort_order: override.sort_order !== null ? override.sort_order : merged[menuItemId].sort_order,
-          parent_id: merged[menuItemId].parent_id
-        };
-      } else {
-        merged[menuItemId] = override;
-      }
-    }
-    
-    return merged;
-  }
-
-  /**
    * Build nested tree structure from flat menu items
-   * Only includes items that have an explicit permission entry (role or user).
-   * Items without any permission entry are excluded — they belong to other roles.
-   * Uses the parent_id from the permissionsMap (role-level hierarchy) rather than
-   * the menu_items table (which only stores super_admin's hierarchy).
-   * @param {Array} menuItems - All menu items
-   * @param {Object} permissionsMap - Merged permissions (visibility + sort_order + parent_id)
+   * Only includes items that have an explicit permission entry for the role.
+   * Uses the parent_id from the permissionsMap (role-level hierarchy).
+   * @param {Array} menuItems - All menu items for this role
+   * @param {Object} permissionsMap - Role permissions (visibility + sort_order + parent_id)
+   * @param {number} [roleId] - Optional, used only for clearer warning logs
    * @returns {Array} Nested tree structure
    */
-  static buildMenuTree(menuItems, permissionsMap) {
+  static buildMenuTree(menuItems, permissionsMap, roleId = null) {
     const itemMap = {};
     const tree = [];
 
@@ -140,8 +95,16 @@ class MenuModel {
     for (const item of menuItems) {
       const permission = permissionsMap[item.id];
       
-      // Skip items that have no permission entry at all (they belong to other roles)
-      if (!permission) continue;
+      // Skip items that have no permission entry at all
+      if (!permission) {
+        console.warn(
+          `[MenuModel] menu item id=${item.id} (menu_key="${item.menu_key}") has no ` +
+          `role_menu_permissions entry${roleId ? ` for role_id=${roleId}` : ''} — skipping. ` +
+          `This usually means the seeder failed partway through; check for duplicate ` +
+          `menu_key values or a crashed seed run.`
+        );
+        continue;
+      }
       
       // Skip hidden items
       if (!permission.is_visible) continue;
@@ -149,7 +112,6 @@ class MenuModel {
       itemMap[item.id] = {
         ...item,
         sort_order: permission.sort_order !== null ? permission.sort_order : item.sort_order,
-        // Use parent_id from permissions map (role-level), fall back to menu_items parent
         parent_id: permission.parent_id !== null ? permission.parent_id : item.parent_id,
         children: []
       };
@@ -177,26 +139,30 @@ class MenuModel {
   }
 
   /**
-   * Cache for resolved menus: key = "user_{userId}", value = tree array
-   * Cleared when role defaults or any user override changes
+   * Cache for resolved menus: key = "role_{roleId}", value = tree array
+   * Cleared when role defaults change, or entirely on demand via clearAllCache()
    */
   static menuCache = {};
 
   /**
-   * Invalidate cache entries that depend on the given role or user
+   * Invalidate cache entries for a given role
    */
-  static invalidateCache(roleId, userId) {
-    if (userId) {
-      delete this.menuCache[`user_${userId}`];
-    }
-    // When role defaults change, invalidate all users in that role
+  static invalidateCache(roleId) {
     if (roleId) {
-      for (const key of Object.keys(this.menuCache)) {
-        if (this.menuCache[key]?.roleId === roleId) {
-          delete this.menuCache[key];
-        }
-      }
+      delete this.menuCache[`role_${roleId}`];
     }
+  }
+
+  /**
+   * Clear the entire in-memory menu cache for every role.
+   * IMPORTANT: call this after any full DB reset/reseed (e.g. `node database/reset-db.js --force`)
+   * run while the server process stays alive — otherwise the sidebar API will keep serving
+   * stale menu data from before the reset until the process restarts.
+   */
+  static clearAllCache() {
+    const clearedRoles = Object.keys(this.menuCache).length;
+    this.menuCache = {};
+    console.log(`[MenuModel] Cleared menu cache for ${clearedRoles} role(s).`);
   }
 
   /**
@@ -222,114 +188,34 @@ class MenuModel {
       );
     }
 
-    // Invalidate cache for all users in this role since role defaults changed
-    this.invalidateCache(roleId, null);
+    // Invalidate cache for this role
+    this.invalidateCache(roleId);
 
     return { success: true, message: 'Role menu permissions saved' };
   }
 
   /**
-   * Save user menu overrides (thin/exception-only layer)
-   * 
-   * Instead of storing all menu items for a user, this stores ONLY the items
-   * where the user's visibility differs from their role default.
-   * 
-   * If an override matches the role default, it is REMOVED (not stored as redundant data).
-   * If the user has no overrides, nothing exists in the user_menu_permissions table.
-   * 
-   * @param {number} userId - User ID
-   * @param {number} roleId - User's role ID (to compare against role defaults)
-   * @param {Array} desiredPermissions - Array of { menu_item_id, is_visible, sort_order }
-   *                                      representing what the admin wants the user to see
-   */
-  static async saveUserMenuOverrides(userId, overrides) {
-    const { runAsync, getAsync } = this.getHelpers();
-
-    // Get the user's role to compare against role defaults
-    const user = await getAsync(
-      `SELECT role_id FROM users WHERE id = ?`,
-      [userId]
-    );
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // Get role defaults for comparison
-    const rolePermissions = await this.getRoleMenuPermissions(user.role_id);
-    
-    // Get all menu items to know sort_order defaults
-    const menuItems = await this.getAllMenuItems();
-    const menuItemDefaults = {};
-    for (const item of menuItems) {
-      menuItemDefaults[item.id] = item.sort_order;
-    }
-
-    // Filter: only keep overrides that actually differ from role defaults
-    // This keeps the user_menu_permissions table minimal
-    const realExceptions = overrides.filter(override => {
-      const roleDefault = rolePermissions[override.menu_item_id];
-      const roleVisible = roleDefault?.is_visible ?? 1;
-      const roleSort = roleDefault?.sort_order ?? menuItemDefaults[override.menu_item_id] ?? 0;
-      
-      const overrideVisible = override.is_visible !== undefined ? (override.is_visible ? 1 : 0) : null;
-      const overrideSort = override.sort_order !== undefined ? override.sort_order : null;
-
-      // If both match the role default, it's not a real exception
-      if (overrideVisible === roleVisible && (overrideSort === null || overrideSort === roleSort)) {
-        return false; // Skip - matches role default
-      }
-      return true; // Keep - real exception
-    });
-
-    // Delete all existing overrides for this user (clean slate)
-    await runAsync(
-      `DELETE FROM user_menu_permissions WHERE user_id = ?`,
-      [userId]
-    );
-
-    // Insert only the real exceptions
-    for (const override of realExceptions) {
-      await runAsync(
-        `INSERT INTO user_menu_permissions (user_id, menu_item_id, is_visible, sort_order)
-         VALUES (?, ?, ?, ?)`,
-        [userId, override.menu_item_id, override.is_visible ? 1 : 0, override.sort_order ?? null]
-      );
-    }
-
-    // Invalidate cache for this user
-    this.invalidateCache(null, userId);
-
-    return { 
-      success: true, 
-      message: `User menu overrides saved (${realExceptions.length} exceptions out of ${overrides.length} items)`,
-      exceptions_created: realExceptions.length,
-      exceptions_removed: overrides.length - realExceptions.length
-    };
-  }
-
-  /**
-   * Get resolved menu for a user with caching
+   * Get resolved menu for a user's role with caching
    * Returns the menu from cache if available, otherwise computes and caches it
-   * @param {number} userId - User ID
    * @param {number} roleId - User's role ID
    * @returns {Array} Nested menu tree
    */
-  static async getResolvedMenuForUser(userId, roleId) {
-    const cacheKey = `user_${userId}`;
+  static async getResolvedMenuForUser(roleId) {
+    const cacheKey = `role_${roleId}`;
     
     // Check cache first
     if (this.menuCache[cacheKey]) {
       return this.menuCache[cacheKey].tree;
     }
 
-    // Fetch all menu items and role permissions in parallel
+    // Fetch menu items for this role and role permissions in parallel
     const [menuItems, rolePermissions] = await Promise.all([
-      this.getAllMenuItems(),
+      this.getAllMenuItems(roleId),
       this.getRoleMenuPermissions(roleId)
     ]);
 
-    // Build and cache tree from role defaults only
-    const tree = this.buildMenuTree(menuItems, rolePermissions);
+    // Build and cache tree from role defaults
+    const tree = this.buildMenuTree(menuItems, rolePermissions, roleId);
     this.menuCache[cacheKey] = { tree, roleId };
     
     return tree;

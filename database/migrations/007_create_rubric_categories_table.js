@@ -14,10 +14,11 @@ CREATE TABLE IF NOT EXISTS rubric_categories (
     category_id VARCHAR(10) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     weight DECIMAL(5,2) NOT NULL DEFAULT 0,
+    status ENUM('active', 'inactive') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-`);
+ `);
   console.log('[Migration rubric_categories] Complete.');
 };
 const down = async () => {

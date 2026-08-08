@@ -15,6 +15,15 @@ const controller = {
     } catch (e) {
       return err(e.message, 500);
     }
+  },
+
+  async getDashboardOverview(req) {
+    try {
+      const overview = await AdminModel.getDashboardOverview();
+      return ok(overview, 'Dashboard overview fetched');
+    } catch (e) {
+      return err(e.message, 500);
+    }
   }
 };
 

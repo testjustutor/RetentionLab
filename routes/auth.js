@@ -11,6 +11,7 @@ const { requireAuth } = require('../middleware/auth');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', requireAuth, authController.logout);
+router.get('/logout', requireAuth, authController.logout);  // Handle GET requests for logout (e.g., from sidebar links)
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 router.post('/verify-email', authController.verifyEmail);

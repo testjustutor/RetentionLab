@@ -111,7 +111,7 @@ const SessionQualityFilters = (() => {
 
   async function loadInstructors() {
     try {
-      const res = await apiFetch('/api/tutoring/filters/instructors', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/instructors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -135,7 +135,7 @@ const SessionQualityFilters = (() => {
   async function loadBoards(instructorId) {
     try {
       const body = instructorId ? { instructor_id: instructorId } : {};
-      const res = await apiFetch('/api/tutoring/filters/boards', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -153,7 +153,7 @@ const SessionQualityFilters = (() => {
       const body = {};
       if (instructorId) body.instructor_id = instructorId;
       if (board) body.board = board;
-      const res = await apiFetch('/api/tutoring/filters/classes', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/classes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -172,7 +172,7 @@ const SessionQualityFilters = (() => {
       if (instructorId) body.instructor_id = instructorId;
       if (board) body.board = board;
       if (grade) body.grade = grade;
-      const res = await apiFetch('/api/tutoring/filters/subjects', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/subjects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -192,7 +192,7 @@ const SessionQualityFilters = (() => {
       if (board) body.board = board;
       if (grade) body.grade = grade;
       if (subject) body.subject = subject;
-      const res = await apiFetch('/api/tutoring/filters/meetings', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/meetings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -208,7 +208,7 @@ const SessionQualityFilters = (() => {
   async function loadSessions(meetingInternalId) {
     try {
       const body = meetingInternalId ? { meeting_internal_id: meetingInternalId } : {};
-      const res = await apiFetch('/api/tutoring/filters/sessions', { 
+      const res = await apiFetch('/api/admin/tutoring/filters/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

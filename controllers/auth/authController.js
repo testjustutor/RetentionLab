@@ -210,7 +210,7 @@ const authController = {
         if (!token) return res.status(200).json({ success: true, user: null });
         const payload = verifyToken(token);
         if (!payload) return res.status(200).json({ success: true, user: null });
-        req.user = { id: payload.id, role_id: payload.role_id || null, role_name: payload.role_name, company_id: payload.company_id, email: payload.email };
+        req.user = { id: payload.id, user_uuid: payload.user_uuid || null, role_id: payload.role_id || null, role_name: payload.role_name, company_id: payload.company_id, email: payload.email };
       }
 
       const user = await UsersModel.getUserById(req.user.id);

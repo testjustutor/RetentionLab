@@ -52,7 +52,7 @@ class RubricEvaluationModel {
         ri.benchmark,
         ri.requires_video
       FROM session_rubric_evaluations sre
-      JOIN rubric_indicators ri ON sre.indicator_id = ri.indicator_id
+      JOIN admin_rubric_indicators ri ON sre.indicator_id = ri.indicator_id
       WHERE sre.session_id = ?
       ORDER BY ri.category_id, sre.indicator_id`;
       

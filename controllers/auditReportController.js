@@ -20,10 +20,10 @@ const controller = {
 
       // 1) Total scores as audit base
       const scoresSql = `
-        SELECT ms.*, m.title as meeting_title, m.platform, m.start_time as meeting_date,
+        SELECT ms.*, m.title as meeting_title, m.platform, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
         FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.meeting_id = ms.meeting_id
+        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id
         WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ORDER BY ms.scored_at DESC
@@ -36,9 +36,9 @@ const controller = {
 
       // 2) Audit results from ai_audit_results table
       const auditSql = `
-        SELECT aar.*, m.title as meeting_title, m.start_time as meeting_date
+        SELECT aar.*, m.title as meeting_title, m.scheduled_start_time as meeting_date
         FROM ai_audit_results aar
-        LEFT JOIN meetings m ON m.meeting_id = aar.meeting_id
+        LEFT JOIN meetings m ON m.external_meeting_id = aar.meeting_id
         WHERE aar.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ORDER BY aar.scored_at DESC
         LIMIT 200

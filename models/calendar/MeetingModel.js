@@ -136,7 +136,7 @@ class MeetingModel {
 
       const now = new Date();
       const future = new Date(now.getTime() + hours * 3600000);
-      const futureStr = future.toISOString().slice(0, 19).replace('T', ' ');
+      const futureStr = future.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
 
       const placeholders = emails.map(() => '?').join(',');
       const params = [...emails, futureStr];

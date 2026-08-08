@@ -18,7 +18,7 @@
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
         <div class="flex items-center justify-between mb-4">
           <div id="header-buttons-container"></div>
-          <button onclick="showAssignModal()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">Assign Reviewer</button>
+          <button onclick="showAssignModal()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-slate-100 text-xs font-semibold transition-colors">Assign Reviewer</button>
         </div>
 
         <!-- Status Tabs -->
@@ -86,25 +86,43 @@
   <!-- Assign Reviewer Modal -->
   <div id="assignModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
     <div class="flex items-center justify-center min-h-screen p-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 w-full max-w-md">
- <h3 class="text-base font-semibold mb-3">Assign Reviewer</h3>
-        <div class="space-y-2">
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-5 w-full max-w-lg">
+        <h3 class="text-lg font-bold text-slate-100 mb-4">Assign Reviewer</h3>
+        
+        <div class="space-y-3">
+          <!-- Instructor Selection -->
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Meeting</label>
- <select id="meetingSelect" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs focus:border-violet-500 outline-none">
-              <option value="">Select meeting...</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Instructor</label>
+            <div id="instructorSelectContainer"></div>
           </div>
+
+          <!-- Meeting Selection -->
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Reviewer</label>
- <select id="reviewerSelect" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs focus:border-violet-500 outline-none">
-              <option value="">Select reviewer...</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Meeting</label>
+            <div id="meetingSelectContainer"></div>
+          </div>
+
+          <!-- Reviewer Selection -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Reviewer</label>
+            <div id="reviewerSelectContainer"></div>
+          </div>
+
+          <!-- Bulk Assignment Option -->
+          <div class="bg-slate-800/50 border border-slate-700 rounded-md p-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" id="bulkAssign" class="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-700 text-violet-600 focus:ring-violet-500 focus:ring-offset-slate-900">
+              <div class="flex-1">
+                <span class="text-sm font-medium text-slate-100">Assign to all meetings</span>
+                <p class="text-xs text-slate-400 mt-0.5">Assign selected reviewer to all meetings of the selected instructor (last 90 days)</p>
+              </div>
+            </label>
           </div>
         </div>
-        <div class="flex gap-2 mt-4">
-          <button onclick="hideAssignModal()" class="flex-1 px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-white hover:text-slate-900 transition-colors text-xs">Cancel</button>
-          <button onclick="assignReviewer()" class="flex-1 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white font-semibold transition-colors text-xs">Assign</button>
+
+        <div class="flex gap-2 mt-5">
+          <button onclick="hideAssignModal()" class="flex-1 px-4 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 hover:bg-slate-700 transition-colors text-sm font-medium">Cancel</button>
+          <button onclick="assignReviewer()" class="flex-1 px-4 py-2 rounded-md bg-violet-600 hover:bg-violet-500 text-slate-100 font-semibold transition-colors text-sm">Assign Reviewer</button>
         </div>
       </div>
     </div>

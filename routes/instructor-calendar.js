@@ -13,7 +13,7 @@ function handle(fn) {
 }
 
 // Protected routes (require admin login)
-router.get('/connections', requireAuth, handle(ctrl.listConnections));
+router.post('/connections', requireAuth, handle(ctrl.listConnections));
 router.post('/send-verification', requireAuth, handle(ctrl.sendVerification));
 router.post('/disconnect', requireAuth, handle(ctrl.disconnect));
 router.get('/status/:email', requireAuth, handle(ctrl.getStatus));

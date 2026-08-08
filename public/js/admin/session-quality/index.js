@@ -31,7 +31,7 @@ let curriculumChart = null;
 
 async function loadInstructorOptions() {
   try {
-    const res = await apiFetch('/api/tutoring/filters/instructors', { method: 'POST' });
+    const res = await apiFetch('/api/admin/tutoring/filters/instructors', { method: 'POST' });
     const data = res.data || res;
     const select = document.getElementById('filterInstructor');
     if (!select) return;
@@ -46,7 +46,7 @@ async function loadInstructorOptions() {
 async function loadMeetingOptions(instructorId) {
   try {
     const body = instructorId ? { instructor_id: instructorId } : {};
-    const res = await apiFetch('/api/tutoring/filters/meetings', { 
+    const res = await apiFetch('/api/admin/tutoring/filters/meetings', {
       method: 'POST',
       body: JSON.stringify(body)
     });
@@ -71,7 +71,7 @@ async function loadMeetingOptions(instructorId) {
 async function loadSessionOptions(internalMeetingId) {
   try {
     const body = internalMeetingId ? { meeting_internal_id: internalMeetingId } : {};
-    const res = await apiFetch('/api/tutoring/filters/sessions', { 
+    const res = await apiFetch('/api/admin/tutoring/filters/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -98,7 +98,7 @@ async function loadDashboardData() {
     if (instructorId) body.instructor_id = instructorId;
     if (meetingId) body.meeting_id = meetingId;
 
-    const response = await apiFetch('/api/tutoring/dashboard', { 
+    const response = await apiFetch('/api/admin/tutoring/dashboard', {
       method: 'POST',
       body: JSON.stringify(body)
     });

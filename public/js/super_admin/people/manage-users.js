@@ -88,7 +88,12 @@ async function loadCompanies() {
 
 async function loadAllUsers() {
     try {
-        const response = await fetch('/api/users', { credentials: 'include' });
+        const response = await fetch('/api/users', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, per_page: 100 }),
+          credentials: 'include' 
+        });
         if (!response.ok) throw new Error('Failed to fetch users');
         const result = await response.json();
         allUsers = result.data || [];

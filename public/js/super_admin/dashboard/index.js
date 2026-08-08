@@ -55,7 +55,7 @@ async function refreshDashboard() {
   const days = document.getElementById('timeRange')?.value || 7;
 
   try {
-    const data = await apiFetch(`/api/dashboard/super-admin/stats?days=${days}`);
+    const data = await apiFetch(`/api/admin/dashboard/super-admin/stats?days=${days}`);
     if (!data.success || !data.stats) {
       throw new Error('Invalid response from server');
     }

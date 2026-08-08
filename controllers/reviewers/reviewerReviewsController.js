@@ -23,7 +23,7 @@ const controller = {
         FROM users u
         LEFT JOIN roles r ON r.id = u.role_id
         INNER JOIN meetings m ON LOWER(m.calendar_account) = LOWER(u.email)
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.meeting_id AND mr.reviewer_id = ?
+        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
         WHERE u.deleted_at IS NULL
         AND u.is_active = 1
         AND r.role_name IN ('solo_instructor', 'instructor')
@@ -49,10 +49,10 @@ const controller = {
       if (!instructorId) return err('instructor_id is required', 400);
 
       let sql = `
-        SELECT m.meeting_id,
+        SELECT m.external_meeting_id,
                m.title as meeting_title,
-               m.start_time,
-               m.end_time,
+               m.scheduled_start_time,
+               m.scheduled_end_time,
                m.platform,
                m.meeting_link,
                m.status as meeting_status,
@@ -62,8 +62,8 @@ const controller = {
                ma.summary_path,
                ma.oqi_score,
                ma.review_status as asset_review_status,
-               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.meeting_id) as score_count,
-               (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.meeting_id) as avg_score,
+               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as score_count,
+               (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as avg_score,
                mr.id as review_id,
                mr.review_status,
                mr.assigned_at,
@@ -71,8 +71,8 @@ const controller = {
                mr.comments,
                CONCAT(u.first_name, ' ', u.last_name) as assigned_by_name
         FROM meetings m
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.meeting_id AND mr.reviewer_id = ?
-        LEFT JOIN meeting_assets ma ON ma.meeting_id = m.meeting_id
+        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
+        LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
         LEFT JOIN users u ON u.id = mr.assigned_by
         WHERE LOWER(m.calendar_account) = (SELECT LOWER(email) FROM users WHERE id = ?)`;
       const params = [reviewerId, instructorId];
@@ -96,7 +96,7 @@ const controller = {
         params.push(`%${search}%`, `%${search}%`, `%${search}%`);
       }
 
-      sql += ` ORDER BY m.start_time DESC LIMIT 100`;
+      sql += ` ORDER BY m.scheduled_start_time DESC LIMIT 100`;
 
       const rows = await new Promise((resolve, reject) => {
         db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));

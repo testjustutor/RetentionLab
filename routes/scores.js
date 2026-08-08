@@ -23,4 +23,10 @@ router.delete('/session/meeting/:meetingId', requireAuth, requireRole('super_adm
  */
 router.get('/', requireAuth, scoresController.list);
 
+// New endpoints for filtered scores
+router.post('/evaluation/instructors', requireAuth, scoresController.getInstructors);
+router.get('/sessions/:instructorId', requireAuth, scoresController.getSessionsByInstructor);
+router.post('/evaluation/reviewers', requireAuth, scoresController.getReviewers);
+router.post('/filtered', requireAuth, scoresController.getFilteredScores);
+
 module.exports = router;

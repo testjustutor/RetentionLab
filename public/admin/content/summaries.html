@@ -10,31 +10,44 @@
   <link rel="stylesheet" href="../../css/shared.css">
   <script src="../../js/common-ui.js"></script>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div id="header-buttons-container"></div>
-          <div class="flex items-center gap-2">
- <select id="userSelect" class="bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-violet-500 cursor-pointer min-w-[200px]" onchange="loadSummaries()">
-              <option value="">Loading instructors...</option>
-            </select>
-            <button onclick="loadSummaries()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              Load
-            </button>
+        <!-- Filter Bar -->
+        <div class="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">From Date</label>
+                <input type="date" id="filterFromDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">To Date</label>
+                <input type="date" id="filterToDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Instructor</label>
+                <div id="instructorFilterContainer"></div>
+              </div>
+              <button onclick="loadSummaries()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                Get Data
+              </button>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Search</label>
+              <input type="text" id="searchInput" placeholder="Search by title..." class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 min-w-[180px]">
+            </div>
           </div>
         </div>
-        <div id="summariesContainer">
-          <div class="flex flex-col items-center justify-center py-12 text-slate-500">
-            <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-3"><svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div>
-            <p class="text-xs">Select an instructor to view summaries</p>
-          </div>
-        </div>
+
+        <!-- Table Container (uses createTable from common-ui.js) -->
+        <div id="summariesContainer"></div>
+
       </main>
     </div>
   </div>
@@ -42,8 +55,3 @@
   <script src="../../js/load-components.js"></script>
   <script src="../../js/admin/content/summaries.js"></script>
 </body></html>
-
-
-
-
-

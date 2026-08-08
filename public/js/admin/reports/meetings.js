@@ -17,7 +17,7 @@ async function init() {
 async function loadMeetings() {
   try {
     const days = document.getElementById('daysFilter').value;
-    const data = await apiFetch(`/api/meetings/reports/summary?days=${days}`);
+    const data = await apiFetch(`/api/admin/meetings/reports/summary?days=${days}`);
     allMeetings = data.meetings || [];
     // Update stats if available
     if (data.stats) {
@@ -31,7 +31,7 @@ async function loadMeetings() {
     console.error('loadMeetings:', e);
     // Fallback: try the direct meetings endpoint
     try {
-      const fb = await apiFetch('/api/meetings/list');
+      const fb = await apiFetch('/api/admin/meetings/list');
       allMeetings = fb.meetings || [];
     } catch(e2) { console.error('fallback also failed:', e2); }
   }

@@ -12,6 +12,7 @@
     "db:seed": "node database/setup-mysql.js",
     "db:reset": "node database/reset-db.js --force",
     "db:migrate": "node database/reset-db.js --migrate-only",
+    "db:manual-seed": "node database/run-manual-seeders.js",
     "build": "npm run db:init && npm run db:seed && echo 'Build Complete: Database synced and environment verified.'"
   },
   "keywords": [

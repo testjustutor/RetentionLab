@@ -211,7 +211,7 @@ const API = {
   },
 
   login:            (email, password) => API.request('/login',            { method: 'POST', body: JSON.stringify({ email, password }) }),
-  logout:           ()                => API.request('/logout',           { method: 'POST' }),
+  logout:           ()                => API.request('/logout',           { method: 'POST', credentials: 'include' }),
   register:         (payload)         => API.request('/register',         { method: 'POST', body: JSON.stringify(payload) }),
   forgotPassword:   (email)           => API.request('/forgot-password',   { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword:    (token, password) => API.request('/reset-password',    { method: 'POST', body: JSON.stringify({ token, password }) }),

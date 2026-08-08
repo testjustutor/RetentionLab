@@ -17,17 +17,6 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
-        <div class="flex items-center justify-between mb-4">
-          <div id="header-buttons-container"></div>
-          <div class="flex gap-2">
- <select id="scoreTypeFilter" class="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs focus:border-violet-500 outline-none">
-              <option value="">All Types</option>
-              <option value="AI">AI Scores</option>
-              <option value="HUMAN">Human Scores</option>
-            </select>
-            <button onclick="exportScores()" class="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">Export CSV</button>
-          </div>
-        </div>
 
         <!-- Summary Stats -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4" id="statsCards">
@@ -70,8 +59,64 @@
               </div>
  <div><p class="text-[12px] text-slate-500">Human</p><p class="text-base font-bold " id="humanScores">-</p></div>
             </div>
+          </div>     
+        </div>
+        <!-- Cascading Filters -->
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-4">
+          <!-- Filters Row -->
+          <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
+            <!-- From Date -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">From Date</label>
+              <input type="date" id="filterFromDate" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-100 focus:border-violet-500 focus:outline-none">
+            </div>
+
+            <!-- To Date -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">To Date</label>
+              <input type="date" id="filterToDate" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-100 focus:border-violet-500 focus:outline-none">
+            </div>
+
+            <!-- Instructor Filter -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Instructor</label>
+              <div id="instructorFilterContainer"></div>
+            </div>
+
+            <!-- Session Filter -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Session</label>
+              <div id="sessionFilterContainer"></div>
+            </div>
+
+            <!-- Reviewer Filter -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Reviewer</label>
+              <div id="reviewerFilterContainer"></div>
+            </div>
+
+            <!-- Get Data Button -->
+            <div class="flex items-end">
+              <button id="getDataBtn" class="w-full px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-slate-100 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Get Data
+              </button>
+            </div>
+
+            <!-- Export CSV Button (Right Side) -->
+            <div class="flex items-end justify-end">
+              <button onclick="exportScores()" class="w-full px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-slate-100 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export CSV
+              </button>
+            </div>
           </div>
         </div>
+
 
         <div id="scoresRoot">
           <div class="animate-pulse space-y-4">

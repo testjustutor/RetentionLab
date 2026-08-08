@@ -1,48 +1,129 @@
 let currentFilter = '';
 let allReviews = [];
-let allMeetings = [];
+let allInstructors = [];
 let allReviewers = [];
+let instructorDropdown = null;
+let meetingDropdown = null;
+let reviewerDropdown = null;
 
 (async () => {
   await loadData();
   updateStats();
   renderReviews();
-  await loadMeetingsAndReviewers();
+  await loadInstructorsAndReviewers();
 })();
 
 async function loadData() {
   try {
-    const data = await apiFetch('/api/reviews/queue' + (currentFilter ? `?status=${currentFilter}` : ''));
+    const data = await apiFetch('/api/admin/reviews/queue' + (currentFilter ? `?status=${currentFilter}` : ''));
     allReviews = data.reviews || [];
   } catch(e) {
     document.getElementById('reviewsRoot').innerHTML = `<p class="text-red-400">Failed to load reviews: ${e.message}</p>`;
   }
 }
 
-async function loadMeetingsAndReviewers() {
+async function loadInstructorsAndReviewers() {
   try {
-    const [meetingsData, reviewersData] = await Promise.all([
-      apiFetch('/api/meetings/list'),
-      apiFetch('/api/reviews/reviewers')
+    const [instructorsData, reviewersData] = await Promise.all([
+      apiFetch('/api/admin/reviews/instructors'),
+      apiFetch('/api/admin/reviews/reviewers')
     ]);
-    allMeetings = meetingsData.meetings || [];
+    allInstructors = instructorsData.instructors || [];
     allReviewers = reviewersData.reviewers || [];
     
-    // Populate meeting select
-    const meetingSelect = document.getElementById('meetingSelect');
-    meetingSelect.innerHTML = '<option value="">Select meeting...</option>';
-    allMeetings.forEach(m => {
-      meetingSelect.innerHTML += `<option value="${m.meeting_id}">${escapeHtml(m.title)} - ${formatDate(m.start_time)}</option>`;
+    // Custom instructor dropdown
+    const instructorData = allInstructors.map(i => ({ uuid: i.uuid, name: i.name + ' (' + i.email + ')' }));
+    instructorDropdown = createDarkSearchableSelect({
+      containerId: 'instructorSelectContainer',
+      placeholder: 'Choose an instructor...',
+      dataSource: instructorData,
+      displayField: 'name',
+      valueField: 'uuid',
+      onSelect: (value) => {
+        loadMeetingsByInstructor(value);
+      }
     });
 
-    // Populate reviewer select
-    const reviewerSelect = document.getElementById('reviewerSelect');
-    reviewerSelect.innerHTML = '<option value="">Select reviewer...</option>';
-    allReviewers.forEach(r => {
-      reviewerSelect.innerHTML += `<option value="${r.id}">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name || '')} (${escapeHtml(r.email)})</option>`;
+    // Custom meeting dropdown (initially empty)
+    meetingDropdown = createDarkSearchableSelect({
+      containerId: 'meetingSelectContainer',
+      placeholder: 'Select instructor first...',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'uuid',
+      onSelect: () => {}
+    });
+
+    // Custom reviewer dropdown
+    const reviewerData = allReviewers.map(r => ({ uuid: r.uuid, name: r.first_name + ' ' + (r.last_name || '') + ' (' + r.email + ')' }));
+    reviewerDropdown = createDarkSearchableSelect({
+      containerId: 'reviewerSelectContainer',
+      placeholder: 'Choose a reviewer...',
+      dataSource: reviewerData,
+      displayField: 'name',
+      valueField: 'uuid',
+      onSelect: () => {}
     });
   } catch(e) {
-    console.error('Failed to load meetings/reviewers:', e);
+    console.error('Failed to load instructors/reviewers:', e);
+    showToast('Failed to load data. Please refresh the page.', true);
+  }
+}
+
+async function loadMeetingsByInstructor(instructorId) {
+  if (!instructorId) {
+    // Reset meeting dropdown
+    meetingDropdown = createDarkSearchableSelect({
+      containerId: 'meetingSelectContainer',
+      placeholder: 'Select instructor first...',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
+    return;
+  }
+
+  // Show loading state
+  meetingDropdown = createDarkSearchableSelect({
+    containerId: 'meetingSelectContainer',
+    placeholder: 'Loading meetings...',
+    dataSource: [],
+    displayField: 'name',
+    valueField: 'id',
+    onSelect: () => {}
+  });
+
+  try {
+    const data = await apiFetch(`/api/admin/reviews/meetings/${instructorId}`);
+    const meetings = data.meetings || [];
+    
+    const meetingData = meetings.length > 0 
+      ? meetings.map(m => ({ 
+          id: m.meeting_id, 
+          name: m.title + ' - ' + (m.scheduled_start_time ? formatDate(m.scheduled_start_time) : 'No date') 
+        }))
+      : [{ id: '', name: 'No meetings found' }];
+
+    meetingDropdown = createDarkSearchableSelect({
+      containerId: 'meetingSelectContainer',
+      placeholder: 'Select meeting...',
+      dataSource: meetingData,
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
+  } catch(e) {
+    console.error('Failed to load meetings:', e);
+    showToast('Failed to load meetings', true);
+    meetingDropdown = createDarkSearchableSelect({
+      containerId: 'meetingSelectContainer',
+      placeholder: 'Failed to load meetings',
+      dataSource: [],
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => {}
+    });
   }
 }
 
@@ -74,7 +155,7 @@ function renderReviews() {
     html += `<div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
       <div class="flex items-start justify-between mb-2">
         <div class="flex-1">
-          <h3 class="text-sm font-semibold text-white">${escapeHtml(review.meeting_title || 'Untitled Meeting')}</h3>
+          <h3 class="text-sm font-semibold text-slate-100">${escapeHtml(review.meeting_title || 'Untitled Meeting')}</h3>
           <p class="text-xs text-slate-400 mt-0.5">${formatDate(review.start_time)} • ${review.platform || 'Unknown Platform'}</p>
         </div>
         <span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor}">${statusText}</span>
@@ -83,30 +164,30 @@ function renderReviews() {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
         <div>
           <p class="text-[10px] text-slate-500">Reviewer</p>
-          <p class="text-white">${escapeHtml(review.reviewer_name || 'Unknown')}</p>
+          <p class="text-slate-100">${escapeHtml(review.reviewer_name || 'Unknown')}</p>
           <p class="text-[10px] text-slate-400">${escapeHtml(review.reviewer_email || '')}</p>
         </div>
         <div>
           <p class="text-[10px] text-slate-500">Assigned By</p>
-          <p class="text-white">${escapeHtml(review.assigned_by_name || 'System')}</p>
+          <p class="text-slate-100">${escapeHtml(review.assigned_by_name || 'System')}</p>
           <p class="text-[10px] text-slate-400">${formatDate(review.assigned_at)}</p>
         </div>
         <div>
           <p class="text-[10px] text-slate-500">Progress</p>
-          <p class="text-white">${review.score_count || 0} scores</p>
+          <p class="text-slate-100">${review.score_count || 0} scores</p>
           ${review.reviewed_at ? `<p class="text-[10px] text-slate-400">Completed: ${formatDate(review.reviewed_at)}</p>` : ''}
         </div>
       </div>
 
       <div class="flex gap-1.5 mt-2">
         ${review.review_status === 'pending' ? `
-          <button onclick="updateReviewStatus(${review.id}, 'in_progress')" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs transition-colors">Start Review</button>
+          <button onclick="updateReviewStatus(${review.id}, 'in_progress')" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-slate-100 text-xs transition-colors">Start Review</button>
         ` : ''}
         ${review.review_status === 'in_progress' ? `
-          <button onclick="updateReviewStatus(${review.id}, 'completed')" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs transition-colors">Mark Complete</button>
+          <button onclick="updateReviewStatus(${review.id}, 'completed')" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-slate-100 text-xs transition-colors">Mark Complete</button>
         ` : ''}
         ${review.review_status !== 'completed' ? `
-          <button onclick="updateReviewStatus(${review.id}, 'rejected')" class="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-xs transition-colors">Reject</button>
+          <button onclick="updateReviewStatus(${review.id}, 'rejected')" class="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-slate-100 text-xs transition-colors">Reject</button>
         ` : ''}
       </div>
     </div>`;
@@ -119,11 +200,11 @@ function setFilter(filter) {
   currentFilter = filter;
   document.querySelectorAll('.filter-tab').forEach(tab => {
     if (tab.dataset.filter === filter) {
-      tab.classList.add('bg-violet-600', 'text-white');
-      tab.classList.remove('text-slate-400', 'hover:text-white');
+      tab.classList.add('bg-violet-600', 'text-slate-100');
+      tab.classList.remove('text-slate-400', 'hover:text-slate-100');
     } else {
-      tab.classList.remove('bg-violet-600', 'text-white');
-      tab.classList.add('text-slate-400', 'hover:text-white');
+      tab.classList.remove('bg-violet-600', 'text-slate-100');
+      tab.classList.add('text-slate-400', 'hover:text-slate-100');
     }
   });
   renderReviews();
@@ -131,7 +212,7 @@ function setFilter(filter) {
 
 async function updateReviewStatus(reviewId, status) {
   try {
-    await apiFetch(`/api/reviews/${reviewId}/status`, {
+    await apiFetch(`/api/admin/reviews/${reviewId}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -147,30 +228,62 @@ async function updateReviewStatus(reviewId, status) {
 
 function showAssignModal() {
   document.getElementById('assignModal').classList.remove('hidden');
+  // Reset custom dropdowns
+  if (instructorDropdown) instructorDropdown.clear();
+  if (reviewerDropdown) reviewerDropdown.clear();
+  meetingDropdown = createDarkSearchableSelect({
+    containerId: 'meetingSelectContainer',
+    placeholder: 'Select instructor first...',
+    dataSource: [],
+    displayField: 'name',
+    valueField: 'id',
+    onSelect: () => {}
+  });
+  document.getElementById('bulkAssign').checked = false;
 }
 
 function hideAssignModal() {
   document.getElementById('assignModal').classList.add('hidden');
-  document.getElementById('meetingSelect').value = '';
-  document.getElementById('reviewerSelect').value = '';
 }
 
 async function assignReviewer() {
-  const meetingId = document.getElementById('meetingSelect').value;
-  const reviewerId = document.getElementById('reviewerSelect').value;
-  
-  if (!meetingId || !reviewerId) {
-    showToast('Please select both meeting and reviewer', true);
+  const instructorId = instructorDropdown ? instructorDropdown.getValue() : null;
+  const meetingId = meetingDropdown ? meetingDropdown.getValue() : null;
+  const reviewerId = reviewerDropdown ? reviewerDropdown.getValue() : null;
+  const isBulk = document.getElementById('bulkAssign').checked;
+
+  if (!instructorId) {
+    showToast('Please select an instructor', true);
+    return;
+  }
+
+  if (!reviewerId) {
+    showToast('Please select a reviewer', true);
+    return;
+  }
+
+  if (!isBulk && !meetingId) {
+    showToast('Please select a meeting or enable bulk assignment', true);
     return;
   }
 
   try {
-    await apiFetch('/api/reviews/assign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meeting_id: meetingId, reviewer_id: reviewerId })
-    });
-    showToast('Reviewer assigned successfully');
+    if (isBulk) {
+      const data = await apiFetch('/api/admin/reviews/assign-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructor_id: instructorId, reviewer_id: reviewerId })
+      });
+      showToast(data.message || `Assigned ${data.assigned} meetings successfully`);
+    } else {
+      await apiFetch('/api/admin/reviews/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meeting_id: meetingId, reviewer_id: reviewerId })
+      });
+      showToast('Reviewer assigned successfully');
+    }
+    
     hideAssignModal();
     await loadData();
     updateStats();

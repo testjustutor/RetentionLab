@@ -14,18 +14,21 @@ const up = async () => {
   await runAsync(`
     CREATE TABLE IF NOT EXISTS menu_items (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      menu_key VARCHAR(100) UNIQUE NOT NULL,
+      menu_key VARCHAR(100) NOT NULL,
       label VARCHAR(255) NOT NULL,
       icon VARCHAR(100),
       route_path VARCHAR(500),
       parent_id INT NULL,
       sort_order INT DEFAULT 0,
       is_active TINYINT(1) DEFAULT 1,
+      role_id INT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_parent (parent_id),
       INDEX idx_sort (sort_order),
       INDEX idx_active (is_active),
+      INDEX idx_role (role_id),
+      UNIQUE INDEX idx_menu_key_role (menu_key, role_id),
       FOREIGN KEY (parent_id) REFERENCES menu_items(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);

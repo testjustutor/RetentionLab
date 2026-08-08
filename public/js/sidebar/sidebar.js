@@ -322,12 +322,14 @@ function setCachedSidebarMenu(menu) {
     // 2) In-flight de-dupe
     if (globalThis[SIDEBAR_INFLIGHT_KEY]) return globalThis[SIDEBAR_INFLIGHT_KEY];
 
-    const promise = (async () => {
-      try {
-        const res = await fetch('/api/sidebar/menu', {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
-        });
+      const promise = (async () => {
+        try {
+          const res = await fetch('/api/sidebar/menu', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
 
         if (!res.ok) {
           throw new Error(`Sidebar API returned status ${res.status}`);
@@ -478,7 +480,24 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
   const ul = document.createElement('ul');
   ul.className = 'menu-list';
 
-  // Group items by section
+  // Separate logout item and move it to the end
+  let logoutItem = null;
+  const regularItems = [];
+  
+  for (const item of menuItems) {
+    if (item.id === 'logout') {
+      logoutItem = item;
+    } else {
+      regularItems.push(item);
+    }
+  }
+  
+  // Add logout at the end if it exists
+  if (logoutItem) {
+    regularItems.push(logoutItem);
+  }
+
+  // Group items by section (use regularItems which has logout at the end)
   const sections = {};
   const sectionOrder = ['main', 'reviews', 'sessions', 'evaluations', 'analytics', 'account', 'people', 'meetings', 'content', 'evaluation', 'insights', 'reports', 'archives', 'settings', 'organization', 'platform', 'monitoring', 'data'];
   const sectionLabels = {
@@ -502,7 +521,7 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
     data: 'Data Management'
   };
 
-  for (const item of menuItems) {
+  for (const item of regularItems) {
     const section = item.section || 'main';
     if (!sections[section]) {
       sections[section] = [];
@@ -556,16 +575,49 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
       }
 
       // Main item link/button
-      const itemContent = document.createElement(item.submenu ? 'button' : 'a');
-      // Add logout-link class for logout items to style them in red
+      // For logout items, always create a button to prevent navigation
       const isLogout = item.id === 'logout';
+      const itemContent = document.createElement((item.submenu || isLogout) ? 'button' : 'a');
       itemContent.className = 'menu-link' + (isLogout ? ' logout-link' : '');
       
-      if (item.submenu) {
+      if (item.submenu || isLogout) {
         itemContent.type = 'button';
-        itemContent.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+        if (item.submenu) {
+          itemContent.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+        }
       } else {
         itemContent.href = item.href;
+      }
+      
+      // Add click handler for logout
+      if (isLogout) {
+        itemContent.addEventListener('click', async (e) => {
+          e.preventDefault();
+          try {
+            const response = await fetch('/api/auth/logout', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+              // Clear cached user data
+              if (typeof clearCachedUser === 'function') {
+                clearCachedUser();
+              }
+              // Clear session storage
+              sessionStorage.clear();
+              // Redirect to login
+              window.location.href = '/login.html';
+            } else {
+              console.error('Logout failed');
+              window.location.href = '/login.html';
+            }
+          } catch (err) {
+            console.error('Logout error:', err);
+            window.location.href = '/login.html';
+          }
+        });
       }
 
       // Icon with dynamic color class from centralized CSS

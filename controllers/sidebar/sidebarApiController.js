@@ -14,53 +14,25 @@ const controller = {
       let menuTree = [];
       if (roleId) {
         try {
-          menuTree = await MenuModel.getResolvedMenuForUser(userId, roleId);
+          menuTree = await MenuModel.getResolvedMenuForUser(roleId);
         } catch (err) {
           console.error('sidebar-api: failed to load menu from DB:', err);
         }
       }
 
-      function fixRoutePaths(items, role) {
-        if (!items || !Array.isArray(items)) return items;
-        return items.map(item => {
-          const fixed = { ...item };
-          if (fixed.route_path && role !== 'super_admin') {
-            fixed.route_path = fixRoutePath(fixed.route_path, role);
-          }
-          if (fixed.children && Array.isArray(fixed.children)) {
-            fixed.children = fixRoutePaths(fixed.children, role);
-          }
-          return fixed;
-        });
-      }
-
-      function fixRoutePath(path, role) {
-        if (!path.startsWith('/super_admin/')) return path;
-
-        if (role === 'admin') {
-          if (path === '/super_admin/dashboard/index') return '/admin';
-          if (path === '/super_admin/people/profile') return '/admin/profile';
-          if (path === '/super_admin/storage/archives') return '/admin/archives';
-          return path.replace(/^\/super_admin\//, '/admin/');
+      // Remove href from logout menu items to prevent navigation
+      // The frontend will handle logout via button click + API call
+      menuTree = menuTree.map(item => {
+        if (item.id === 'logout') {
+          return { ...item, href: null, route_path: null };
         }
-
-        if (role === 'reviewer') {
-          return path.replace(/^\/super_admin\//, '/reviewer/');
-        }
-
-        if (role === 'instructor' || role === 'solo_instructor') {
-          return path.replace(/^\/super_admin\//, '/instructor/');
-        }
-
-        return path;
-      }
-
-      const fixedMenuTree = fixRoutePaths(menuTree, userRole);
+        return item;
+      });
 
       const response = {
         success: true,
         role: userRole,
-        menu: { menuItems: fixedMenuTree }
+        menu: { menuItems: menuTree }
       };
 
       const debug = req.query.debug === '1' || req.query.debug === 'true';
@@ -69,7 +41,7 @@ const controller = {
         if (!allowedDebugRoles.includes(userRole)) {
           return res.status(403).json({ success: false, error: 'Debug access denied' });
         }
-        response.debug = { rawMenuTree: menuTree, fixedMenuTree };
+        response.debug = { rawMenuTree: menuTree };
       }
 
       res.json(response);

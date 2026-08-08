@@ -282,7 +282,11 @@ async function loadAssignDropdowns() {
       catSelect.innerHTML += '<option value="' + c.category_id + '">' + c.name + ' (' + c.category_id + ')</option>';
     });
 
-    const userResp = await fetch('/api/users');
+    const userResp = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: 1, per_page: 100 })
+    });
     const userResult = await userResp.json();
     const users = (userResult.data || []).filter(u => u.role_name === 'admin');
     currentAdmins = users;

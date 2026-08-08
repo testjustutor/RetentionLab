@@ -45,13 +45,45 @@ async function loadLive() {
   var container = document.getElementById('liveContainer');
   container.innerHTML = '<div class="flex items-center justify-center py-20"><div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-400">Checking live sessions...</span></div>';
   try {
-    var json = await apiFetch('/api/meeting-schedule/live');
+    var json = await apiFetch('/api/admin/meeting-schedule/live');
     var users = json.users || [];
     var totalEvents = json.totalEvents || 0;
     document.getElementById('liveCount').textContent = totalEvents + ' Live';
 
     if (!totalEvents) {
-      container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-slate-500"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><p class="text-sm">No live sessions right now</p></div>';
+      container.innerHTML = '<div class="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">' +
+        '<div class="px-4 py-3 border-b border-slate-300 bg-slate-300">' +
+          '<h3 class="text-xs font-semibold text-slate-700">Live Sessions</h3>' +
+        '</div>' +
+        '<div class="overflow-x-auto">' +
+          '<table class="w-full">' +
+            '<thead>' +
+              '<tr class="text-[10px] text-slate-600 uppercase border-b border-slate-300 bg-slate-300">' +
+                '<th class="py-2.5 px-4 text-left font-medium">Instructor</th>' +
+                '<th class="py-2.5 px-4 text-left font-medium">Meeting</th>' +
+                '<th class="py-2.5 px-4 text-left font-medium">Time</th>' +
+                '<th class="py-2.5 px-4 text-left font-medium">Status</th>' +
+                '<th class="py-2.5 px-4 text-left font-medium">Action</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' +
+              '<tr>' +
+                '<td colspan="5" class="px-4 py-12 bg-slate-20">' +
+                  '<div class="flex flex-col items-center justify-center">' +
+                    '<div class="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center mb-3">' +
+                      '<svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/>' +
+                      '</svg>' +
+                    '</div>' +
+                    '<p class="text-sm font-medium text-slate-700 mb-1">No Live Sessions</p>' +
+                    '<p class="text-xs text-slate-600 text-center max-w-sm">There are no active live meetings at the moment. Meetings will appear here when instructors start their sessions.</p>' +
+                  '</div>' +
+                '</td>' +
+              '</tr>' +
+            '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
       return;
     }
 

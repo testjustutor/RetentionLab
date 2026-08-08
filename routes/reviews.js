@@ -14,6 +14,9 @@ function handle(fn) {
 router.get('/queue', requireAuth, handle(ctrl.getQueue));
 router.put('/:id/status', requireAuth, handle(ctrl.updateStatus));
 router.get('/reviewers', requireAuth, handle(ctrl.getReviewers));
+router.get('/instructors', requireAuth, handle(ctrl.getInstructors));
+router.get('/meetings/:instructorId', requireAuth, handle(ctrl.getMeetingsByInstructor));
+router.post('/assign-bulk', requireAuth, handle(ctrl.assignBulk));
 router.post('/assign', requireAuth, handle(ctrl.assignReviewer));
 
 module.exports = router;

@@ -3,7 +3,7 @@ let allMeetings = [];
 let trendsChart = null;
 
 (async () => {
-  await Promise.all([loadScores(), loadMeetings()]);
+  await loadScores();
   updateStats();
   renderEvaluationTable();
   initChart();
@@ -11,7 +11,7 @@ let trendsChart = null;
 
 async function loadScores() {
   try {
-    const data = await apiFetch('/api/evaluations/reports/summary');
+    const data = await apiFetch('/api/admin/evaluations/reports/summary');
     allScores = data.scores || [];
     allMeetings = data.meetings || [];
     
@@ -27,11 +27,11 @@ async function loadScores() {
     console.error('Failed to load scores:', e);
     // Fallback to direct endpoints
     try {
-      const scoresData = await apiFetch('/api/scores');
+      const scoresData = await apiFetch('/api/admin/scores');
       allScores = scoresData.scores || [];
     } catch(e2) { console.error('Fallback scores failed:', e2); }
     try {
-      const meetingsData = await apiFetch('/api/meetings/list');
+      const meetingsData = await apiFetch('/api/admin/meetings/list');
       allMeetings = meetingsData.meetings || [];
     } catch(e2) { console.error('Fallback meetings failed:', e2); }
   }

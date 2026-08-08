@@ -106,36 +106,23 @@ const controller = {
 
       // For admin: return all instructor connections in their company
       if (userRole === 'admin' || userRole === 'super_admin') {
-        // Get all users in the admin's company (listUsers already filters by company for admin)
-        const allUsers = await UsersModel.listUsers(req.user, { limit: 1000 });
-        
-        // Filter to only instructors
-        const instructors = allUsers.filter(u => 
-          u.role_name === 'instructor' || u.role_name === 'solo_instructor'
-        );
-        
-        if (!instructors || instructors.length === 0) {
-          return ok({ count: 0, data: [] });
-        }
+        // Get all calendar integrations directly from CalendarUsersModel
+        // This gets all connected instructors regardless of who created them
+        const integrations = await CalendarUsersModel.getAllUsers({
+          roles: ['instructor', 'solo_instructor'],
+          status: 'active',
+          excludeSelf: true,
+          adminId: userId
+        });
 
-        // Get calendar connections for all instructors (using user_id)
-        const instructorIds = instructors.map(i => i.id).filter(Boolean);
-        const connections = [];
-        
-        for (const instructorId of instructorIds) {
-          const conn = await CalendarUsersModel.getUser(instructorId);
-          if (conn) {
-            const instructor = instructors.find(i => i.id === instructorId);
-            connections.push({
-              email: conn.email,
-              status: conn.status || 'disconnected',
-              provider: conn.provider || null,
-              updated_at: conn.updated_at,
-              user_id: conn.user_id,
-              role_name: instructor?.role_name || 'instructor'
-            });
-          }
-        }
+        const connections = (integrations || []).map(conn => ({
+          email: conn.email,
+          status: conn.status || 'disconnected',
+          provider: conn.provider || null,
+          updated_at: conn.updated_at,
+          user_id: conn.user_id,
+          role_name: conn.role_name || 'instructor'
+        }));
 
         return ok({
           count: connections.length,
@@ -169,7 +156,7 @@ const controller = {
       const token = signVerifyToken(email);
 
       // Create DB record for tracking using the SAME token value
-      await CalendarVerificationModel.create(user.id, token);
+      await CalendarVerificationModel.create(user.id, 'google', token);
 
 
       // Build secure verification URL
@@ -453,11 +440,24 @@ const controller = {
           password_hash: hashPassword(email),
           status: 'active',
           company_id: null,
+          email_verified: 1,
+          email_verified_at: new Date().toLocaleString('sv-SE', {
+            timeZone: 'Asia/Kolkata'
+          }),
         });
         user = { id: created.id, ...created };
       } else if (user.role_id !== 3) {
-        await UsersModel.updateUser(user.id, { role_id: 3 });
+        const updated_user = await UsersModel.updateUser(user.id, {
+          role_id: 3,
+          email_verified: 1,
+          email_verified_at: new Date().toLocaleString('sv-SE', {
+            timeZone: 'Asia/Kolkata'
+          }),
+        });
         user.role_id = 3;
+        
+        logger.info(`[InstructorCalendar] handleCallback: user email verification status updated of userId=${user.id}`);
+
       }
 
       logger.info(`[InstructorCalendar] handleCallback: about to save tokens to calendar_integrations for userId=${user.id}`);
@@ -474,7 +474,7 @@ const controller = {
         logger.warn(`[InstructorCalendar] Could not lookup provider_id for google-meet:`, err.message);
       }
       
-      await CalendarUsersModel.createOrUpdateUser(user.id, {
+      await CalendarUsersModel.createOrUpdateUserCalendar(user.id, {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expiry_date: tokens.expiry_date,
@@ -567,7 +567,8 @@ const controller = {
         syncResults.push({ email: user.email, ...result });
       } else if (user.role_name === 'admin' || user.role_name === 'super_admin') {
         // Sync all instructors in their company
-        const allUsers = await UsersModel.listUsers(user, { limit: 1000 });
+        const usersResult = await UsersModel.listUsers(user, { limit: 1000 });
+        const allUsers = usersResult.rows || [];
         const instructors = allUsers.filter(u => 
           u.role_name === 'instructor' || u.role_name === 'solo_instructor'
         );

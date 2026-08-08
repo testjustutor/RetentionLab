@@ -79,7 +79,7 @@ class CalendarAuthModel {
       logger.warn(`[CalendarAuthModel] Could not lookup provider_id for google:`, err.message);
     }
     
-    await CalendarUsersModel.createOrUpdateUser(userId, {
+    await CalendarUsersModel.createOrUpdateUserCalendar(userId, {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date,

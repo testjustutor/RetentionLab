@@ -32,8 +32,8 @@ class AuditReportModel {
           ri.indicator_type, 
           ri.indicator_value
         FROM ai_audit_results aar
-        JOIN rubric_categories rc ON aar.category_id = rc.id
-        JOIN rubric_indicators ri ON aar.indicator_id = ri.id
+        JOIN admin_rubric_categories rc ON aar.category_id = rc.id
+        JOIN admin_rubric_indicators ri ON aar.indicator_id = ri.id
         WHERE aar.meeting_id = ?
         ORDER BY rc.category_name, ri.indicator_name
       `;

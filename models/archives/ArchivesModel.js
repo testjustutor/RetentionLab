@@ -46,19 +46,19 @@ class ArchivesModel {
     const meetings = result.meetings || [];
 
     for (const m of meetings) {
-      const mMeetingId = m.meeting_id;
+      const mMeetingId = m.external_meeting_id;
 
       if (!mMeetingId) continue;
 
       const session = await ArchivesModel.getSessionByMeetingId(mMeetingId);
       const transcripts = [];
 
-      const start = m.start_time || m.startTime || m.created_at;
+      const start = m.scheduled_start_time;
       const date = start ? new Date(start).toISOString() : new Date().toISOString();
 
       hydrated.push({
         id: `archive_${m.id ?? mMeetingId}`,
-        title: m.title || m.meeting_title || 'Untitled Session',
+        title: m.title || 'Untitled Session',
         date,
         platform: m.platform || 'unknown',
         meetingId: mMeetingId,

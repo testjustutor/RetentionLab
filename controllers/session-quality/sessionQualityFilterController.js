@@ -167,7 +167,7 @@ async function getMeetings(req) {
     const instructorId = req.body?.instructor_id;
 
     let query = `
-      SELECT m.id as internal_id, m.title, m.start_time
+      SELECT m.id as internal_id, m.title, m.scheduled_start_time
       FROM meetings m
       JOIN users u ON m.calendar_account = u.email
       JOIN roles r ON r.id = u.role_id
@@ -180,7 +180,7 @@ async function getMeetings(req) {
       query += ' AND u.id = ?';
       params.push(instructorId);
     }
-    query += ' ORDER BY m.start_time DESC LIMIT 100';
+    query += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
 
     const rows = await new Promise((resolve, reject) => {
       db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
@@ -219,7 +219,7 @@ async function getSessions(req) {
     let query = `
       SELECT ms.id as internal_id, ms.start_time
       FROM meeting_sessions ms
-      JOIN meetings m ON ms.meeting_id = m.meeting_id
+      JOIN meetings m ON ms.meeting_id = m.external_meeting_id
       JOIN users u ON m.calendar_account = u.email
       JOIN roles r ON r.id = u.role_id
     `;
@@ -230,7 +230,7 @@ async function getSessions(req) {
       query += ' WHERE m.id = ?';
       params.push(parseInt(lookupId, 10));
     } else {
-      query += ' WHERE m.meeting_id = ?';
+      query += ' WHERE m.external_meeting_id = ?';
       params.push(lookupId);
     }
     

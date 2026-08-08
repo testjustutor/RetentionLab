@@ -1,22 +1,50 @@
 Project Goal:
-Build reliable software with clear, maintainable code, security risk free.
+Build reliable, secure, and maintainable software with clean, readable, production-ready code.
 
 Development Rules:
-- Always create a TDOD.md file for doing any task and very after task completed with check box.
-- Please check one by one, do not test or execute large text at a time please use or do task in small chunks.
-- Understand the existing codebase before making changes.
+
+### Highest Priority (Must Always Follow)
+- Always understand the existing codebase before making any changes.
+- Always create a `TODO.md` file before starting any task and update it after each completed task using checkboxes (`[ ]` / `[x]`).
+- Work on one task at a time. Implement, verify, and test in small, manageable chunks. Do not perform large changes or testing in a single step.
 - Explain significant changes before implementing them.
-- Preserve existing project structure when possible.
-- Prefer simple solutions over complex ones.
-- Prefer to read database tables, column while making query in models.
-- Please do not write in any file at end write_to_file keywords. 
+- Preserve the existing project structure unless explicitly instructed otherwise.
+- Strictly follow the MVC architecture and request flow:
+  `HTML → JavaScript → Routes → Controllers → Models → Database`
+- Never write business logic in Routes.
+- Never call Models directly from Routes.
+- Never write SQL queries in Controllers. All database operations must be handled through Models.
+- Never write JavaScript or CSS inside HTML files.
+- Never make API calls directly from HTML. API calls must be made only from the corresponding JavaScript file.
+- Always use centralized CSS files and centralized reusable UI components.
+- Do not write or append any `write_to_file` keyword in any generated file.
 
-Code Quality:
-- Write modular, readable code.
+### High Priority
+- Prefer simple, maintainable, and readable solutions over complex implementations.
+- Review the database schema (tables and columns) before writing or modifying database queries.
+- When creating APIs, name them according to the corresponding page URL or module.
+- Keep API naming consistent across the project.
+- Use centralized reusable components for:
+  - HTML Tables
+  - Date Filters
+  - Dropdown Filters
+  - Pagination
+  - Common UI Components
+- Build professional, consistent, and user-friendly interfaces.
+- Reuse existing components whenever possible.
+- Keep changes isolated to the requested feature only.
+
+### Code Quality
+- Write clean, modular, and readable code.
+- Follow the existing coding standards and project conventions.
 - Avoid unnecessary dependencies.
+- Keep functions focused on a single responsibility.
+- Avoid duplicate code (DRY Principle).
 - Add comments only when they improve understanding.
-- Follow existing coding conventions.
+- Do not modify unrelated code.
 
-Testing:
-- Check for errors before marking tasks complete.
-- Verify that requested requirements were implemented.
+### Testing
+- Verify each completed feature before proceeding to the next task.
+- Check for syntax, runtime, and logical errors before marking a task as completed.
+- Ensure new changes do not break existing functionality.
+- Mark tasks as completed in `TODO.md` only after successful verification.

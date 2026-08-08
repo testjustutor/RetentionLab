@@ -60,6 +60,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 // ============================================================================
+// STATIC FILES (must be before routes to prevent catch-all from intercepting)
+// ============================================================================
+app.use('/storage', express.static(path.join(__dirname, 'storage')));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================================================
 // ROUTES
 // ============================================================================
 
@@ -81,12 +87,6 @@ app.get('/admin/session-quality/:page', (req, res) => {
 // ============================================================================
 const { registerRoutes } = require('./routes/registry');
 registerRoutes(app);
-
-// ============================================================================
-// STATIC FILES
-// ============================================================================
-app.use('/storage', express.static(path.join(__dirname, 'storage')));
-app.use(express.static('public'));
 
 // ============================================================================
 // BACKGROUND SERVICES

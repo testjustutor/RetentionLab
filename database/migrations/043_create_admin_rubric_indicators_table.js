@@ -24,6 +24,7 @@ const up = async () => {
       is_gate TINYINT(1) DEFAULT 0,
       value DECIMAL(5,2) DEFAULT 1,
       description TEXT,
+      status VARCHAR(50) DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY unique_admin_indicator (original_indicator_id, admin_user_id),

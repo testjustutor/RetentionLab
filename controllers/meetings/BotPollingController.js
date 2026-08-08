@@ -20,15 +20,20 @@ class BotPollingController {
       }
 
       for (const meeting of queued) {
-        const minutesUntilStart =
-          (new Date(meeting.scheduled_start_time).getTime() - Date.now()) / 60000;
+        
+        const minutesUntilStart = Math.round(
+              (new Date(meeting.scheduled_start_time).getTime() - Date.now()) / 60000
+            );
 
         // Timed out — mark expired and skip
         if (minutesUntilStart < -5) {
           logger.warn(
             `Skipping ${meeting.external_meeting_id}: timed out by ${Math.abs(Math.round(minutesUntilStart))} mins`
           );
-          await MeetingModel.updateMeetingStatus(meeting.event_id, 'expired');
+          const result = await MeetingModel.updateMeetingStatus(meeting.event_id, 'expired');
+          if (!result.updated) {
+            logger.error(`Failed to mark ${meeting.external_meeting_id} as expired — will retry next poll`);
+          }
           continue;
         }
 

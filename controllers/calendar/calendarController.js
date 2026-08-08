@@ -70,9 +70,9 @@ const controller = {
   },
 
   async auth(req, res) {
-    const { email } = req.body;
+    const { email, user_id } = req.body;
     if (!email || !email.includes('@')) return res.status(400).json({ status: 'error', message: 'valid email required' });
-    const verification = await CalendarVerificationModel.create(email);
+    const verification = await CalendarVerificationModel.create(user_id, 'google');
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const verifyLink = `${baseUrl}/api/calendar/multi/verify?token=${encodeURIComponent(verification.token)}`;
     const subject = 'Verify your calendar connection';

@@ -54,18 +54,18 @@ async function getDashboard(req) {
         s.executive_summary,
         s.created_at,
         s.updated_at,
-        m.meeting_id,
+        m.external_meeting_id,
         m.title,
-        m.start_time,
-        m.end_time,
+        m.scheduled_start_time,
+        m.scheduled_end_time,
         m.platform,
         CONCAT('SES-', LPAD(s.session_id, 6, '0')) as session_ref,
         CONCAT(teacher.first_name, ' ', teacher.last_name) as instructor_name,
         sm.student_name as student_name
       FROM session_snapshot s
       LEFT JOIN meeting_sessions ms ON s.session_id = ms.id
-      LEFT JOIN meetings m ON ms.meeting_id = m.meeting_id
-      LEFT JOIN session_metadata sm ON m.meeting_id = sm.meeting_id
+      LEFT JOIN meetings m ON ms.meeting_id = m.external_meeting_id
+      LEFT JOIN session_metadata sm ON m.external_meeting_id = sm.meeting_id
       LEFT JOIN users teacher ON sm.teacher_user_id = teacher.id
       WHERE teacher.created_by = ?
     `;
@@ -76,15 +76,15 @@ async function getDashboard(req) {
       params.push(filters.instructorId);
     }
     if (filters.meetingId) {
-      query += ' AND m.meeting_id = ?';
+      query += ' AND m.external_meeting_id = ?';
       params.push(filters.meetingId);
     }
     if (filters.fromDate) {
-      query += ' AND m.start_time >= ?';
+      query += ' AND m.scheduled_start_time >= ?';
       params.push(filters.fromDate);
     }
     if (filters.toDate) {
-      query += ' AND m.start_time <= ?';
+      query += ' AND m.scheduled_start_time <= ?';
       params.push(filters.toDate + ' 23:59:59');
     }
     if (filters.subject) {
@@ -103,7 +103,7 @@ async function getDashboard(req) {
       query += ' AND sm.location = ?';
       params.push(filters.location);
     }
-    query += ' ORDER BY m.start_time DESC';
+    query += ' ORDER BY m.scheduled_start_time DESC';
 
     const sessions = await new Promise((resolve, reject) => {
       db.all(query, params, (err, rows) => {
