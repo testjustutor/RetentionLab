@@ -55,3 +55,19 @@
 - [x] Update group table headers
 - [x] Update filter bar and stats cards in completed HTML
 - [x] Verify the page renders correctly
+
+## Task: Apply header table color/font changes to /admin/meetings/calendar page
+
+- [x] Update filter bar and stats cards in calendar HTML
+- [x] Update table container styling
+- [x] Verify the page renders correctly
+
+## Task: Make search client-side only on /admin/meetings/calendar page
+
+- [x] Remove Get Data button
+- [x] Move search to right side
+- [x] Implement client-side search filtering
+- [x] Remove action column from table
+- [x] Fetch providers from database
+- [x] Make search bar smaller and remove label
+- [x] Verify the page renders correctly

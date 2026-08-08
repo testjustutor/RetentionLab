@@ -222,8 +222,8 @@ function createTable(options = {}) {
         '<div class="overflow-x-auto">' +
           '<table class="w-full">' +
             '<thead>' +
-              '<tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">' +
-                currentHeaders.map(h => '<th class="py-2.5 px-4 text-left font-bold' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
+              '<tr class="text-[10px] font-bold text-slate-950 uppercase border-b-2 border-slate-300 bg-slate-200">' +
+                currentHeaders.map(h => '<th class="py-2 px-3 text-left font-bold tracking-wide' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
               '</tr>' +
             '</thead>' +
             '<tbody>' +
@@ -253,8 +253,8 @@ function createTable(options = {}) {
 
     // Build table HTML
     const hasData = displayData.length > 0;
-    const headerHtml = '<tr class="text-[10px] text-slate-700 uppercase border-b border-slate-200 bg-slate-50">' +
-      currentHeaders.map(h => '<th class="py-2.5 px-4 text-left font-bold' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
+    const headerHtml = '<tr class="text-[10px] font-bold text-slate-950 uppercase border-b-2 border-slate-300 bg-slate-200">' +
+      currentHeaders.map(h => '<th class="py-2 px-3 text-left font-bold tracking-wide' + (h.width ? '" style="width:' + h.width : '') + '">' + (h.label || '') + '</th>').join('') +
     '</tr>';
 
     let bodyHtml = '';
