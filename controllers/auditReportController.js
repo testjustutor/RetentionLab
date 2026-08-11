@@ -3,7 +3,7 @@
  * Business logic for the audit reports page.
  * Provides aggregated compliance, review quality, and AI accuracy data.
  */
-const { db } = require('../database/db');
+const AuditReportModel = require('../models/reports/AuditReportModel');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
@@ -19,34 +19,10 @@ const controller = {
       const companyId = req.user?.company_id;
 
       // 1) Total scores as audit base
-      const scoresSql = `
-        SELECT ms.*, m.title as meeting_title, m.platform, m.scheduled_start_time as meeting_date,
-               CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
-        FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
-        LEFT JOIN users u ON u.id = ms.reviewer_id
-        WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-        ORDER BY ms.scored_at DESC
-        LIMIT 500
-      `;
-
-      const scores = await new Promise((resolve, reject) => {
-        db.all(scoresSql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const scores = await AuditReportModel.getRecentScores(days);
 
       // 2) Audit results from ai_audit_results table
-      const auditSql = `
-        SELECT aar.*, m.title as meeting_title, m.scheduled_start_time as meeting_date
-        FROM ai_audit_results aar
-        LEFT JOIN meetings m ON m.external_meeting_id = aar.meeting_id
-        WHERE aar.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-        ORDER BY aar.scored_at DESC
-        LIMIT 200
-      `;
-
-      const auditResults = await new Promise((resolve, reject) => {
-        db.all(auditSql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const auditResults = await AuditReportModel.getRecentAuditResults(days);
 
       // 3) Build audit entries from both sources
       const audits = [];

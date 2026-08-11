@@ -129,7 +129,7 @@ function injectHeader() {
   const activePage = getActivePageName();
 
   const navItems = [
-    { label: 'Home', href: 'index.html', id: 'home' },
+    { label: 'Home', href: 'index', id: 'home' },
     { label: 'Features', href: '#features', id: 'features' },
     { label: 'Pricing', href: '#pricing', id: 'pricing' },
     { label: 'FAQ', href: '#faq', id: 'faq' },
@@ -158,7 +158,7 @@ function injectHeader() {
     <div class="max-w-7xl mx-auto px-4 md:px-8">
       <div class="flex items-center justify-between">
         <!-- Logo -->
-        <a href="index.html" class="flex items-center gap-2.5 cursor-pointer group select-none decoration-none">
+        <a href="index" class="flex items-center gap-2.5 cursor-pointer group select-none decoration-none">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff6b35] via-[#ff8555] to-[#3fb950] flex items-center justify-center text-white font-black shadow-lg shadow-orange-500/30 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
             <span class="text-base font-extrabold">RL</span>
           </div>
@@ -230,7 +230,7 @@ function injectFooter() {
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 mb-12">
         <!-- Brand Column -->
         <div class="lg:col-span-4 space-y-4">
-          <a href="index.html" class="flex items-center gap-2.5 cursor-pointer decoration-none group">
+          <a href="index" class="flex items-center gap-2.5 cursor-pointer decoration-none group">
             <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff6b35] to-[#3fb950] flex items-center justify-center text-white font-bold shadow-md shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <span class="text-base font-extrabold">RL</span>
             </div>
@@ -257,7 +257,7 @@ function injectFooter() {
         <div class="lg:col-span-2 space-y-4">
           <h4 class="text-xs font-mono font-bold tracking-wider text-[#f0f6fc] uppercase">Product</h4>
           <ul class="space-y-2.5 text-sm font-medium list-none p-0">
-            <li><a href="index.html" class="text-[#c9d1d9] hover:text-[#ff6b35] transition-colors decoration-none block hover:translate-x-1 transition-transform">Home</a></li>
+            <li><a href="index" class="text-[#c9d1d9] hover:text-[#ff6b35] transition-colors decoration-none block hover:translate-x-1 transition-transform">Home</a></li>
             <li><a href="#features" class="text-[#c9d1d9] hover:text-[#ff6b35] transition-colors decoration-none block hover:translate-x-1 transition-transform">Features</a></li>
             <li><a href="#pricing" class="text-[#c9d1d9] hover:text-[#ff6b35] transition-colors decoration-none block hover:translate-x-1 transition-transform">Pricing</a></li>
             <li><a href="#faq" class="text-[#c9d1d9] hover:text-[#ff6b35] transition-colors decoration-none block hover:translate-x-1 transition-transform">FAQ</a></li>

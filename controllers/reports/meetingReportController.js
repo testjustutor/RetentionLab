@@ -3,7 +3,7 @@
  * Business logic for meeting reports dashboard.
  */
 
-const { db } = require('../../database/db');
+const MeetingReportModel = require('../../models/reports/MeetingReportModel');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
@@ -18,21 +18,7 @@ const controller = {
       const days = parseInt(req.query.days) || 30;
       const companyId = req.user?.company_id;
 
-      const sql = `
-        SELECT m.*,
-               CONCAT(u.first_name, ' ', u.last_name) as owner_name,
-               u.email as owner_email
-        FROM meetings m
-        LEFT JOIN users u ON u.email = m.calendar_account
-        WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-           OR m.scheduled_start_time IS NULL
-        ORDER BY m.scheduled_start_time DESC
-        LIMIT 100
-      `;
-
-      const meetings = await new Promise((resolve, reject) => {
-        db.all(sql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const meetings = await MeetingReportModel.getRecentMeetings(days);
 
       // Calculate stats
       const total = meetings.length;

@@ -2,7 +2,7 @@
  * Action Items Insights Controller
  * Provides dynamic action items from coaching feedback and session quality data
  */
-const { db } = require('../../database/db');
+const ActionsModel = require('../../models/insights/ActionsModel');
 
 const controller = {
   /**
@@ -16,7 +16,7 @@ const controller = {
 
       // Get action items from teacher coaching feedback
       let sql = `
-        SELECT 
+        SELECT
           tcf.id,
           tcf.meeting_id,
           tcf.recommended_action as action_text,
@@ -64,13 +64,11 @@ const controller = {
 
       sql += ' ORDER BY tcf.created_at DESC LIMIT 100';
 
-      const actionItems = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const actionItems = await ActionsModel.getCoachingActionItems(user, { from_date, to_date, instructor_id, status });
 
       // Also get better alternatives as action items
       let altSql = `
-        SELECT 
+        SELECT
           tba.id,
           tba.meeting_id,
           tba.better_alternative as action_text,
@@ -111,9 +109,7 @@ const controller = {
 
       altSql += ' ORDER BY tba.created_at DESC LIMIT 100';
 
-      const alternatives = await new Promise((resolve, reject) => {
-        db.all(altSql, altParams, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const alternatives = await ActionsModel.getBetterAlternatives(user, { from_date, to_date, instructor_id, status });
 
       // Combine and deduplicate
       const allActions = [

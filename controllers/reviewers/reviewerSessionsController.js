@@ -3,13 +3,13 @@
  * Business logic for reviewer sessions page.
  * Shows instructor dropdown and their sessions with details.
  */
-const { db } = require('../../database/db');
+const ReviewerSessionsModel = require('../../models/reviewers/ReviewerSessionsModel');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
 const controller = {
-  /** GET /api/reviewer-sessions/instructors — List instructors with meetings assigned to this reviewer */
+  /** GET /api/reviewer-sessions/instructors â€” List instructors with meetings assigned to this reviewer */
   async getInstructors(req) {
     try {
       const reviewerId = req.user.id;
@@ -28,15 +28,13 @@ const controller = {
         ORDER BY u.first_name, u.last_name`;
       const params = [reviewerId];
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const rows = await ReviewerSessionsModel.getInstructorsForReviewer(reviewerId);
 
       return ok({ instructors: rows });
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviewer-sessions/instructor-sessions — Get sessions for a specific instructor */
+  /** GET /api/reviewer-sessions/instructor-sessions â€” Get sessions for a specific instructor */
   async getInstructorSessions(req) {
     try {
       const reviewerId = req.user.id;
@@ -98,9 +96,7 @@ const controller = {
 
       sql += ` ORDER BY m.scheduled_start_time DESC LIMIT 100`;
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const rows = await ReviewerSessionsModel.getInstructorSessions(reviewerId, instructorId, status, search);
 
       // Format the data - convert absolute path to web-relative URL
       function toUrl(p) {
@@ -168,50 +164,20 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviewer-sessions/:meetingId/details — Get detailed info for a single session */
+  /** GET /api/reviewer-sessions/:meetingId/details â€” Get detailed info for a single session */
   async getSessionDetails(req) {
     try {
       const meetingId = req.params.meetingId;
 
-      const row = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT m.*,
-                  ma.audio_path, ma.transcript_path, ma.summary_path, ma.wav_audio_path,
-                  ma.oqi_score, ma.evidence_quote, ma.review_status as asset_review_status,
-                  ma.reviewer_comments,
-                  u.first_name || ' ' || u.last_name as owner_name
-           FROM meetings m
-           LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
-           LEFT JOIN users u ON u.email = m.calendar_account
-           WHERE m.external_meeting_id = ?`,
-          [meetingId],
-          (err, row) => err ? reject(err) : resolve(row)
-        );
-      });
+      const row = await ReviewerSessionsModel.getSessionDetails(meetingId);
 
       if (!row) return err('Session not found', 404);
 
       // Get scores for this meeting
-      const scores = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT ms.*, rc.name as category_name
-           FROM meeting_scores ms
-           LEFT JOIN rubric_categories rc ON rc.category_id = ms.category_id
-           WHERE ms.meeting_id = ?
-           ORDER BY ms.created_at DESC`,
-          [meetingId],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      });
+      const scores = await ReviewerSessionsModel.getScoresForMeeting(meetingId);
 
       // Get participants
-      const participants = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT * FROM participant_sessions WHERE meeting_id = ? ORDER BY joined_at`,
-          [meetingId],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      });
+      const participants = await ReviewerSessionsModel.getParticipantsForMeeting(meetingId);
 
       return ok({
         session: {

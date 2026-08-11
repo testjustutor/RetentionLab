@@ -41,6 +41,7 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
       { id: 'sidebar-menu-management', label: 'Manage Menu', href: '/super_admin/settings/sidebar-menu-management' },
       { id: 'header-management', label: 'Header Management', href: '/super_admin/settings/header-management' }
+      , { id: 'table-controls', label: 'Table Controls', href: '/super_admin/settings/table-controls' }
     ]}
   ],
   admin: [

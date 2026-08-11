@@ -884,7 +884,7 @@ function initLogout() {
       // ignore
     }
 
-    window.location.href = '/login.html';
+    window.location.href = '/login';
   };
 
   logoutBtn.addEventListener('click', doLogout);
@@ -920,7 +920,7 @@ function initLegacyGlobals() {
       } catch {
         // ignore
       }
-      window.location.href = '/login.html';
+      window.location.href = '/login';
     };
   }
 }

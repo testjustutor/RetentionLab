@@ -4,7 +4,7 @@
  */
 const SessionQualityReportsModel = require('../../models/session-quality/SessionQualityReportsModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
-const { db } = require('../../database/db');
+const EngagementModel = require('../../models/insights/EngagementModel');
 
 const controller = {
   /**
@@ -18,7 +18,7 @@ const controller = {
 
       // Build base query
       let sql = `
-        SELECT 
+        SELECT
           sqr.meeting_id,
           sqr.student_engagement,
           sqr.learning_impact,
@@ -64,13 +64,11 @@ const controller = {
       sql += ' AND sqr.student_engagement IS NOT NULL';
       sql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
 
-      const reports = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const reports = await EngagementModel.getEngagementReports(user, { from_date, to_date, instructor_id });
 
       // Calculate aggregate metrics
       const totalSessions = reports.length;
-      const avgEngagement = totalSessions > 0 
+      const avgEngagement = totalSessions > 0
         ? Math.round(reports.reduce((sum, r) => sum + (parseFloat(r.student_engagement) || 0), 0) / totalSessions)
         : 0;
       const avgLearningImpact = totalSessions > 0

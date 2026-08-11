@@ -7,13 +7,12 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { db } = require('../../database/db');
 const BotModel = require('../../models/bot/BotModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
 const botManager = require('../../services/shared/botManager');
 const { logger } = require('../../utils/logger');
 
-// ─── Network I/O tracking ─────────────────────────────────────────────────────
+// â”€â”€â”€ Network I/O tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let _prevNetStats = null;
 let _prevNetTime = Date.now();
 
@@ -40,14 +39,14 @@ class BotController {
       if (!meetingId || !platform) {
         return res.status(400).json({ error: 'meetingId and platform required' });
       }
-      
+
       const result = await botManager.startBot(platform, meetingId, passcode, webhookUrl, meetingUrl);
-      logger.info(`Controller(Bot): Immediate launch: ${meetingId} → ${result.success ? 'OK' : 'FAILED'}`);
-      
+      logger.info(`Controller(Bot): Immediate launch: ${meetingId} â†’ ${result.success ? 'OK' : 'FAILED'}`);
+
       if (result && !result.success) {
         await MeetingModel.updateMeetingStatus(meetingId, 'failed');
       }
-      
+
       res.json(result);
     } catch (err) {
       logger.error('Controller(Bot): Immediate start-bot error:', err);
@@ -337,20 +336,11 @@ class BotController {
 
   static async getDatabaseStats() {
     try {
-      const result = await new Promise((resolve, reject) => {
-        db.get("SELECT table_schema AS db_name, SUM(data_length + index_length) AS size FROM information_schema.tables WHERE table_schema = DATABASE()", (err, row) => err ? reject(err) : resolve(row));
-      });
-      const sizeBytes = result?.size || 0;
-      const size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
-      let connections = 0;
-      try {
-        const connResult = await new Promise((resolve, reject) => {
-          db.get("SHOW STATUS LIKE 'Threads_connected'", (err, row) => err ? reject(err) : resolve(row));
-        });
-        connections = parseInt(connResult?.Value) || 0;
-      } catch (err) { connections = 0; }
-      return { size, sizeBytes, connections };
-    } catch (err) { return { size: '0 MB', sizeBytes: 0, connections: 0 }; }
+      const result = await BotModel.getDatabaseStats();
+      return result;
+    } catch (err) {
+      return { size: '0 MB', sizeBytes: 0, connections: 0 };
+    }
   }
 
   static formatUptime(seconds) {

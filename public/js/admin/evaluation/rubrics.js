@@ -173,9 +173,9 @@
   async function loadMasterData() {
     try {
       const [categoriesRes, indicatorsRes, assignedRes] = await Promise.all([
-        fetch('/api/evaluation/rubrics/master-categories', { credentials: 'include' }),
-        fetch('/api/evaluation/rubrics/master-indicators', { credentials: 'include' }),
-        fetch('/api/evaluation/rubrics/admin/' + currentUserId + '/assigned-ids', { credentials: 'include' })
+        fetch('/api/admin/evaluation/rubrics/master-categories', { credentials: 'include' }),
+        fetch('/api/admin/evaluation/rubrics/master-indicators', { credentials: 'include' }),
+        fetch('/api/admin/evaluation/rubrics/admin/' + currentUserId + '/assigned-ids', { credentials: 'include' })
       ]);
 
       const categoriesData = await categoriesRes.json();
@@ -275,7 +275,11 @@
     var sel = document.getElementById('indicator-category');
     if (!sel) return;
     try {
-      var json = await apiFetch('/api/admin/rubrics/admin/' + currentUserId);
+      var json = await apiFetch('/api/admin/evaluation/rubrics/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_user_id: currentUserId })
+      });
       var cats = json.categories || [];
       if (cats.length === 0) {
         sel.innerHTML = '<option value="">No categories available</option>';
@@ -364,7 +368,7 @@
   async function copySelectedCategories() {
     if (selectedCategories.size === 0) return;
     try {
-      const response = await fetch('/api/evaluation/rubrics/admin/' + currentUserId + '/copy-from-master', {
+      const response = await fetch('/api/admin/evaluation/rubrics/admin/' + currentUserId + '/copy-from-master', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -393,7 +397,7 @@
     const name = document.getElementById('category-name').value;
     const weight = document.getElementById('category-weight').value;
     try {
-      const response = await fetch('/api/evaluation/rubrics/admin/' + currentUserId + '/categories', {
+      const response = await fetch('/api/admin/evaluation/rubrics/admin/' + currentUserId + '/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -424,7 +428,7 @@
     const description = document.getElementById('indicator-description').value;
     if (!category_id) { showToast('Please select a category', true); return; }
     try {
-      const response = await fetch('/api/evaluation/rubrics/admin/' + currentUserId + '/indicators', {
+      const response = await fetch('/api/admin/evaluation/rubrics/admin/' + currentUserId + '/indicators', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -485,7 +489,7 @@
     if (!pendingStatusChange) return;
     
     try {
-      const response = await fetch('/api/evaluation/rubrics/my_rubrics/status', {
+      const response = await fetch('/api/admin/evaluation/rubrics/my_rubrics/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

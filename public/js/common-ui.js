@@ -121,10 +121,13 @@ function createPagination(options = {}) {
     }
 
     const pageNumbers = generatePageNumbers(current, total);
-    
+
+    // All controls in one horizontal flex row so they align cleanly
+    let html = '<div class="flex items-center gap-2 flex-wrap">';
+
     // Previous button - darkest grey when enabled, light grey when disabled
-    let html = '<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' + (current <= 1 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800') + '" ' + (current <= 1 ? 'disabled' : '') + '>Previous</button>';
-    
+    html += '<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' + (current <= 1 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800') + '" ' + (current <= 1 ? 'disabled' : '') + '>Previous</button>';
+
     html += '<div class="flex items-center gap-1">';
     for (const page of pageNumbers) {
       if (page === '...') {
@@ -135,10 +138,11 @@ function createPagination(options = {}) {
       }
     }
     html += '</div>';
-    
+
     // Next button - darkest grey when enabled, light grey when disabled
     html += '<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' + (current >= total ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800') + '" ' + (current >= total ? 'disabled' : '') + '>Next</button>';
-    
+
+    html += '</div>';
     container.innerHTML = html;
 
     const buttons = container.querySelectorAll('button[data-page]');
@@ -200,9 +204,14 @@ function createPagination(options = {}) {
 //   emptyMessage: string - message when no data (default: "No data found")
 //   loading: boolean - show loading spinner
 //   pagination: { perPage: number, currentPage: number, onPageChange: (page) => void }
+//   searchable: boolean - show a search box in the table header (default: true)
+//   searchPlaceholder: string - placeholder text for the search box
+//   pageSizeOptions: array - options for the "entries per page" dropdown (default: [10, 20, 50, 100, 200, 'All'])
+//   exportable: boolean - show an "Export Excel" button in the header (default: true)
+//   exportFilename: string - base name for the downloaded file (default: <containerId>-export)
 // Returns: { render(), setData(data), setHeaders(headers), setLoading(bool), getPagination(), destroy() }
 function createTable(options = {}) {
-  const { containerId, headers = [], data = [], onRowClick, emptyMessage = 'No data found', loading = false, pagination } = options;
+  const { containerId, headers = [], data = [], onRowClick, emptyMessage = 'No data found', loading = false, pagination, searchable = true, searchPlaceholder = 'Search...', pageSizeOptions = [10, 20, 50, 100, 200, 'All'], exportable = true, exportFilename = '' } = options;
   const container = document.getElementById(containerId);
   if (!container) {
     console.error('Table container not found:', containerId);
@@ -214,7 +223,8 @@ function createTable(options = {}) {
   let isLoading = loading;
   let paginationObj = null;
   let currentPage = pagination?.currentPage || 1;
-  let perPage = pagination?.perPage || 10;
+  let pageSize = pagination?.perPage || 10;   // current "entries per page" selection (number or 'All')
+  let searchTerm = '';
 
   function render() {
     if (isLoading) {
@@ -240,15 +250,26 @@ function createTable(options = {}) {
       return;
     }
 
-    // Determine which data to show (paginated or full)
-    let displayData = currentData;
-    const totalItems = currentData.length;
+    // Determine which data to show (search-filtered, then paginated)
+    const perPage = pageSize === 'All' ? Number.MAX_SAFE_INTEGER : Number(pageSize);
+    let baseData = currentData;
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      baseData = currentData.filter(function(row) {
+        return currentHeaders.some(function(h) {
+          const v = row ? row[h.key] : undefined;
+          return v !== undefined && v !== null && String(v).toLowerCase().indexOf(q) !== -1;
+        });
+      });
+    }
+    let displayData = baseData;
+    const totalItems = baseData.length;
     const totalPages = Math.ceil(totalItems / perPage) || 1;
 
     if (pagination && totalItems > perPage) {
       const start = (currentPage - 1) * perPage;
       const end = start + perPage;
-      displayData = currentData.slice(start, end);
+      displayData = baseData.slice(start, end);
     }
 
     // Build table HTML
@@ -258,6 +279,7 @@ function createTable(options = {}) {
     '</tr>';
 
     let bodyHtml = '';
+    const emptyMsg = searchTerm.trim() ? ('No results found for "' + searchTerm.trim() + '"') : emptyMessage;
     if (!hasData) {
       bodyHtml = '<tr><td colspan="' + Math.max(1, currentHeaders.length) + '" class="px-4 py-12">' +
         '<div class="flex flex-col items-center justify-center">' +
@@ -266,7 +288,7 @@ function createTable(options = {}) {
               '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>' +
             '</svg>' +
           '</div>' +
-          '<p class="text-sm font-bold text-slate-800 mb-1">' + escHtml(emptyMessage) + '</p>' +
+          '<p class="text-sm font-bold text-slate-800 mb-1">' + escHtml(emptyMsg) + '</p>' +
         '</div>' +
       '</td></tr>';
     } else {
@@ -281,18 +303,69 @@ function createTable(options = {}) {
       }).join('');
     }
 
-    // Build full table HTML
-    let tableHtml = '<div class="bg-white border border-slate-200 rounded-lg overflow-hidden">' +
-      '<div class="overflow-x-auto">' +
+    // Build full table HTML (toolbar: entries-per-page on left, search on right)
+    let tableHtml = '<div class="bg-white border border-slate-200 rounded-lg overflow-hidden">';
+    if (searchable || pagination) {
+      tableHtml += '<div class="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-slate-200 flex-wrap">';
+
+      // Left group: entries-per-page dropdown + Export button (kept adjacent)
+      tableHtml += '<div class="flex items-center gap-2 flex-wrap">';
+
+      // Entries-per-page dropdown (only when pagination is enabled)
+      if (pagination) {
+        const pageSizeHtml = pageSizeOptions.map(function(opt) {
+          const val = opt === 'All' ? 'All' : String(opt);
+          const selected = String(pageSize) === val ? ' selected' : '';
+          return '<option value="' + val + '"' + selected + '>' + (opt === 'All' ? 'All' : opt) + '</option>';
+        }).join('');
+        tableHtml += '<div class="flex items-center gap-2">' +
+          '<label for="pageSize_' + containerId + '" class="text-xs text-slate-600 whitespace-nowrap">Show</label>' +
+          '<select id="pageSize_' + containerId + '" class="bg-slate-100 border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-700 outline-none cursor-pointer focus:border-violet-400 focus:bg-white">' +
+            pageSizeHtml +
+          '</select>' +
+          '<span class="text-xs text-slate-500 whitespace-nowrap">entries</span>' +
+        '</div>';
+      }
+
+      // Export Excel button (right after entries-per-page)
+      if (exportable) {
+        tableHtml += '<button type="button" id="export_' + containerId + '" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">' +
+          '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>' +
+          '</svg>' +
+          'Export Excel' +
+        '</button>';
+      }
+
+      tableHtml += '</div>';
+
+      // Right: search box
+      if (searchable) {
+        tableHtml += '<div class="flex items-center gap-2">' +
+          '<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.35-5.15a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/>' +
+          '</svg>' +
+          '<input type="text" id="tableSearch_' + containerId + '" value="' + escHtml(searchTerm) + '" placeholder="' + escHtml(searchPlaceholder) + '" class="w-60 max-w-full bg-slate-100 border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-violet-400 focus:bg-white" />' +
+        '</div>';
+      }
+
+      tableHtml += '</div>';
+    }
+    tableHtml += '<div class="overflow-x-auto">' +
         '<table class="w-full">' +
           '<thead>' + headerHtml + '</thead>' +
           '<tbody class="divide-y divide-slate-200">' + bodyHtml + '</tbody>' +
         '</table>' +
       '</div>';
 
-    // Pagination footer
+    // Pagination footer (count/info text on left, page controls on right)
     if (pagination && totalPages > 1) {
-      tableHtml += '<div id="tablePagination_' + containerId + '" class="border-t border-slate-200 bg-slate-200 px-4 py-2.5 flex justify-end"></div>';
+      const pageStart = (currentPage - 1) * perPage + 1;
+      const pageEnd = Math.min(pageStart + perPage - 1, totalItems);
+      tableHtml += '<div class="border-t border-slate-200 bg-slate-200 px-4 py-2.5 flex items-center justify-between gap-4 flex-wrap">' +
+        '<span class="text-xs text-slate-600">Showing ' + pageStart + ' to ' + pageEnd + ' of ' + totalItems + ' entries</span>' +
+        '<div id="tablePagination_' + containerId + '"></div>' +
+      '</div>';
     }
 
     tableHtml += '</div>';
@@ -311,6 +384,66 @@ function createTable(options = {}) {
         }
       });
       paginationObj.render();
+    }
+
+    // Entries-per-page dropdown: re-render with the new page size, reset to page 1
+    const sizeSelect = document.getElementById('pageSize_' + containerId);
+    if (sizeSelect) {
+      sizeSelect.addEventListener('change', function(e) {
+        const val = e.target.value;
+        pageSize = val === 'All' ? 'All' : parseInt(val, 10);
+        currentPage = 1;
+        render();
+      });
+    }
+
+    // Export button: download all currently-shown (search-filtered) rows as CSV (opens in Excel)
+    const exportBtn = document.getElementById('export_' + containerId);
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function() {
+        const exportRows = baseData;
+        if (!exportRows.length) {
+          if (typeof toast === 'function') toast('No data to export', true);
+          return;
+        }
+        const csvRows = [];
+        csvRows.push(currentHeaders.map(function(h) {
+          return '"' + String(h.label || '').replace(/"/g, '""') + '"';
+        }).join(','));
+        exportRows.forEach(function(row) {
+          csvRows.push(currentHeaders.map(function(h) {
+            const v = row ? row[h.key] : '';
+            const s = (v === null || v === undefined) ? '' : String(v);
+            return '"' + s.replace(/"/g, '""') + '"';
+          }).join(','));
+        });
+        const csv = '\uFEFF' + csvRows.join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (exportFilename || (containerId + '-export')) + '-' + new Date().toISOString().split('T')[0] + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // Search input: filter data as the user types, keep focus in the box
+    const searchInput = document.getElementById('tableSearch_' + containerId);
+    if (searchInput) {
+      searchInput.addEventListener('input', function(e) {
+        const hadFocus = document.activeElement === e.target;
+        searchTerm = e.target.value;
+        currentPage = 1;
+        render();
+        const newInput = document.getElementById('tableSearch_' + containerId);
+        if (newInput && hadFocus) {
+          newInput.focus();
+          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        }
+      });
     }
 
     // Store row click handler globally

@@ -113,7 +113,7 @@ const authController = {
       const isSecure = process.env.NODE_ENV === 'production';
       res.cookie('auth_token', token, { httpOnly: true, sameSite: 'lax', secure: isSecure, maxAge: JWT_EXPIRES_MS });
       logger.info(`User logged in: ${user.email} (ID: ${user.id})`);
-      return sendResponse(res, success({ user, expiresIn: JWT_EXPIRES_MS }, 'Login successful', 200));
+      return sendResponse(res, success({ user, token, expiresIn: JWT_EXPIRES_MS }, 'Login successful', 200));
     } catch (err) {
       logger.error('Login error:', err);
       if (err.message.includes('Email not verified')) return sendResponse(res, failure(err.message, 403));
@@ -160,10 +160,7 @@ const authController = {
       const passwordError = validatePassword(password);
       if (passwordError) return sendResponse(res, failure(passwordError, 400));
 
-      const { db } = require('../../database/db');
-      const user = await new Promise((resolve, reject) => {
-        db.get(`SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE password_reset_token = ? AND deleted_at IS NULL`, [token], (err, row) => err ? reject(err) : resolve(row || null));
-      });
+      const user = await UsersModel.findByPasswordResetToken(token);
       if (!user) return sendResponse(res, failure('Invalid password reset token', 400));
       if (!user.password_reset_expires_at || new Date(user.password_reset_expires_at).getTime() < Date.now()) return sendResponse(res, failure('Password reset token expired', 400));
 
@@ -185,10 +182,7 @@ const authController = {
     try {
       const { token } = req.body || {};
       if (!token) return sendResponse(res, failure('Verification token is required', 400));
-      const { db } = require('../../database/db');
-      const user = await new Promise((resolve, reject) => {
-        db.get(`SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE email_verification_token = ? AND deleted_at IS NULL`, [token], (err, row) => err ? reject(err) : resolve(row || null));
-      });
+      const user = await UsersModel.findByEmailVerificationToken(token);
       if (!user) return sendResponse(res, failure('Invalid email verification token', 400));
       if (!user.email_verification_expires_at || new Date(user.email_verification_expires_at).getTime() < Date.now()) return sendResponse(res, failure('Email verification token expired', 400));
       await UsersModel.updateUser(user.id, { email_verified: 1, email_verified_at: new Date().toISOString(), email_verification_token: null, email_verification_expires_at: null });

@@ -19,7 +19,7 @@ const sidebarConfig = {
           id: 'dashboard',
           label: 'Dashboard',
           icon: 'grid',
-          href: '/super_admin/index.html',
+          href: '/super_admin/index',
           submenu: null
         },
         {
@@ -31,17 +31,17 @@ const sidebarConfig = {
             {
               id: 'calendar-accounts',
               label: 'Calendar Accounts',
-              href: '/super_admin/calendar-accounts.html'
+              href: '/super_admin/calendar-accounts'
             },
             {
               id: 'calendar-events',
               label: 'Calendar Events',
-              href: '/super_admin/calendar-events.html'
+              href: '/super_admin/calendar-events'
             },
             {
               id: 'data-architecture',
               label: 'Data Architecture',
-              href: '/super_admin/data-architecture.html'
+              href: '/super_admin/data-architecture'
             }
           ]
         },
@@ -54,17 +54,17 @@ const sidebarConfig = {
             {
               id: 'archives',
               label: 'Archives',
-              href: '/super_admin/archives.html'
+              href: '/super_admin/archives'
             },
             {
               id: 'assets',
               label: 'Assets',
-              href: '/super_admin/assets.html'
+              href: '/super_admin/assets'
             },
             {
               id: 'audit',
               label: 'Audit Log',
-              href: '/super_admin/audit.html'
+              href: '/super_admin/audit'
             }
           ]
         },
@@ -77,17 +77,17 @@ const sidebarConfig = {
             {
               id: 'bot-management',
               label: 'Bot Management',
-              href: '/super_admin/bot.html'
+              href: '/super_admin/bot'
             },
             {
               id: 'settings',
               label: 'Settings',
-              href: '/super_admin/settings.html'
+              href: '/super_admin/settings'
             },
             {
               id: 'profile',
               label: 'Profile',
-              href: '/super_admin/profile.html'
+              href: '/super_admin/profile'
             }
           ]
         }
@@ -101,7 +101,7 @@ const sidebarConfig = {
           id: 'dashboard',
           label: 'Dashboard',
           icon: 'grid',
-          href: '/admin/index.html',
+          href: '/admin/index',
           submenu: null
         },
         {
@@ -113,12 +113,12 @@ const sidebarConfig = {
             {
               id: 'calendar-accounts',
               label: 'Accounts',
-              href: '/admin/calendar-accounts.html'
+              href: '/admin/calendar-accounts'
             },
             {
               id: 'calendar-events',
               label: 'Events',
-              href: '/admin/calendar-events.html'
+              href: '/admin/calendar-events'
             }
           ]
         },
@@ -131,7 +131,7 @@ const sidebarConfig = {
             {
               id: 'archives',
               label: 'Archives',
-              href: '/admin/archives.html'
+              href: '/admin/archives'
             }
           ]
         },
@@ -144,7 +144,7 @@ const sidebarConfig = {
             {
               id: 'add-user',
               label: 'Add Reviewer',
-              href: '/admin/add-user.html'
+              href: '/admin/add-user'
             }
           ]
         },
@@ -157,12 +157,12 @@ const sidebarConfig = {
             {
               id: 'profile',
               label: 'Profile',
-              href: '/admin/profile.html'
+              href: '/admin/profile'
             },
             {
               id: 'settings',
               label: 'Settings',
-              href: '/admin/settings.html'
+              href: '/admin/settings'
             }
           ]
         }
@@ -176,7 +176,7 @@ const sidebarConfig = {
           id: 'dashboard',
           label: 'Dashboard',
           icon: 'grid',
-          href: '/reviewer/index.html',
+          href: '/reviewer/index',
           submenu: null
         },
         {
@@ -188,12 +188,12 @@ const sidebarConfig = {
             {
               id: 'calendar-accounts',
               label: 'Accounts',
-              href: '/reviewer/calendar-accounts.html'
+              href: '/reviewer/calendar-accounts'
             },
             {
               id: 'calendar-events',
               label: 'Events',
-              href: '/reviewer/calendar-events.html'
+              href: '/reviewer/calendar-events'
             }
           ]
         },
@@ -201,7 +201,7 @@ const sidebarConfig = {
           id: 'content',
           label: 'Archives',
           icon: 'folder',
-          href: '/reviewer/archives.html',
+          href: '/reviewer/archives',
           submenu: null
         },
         {
@@ -213,12 +213,12 @@ const sidebarConfig = {
             {
               id: 'profile',
               label: 'Profile',
-              href: '/reviewer/profile.html'
+              href: '/reviewer/profile'
             },
             {
               id: 'settings',
               label: 'Settings',
-              href: '/reviewer/settings.html'
+              href: '/reviewer/settings'
             }
           ]
         }
@@ -232,7 +232,7 @@ const sidebarConfig = {
           id: 'dashboard',
           label: 'Dashboard',
           icon: 'grid',
-          href: '/instructor/index.html',
+          href: '/instructor/index',
           submenu: null
         },
         {
@@ -244,12 +244,12 @@ const sidebarConfig = {
             {
               id: 'calendar-accounts',
               label: 'My Calendar',
-              href: '/instructor/calendar-accounts.html'
+              href: '/instructor/calendar-accounts'
             },
             {
               id: 'calendar-events',
               label: 'Events',
-              href: '/instructor/calendar-events.html'
+              href: '/instructor/calendar-events'
             }
           ]
         },
@@ -257,7 +257,7 @@ const sidebarConfig = {
           id: 'content',
           label: 'Archives',
           icon: 'folder',
-          href: '/instructor/archives.html',
+          href: '/instructor/archives',
           submenu: null
         },
         {
@@ -269,12 +269,12 @@ const sidebarConfig = {
             {
               id: 'profile',
               label: 'Profile',
-              href: '/instructor/profile.html'
+              href: '/instructor/profile'
             },
             {
               id: 'settings',
               label: 'Settings',
-              href: '/instructor/settings.html'
+              href: '/instructor/settings'
             }
           ]
         }
@@ -608,14 +608,14 @@ function renderMenuItems(menuItems, currentPageId, activeMenuIdFromPath) {
               // Clear session storage
               sessionStorage.clear();
               // Redirect to login
-              window.location.href = '/login.html';
+              window.location.href = '/login';
             } else {
               console.error('Logout failed');
-              window.location.href = '/login.html';
+              window.location.href = '/login';
             }
           } catch (err) {
             console.error('Logout error:', err);
-            window.location.href = '/login.html';
+            window.location.href = '/login';
           }
         });
       }

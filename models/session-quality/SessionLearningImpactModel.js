@@ -6,7 +6,7 @@
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
-class SessionLearningImpactModel_v2 {
+class SessionLearningImpactModel {
   static upsert(data) {
     return new Promise((resolve, reject) => {
       const sql = `INSERT INTO session_learning_impact 
@@ -23,7 +23,7 @@ class SessionLearningImpactModel_v2 {
       
       db.run(sql, params, function(err) {
         if (err) { 
-          logger.error('[SessionLearningImpactModel_v2] upsert error', err); 
+          logger.error('[SessionLearningImpactModel] upsert error', err); 
           return reject(err); 
         }
         resolve({ id: this.lastID, changes: this.changes });
@@ -37,7 +37,7 @@ class SessionLearningImpactModel_v2 {
       
       db.get(sql, [sessionId], (err, row) => {
         if (err) { 
-          logger.error('[SessionLearningImpactModel_v2] findBySessionId error', err); 
+          logger.error('[SessionLearningImpactModel] findBySessionId error', err); 
           return reject(err); 
         }
         if (row) {
@@ -45,7 +45,7 @@ class SessionLearningImpactModel_v2 {
             row.impact_areas = typeof row.impact_areas === 'string' 
               ? JSON.parse(row.impact_areas) : row.impact_areas;
           } catch (e) {
-            logger.warn('[SessionLearningImpactModel_v2] JSON parse warning', e);
+            logger.warn('[SessionLearningImpactModel] JSON parse warning', e);
           }
         }
         resolve(row || null);
@@ -59,7 +59,7 @@ class SessionLearningImpactModel_v2 {
       
       db.run(sql, [sessionId], function(err) {
         if (err) { 
-          logger.error('[SessionLearningImpactModel_v2] deleteBySession error', err); 
+          logger.error('[SessionLearningImpactModel] deleteBySession error', err); 
           return reject(err); 
         }
         resolve({ changes: this.changes });
@@ -68,4 +68,4 @@ class SessionLearningImpactModel_v2 {
   }
 }
 
-module.exports = SessionLearningImpactModel_v2;
+module.exports = SessionLearningImpactModel;

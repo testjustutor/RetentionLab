@@ -21,111 +21,124 @@
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
         <div class="flex items-center justify-between mb-4">
           <div id="header-buttons-container"></div>
-          <button onclick="showAssignModal()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-slate-100 text-xs font-semibold transition-colors">Assign Reviewer</button>
+          <button onclick="showAssignModal()" class="px-4 py-2 rounded-md bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-xs font-bold transition-colors shadow-md flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a7 7 0 1114 0"></path></svg>
+            Assign Reviewer
+          </button>
         </div>
 
         <!-- Status Tabs -->
-        <div class="flex gap-1 mb-4 bg-slate-900 p-1 rounded-md w-fit">
-          <button onclick="setFilter('')" class="filter-tab px-3 py-1.5 text-xs rounded-md transition-colors" data-filter="">All</button>
-          <button onclick="setFilter('pending')" class="filter-tab px-3 py-1.5 text-xs rounded-md transition-colors" data-filter="pending">Pending</button>
-          <button onclick="setFilter('in_progress')" class="filter-tab px-3 py-1.5 text-xs rounded-md transition-colors" data-filter="in_progress">In Progress</button>
-          <button onclick="setFilter('completed')" class="filter-tab px-3 py-1.5 text-xs rounded-md transition-colors" data-filter="completed">Completed</button>
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-1.5 mb-4 shadow-md inline-flex gap-1">
+          <button onclick="setFilter('')" class="filter-tab px-4 py-2 text-xs font-bold rounded-md transition-colors" data-filter="">All</button>
+          <button onclick="setFilter('pending')" class="filter-tab px-4 py-2 text-xs font-bold rounded-md transition-colors" data-filter="pending">Pending</button>
+          <button onclick="setFilter('in_progress')" class="filter-tab px-4 py-2 text-xs font-bold rounded-md transition-colors" data-filter="in_progress">In Progress</button>
+          <button onclick="setFilter('completed')" class="filter-tab px-4 py-2 text-xs font-bold rounded-md transition-colors" data-filter="completed">Completed</button>
         </div>
 
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4" id="statsCards">
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+                        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4" id="statsCards">
+          <!-- Pending Card -->
+          <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-3 shadow-md">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-10 h-10 rounded-md bg-amber-100 border-2 border-amber-300 flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
               </div>
- <div><p class="text-[12px] text-slate-500">Pending</p><p class="text-base font-bold " id="pendingCount">-</p></div>
+              <div>
+                <p class="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Pending</p>
+                <p class="text-lg font-bold text-amber-950" id="pendingCount">-</p>
+              </div>
             </div>
           </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+
+          <!-- In Progress Card -->
+          <div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-md bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-10 h-10 rounded-md bg-blue-100 border-2 border-blue-300 flex items-center justify-center">
+                <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
               </div>
- <div><p class="text-[12px] text-slate-500">In Progress</p><p class="text-base font-bold " id="inProgressCount">-</p></div>
+              <div>
+                <p class="text-[10px] font-bold text-blue-900 uppercase tracking-wide">In Progress</p>
+                <p class="text-lg font-bold text-blue-950" id="inProgressCount">-</p>
+              </div>
             </div>
           </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+
+          <!-- Completed Card -->
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-10 h-10 rounded-md bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center">
+                <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
               </div>
- <div><p class="text-[12px] text-slate-500">Completed</p><p class="text-base font-bold " id="completedCount">-</p></div>
+              <div>
+                <p class="text-[10px] font-bold text-emerald-900 uppercase tracking-wide">Completed</p>
+                <p class="text-lg font-bold text-emerald-950" id="completedCount">-</p>
+              </div>
             </div>
           </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+
+          <!-- Total Card -->
+          <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-md bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-10 h-10 rounded-md bg-violet-100 border-2 border-violet-300 flex items-center justify-center">
+                <svg class="w-5 h-5 text-violet-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                 </svg>
               </div>
- <div><p class="text-[12px] text-slate-500">Total</p><p class="text-base font-bold " id="totalCount">-</p></div>
+              <div>
+                <p class="text-[10px] font-bold text-violet-900 uppercase tracking-wide">Total</p>
+                <p class="text-lg font-bold text-violet-950" id="totalCount">-</p>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div id="reviewsRoot">
-          <div class="animate-pulse space-y-4">
-            <div class="h-20 bg-slate-800/50 rounded-xl"></div>
-            <div class="h-20 bg-slate-800/50 rounded-xl"></div>
-          </div>
-        </div>
+        </div><div id="reviewsRoot">`n          <div class="bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-300 rounded-lg p-4 shadow-md">`n            <div class="animate-pulse space-y-4">`n              <div class="h-20 bg-slate-200 rounded-lg"></div>`n              <div class="h-20 bg-slate-200 rounded-lg"></div>`n            </div>`n          </div>`n        </div>
       </main>
     </div>
   </div>
 
   <!-- Assign Reviewer Modal -->
-  <div id="assignModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
-    <div class="flex items-center justify-center min-h-screen p-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-lg p-5 w-full max-w-lg">
-        <h3 class="text-lg font-bold text-slate-100 mb-4">Assign Reviewer</h3>
+  <div id="assignModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">`n    <div class="flex items-center justify-center min-h-screen p-4">`n      <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-5 w-full max-w-lg shadow-md">
+        <h3 class="text-base font-bold text-amber-900 mb-4 uppercase tracking-wide">Assign Reviewer</h3>
         
         <div class="space-y-3">
           <!-- Instructor Selection -->
           <div>
-            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Instructor</label>
+            <label class="block text-[10px] font-bold text-amber-900 mb-1.5 uppercase tracking-wide">Select Instructor</label>
             <div id="instructorSelectContainer"></div>
           </div>
 
           <!-- Meeting Selection -->
           <div>
-            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Meeting</label>
+            <label class="block text-[10px] font-bold text-amber-900 mb-1.5 uppercase tracking-wide">Select Meeting</label>
             <div id="meetingSelectContainer"></div>
           </div>
 
           <!-- Reviewer Selection -->
           <div>
-            <label class="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">Select Reviewer</label>
+            <label class="block text-[10px] font-bold text-amber-900 mb-1.5 uppercase tracking-wide">Select Reviewer</label>
             <div id="reviewerSelectContainer"></div>
           </div>
 
           <!-- Bulk Assignment Option -->
-          <div class="bg-slate-800/50 border border-slate-700 rounded-md p-3">
+          <div class="bg-amber-100 border-2 border-amber-300 rounded-md p-3">
             <label class="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" id="bulkAssign" class="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-700 text-violet-600 focus:ring-violet-500 focus:ring-offset-slate-900">
               <div class="flex-1">
-                <span class="text-sm font-medium text-slate-100">Assign to all meetings</span>
-                <p class="text-xs text-slate-400 mt-0.5">Assign selected reviewer to all meetings of the selected instructor (last 90 days)</p>
+                <span class="text-sm font-bold text-amber-950">Assign to all meetings</span>
+                <p class="text-xs text-amber-800 mt-0.5">Assign selected reviewer to all meetings of the selected instructor (last 90 days)</p>
               </div>
             </label>
           </div>
         </div>
 
         <div class="flex gap-2 mt-5">
-          <button onclick="hideAssignModal()" class="flex-1 px-4 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 hover:bg-slate-700 transition-colors text-sm font-medium">Cancel</button>
-          <button onclick="assignReviewer()" class="flex-1 px-4 py-2 rounded-md bg-violet-600 hover:bg-violet-500 text-slate-100 font-semibold transition-colors text-sm">Assign Reviewer</button>
+          <button onclick="hideAssignModal()" class="flex-1 px-4 py-2 rounded-md bg-slate-200 border-2 border-slate-300 text-slate-700 hover:bg-slate-300 transition-colors text-sm font-bold">Cancel</button>
+          <button onclick="assignReviewer()" class="flex-1 px-4 py-2 rounded-md bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold shadow-md transition-colors text-sm">Assign Reviewer</button>
         </div>
       </div>
     </div>
@@ -135,6 +148,17 @@
   <script src="../../js/load-components.js"></script>
   <script src="../../js/admin/evaluation/reviews.js"></script>
 </body></html>
+
+
+
+
+
+
+
+
+
+
+
 
 
 

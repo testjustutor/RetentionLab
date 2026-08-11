@@ -16,16 +16,23 @@ const seedMeetingAssets = async () => {
         if (sessions.length === 0) { console.log('[Manual Seeder] ℹ No sessions found. Run 09_seed_meeting_sessions.js first.'); return; }
 
         let count = 0;
+        const now = new Date();
+
+        const dateTime = now.toISOString()
+          .slice(0, 16)
+          .replace('T', '_')
+          .replace(':', '-');
+
         for (const session of sessions) {
             const existing = await getAsync(`SELECT id FROM meeting_assets WHERE meeting_id = ? AND session_id = ? LIMIT 1`, [session.meeting_id, session.id]);
             if (existing) continue;
 
             const meetingId = session.meeting_id;
             const sessionId = session.id;
-            const audioPath = `storage/audio/meeting_${meetingId}_session_${sessionId}.mp3`;
-            const wavAudioPath = `storage/audio/meeting_${meetingId}_session_${sessionId}.wav`;
-            const transcriptPath = `storage/transcripts/meeting_${meetingId}_session_${sessionId}_transcript.txt`;
-            const auditJsonPath = `storage/audit/meeting_${meetingId}_session_${sessionId}_audit.json`;
+            const audioPath = `storage/recordings/REC_${meetingId}_session_${sessionId}_${dateTime}.mp3`;
+            const transcriptPath = `storage/transcripts/TRANS_${meetingId}_session_${sessionId}_${dateTime}.txt`;
+            const summaryPath = `storage/summaries/SUMMARY_${meetingId}_session_${sessionId}_${dateTime}.txt`;
+            const videoPath = `storage/screen-recordings/SCREEN_${meetingId}_session_${sessionId}_${dateTime}.mp4`;
 
             const oqiScore = (Math.random() * 3 + 7).toFixed(2);
 
@@ -44,12 +51,10 @@ const seedMeetingAssets = async () => {
 
             await runAsync(
                 `INSERT INTO meeting_assets 
-                 (meeting_id, session_id, audio_path, wav_audio_path, transcript_path, audit_json_path, 
-                  screenshots_json, oqi_score, audit_summary, audit_completed_at, status, 
+                 (meeting_id, session_id, audio_path, transcript_path, summary_path, video_path, oqi_score, audit_summary, audit_completed_at, status, 
                   processed_at, created_at, updated_at) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                [meetingId, sessionId, audioPath, wavAudioPath, transcriptPath, auditJsonPath,
-                 screenshotsJson, parseFloat(oqiScore), auditSummary,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [meetingId, sessionId, audioPath, transcriptPath, summaryPath, videoPath, parseFloat(oqiScore), auditSummary,
                  new Date().toISOString().replace('T', ' ').substring(0, 19), 'processed',
                  new Date().toISOString().replace('T', ' ').substring(0, 19)]
             );

@@ -96,6 +96,9 @@ const routeRegistry = [
   // Configuration Pages (super admin)
   { method: 'use', path: '/super_admin/configuration', handler: 'configuration' },
   
+  // Per-table control visibility (search / entries / info / pagination)
+  { method: 'use', path: '/api/tables', handler: 'table-controls' },
+
   // Page routes (must be last)
   { method: 'use', path: '/', handler: 'pages' },
 ];

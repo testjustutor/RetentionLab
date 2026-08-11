@@ -125,30 +125,44 @@ const controller = {
     return mapFn(rows);
   },
 
+  // ── Shared role-based row resolution (used by recordings & transcripts) ──
+  // Both content endpoints fetch the same underlying meetings/sessions/assets data.
+  // The only difference between them is how each maps a row into its response object.
+  async _resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate }) {
+    // If a specific instructor/user was requested, fetch only their data
+    if (requestedUserId || requestedUserUuid) {
+      // Convert UUID to userId if needed
+      let targetUserId = requestedUserId;
+      if (requestedUserUuid && !requestedUserId) {
+        const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
+        targetUserId = targetUser ? targetUser.id : null;
+      }
+      return MeetingRecordingsModel.fetchMeetings({ userId: targetUserId, userRole, currentUserId, limit, startDate, endDate });
+    }
+    // Admin without a filter: get all instructors' meetings they created
+    if (userRole === 'admin') {
+      return MeetingRecordingsModel.getRecordingsForAdmin(currentUserId, limit);
+    }
+    // Instructor: their own meetings
+    if (userRole === 'instructor' || userRole === 'solo_instructor') {
+      return MeetingRecordingsModel.fetchMeetings({ userId: currentUserId, userRole, currentUserId, limit, startDate, endDate });
+    }
+    // Fallback for other roles
+    return MeetingRecordingsModel.fetchMeetings({ userId: null, userRole, currentUserId, limit, startDate, endDate });
+  },
+
+
   /** POST /api/recordings/by-user - Get recordings with filters in body */
   async getRecordings(req) {
     try {
-      // Get logged-in user UUID from request body (sent from frontend localStorage)
-      // Fallback to JWT token if not in request body
-      const loggedInUser = req.body?.loggedInUser || req.user?.user_uuid || null;
-      
-      console.log('[RecordingsController] getRecordings called with loggedInUser:', loggedInUser);
-      console.log('[RecordingsController] req.body:', JSON.stringify(req.body));
-      console.log('[RecordingsController] req.user:', JSON.stringify(req.user));
-      
-      if (!loggedInUser) {
-        return err('Unauthorized - No user logged in. Please ensure user_uuid is in localStorage.', 401);
+      // User is already authenticated by requireAuth middleware
+      if (!req.user || !req.user.user_uuid) {
+        return err('Unauthorized', 401);
       }
 
-      // Fetch user details from database to get role
-      const currentUser = await UsersModel.getUserByUuid(loggedInUser);
-      if (!currentUser) {
-        return err('Unauthorized - User not found', 401);
-      }
-
-      const userRole = currentUser.role_name || '';
-      const currentUserId = currentUser.id;
-      const currentUserUuid = currentUser.user_uuid;
+      const currentUserUuid = req.user.user_uuid;
+      const userRole = req.user.role_name || '';
+      const currentUserId = req.user.id;
       
       // Support both GET (userId param) and POST (userId in body with optional filters)
       // Accept either numeric ID or UUID
@@ -175,71 +189,33 @@ const controller = {
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
       
-      let rows;
-      
-      // If a specific userId or userUuid is requested, get that instructor's recordings
-      if (requestedUserId || requestedUserUuid) {
-        // Convert UUID to userId if needed
-        let targetUserId = requestedUserId;
-        if (requestedUserUuid && !requestedUserId) {
-          const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
-          targetUserId = targetUser ? targetUser.id : null;
-        }
-        rows = await MeetingRecordingsModel.fetchMeetings({ 
-          userId: targetUserId, 
-          userRole, 
-          currentUserId, 
-          limit,
-          startDate,
-          endDate
-        });
-      } 
-      // If no userId requested and current user is admin, get all instructors' recordings
-      else if (userRole === 'admin') {
-        // Admin is accessing - get all recordings from instructors they created
-        rows = await MeetingRecordingsModel.getRecordingsForAdmin(currentUserId, limit);
-      }
-      // If current user is an instructor, get their own recordings
-      else if (userRole === 'instructor' || userRole === 'solo_instructor') {
-        rows = await MeetingRecordingsModel.fetchMeetings({ 
-          userId: currentUserId, 
-          userRole, 
-          currentUserId, 
-          limit,
-          startDate,
-          endDate
-        });
-      }
-      // Fallback for other roles
-      else {
-        rows = await MeetingRecordingsModel.fetchMeetings({ 
-          userId: null, 
-          userRole, 
-          currentUserId, 
-          limit,
-          startDate,
-          endDate
-        });
-      }
+      const rows = await this._resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate });
       
       const data = rows.map(r => { 
-        let audioUrl = r.audio_path || r.wav_audio_path || null;
+        // Prioritize audio from meeting_sessions (recorded when meeting starts), fallback to meeting_assets
+        let audioUrl = null;
+        if (r.session_audio_file && r.session_audio_file.trim() !== '') {
+          audioUrl = '/storage/audio/' + r.session_audio_file.trim();
+        } else if (r.audio_path) {
+          audioUrl = toUrl(r.audio_path);
+        }
+        const instructorName = [r.instructor_first_name, r.instructor_last_name].filter(Boolean).join(' ') || 'Unknown';
         return { 
           meeting_id: r.meeting_id, 
           title: r.title || 'Untitled', 
-          start_time: r.start_time, 
-          end_time: r.end_time, 
+          start_time: r.scheduled_start_time, 
+          end_time: r.scheduled_end_time, 
           platform: r.platform || 'unknown', 
-          play_url: toUrl(audioUrl), 
+          play_url: audioUrl, 
           has_recording: !!audioUrl, 
           asset_status: r.asset_status || 'not_started', 
-          status: r.status || 'unknown' 
+          status: r.meeting_status || 'unknown',
+          instructor_name: instructorName,
+          instructor_email: r.instructor_email || ''
         }; 
       });
       
       return ok({ 
-        userId: requestedUserId || 'all', 
-        userUuid: requestedUserUuid || currentUserUuid || 'all',
         count: data.length, 
         recordings: data 
       });
@@ -249,23 +225,14 @@ const controller = {
   /** POST /api/recordings/transcripts - Get transcripts with filters in body */
   async getTranscripts(req) {
     try {
-      // Get logged-in user UUID from request body (sent from frontend localStorage)
-      // Fallback to JWT token if not in request body
-      const loggedInUser = req.body?.loggedInUser || req.user?.user_uuid || null;
-      
-      if (!loggedInUser) {
-        return err('Unauthorized - No user logged in', 401);
+      // User is already authenticated by requireAuth middleware
+      if (!req.user || !req.user.user_uuid) {
+        return err('Unauthorized', 401);
       }
 
-      // Fetch user details from database to get role
-      const currentUser = await UsersModel.getUserByUuid(loggedInUser);
-      if (!currentUser) {
-        return err('Unauthorized - User not found', 401);
-      }
-
-      const userRole = currentUser.role_name || '';
-      const currentUserId = currentUser.id;
-      const currentUserUuid = currentUser.user_uuid;
+      const currentUserUuid = req.user.user_uuid;
+      const userRole = req.user.role_name || '';
+      const currentUserId = req.user.id;
       
       // Support both GET (userId param) and POST (userId in body with optional filters)
       // Accept either numeric ID or UUID
@@ -292,153 +259,53 @@ const controller = {
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
       
-      // Convert UUID to userId if needed
-      let targetUserId = requestedUserId;
-      if (requestedUserUuid && !requestedUserId) {
-        const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
-        targetUserId = targetUser ? targetUser.id : null;
-      }
-      
-      const data = await controller._fetchByUserId(targetUserId, userRole, currentUserId, null, rows =>
-        rows.map(r => { 
-          // Prefer bot captions transcript (live captions) over AI whisper transcript
-          let url = null;
-          let hasTranscript = false;
-          if (r.session_transcript_file) {
-            url = '/storage/transcripts/' + r.session_transcript_file;
-            hasTranscript = true;
-          } else {
-            url = r.transcript_path || r.whisper_path || null;
-            hasTranscript = !!(r.transcript_path || r.whisper_path);
-          }
-          return {
-           meeting_id: r.meeting_id, 
-           title: r.title || 'Untitled', 
-           start_time: r.start_time, 
-           end_time: r.end_time, 
-           platform: r.platform || 'unknown', 
-           view_url: toUrl(url), 
-           has_transcript: hasTranscript, 
-           asset_status: r.asset_status || 'not_started', 
-           status: r.status || 'unknown' 
-         }; 
-         })
-      );
+      const rows = await this._resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate });
+
+      const data = rows.map(r => {
+        // Prioritize transcript from meeting_sessions, fallback to meeting_assets
+        let url = null;
+        let hasTranscript = false;
+        if (r.session_transcript_file) {
+          url = '/storage/transcripts/' + r.session_transcript_file;
+          hasTranscript = true;
+        } else {
+          url = r.transcript_path || r.whisper_path || null;
+          hasTranscript = !!(r.transcript_path || r.whisper_path);
+        }
+        const instructorName = [r.instructor_first_name, r.instructor_last_name].filter(Boolean).join(' ') || 'Unknown';
+        return {
+          meeting_id: r.meeting_id,
+          title: r.title || 'Untitled',
+          start_time: r.scheduled_start_time,
+          end_time: r.scheduled_end_time,
+          platform: r.platform || 'unknown',
+          view_url: toUrl(url),
+          has_transcript: hasTranscript,
+          asset_status: r.asset_status || 'not_started',
+          status: r.meeting_status || 'unknown',
+          instructor_name: instructorName,
+          instructor_email: r.instructor_email || ''
+        };
+      });
       return ok({ 
-        userId: requestedUserId || 'all', 
-        userUuid: requestedUserUuid || currentUserUuid || 'all',
         count: data.length, 
         transcripts: data 
       });
     } catch (e) { return err(e.message); }
   },
 
-  /** POST /api/recordings/summaries - Get summaries with filters in body */
-  async getSummaries(req) {
-    try {
-      // Get logged-in user UUID from request body (sent from frontend localStorage)
-      // Fallback to JWT token if not in request body
-      const loggedInUser = req.body?.loggedInUser || req.user?.user_uuid || null;
-      
-      if (!loggedInUser) {
-        return err('Unauthorized - No user logged in', 401);
-      }
-
-      // Fetch user details from database to get role
-      const currentUser = await UsersModel.getUserByUuid(loggedInUser);
-      if (!currentUser) {
-        return err('Unauthorized - User not found', 401);
-      }
-
-      const userRole = currentUser.role_name || '';
-      const currentUserId = currentUser.id;
-      const currentUserUuid = currentUser.user_uuid;
-      
-      // Support both GET (userId param) and POST (userId in body with optional filters)
-      // Accept either numeric ID or UUID
-      let requestedUserId = null;
-      let requestedUserUuid = null;
-      
-      if (req.body?.userId) {
-        const userIdVal = req.body.userId;
-        if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
-          requestedUserUuid = userIdVal;
-        } else {
-          requestedUserId = parseInt(userIdVal);
-        }
-      } else if (req.params.userId) {
-        const userIdVal = req.params.userId;
-        if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
-          requestedUserUuid = userIdVal;
-        } else {
-          requestedUserId = parseInt(userIdVal);
-        }
-      }
-      
-      const limit = req.body?.limit || 50;
-      const startDate = req.body?.startDate || null;
-      const endDate = req.body?.endDate || null;
-      
-      // Convert UUID to userId if needed
-      let targetUserId = requestedUserId;
-      if (requestedUserUuid && !requestedUserId) {
-        const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
-        targetUserId = targetUser ? targetUser.id : null;
-      }
-      
-      const data = await controller._fetchByUserId(targetUserId, userRole, currentUserId, null, rows =>
-        rows.map(r => { 
-          // Use stored summary_path, or derive from bot captions transcript filename
-          let summaryUrl = r.summary_path || null;
-          if (!summaryUrl && r.session_transcript_file) {
-            summaryUrl = '/storage/summaries/' + r.session_transcript_file.replace('TRANS_', 'SUMMARY_');
-          }
-          return { 
-            meeting_id: r.meeting_id, 
-            title: r.title || 'Untitled', 
-            start_time: r.start_time, 
-            end_time: r.end_time, 
-            platform: r.platform || 'unknown', 
-            summary_url: toUrl(summaryUrl), 
-            action_items_url: toUrl(r.action_items_path), 
-            topic_clusters_url: toUrl(r.topic_clusters_url), 
-            oqi_score: r.oqi_score || null, 
-            evidence_quote: r.evidence_quote || null, 
-            has_summary: !!(summaryUrl || r.oqi_score), 
-            asset_status: r.asset_status || 'not_started', 
-            status: r.status || 'unknown' 
-          };
-        })
-      );
-      return ok({ 
-        userId: requestedUserId || 'all', 
-        userUuid: requestedUserUuid || currentUserUuid || 'all',
-        count: data.length, 
-        summaries: data 
-      });
-    } catch (e) { return err(e.message); }
-  },
 
   /** GET /api/recordings/assets/:userId */
   async getAssets(req) {
     try {
-      // Get logged-in user UUID from request body (sent from frontend localStorage)
-      // Fallback to JWT token if not in request body
-      const loggedInUser = req.body?.loggedInUser || req.user?.user_uuid || null;
-      
-      if (!loggedInUser) {
-        return err('Unauthorized - No user logged in', 401);
+      // User is already authenticated by requireAuth middleware
+      if (!req.user || !req.user.user_uuid) {
+        return err('Unauthorized', 401);
       }
 
-      // Fetch user details from database to get role
-      const currentUser = await UsersModel.getUserByUuid(loggedInUser);
-      if (!currentUser) {
-        return err('Unauthorized - User not found', 401);
-      }
-
-      const userRole = currentUser.role_name || '';
-      const currentUserId = currentUser.id;
-      const currentUserUuid = currentUser.user_uuid;
+      const currentUserUuid = req.user.user_uuid;
+      const userRole = req.user.role_name || '';
+      const currentUserId = req.user.id;
       
       // Accept either numeric ID or UUID in params
       let requestedUserId = null;
@@ -465,17 +332,15 @@ const controller = {
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
       
-      const data = await controller._fetchByUserId(targetUserId, userRole, currentUserId, null, rows => {
+      const data = await this._fetchByUserId(targetUserId, userRole, currentUserId, null, rows => {
         const meetings = rows.map(r => {
           const files = [];
           ASSET_KEYS.forEach(a => { if (r[a.key]) files.push({ key: a.key, label: a.label, type: a.type, color: a.color, url: toUrl(r[a.key]) }); });
-          return { meeting_id: r.meeting_id, title: r.title || 'Untitled', start_time: r.start_time, end_time: r.end_time, platform: r.platform || 'unknown', files, fileCount: files.length, has_assets: files.length > 0 };
+          return { meeting_id: r.meeting_id, title: r.title || 'Untitled', start_time: r.scheduled_start_time, end_time: r.scheduled_end_time, platform: r.platform || 'unknown', files, fileCount: files.length, has_assets: files.length > 0 };
         }).filter(m => m.has_assets);
         return meetings;
       });
       return ok({ 
-        userId: requestedUserId || 'all', 
-        userUuid: requestedUserUuid || currentUserUuid || 'all',
         count: data.length, 
         meetings: data 
       });
@@ -484,3 +349,4 @@ const controller = {
 };
 
 module.exports = controller;
+

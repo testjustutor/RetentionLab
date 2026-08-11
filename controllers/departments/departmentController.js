@@ -95,8 +95,7 @@ const departmentController = {
       if (dept.company_id !== req.user.company_id) return err('Forbidden', 403);
 
       // Fetch the user's role_id from the users table automatically
-      const { getAsync } = require('../../database/db');
-      const userRow = await getAsync('SELECT role_id FROM users WHERE id = ?', [userId]);
+      const userRow = await DepartmentsModel.findUserRoleId(userId);
 
       const result = await DepartmentsModel.addMember(deptId, userId, {
         role_id: userRow ? userRow.role_id : null,

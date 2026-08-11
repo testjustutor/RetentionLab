@@ -35,7 +35,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const result = await AuthAPI.resetPassword(token, password);
     if (result && result.user) {
-      window.location.href = '/login.html?reset=success';
+      window.location.href = '/login?reset=success';
       return;
     }
     errorEl.textContent = (result && result.error) ? result.error : 'Unable to reset password.';

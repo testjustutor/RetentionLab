@@ -197,11 +197,10 @@ class UsersModel {
     return UsersModel._sanitizeUser(row);
   }
 
-  static async listUsers(user, { limit = 200, page = 1, perPage = 10, fromDate = null, toDate = null, roleId = null } = {}) {
+  static async listUsers(user, { fromDate = null, toDate = null, roleId = null } = {}) {
     UsersModel._ensureAdminOrSuper(user);
 
-    const offset = (page - 1) * perPage;
-    const conditions = [];
+        const conditions = [];
     const params = [];
 
     if (user.role_name === 'admin') {
@@ -247,9 +246,7 @@ class UsersModel {
          FROM users
          LEFT JOIN roles ON users.role_id = roles.id
          ${whereClause}
-         ORDER BY users.created_at DESC LIMIT ? OFFSET ?`,
-        [...params, perPage, offset],
-        (err, rows) => {
+         ORDER BY users.created_at DESC`,        [...params],        (err, rows) => {
           if (err) return reject(err);
           resolve((rows || []).map(r => UsersModel._sanitizeUser(r)));
         }
@@ -257,6 +254,48 @@ class UsersModel {
     });
 
     return { count: countRow.total, rows };
+  }
+
+  /**
+   * List users that have a specific role, scoped to the requesting user's company.
+   * Unlike listUsers(), this does NOT paginate or restrict results to users the caller created,
+   * so it is suitable for filter dropdowns (e.g. reviewers, instructors).
+   *
+   * @param {object} user - Authenticated user (must be admin or super_admin)
+   * @param {string} roleName - Role name to filter by (e.g. 'reviewer', 'instructor')
+   * @param {object} [options]
+   * @param {number} [options.limit=500] - Maximum number of rows to return
+   */
+  static async listByRole(user, roleName, { limit = 500 } = {}) {
+    UsersModel._ensureAdminOrSuper(user);
+
+    const conditions = [
+      'roles.role_name = ?',
+      'users.deleted_at IS NULL',
+      'users.id != ?'
+    ];
+    const params = [roleName, user.id];
+
+    // Admins only see users from their own company
+    if (user.role_name === 'admin') {
+      conditions.push('users.company_id = ?');
+      params.push(user.company_id);
+    }
+
+    const rows = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT users.*, roles.role_name as role_name
+         FROM users
+         LEFT JOIN roles ON users.role_id = roles.id
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY users.first_name, users.last_name
+         LIMIT ?`,
+        [...params, limit],
+        (err, result) => err ? reject(err) : resolve(result || [])
+      );
+    });
+
+    return rows.map(r => UsersModel._sanitizeUser(r));
   }
 
   static async updateUser(userOrId, maybeId, changes) {
@@ -309,6 +348,36 @@ class UsersModel {
           if (err) return reject(err);
           resolve({ deleted: this.changes > 0 });
         }
+      );
+    });
+  }
+
+  /**
+   * Find a user by password reset token (with role).
+   * @param {string} token
+   * @returns {Promise<object|null>}
+   */
+  static findByPasswordResetToken(token) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE password_reset_token = ? AND deleted_at IS NULL`,
+        [token],
+        (err, row) => err ? reject(err) : resolve(row || null)
+      );
+    });
+  }
+
+  /**
+   * Find a user by email verification token (with role).
+   * @param {string} token
+   * @returns {Promise<object|null>}
+   */
+  static findByEmailVerificationToken(token) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT users.*, roles.role_name as role_name FROM users LEFT JOIN roles ON users.role_id = roles.id WHERE email_verification_token = ? AND deleted_at IS NULL`,
+        [token],
+        (err, row) => err ? reject(err) : resolve(row || null)
       );
     });
   }

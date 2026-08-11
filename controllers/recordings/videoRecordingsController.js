@@ -12,7 +12,7 @@ const controller = {
    * GET /api/recordings/videos
    * Get all recordings with optional filters
    */
-  async getRecordings(req) {
+  async getVideoRecordings(req) {
     try {
       // Support both GET (query params) and POST (request body)
       const filters = {
@@ -21,16 +21,18 @@ const controller = {
         instructorId: req.body?.instructorId ? parseInt(req.body.instructorId) : (req.query.instructorId ? parseInt(req.query.instructorId) : null)
       };
 
-      const recordings = await VideoRecordingsModel.getRecordings(
+      const recordings = await VideoRecordingsModel.getAssets(
         filters,
         req.user.id,
-        req.user.role_name
+        req.user.role_name,
+        req.user.company_id,
+        'video'
       );
 
       // Transform data for frontend
       const transformedRecordings = recordings.map(rec => {
-        // Determine video URL (prefer wav_audio_path, fallback to audio_path)
-        const videoUrl = rec.wav_audio_path || rec.audio_path || null;
+        // Determine video URL (prefer video_path, fallback to audio_path)
+        const videoUrl = rec.video_path || null;
         
         return {
           meeting_id: rec.meeting_id,
@@ -51,6 +53,7 @@ const controller = {
           session_end_time: rec.session_end_time,
           session_status: rec.session_status,
           video_url: videoUrl,
+          video_path: rec.video_path || null,
           has_video: !!videoUrl,
           transcript_path: rec.transcript_path,
           oqi_score: rec.oqi_score,
@@ -68,6 +71,98 @@ const controller = {
     }
   },
 
+  /** POST /api/recordings/summaries - Get summaries with filters in body */
+  async getSummaries(req) {
+    try {
+      // User is already authenticated by requireAuth middleware
+      if (!req.user || !req.user.user_uuid) {
+        return err('Unauthorized', 401);
+      }
+
+      const userRole = req.user.role_name || '';
+
+      // Support both GET (userId param) and POST (userId in body with optional filters)
+      // Accept either numeric ID or UUID
+      let requestedUserId = null;
+      let requestedUserUuid = null;
+
+      if (req.body?.userId) {
+        const userIdVal = req.body.userId;
+        if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
+          requestedUserUuid = userIdVal;
+        } else {
+          requestedUserId = parseInt(userIdVal);
+        }
+      } else if (req.params.userId) {
+        const userIdVal = req.params.userId;
+        if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
+          requestedUserUuid = userIdVal;
+        } else {
+          requestedUserId = parseInt(userIdVal);
+        }
+      }
+
+      const limit = req.body?.limit || 50;
+      const startDate = req.body?.startDate || req.query.startDate || null;
+      const endDate = req.body?.endDate || req.query.endDate || null;
+
+      // Convert UUID to userId if needed
+      let targetUserId = requestedUserId;
+      if (requestedUserUuid && !requestedUserId) {
+        const UsersModel = require('../../models/users/UsersModel');
+        const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
+        targetUserId = targetUser ? targetUser.id : null;
+      }
+
+      const filters = {
+        startDate,
+        endDate,
+        instructorId: targetUserId,
+        limit
+      };
+
+      // Same shared model function used by getVideoRecordings — only assetType
+      // and the return transform differ
+      const data = await VideoRecordingsModel.getAssets(
+        filters,
+        req.user.id,
+        userRole,
+        req.user.company_id,
+        'summary'
+      );
+
+      const summaries = data.map(r => {
+        let summaryUrl = r.summary_path || null;
+        return {
+          meeting_id: r.meeting_id,
+          title: r.title || 'Untitled',
+          description: r.description,
+          platform: r.platform || 'unknown',
+          meeting_link: r.meeting_link,
+          instructor_id: r.instructor_id,
+          instructor_name: `${r.instructor_first_name} ${r.instructor_last_name}`,
+          instructor_email: r.instructor_email,
+          start_time: r.scheduled_start_time,
+          end_time: r.scheduled_end_time,
+          session_id: r.session_id,
+          session_start_time: r.session_start_time,
+          session_end_time: r.session_end_time,
+          session_status: r.session_status,
+          summary_url: summaryUrl,
+          transcript_path: r.transcript_path,
+          oqi_score: r.oqi_score || null,
+          audit_summary: r.audit_summary || null,
+          has_summary: !!(summaryUrl || r.oqi_score),
+          asset_status: r.asset_status || 'not_started'
+        };
+      });
+
+      return ok({ 
+        count: summaries.length, 
+        summaries: summaries
+      });
+    } catch (e) { return err(e.message, 500); }
+  },
   /**
    * GET /api/recordings/videos/instructors
    * Get all instructors for filter dropdown
@@ -121,9 +216,9 @@ const controller = {
       if (!meetingId) return err('Meeting ID required', 400);
 
       const recording = await VideoRecordingsModel.getRecordingByMeetingId(meetingId);
-      if (!recording) return err('Recording not found', 404);
+      if (!recording) return err('Vide Recording not found', 404);
 
-      const videoUrl = recording.wav_audio_path || recording.audio_path || null;
+      const videoUrl = recording.video_path || null;
 
       return ok({
         recording: {
@@ -143,6 +238,7 @@ const controller = {
           session_start_time: recording.session_start_time,
           session_end_time: recording.session_end_time,
           video_url: videoUrl,
+          video_path: recording.video_path || null,
           has_video: !!videoUrl,
           transcript_path: recording.transcript_path,
           oqi_score: recording.oqi_score,

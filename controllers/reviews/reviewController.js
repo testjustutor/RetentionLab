@@ -3,7 +3,7 @@
  * Business logic for the meeting review queue.
  * Uses meeting_reviewers and meeting_scores models.
  */
-const { db } = require('../../database/db');
+const ReviewsModel = require('../../models/reviews/ReviewsModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
 const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const UsersModel = require('../../models/users/UsersModel');
@@ -12,7 +12,7 @@ function ok(data, msg) { return { success: true, message: msg || null, ...(data 
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
 const controller = {
-  /** GET /api/reviews/queue — Get all reviews for admin's company */
+  /** GET /api/reviews/queue â€” Get all reviews for admin's company */
   async getQueue(req) {
     try {
       const status = req.query.status || '';
@@ -46,9 +46,7 @@ const controller = {
 
       sql += ' ORDER BY mr.assigned_at DESC LIMIT 100';
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const rows = await ReviewsModel.getReviews(companyId, status);
 
       const pending = rows.filter(r => r.review_status === 'pending').length;
       const inProgress = rows.filter(r => r.review_status === 'in_progress' || r.review_status === 'in-progress').length;
@@ -58,35 +56,27 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** PUT /api/reviews/:id/status — Update review status (assign/reject/complete) */
+  /** PUT /api/reviews/:id/status â€” Update review status (assign/reject/complete) */
   async updateStatus(req) {
     try {
       const id = parseInt(req.params.id);
       const { status } = req.body;
       if (!status) return err('Status is required', 400);
 
-      const result = await new Promise((resolve, reject) => {
-        db.run(
-          `UPDATE meeting_reviewers SET review_status = ?, reviewed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE reviewed_at END WHERE id = ?`,
-          [status, status, id],
-          function(err) { err ? reject(err) : resolve({ updated: this.changes > 0 }); }
-        );
-      });
+      const result = await ReviewsModel.updateReviewStatus(id, status);
       return ok({ result }, 'Review status updated');
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviews/reviewers — List available reviewers */
+  /** GET /api/reviews/reviewers â€” List available reviewers */
   async getReviewers(req) {
     try {
-      const result = await UsersModel.listUsers(req.user, { limit: 100 });
-      const rows = result.rows || [];
-      const reviewers = rows.filter(r => (r.role_name || '').toLowerCase() === 'reviewer');
+      const reviewers = await UsersModel.listByRole(req.user, 'reviewer');
       return ok({ reviewers });
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviews/instructors — List instructors for filter dropdown */
+  /** GET /api/reviews/instructors â€” List instructors for filter dropdown */
   async getInstructors(req) {
     try {
       const companyId = req.user.company_id;
@@ -105,77 +95,43 @@ const controller = {
 
       sql += ' ORDER BY u.first_name, u.last_name';
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
-
-      const instructors = rows.map(r => ({
-        id: r.id,
-        name: `${r.first_name} ${r.last_name || ''}`.trim(),
-        email: r.email,
-        status: r.status
-      }));
+      const instructors = await ReviewsModel.getInstructors(companyId);
 
       return ok({ instructors });
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviews/meetings/:instructorId — Get meetings for specific instructor */
+  /** GET /api/reviews/meetings/:instructorId â€” Get meetings for specific instructor */
   async getMeetingsByInstructor(req) {
     try {
       const instructorId = parseInt(req.params.instructorId);
       if (!instructorId) return err('Instructor ID required', 400);
 
       // Get instructor's email
-      const instructor = await new Promise((resolve, reject) => {
-        db.get('SELECT email FROM users WHERE id = ?', [instructorId], (err, row) => err ? reject(err) : resolve(row));
-      });
+      const instructor = await ReviewsModel.findEmailByUserId(instructorId);
 
       if (!instructor) return err('Instructor not found', 404);
 
       // Get meetings for this instructor
-      const meetings = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT m.id, m.external_meeting_id as meeting_id, m.title, m.scheduled_start_time, 
-                  m.scheduled_end_time, m.platform, m.status
-           FROM meetings m
-           WHERE LOWER(m.calendar_account) = LOWER(?)
-           AND m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-           ORDER BY m.scheduled_start_time DESC
-           LIMIT 50`,
-          [instructor.email],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      });
+      const meetings = await ReviewsModel.getMeetingsByInstructorEmail(instructor.email);
 
       return ok({ meetings });
     } catch (e) { return err(e.message); }
   },
 
-  /** POST /api/reviews/assign-bulk — Assign reviewer to all meetings of an instructor */
+  /** POST /api/reviews/assign-bulk â€” Assign reviewer to all meetings of an instructor */
   async assignBulk(req) {
     try {
       const { instructor_id, reviewer_id } = req.body;
       if (!instructor_id || !reviewer_id) return err('instructor_id and reviewer_id required', 400);
 
       // Get instructor's email
-      const instructor = await new Promise((resolve, reject) => {
-        db.get('SELECT email FROM users WHERE id = ?', [instructor_id], (err, row) => err ? reject(err) : resolve(row));
-      });
+      const instructor = await ReviewsModel.findEmailByUserId(instructor_id);
 
       if (!instructor) return err('Instructor not found', 404);
 
       // Get all meetings for this instructor
-      const meetings = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT m.external_meeting_id as meeting_id
-           FROM meetings m
-           WHERE LOWER(m.calendar_account) = LOWER(?)
-           AND m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)`,
-          [instructor.email],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      });
+      const meetings = await ReviewsModel.getMeetingsByInstructorEmail(instructor.email);
 
       if (!meetings.length) {
         return ok({ assigned: 0, message: 'No meetings found for this instructor' });
@@ -184,17 +140,7 @@ const controller = {
       // Assign reviewer to all meetings
       let assignedCount = 0;
       for (const meeting of meetings) {
-        const result = await new Promise((resolve, reject) => {
-          db.run(
-            `INSERT IGNORE INTO meeting_reviewers (meeting_id, reviewer_id, assigned_by, assigned_at, review_status)
-             VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending')`,
-            [meeting.meeting_id, parseInt(reviewer_id), req.user.id],
-            function(err) {
-              if (err) return reject(err);
-              resolve({ changes: this.changes });
-            }
-          );
-        });
+        const result = await ReviewsModel.assignReviewerToMeeting(meeting.meeting_id, parseInt(reviewer_id), req.user.id);
         assignedCount += result.changes;
       }
 
@@ -202,23 +148,13 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** POST /api/reviews/assign — Assign a reviewer to a meeting */
+  /** POST /api/reviews/assign â€” Assign a reviewer to a meeting */
   async assignReviewer(req) {
     try {
       const { meeting_id, reviewer_id } = req.body;
       if (!meeting_id || !reviewer_id) return err('meeting_id and reviewer_id required', 400);
 
-      const result = await new Promise((resolve, reject) => {
-        db.run(
-          `INSERT IGNORE INTO meeting_reviewers (meeting_id, reviewer_id, assigned_by, assigned_at, review_status)
-           VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'pending')`,
-          [meeting_id, parseInt(reviewer_id), req.user.id],
-          function(err) {
-            if (err) return reject(err);
-            resolve({ id: this.lastID, changes: this.changes });
-          }
-        );
-      });
+      const result = await ReviewsModel.assignReviewerToMeeting(meeting_id, parseInt(reviewer_id), req.user.id);
       return ok({ result }, result.changes > 0 ? 'Reviewer assigned' : 'Already assigned');
     } catch (e) { return err(e.message); }
   }

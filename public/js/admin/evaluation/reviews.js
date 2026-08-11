@@ -32,13 +32,13 @@ async function loadInstructorsAndReviewers() {
     allReviewers = reviewersData.reviewers || [];
     
     // Custom instructor dropdown
-    const instructorData = allInstructors.map(i => ({ uuid: i.uuid, name: i.name + ' (' + i.email + ')' }));
+    const instructorData = allInstructors.map(i => ({ id: i.id, name: i.name + ' (' + i.email + ')' }));
     instructorDropdown = createDarkSearchableSelect({
       containerId: 'instructorSelectContainer',
       placeholder: 'Choose an instructor...',
       dataSource: instructorData,
       displayField: 'name',
-      valueField: 'uuid',
+      valueField: 'id',
       onSelect: (value) => {
         loadMeetingsByInstructor(value);
       }
@@ -50,18 +50,18 @@ async function loadInstructorsAndReviewers() {
       placeholder: 'Select instructor first...',
       dataSource: [],
       displayField: 'name',
-      valueField: 'uuid',
+      valueField: 'id',
       onSelect: () => {}
     });
 
     // Custom reviewer dropdown
-    const reviewerData = allReviewers.map(r => ({ uuid: r.uuid, name: r.first_name + ' ' + (r.last_name || '') + ' (' + r.email + ')' }));
+    const reviewerData = allReviewers.map(r => ({ id: r.id, name: r.first_name + ' ' + (r.last_name || '') + ' (' + r.email + ')' }));
     reviewerDropdown = createDarkSearchableSelect({
       containerId: 'reviewerSelectContainer',
       placeholder: 'Choose a reviewer...',
       dataSource: reviewerData,
       displayField: 'name',
-      valueField: 'uuid',
+      valueField: 'id',
       onSelect: () => {}
     });
   } catch(e) {

@@ -3,14 +3,14 @@
  * Business logic for the reviewer review queue page.
  * Shows instructor dropdown and their sessions for review.
  */
-const { db } = require('../../database/db');
+const ReviewerReviewsModel = require('../../models/reviewers/ReviewerReviewsModel');
 const MeetingReviewersModel = require('../../models/reviewers/MeetingReviewersModel');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
 const controller = {
-  /** GET /api/reviewer-reviews/instructors — List instructors assigned to this reviewer */
+  /** GET /api/reviewer-reviews/instructors â€” List instructors assigned to this reviewer */
   async getInstructors(req) {
     try {
       const reviewerId = req.user.id;
@@ -30,15 +30,13 @@ const controller = {
         ORDER BY u.first_name, u.last_name`;
       const params = [reviewerId];
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const rows = await ReviewerReviewsModel.getInstructorsForReviewer(reviewerId);
 
       return ok({ instructors: rows });
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviewer-reviews/instructor-sessions — Get sessions for a specific instructor */
+  /** GET /api/reviewer-reviews/instructor-sessions â€” Get sessions for a specific instructor */
   async getInstructorSessions(req) {
     try {
       const reviewerId = req.user.id;
@@ -98,9 +96,7 @@ const controller = {
 
       sql += ` ORDER BY m.scheduled_start_time DESC LIMIT 100`;
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const rows = await ReviewerReviewsModel.getInstructorSessions(reviewerId, instructorId, status, search);
 
       // Format the data
       const sessions = rows.map(r => ({
@@ -145,20 +141,14 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** PUT /api/reviewer-reviews/:meetingId/start — Start a review (create + mark in_progress) */
+  /** PUT /api/reviewer-reviews/:meetingId/start â€” Start a review (create + mark in_progress) */
   async startReview(req) {
     try {
       const meetingId = req.params.meetingId;
       const reviewerId = req.user.id;
 
       // Check if review exists
-      const existing = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT * FROM meeting_reviewers WHERE meeting_id = ? AND reviewer_id = ?`,
-          [meetingId, reviewerId],
-          (err, row) => err ? reject(err) : resolve(row)
-        );
-      });
+      const existing = await ReviewerReviewsModel.findReview(meetingId, reviewerId);
 
       if (existing) {
         // Update to in_progress
@@ -176,20 +166,14 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** PUT /api/reviewer-reviews/:meetingId/complete — Complete a review */
+  /** PUT /api/reviewer-reviews/:meetingId/complete â€” Complete a review */
   async completeReview(req) {
     try {
       const meetingId = req.params.meetingId;
       const reviewerId = req.user.id;
       const { comments } = req.body;
 
-      const existing = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT * FROM meeting_reviewers WHERE meeting_id = ? AND reviewer_id = ?`,
-          [meetingId, reviewerId],
-          (err, row) => err ? reject(err) : resolve(row)
-        );
-      });
+      const existing = await ReviewerReviewsModel.findReview(meetingId, reviewerId);
 
       if (!existing) return err('Review not found. Start the review first.', 404);
 
@@ -198,24 +182,12 @@ const controller = {
     } catch (e) { return err(e.message); }
   },
 
-  /** GET /api/reviewer-reviews/stats — Quick stats for the reviewer */
+  /** GET /api/reviewer-reviews/stats â€” Quick stats for the reviewer */
   async getStats(req) {
     try {
       const reviewerId = req.user.id;
 
-      const rows = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT mr.review_status,
-                  COUNT(*) as count,
-                  AVG(CASE WHEN mr.review_status = 'completed' AND mr.reviewed_at IS NOT NULL AND mr.assigned_at IS NOT NULL
-                      THEN TIMESTAMPDIFF(HOUR, mr.assigned_at, mr.reviewed_at) END) as avg_hours
-           FROM meeting_reviewers mr
-           WHERE mr.reviewer_id = ?
-           GROUP BY mr.review_status`,
-          [reviewerId],
-          (err, rows) => err ? reject(err) : resolve(rows || [])
-        );
-      });
+      const rows = await ReviewerReviewsModel.getReviewerStats(reviewerId);
 
       const stats = {
         pending: 0,

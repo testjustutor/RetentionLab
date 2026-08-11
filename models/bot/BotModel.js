@@ -2,8 +2,8 @@
  * Bot Model
  * Data access layer for bot operations
  */
-
 const botManager = require('../../services/shared/botManager');
+const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
 class BotModel {
@@ -112,6 +112,29 @@ class BotModel {
     } catch (err) {
       logger.error('Model(Bot): Error getting max concurrent:', err);
       return 50;
+    }
+  }
+
+  /**
+   * Get database size and connection stats
+   */
+  static async getDatabaseStats() {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        db.get("SELECT table_schema AS db_name, SUM(data_length + index_length) AS size FROM information_schema.tables WHERE table_schema = DATABASE()", (err, row) => err ? reject(err) : resolve(row));
+      });
+      const sizeBytes = result?.size || 0;
+      const size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
+      let connections = 0;
+      try {
+        const connResult = await new Promise((resolve, reject) => {
+          db.get("SHOW STATUS LIKE 'Threads_connected'", (err, row) => err ? reject(err) : resolve(row));
+        });
+        connections = parseInt(connResult?.Value) || 0;
+      } catch (err) { connections = 0; }
+      return { size, sizeBytes, connections };
+    } catch (err) {
+      return { size: '0 MB', sizeBytes: 0, connections: 0 };
     }
   }
 }

@@ -4,17 +4,18 @@
  */
 
 const SessionSnapshotModel = require('../../models/session-quality/SessionSnapshotModel');
-const SessionAnalysisModel = require('../../models/session-quality/SessionAnalysisModel_v2');
-const SessionLearningImpactModel = require('../../models/session-quality/SessionLearningImpactModel_v2');
-const SessionParentSummaryModel = require('../../models/session-quality/SessionParentSummaryModel_v2');
-const SessionCoachingFeedbackModel = require('../../models/session-quality/SessionCoachingFeedbackModel_v2');
-const SessionBetterAlternativesModel = require('../../models/session-quality/SessionBetterAlternativesModel_v2');
-const SessionNextPlanModel = require('../../models/session-quality/SessionNextPlanModel_v2');
-const SessionQualityFlagsModel = require('../../models/session-quality/SessionQualityFlagsModel_v2');
-const SessionFinalEvaluationModel = require('../../models/session-quality/SessionFinalEvaluationModel_v2');
+const SessionAnalysisModel = require('../../models/session-quality/SessionAnalysisModel');
+const SessionLearningImpactModel = require('../../models/session-quality/SessionLearningImpactModel');
+const SessionParentSummaryModel = require('../../models/session-quality/SessionParentSummaryModel');
+const SessionCoachingFeedbackModel = require('../../models/session-quality/SessionCoachingFeedbackModel');
+const SessionBetterAlternativesModel = require('../../models/session-quality/SessionBetterAlternativesModel');
+const SessionNextPlanModel = require('../../models/session-quality/SessionNextPlanModel');
+const SessionQualityFlagsModel = require('../../models/session-quality/SessionQualityFlagsModel');
+const SessionFinalEvaluationModel = require('../../models/session-quality/SessionFinalEvaluationModel');
 const RubricEvaluationModel = require('../../models/rubrics/RubricEvaluationModel');
 const RubricSummaryModel = require('../../models/rubrics/RubricSummaryModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
+const SessionQualityReportModel = require('../../models/session-quality/SessionQualityReportModel');
 
 /**
  * Get dashboard data with filters
@@ -22,7 +23,6 @@ const MeetingModel = require('../../models/meetings/MeetingModel');
  */
 async function getDashboard(req) {
   try {
-    const { db } = require('../../database/db');
     const filters = {
       instructorId: req.body?.instructor_id,
       meetingId: req.body?.meeting_id,
@@ -34,88 +34,13 @@ async function getDashboard(req) {
       location: req.body?.location
     };
 
-    // Build query with filters - join with meeting_sessions and users to get names
-    // Only show data for instructors created by the logged-in admin user
-    let query = `
-      SELECT 
-        s.id,
-        s.session_id,
-        s.student_grade,
-        s.curriculum,
-        s.location,
-        s.subject,
-        s.topics_covered,
-        s.session_objective_status,
-        s.overall_score_pct,
-        s.overall_rating,
-        s.student_engagement,
-        s.learning_impact,
-        s.parent_shareability,
-        s.executive_summary,
-        s.created_at,
-        s.updated_at,
-        m.external_meeting_id,
-        m.title,
-        m.scheduled_start_time,
-        m.scheduled_end_time,
-        m.platform,
-        CONCAT('SES-', LPAD(s.session_id, 6, '0')) as session_ref,
-        CONCAT(teacher.first_name, ' ', teacher.last_name) as instructor_name,
-        sm.student_name as student_name
-      FROM session_snapshot s
-      LEFT JOIN meeting_sessions ms ON s.session_id = ms.id
-      LEFT JOIN meetings m ON ms.meeting_id = m.external_meeting_id
-      LEFT JOIN session_metadata sm ON m.external_meeting_id = sm.meeting_id
-      LEFT JOIN users teacher ON sm.teacher_user_id = teacher.id
-      WHERE teacher.created_by = ?
-    `;
-    const params = [req.user?.id];
-
-    if (filters.instructorId) {
-      query += ' AND sm.teacher_user_id = ?';
-      params.push(filters.instructorId);
-    }
-    if (filters.meetingId) {
-      query += ' AND m.external_meeting_id = ?';
-      params.push(filters.meetingId);
-    }
-    if (filters.fromDate) {
-      query += ' AND m.scheduled_start_time >= ?';
-      params.push(filters.fromDate);
-    }
-    if (filters.toDate) {
-      query += ' AND m.scheduled_start_time <= ?';
-      params.push(filters.toDate + ' 23:59:59');
-    }
-    if (filters.subject) {
-      query += ' AND sm.subject = ?';
-      params.push(filters.subject);
-    }
-    if (filters.studentGrade) {
-      query += ' AND sm.student_grade = ?';
-      params.push(filters.studentGrade);
-    }
-    if (filters.curriculum) {
-      query += ' AND sm.curriculum = ?';
-      params.push(filters.curriculum);
-    }
-    if (filters.location) {
-      query += ' AND sm.location = ?';
-      params.push(filters.location);
-    }
-    query += ' ORDER BY m.scheduled_start_time DESC';
-
-    const sessions = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows || []);
-      });
-    });
+    // Fetch sessions for this admin's instructors using the selected filters.
+    const sessions = await SessionQualityReportModel.getDashboardSessions(req.user?.id, filters);
 
     // Calculate stats
     const stats = {
       total_sessions: sessions.length,
-      avg_score: sessions.length > 0 
+      avg_score: sessions.length > 0
         ? Math.round(sessions.reduce((sum, s) => sum + (s.overall_score_pct || 0), 0) / sessions.length)
         : 0,
       complete_reports: sessions.filter(s => s.overall_score_pct > 0).length,
@@ -144,24 +69,24 @@ async function getDashboard(req) {
     const gradeMap = {};
     const curriculumScoreMap = {};
     let totalEngagement = 0, totalImpact = 0, engagementCount = 0, impactCount = 0;
-    
+
     sessions.forEach(session => {
       // Subject
       const subject = session.subject || 'Unknown';
       if (!subjectMap[subject]) subjectMap[subject] = { count: 0, totalScore: 0 };
       subjectMap[subject].count++;
       subjectMap[subject].totalScore += session.overall_score_pct || 0;
-      
+
       // Grade
       const grade = session.student_grade || 'Unknown';
       gradeMap[grade] = (gradeMap[grade] || 0) + 1;
-      
+
       // Curriculum score
       const curriculum = session.curriculum || 'Unknown';
       if (!curriculumScoreMap[curriculum]) curriculumScoreMap[curriculum] = { count: 0, totalScore: 0 };
       curriculumScoreMap[curriculum].count++;
       curriculumScoreMap[curriculum].totalScore += session.overall_score_pct || 0;
-      
+
       // Engagement & Impact
       if (session.student_engagement) {
         const engVal = parseFloat(session.student_engagement) || 50;
@@ -174,7 +99,7 @@ async function getDashboard(req) {
         impactCount++;
       }
     });
-    
+
     const subjectDistribution = Object.entries(subjectMap).map(([subject, data]) => ({
       subject,
       count: data.count,
@@ -260,7 +185,7 @@ async function getFilterOptions(req) {
   try {
     const field = req.body?.field;
     const validFields = ['subject', 'student_grade', 'curriculum', 'location'];
-    
+
     if (!field || !validFields.includes(field)) {
       return {
         statusCode: 400,
@@ -269,21 +194,7 @@ async function getFilterOptions(req) {
       };
     }
 
-    const { db } = require('../../database/db');
-    
-    const query = `
-      SELECT DISTINCT ${field} as value, ${field} as label
-      FROM session_snapshot
-      WHERE ${field} IS NOT NULL AND ${field} != ''
-      ORDER BY ${field}
-    `;
-
-    const options = await new Promise((resolve, reject) => {
-      db.all(query, [], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
+    const options = await SessionQualityReportModel.getFilterOptions(field);
 
     return {
       statusCode: 200,
@@ -308,9 +219,8 @@ async function getFilterOptions(req) {
  */
 async function getAggregateReport(req) {
   try {
-    const { db } = require('../../database/db');
     const internalSessionId = parseInt(req.body?.session_internal_id, 10);
-    
+
     if (!internalSessionId || isNaN(internalSessionId)) {
       return {
         statusCode: 400,
@@ -320,13 +230,7 @@ async function getAggregateReport(req) {
     }
 
     // Look up the session and meeting internally
-    const session = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT ms.id, ms.meeting_id, ms.start_time, ms.end_time FROM meeting_sessions ms WHERE ms.id = ?',
-        [internalSessionId],
-        (err, row) => err ? reject(err) : resolve(row)
-      );
-    });
+    const session = await SessionQualityReportModel.findSessionById(internalSessionId);
 
     if (!session) {
       return {
@@ -337,19 +241,14 @@ async function getAggregateReport(req) {
     }
 
     // Get meeting info using the real meeting_id (internal lookup only)
-    const meeting = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM meetings WHERE meeting_id = ?', [session.meeting_id], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    const meeting = await SessionQualityReportModel.findMeetingByRealId(session.meeting_id);
 
     // Get all report sections using the session_id (which is meeting_sessions.id)
     const sessionId = session.id;
-    
+
     // Load each section independently to avoid Promise.all failing silently
     let snapshot, analysis, impact, parentSummary, coaching, betterAlternatives, nextPlan, flags, finalEval, rubricSummary, rubricEvaluations;
-    
+
     try { snapshot = await SessionSnapshotModel.findBySessionId(sessionId); } catch (e) { console.error('Error loading snapshot:', e); }
     try { analysis = await SessionAnalysisModel.findBySessionId(sessionId); } catch (e) { console.error('Error loading analysis:', e); }
     try { impact = await SessionLearningImpactModel.findBySessionId(sessionId); } catch (e) { console.error('Error loading impact:', e); }

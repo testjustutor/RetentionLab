@@ -53,15 +53,11 @@ async function loadInstructors() {
   window.instructorFilter = instructorFilter;
 }
 
-async function loadRecordings() {
-  if (recordingsTable) {
-    recordingsTable.setLoading(true);
-  }
+async function fetchRecordings() {
   try {
     const userId = window.instructorFilter ? window.instructorFilter.getValue() : null;
     const fromDate = document.getElementById('filterFromDate')?.value || '';
     const toDate = document.getElementById('filterToDate')?.value || '';
-    const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
     
     // Get logged-in user UUID from localStorage
     const currentUser = JSON.parse(localStorage.getItem('rl_user') || '{}');
@@ -79,59 +75,80 @@ async function loadRecordings() {
     });
     allRecordings = json.recordings || [];
     
-    // Apply search filter
-    var filtered = allRecordings;
-    if (searchTerm) {
-      filtered = allRecordings.filter(function(r) {
-        return (r.title || '').toLowerCase().includes(searchTerm);
-      });
-    }
-    
-    if (!recordingsTable) {
-      recordingsTable = createTable({
-        containerId: 'recordingsContainer',
-        headers: [
-          { label: 'Meeting', key: 'title', render: function(value) {
-            return '<p class="font-medium truncate max-w-[150px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>';
-          }},
-          { label: 'Date & Time', key: 'start_time', render: function(value) {
-            return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
-          }},
-          { label: 'Duration', key: 'start_time', render: function(value, row) {
-            return '<span class="text-xs text-slate-500">' + fmtDuration(value, row.end_time) + '</span>';
-          }},
-          { label: 'Platform', key: 'platform', render: function(value) {
-            return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
-          }},
-          { label: 'Recording', key: 'has_recording', render: function(value, row) {
-            var cls = value ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
-            var label = value ? 'Available' : (row.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
-            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + label + '</span>';
-          }},
-          { label: 'Status', key: 'status', render: function(value) {
-            var cls = value === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
-            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
-          }},
-          { label: 'Play', key: 'has_recording', render: function(value, row) {
-            return value && row.play_url 
-              ? '<audio controls preload="none" class="h-6 w-32"><source src="' + row.play_url + '" type="audio/wav"></audio>'
-              : '<span class="text-[10px] text-slate-600">--</span>';
-          }}
-        ],
-        data: filtered,
-        emptyMessage: 'No recordings found',
-        pagination: { perPage: 10 }
-      });
-      recordingsTable.render();
-    } else {
-      recordingsTable.setData(filtered);
+    // Debug: Log first recording to see actual data structure
+    if (allRecordings.length > 0) {
+      // console.log('First recording data:', allRecordings[0]);
     }
   } catch(err) {
-    if (recordingsTable) {
-      recordingsTable.setData([]);
-    }
-    document.getElementById('recordingsContainer').innerHTML = '<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-red-600"><p class="text-sm font-medium">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
+    console.error('Failed to fetch recordings:', err);
+    allRecordings = [];
   }
+}
+
+function applySearchFilter() {
+  const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  var filtered = allRecordings;
+  if (searchTerm) {
+    filtered = allRecordings.filter(function(r) {
+      return (r.title || '').toLowerCase().includes(searchTerm);
+    });
+  }
+  
+  if (!recordingsTable) {
+    recordingsTable = createTable({
+      containerId: 'recordingsContainer',
+      headers: [
+        { label: 'Meeting', key: 'title', render: function(value) {
+          return '<p class="font-medium truncate max-w-[150px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>';
+        }},
+        { label: 'Instructor', key: 'instructor_name', render: function(value, row) {
+          return '<p class="text-xs text-slate-900">' + escHtml(value || 'Unknown') + '</p>' +
+            '<p class="text-[10px] text-slate-500">' + escHtml(row.instructor_email || '') + '</p>';
+        }},
+        { label: 'Date & Time', key: 'start_time', render: function(value) {
+          return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
+        }},
+        { label: 'Duration', key: 'start_time', render: function(value, row) {
+          return '<span class="text-xs text-slate-500">' + fmtDuration(value, row.end_time) + '</span>';
+        }},
+        { label: 'Platform', key: 'platform', render: function(value) {
+          return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
+        }},
+        { label: 'Recording', key: 'has_recording', render: function(value, row) {
+          var cls = value ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
+          var label = value ? 'Available' : (row.asset_status === 'Conversion' ? 'Processing' : 'Not Started');
+          return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + label + '</span>';
+        }},
+        { label: 'Status', key: 'status', render: function(value) {
+          var cls = value === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
+          return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
+        }},
+        { label: 'Play', key: 'has_recording', render: function(value, row) {
+          const audioUrl = row.play_url || row.audio_url;
+          return value && audioUrl 
+            ? '<audio controls preload="none" class="h-6 w-32"><source src="' + audioUrl + '" type="audio/wav"></audio>'
+            : '<span class="text-[10px] text-slate-600">--</span>';
+        }}
+      ],
+      data: filtered,
+      emptyMessage: 'No recordings found',
+      pagination: { perPage: 10 }
+    });
+    recordingsTable.render();
+  } else {
+    recordingsTable.setData(filtered);
+  }
+}
+
+async function loadRecordings() {
+  if (recordingsTable) {
+    recordingsTable.setLoading(true);
+  }
+  await fetchRecordings();
+  if (recordingsTable) {
+    recordingsTable.setLoading(false);
+  }
+  applySearchFilter();
 }
 
 function escHtml(s) {
@@ -140,6 +157,16 @@ function escHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
+
+// Search on input - filter directly from loaded data
+document.addEventListener('DOMContentLoaded', function() {
+  var searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      applySearchFilter();
+    });
+  }
+});
 
 // Initialize
 setDefaultDateRange();

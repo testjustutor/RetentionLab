@@ -4,11 +4,11 @@
  * Generation pipeline for the Session Quality & Impact Report.
  *
  * DESIGN DECISION: Single LLM call vs. multiple calls
- * ──────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  * We use ONE large LLM call with the full transcript + rubric as input.
  * Rationale:
  *   1. The existing prompt (prompts/academic-quality-analysis.prompt.md) already
- *      asks for all 10 sections in one structured output — the LLM is designed
+ *      asks for all 10 sections in one structured output â€” the LLM is designed
  *      to produce a coherent report where sections reference each other.
  *   2. A single call ensures cross-section consistency (e.g., the same evidence
  *      appears in both rubric evaluation and coaching feedback).
@@ -27,20 +27,20 @@ const settings = require('../config/settings');
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
 
-// ── Models ──────────────────────────────────────────────────────────────────
+// â”€â”€ Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const RubricEvaluationModel = require('../models/rubrics/RubricEvaluationModel');
 const RubricSummaryModel = require('../models/rubrics/RubricSummaryModel');
 const SessionSnapshotModel = require('../models/session-quality/SessionSnapshotModel');
-const SessionAnalysisModel_v2 = require('../models/session-quality/SessionAnalysisModel_v2');
-const SessionLearningImpactModel_v2 = require('../models/session-quality/SessionLearningImpactModel_v2');
-const SessionParentSummaryModel_v2 = require('../models/session-quality/SessionParentSummaryModel_v2');
-const SessionCoachingFeedbackModel_v2 = require('../models/session-quality/SessionCoachingFeedbackModel_v2');
-const SessionBetterAlternativesModel_v2 = require('../models/session-quality/SessionBetterAlternativesModel_v2');
-const SessionNextPlanModel_v2 = require('../models/session-quality/SessionNextPlanModel_v2');
-const SessionQualityFlagsModel_v2 = require('../models/session-quality/SessionQualityFlagsModel_v2');
-const SessionFinalEvaluationModel_v2 = require('../models/session-quality/SessionFinalEvaluationModel_v2');
+const SessionAnalysisModel = require('../models/session-quality/SessionAnalysisModel');
+const SessionLearningImpactModel = require('../models/session-quality/SessionLearningImpactModel');
+const SessionParentSummaryModel = require('../models/session-quality/SessionParentSummaryModel');
+const SessionCoachingFeedbackModel = require('../models/session-quality/SessionCoachingFeedbackModel');
+const SessionBetterAlternativesModel = require('../models/session-quality/SessionBetterAlternativesModel');
+const SessionNextPlanModel = require('../models/session-quality/SessionNextPlanModel');
+const SessionQualityFlagsModel = require('../models/session-quality/SessionQualityFlagsModel');
+const SessionFinalEvaluationModel = require('../models/session-quality/SessionFinalEvaluationModel');
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Resolve the transcript text for a given session_id.
@@ -82,7 +82,7 @@ async function getTranscriptText(sessionId) {
 async function getFullRubric() {
   return new Promise((resolve, reject) => {
     const sql = `
-      SELECT 
+      SELECT
         rc.category_id, rc.name AS category_name, rc.weight AS category_weight,
         ri.indicator_id, ri.name AS indicator_name, ri.type, ri.is_gate,
         ri.value AS indicator_weight, ri.benchmark, ri.requires_video
@@ -115,9 +115,9 @@ async function callLLM(transcriptText, rubricJson) {
 
 ---
 
-IMPORTANT — OUTPUT FORMAT:
+IMPORTANT â€” OUTPUT FORMAT:
 
-You MUST respond with ONLY a valid JSON object (no markdown, no code fences, no extra text) 
+You MUST respond with ONLY a valid JSON object (no markdown, no code fences, no extra text)
 that matches the following structure exactly. Every field is required.
 
 {
@@ -306,8 +306,8 @@ function validateLLMResponse(data) {
  * Compute the rubric summary from individual indicator ratings.
  * This is done in CODE, not by the LLM, so the math is trustworthy.
  *
- * @param {Array} evaluations — Array of { indicator_id, rating, ... }
- * @param {Array} rubricRows  — Full rubric definition rows from DB
+ * @param {Array} evaluations â€” Array of { indicator_id, rating, ... }
+ * @param {Array} rubricRows  â€” Full rubric definition rows from DB
  * @returns {Object} { weighted_score_pct, gate_status, overall_rating, confidence_level }
  */
 function computeRubricSummary(evaluations, rubricRows) {
@@ -390,7 +390,7 @@ function computeRubricSummary(evaluations, rubricRows) {
   else if (weightedScorePct >= 40) overallRating = 'Developing';
   else overallRating = 'Needs Improvement';
 
-  const confidenceLevel = 'Medium — transcript-based; video/audio not available';
+  const confidenceLevel = 'Medium â€” transcript-based; video/audio not available';
 
   return {
     weighted_score_pct: weightedScorePct,
@@ -404,8 +404,8 @@ function computeRubricSummary(evaluations, rubricRows) {
 /**
  * Run the full generation pipeline for a session.
  *
- * @param {number} sessionId — The meeting_sessions.id
- * @param {string} meetingId — The meetings.meeting_id (for logging/context)
+ * @param {number} sessionId â€” The meeting_sessions.id
+ * @param {string} meetingId â€” The meetings.meeting_id (for logging/context)
  * @returns {Object} Summary of what was written
  */
 async function generateSessionQualityReport(sessionId, meetingId) {
@@ -510,7 +510,7 @@ async function writeAllSections(sessionId, llmData, rubricSummary) {
         results.session_snapshot = { written: true };
 
         // 4. Session analysis
-        await SessionAnalysisModel_v2.upsert({
+        await SessionAnalysisModel.upsert({
           session_id: sessionId,
           what_worked_well: llmData.session_analysis.what_worked_well || [],
           what_needs_improvement: llmData.session_analysis.what_needs_improvement || [],
@@ -519,14 +519,14 @@ async function writeAllSections(sessionId, llmData, rubricSummary) {
         results.session_analysis = { written: true };
 
         // 5. Learning impact
-        await SessionLearningImpactModel_v2.upsert({
+        await SessionLearningImpactModel.upsert({
           session_id: sessionId,
           impact_areas: llmData.session_learning_impact.impact_areas || []
         });
         results.session_learning_impact = { written: true };
 
         // 6. Parent summary
-        await SessionParentSummaryModel_v2.upsert({
+        await SessionParentSummaryModel.upsert({
           session_id: sessionId,
           covered_text: llmData.session_parent_summary.covered_text || '',
           participation_text: llmData.session_parent_summary.participation_text || '',
@@ -537,7 +537,7 @@ async function writeAllSections(sessionId, llmData, rubricSummary) {
         results.session_parent_summary = { written: true };
 
         // 7. Coaching feedback
-        await SessionCoachingFeedbackModel_v2.upsert({
+        await SessionCoachingFeedbackModel.upsert({
           session_id: sessionId,
           strengths: llmData.session_coaching_feedback.strengths || [],
           areas_to_improve: llmData.session_coaching_feedback.areas_to_improve || []
@@ -545,14 +545,14 @@ async function writeAllSections(sessionId, llmData, rubricSummary) {
         results.session_coaching_feedback = { written: true };
 
         // 8. Better alternatives
-        await SessionBetterAlternativesModel_v2.upsert({
+        await SessionBetterAlternativesModel.upsert({
           session_id: sessionId,
           items: llmData.session_better_alternatives.items || []
         });
         results.session_better_alternatives = { written: true };
 
         // 9. Next plan
-        await SessionNextPlanModel_v2.upsert({
+        await SessionNextPlanModel.upsert({
           session_id: sessionId,
           segments: llmData.session_next_plan.segments || [],
           priority_focus: llmData.session_next_plan.priority_focus || [],
@@ -561,14 +561,14 @@ async function writeAllSections(sessionId, llmData, rubricSummary) {
         results.session_next_plan = { written: true };
 
         // 10. Quality flags
-        await SessionQualityFlagsModel_v2.upsert({
+        await SessionQualityFlagsModel.upsert({
           session_id: sessionId,
           flags: llmData.session_quality_flags.flags || []
         });
         results.session_quality_flags = { written: true };
 
         // 11. Final evaluation
-        await SessionFinalEvaluationModel_v2.upsert({
+        await SessionFinalEvaluationModel.upsert({
           session_id: sessionId,
           overall_session_rating: llmData.session_final_evaluation.overall_session_rating || '',
           teacher_performance: llmData.session_final_evaluation.teacher_performance || '',

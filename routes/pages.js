@@ -47,7 +47,7 @@ function serveHTML(req, res, filename) {
  */
 function redirectToDashboard(req, res) {
   const role = req.user ? req.user.role_name : null;
-  if (role === 'super_admin') return res.redirect('/super_admin/index.html');
+  if (role === 'super_admin') return res.redirect('/super_admin/index');
   if (role === 'admin') return res.redirect('/admin/');
   if (role === 'reviewer') return res.redirect('/reviewer/dashboard');
   if (role === 'instructor' || role === 'solo_instructor') return res.redirect('/instructor/');
@@ -146,10 +146,10 @@ router.get('/logout', (req, res) => {
     res.clearCookie('connect.sid');
     
     // Redirect to login page
-    return res.redirect('/login.html');
+    return res.redirect('/login');
   } catch (err) {
     console.error('Logout error:', err);
-    return res.redirect('/login.html');
+    return res.redirect('/login');
   }
 });
 

@@ -6,7 +6,7 @@
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
-class SessionBetterAlternativesModel_v2 {
+class SessionBetterAlternativesModel {
   static upsert(data) {
     return new Promise((resolve, reject) => {
       const sql = `INSERT INTO session_better_alternatives 
@@ -23,7 +23,7 @@ class SessionBetterAlternativesModel_v2 {
       
       db.run(sql, params, function(err) {
         if (err) { 
-          logger.error('[SessionBetterAlternativesModel_v2] upsert error', err); 
+          logger.error('[SessionBetterAlternativesModel] upsert error', err); 
           return reject(err); 
         }
         resolve({ id: this.lastID, changes: this.changes });
@@ -37,7 +37,7 @@ class SessionBetterAlternativesModel_v2 {
       
       db.get(sql, [sessionId], (err, row) => {
         if (err) { 
-          logger.error('[SessionBetterAlternativesModel_v2] findBySessionId error', err); 
+          logger.error('[SessionBetterAlternativesModel] findBySessionId error', err); 
           return reject(err); 
         }
         if (row) {
@@ -45,7 +45,7 @@ class SessionBetterAlternativesModel_v2 {
             row.items = typeof row.items === 'string' 
               ? JSON.parse(row.items) : row.items;
           } catch (e) {
-            logger.warn('[SessionBetterAlternativesModel_v2] JSON parse warning', e);
+            logger.warn('[SessionBetterAlternativesModel] JSON parse warning', e);
           }
         }
         resolve(row || null);
@@ -59,7 +59,7 @@ class SessionBetterAlternativesModel_v2 {
       
       db.run(sql, [sessionId], function(err) {
         if (err) { 
-          logger.error('[SessionBetterAlternativesModel_v2] deleteBySession error', err); 
+          logger.error('[SessionBetterAlternativesModel] deleteBySession error', err); 
           return reject(err); 
         }
         resolve({ changes: this.changes });
@@ -68,4 +68,4 @@ class SessionBetterAlternativesModel_v2 {
   }
 }
 
-module.exports = SessionBetterAlternativesModel_v2;
+module.exports = SessionBetterAlternativesModel;

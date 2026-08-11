@@ -18,21 +18,21 @@
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
         <!-- Tabs -->
-        <div class="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 mb-4 shadow-md">
           <div class="flex flex-wrap items-center gap-2">
-            <button id="tab-my-rubrics" class="tab-btn active px-4 py-2 rounded-md text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5" data-tab="my-rubrics">
+            <button id="tab-my-rubrics" class="tab-btn active px-4 py-2 rounded-md text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5" data-tab="my-rubrics">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
               </svg>
               My Rubrics
             </button>
-            <button id="tab-master" class="tab-btn px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5" data-tab="master">
+            <button id="tab-master" class="tab-btn px-4 py-2 rounded-md text-xs font-bold transition-colors flex items-center gap-1.5" data-tab="master">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
               </svg>
               Master Rubrics
             </button>
-            <button id="tab-create" class="tab-btn px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5" data-tab="create">
+            <button id="tab-create" class="tab-btn px-4 py-2 rounded-md text-xs font-bold transition-colors flex items-center gap-1.5" data-tab="create">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
               </svg>
@@ -44,10 +44,10 @@
         <!-- My Rubrics Tab -->
         <div id="my-rubrics-tab" class="tab-content">
           <div id="rubricsRoot">
-            <div class="bg-white border border-slate-200 rounded-lg p-8">
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-8 shadow-md">
               <div class="animate-pulse space-y-3">
-                <div class="h-16 bg-slate-200 rounded-lg"></div>
-                <div class="h-16 bg-slate-200 rounded-lg"></div>
+                <div class="h-16 bg-emerald-200 rounded-lg"></div>
+                <div class="h-16 bg-emerald-200 rounded-lg"></div>
               </div>
             </div>
           </div>
@@ -55,49 +55,49 @@
 
         <!-- Status Change Confirmation Modal -->
         <div id="status-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div class="bg-white rounded-lg p-4 max-w-md w-full mx-4">
-            <h3 class="text-sm font-semibold text-slate-900 mb-2">Change Status</h3>
-            <p class="text-xs text-slate-600 mb-3">Are you sure you want to change the status of <span id="status-modal-item-name" class="font-semibold"></span>?</p>
+          <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-4 max-w-md w-full mx-4 shadow-md">
+            <h3 class="text-sm font-bold text-amber-900 mb-2 uppercase tracking-wide">Change Status</h3>
+            <p class="text-xs text-amber-800 mb-3">Are you sure you want to change the status of <span id="status-modal-item-name" class="font-semibold"></span>?</p>
             <div class="flex gap-2 justify-end">
               <button onclick="closeStatusModal()" class="px-3 py-1.5 rounded-md bg-slate-200 hover:bg-slate-300 text-xs font-medium transition-colors">Cancel</button>
-              <button onclick="confirmStatusChange()" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">Confirm</button>
+              <button onclick="confirmStatusChange()" class="px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition-colors shadow-sm">Confirm</button>
             </div>
           </div>
         </div>
 
         <!-- Master Rubrics Tab -->
         <div id="master-tab" class="tab-content hidden">
-          <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
-            <div class="p-3 border-b border-slate-200 flex items-center gap-2">
-              <div class="w-8 h-8 rounded-md bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-700">
+          <div class="bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 rounded-lg overflow-hidden mb-6 shadow-md">
+            <div class="p-3 border-b border-indigo-300 flex items-center gap-2 bg-indigo-200">
+              <div class="w-8 h-8 rounded-md bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
                 </svg>
               </div>
-              <h2 class="text-sm font-semibold text-slate-900">Master Rubric Categories</h2>
+              <h2 class="text-sm font-bold text-indigo-950 uppercase tracking-wide">Master Rubric Categories</h2>
             </div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto overflow-y-auto max-h-96 custom-scrollbar">
               <table class="w-full text-left text-xs">
-                <thead>
-                  <tr class="border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider">
-                    <th class="py-2 px-3" style="width: 40px;">
+                <thead class="sticky top-0">
+                  <tr class="border-b-2 border-indigo-300 bg-indigo-200">
+                    <th class="py-2 px-3 text-[10px] font-bold text-indigo-950 uppercase" style="width: 40px;">
                       <input type="checkbox" id="select-all-categories">
                     </th>
-                    <th class="py-2 px-3">Category ID</th>
-                    <th class="py-2 px-3">Name</th>
-                    <th class="py-2 px-3">Weight</th>
-                    <th class="py-2 px-3">Indicators</th>
+                    <th class="py-2 px-3 text-[10px] font-bold text-indigo-950 uppercase">Category ID</th>
+                    <th class="py-2 px-3 text-[10px] font-bold text-indigo-950 uppercase">Name</th>
+                    <th class="py-2 px-3 text-[10px] font-bold text-indigo-950 uppercase text-right">Weight</th>
+                    <th class="py-2 px-3 text-[10px] font-bold text-indigo-950 uppercase text-right">Indicators</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-200" id="master-categories-table">
+                <tbody class="divide-y divide-indigo-300" id="master-categories-table">
                   <tr>
-                    <td colspan="5" class="py-8 text-center text-slate-500">Loading master categories...</td>
+                    <td colspan="5" class="py-8 text-center text-indigo-800 font-medium">Loading master categories...</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div class="p-3 border-t border-slate-200 flex justify-end">
-              <button id="copy-selected-btn" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5" disabled>
+            <div class="p-3 border-t border-indigo-300 flex justify-end bg-indigo-50">
+              <button id="copy-selected-btn" class="px-4 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5" disabled>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                 Assign to My Rubrics
               </button>
@@ -109,23 +109,23 @@
         <div id="create-tab" class="tab-content hidden">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Create Category -->
-            <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
-              <div class="p-3 border-b border-slate-200 flex items-center gap-2">
+            <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg overflow-hidden shadow-md">
+              <div class="p-3 border-b border-violet-300 flex items-center gap-2 bg-violet-200">
                 <div class="w-8 h-8 rounded-md bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-700">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                   </svg>
                 </div>
-                <h2 class="text-sm font-semibold text-slate-900">Create New Category</h2>
+                <h2 class="text-sm font-bold text-violet-950 uppercase tracking-wide">Create New Category</h2>
               </div>
               <form id="create-category-form" class="p-4 space-y-3">
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Category Name *</label>
-                  <input type="text" id="category-name" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="Enter category name" required>
+                  <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Category Name *</label>
+                  <input type="text" id="category-name" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="Enter category name" required>
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Weight</label>
-                  <input type="number" id="category-weight" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="0" step="0.01" min="0" value="0">
+                  <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Weight</label>
+                  <input type="number" id="category-weight" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="0" step="0.01" min="0" value="0">
                 </div>
                 <button type="submit" class="w-full px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"></path></svg>
@@ -135,49 +135,49 @@
             </div>
 
             <!-- Create Indicator -->
-            <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
-              <div class="p-3 border-b border-slate-200 flex items-center gap-2">
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg overflow-hidden shadow-md">
+              <div class="p-3 border-b border-emerald-300 flex items-center gap-2 bg-emerald-200">
                 <div class="w-8 h-8 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                   </svg>
                 </div>
-                <h2 class="text-sm font-semibold text-slate-900">Create New Indicator</h2>
+                <h2 class="text-sm font-bold text-emerald-950 uppercase tracking-wide">Create New Indicator</h2>
               </div>
               <form id="create-indicator-form" class="p-4 space-y-3">
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Category *</label>
-                  <select id="indicator-category" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" required>
+                  <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Category *</label>
+                  <select id="indicator-category" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full" required>
                     <option value="">Select category</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Indicator Name *</label>
-                  <input type="text" id="indicator-name" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="Enter indicator name" required>
+                  <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Indicator Name *</label>
+                  <input type="text" id="indicator-name" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full" placeholder="Enter indicator name" required>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
-                    <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Type</label>
-                    <select id="indicator-type" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full">
+                    <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Type</label>
+                    <select id="indicator-type" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full">
                       <option value="HUMAN">HUMAN</option>
                       <option value="AI">AI</option>
                     </select>
                   </div>
                   <div>
-                    <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Gate</label>
-                    <select id="indicator-gate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full">
+                    <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Gate</label>
+                    <select id="indicator-gate" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full">
                       <option value="0">No</option>
                       <option value="1">Yes</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Value</label>
-                  <input type="number" id="indicator-value" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" placeholder="1" step="0.01" min="0" value="1">
+                  <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Value</label>
+                  <input type="number" id="indicator-value" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full" placeholder="1" step="0.01" min="0" value="1">
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Description</label>
-                  <textarea id="indicator-description" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500 w-full" rows="3" placeholder="Enter description"></textarea>
+                  <label class="block text-[10px] font-bold text-emerald-900 uppercase tracking-wide mb-1">Description</label>
+                  <textarea id="indicator-description" class="bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 w-full" rows="3" placeholder="Enter description"></textarea>
                 </div>
                 <button type="submit" class="w-full px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"></path></svg>

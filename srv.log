@@ -1,0 +1,5 @@
+✓ MySQL connection verified
+[32minfo[39m: [Startup] Database connection initialized {"service":"zoom-transcript-bot","timestamp":"15:04:02"}
+[32minfo[39m: [Startup] Calendar sync at start disabled (set RUN_CAL_SYNC_AT_START=true to enable) {"service":"zoom-transcript-bot","timestamp":"15:04:02"}
+[32minfo[39m: (ServerJS File): Server is LIVE on Port: 3000 {"service":"zoom-transcript-bot","timestamp":"15:04:02"}
+[32minfo[39m: (ServerJS File): Auto-Sync (1min) and Polling (30s) are now ACTIVE. {"service":"zoom-transcript-bot","timestamp":"15:04:02"}

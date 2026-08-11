@@ -12,19 +12,18 @@ let dateFilter = null;
 let scoresTable = null;
 
 (async () => {
-  // Initialize centralized date filter (30 days default)
+  // Initialize centralized date filter (30 days default).
+  // "Get Data" button fetches scores with the selected filters/dates.
   dateFilter = createDateFilter({
     days: 30,
-    onFilter: (fromDate, toDate) => {
-      loadData();
-    }
+    onFilter: () => loadData(1)
   });
 
+  // Load filter dropdowns, then fetch data by default using the default dates.
   await loadFilters();
-  await loadData();
-  updateStats();
-  renderScores();
+  await loadData(1);
 })();
+
 
 async function loadFilters() {
   try {
@@ -46,7 +45,7 @@ async function loadFilters() {
 
     // Custom instructor dropdown
     const instructorData = instructors.map(i => ({ id: i.id, name: (i.first_name || '') + ' ' + (i.last_name || '') + ' (' + i.email + ')' }));
-    instructorDropdown = createDarkSearchableSelect({
+    instructorDropdown = createSearchableSelect({
       containerId: 'instructorFilterContainer',
       placeholder: 'All Instructors',
       dataSource: instructorData,
@@ -57,32 +56,17 @@ async function loadFilters() {
         if (value) {
           loadSessions(value);
         } else {
-          sessionDropdown = createDarkSearchableSelect({
-            containerId: 'sessionFilterContainer',
-            placeholder: 'All Sessions',
-            dataSource: [],
-            displayField: 'name',
-            valueField: 'id',
-            onSelect: () => {}
-          });
+          initSessionsDropdown('All Sessions', []);
         }
-        loadData();
       }
     });
 
     // Custom session dropdown (initially empty)
-    sessionDropdown = createDarkSearchableSelect({
-      containerId: 'sessionFilterContainer',
-      placeholder: 'All Sessions',
-      dataSource: [],
-      displayField: 'name',
-      valueField: 'id',
-      onSelect: () => {}
-    });
+    initSessionsDropdown('All Sessions', []);
 
     // Custom reviewer dropdown
     const reviewerData = reviewers.map(r => ({ id: r.id, name: r.first_name + ' ' + (r.last_name || '') + ' (' + r.email + ')' }));
-    reviewerDropdown = createDarkSearchableSelect({
+    reviewerDropdown = createSearchableSelect({
       containerId: 'reviewerFilterContainer',
       placeholder: 'All Reviewers',
       dataSource: reviewerData,
@@ -90,7 +74,6 @@ async function loadFilters() {
       valueField: 'id',
       onSelect: (value) => {
         filterState.reviewerId = value || '';
-        loadData();
       }
     });
   } catch(e) {
@@ -99,58 +82,40 @@ async function loadFilters() {
   }
 }
 
+function initSessionsDropdown(placeholder, dataSource) {
+  sessionDropdown = createSearchableSelect({
+    containerId: 'sessionFilterContainer',
+    placeholder,
+    dataSource,
+    displayField: 'name',
+    valueField: 'id',
+    onSelect: (value) => {
+      filterState.sessionId = value || '';
+    }
+  });
+}
+
 async function loadSessions(instructorId) {
   if (!instructorId) {
-    sessionDropdown = createDarkSearchableSelect({
-      containerId: 'sessionFilterContainer',
-      placeholder: 'All Sessions',
-      dataSource: [],
-      displayField: 'name',
-      valueField: 'id',
-      onSelect: () => {}
-    });
+    initSessionsDropdown('All Sessions', []);
     return;
   }
 
   // Loading state
-  sessionDropdown = createDarkSearchableSelect({
-    containerId: 'sessionFilterContainer',
-    placeholder: 'Loading sessions...',
-    dataSource: [],
-    displayField: 'name',
-    valueField: 'id',
-    onSelect: () => {}
-  });
+  initSessionsDropdown('Loading sessions...', []);
 
   try {
-    const data = await apiFetch(`/api/scores/sessions/${instructorId}`);
+    const data = await apiFetch(`/api/admin/scores/sessions/${instructorId}`);
     const sessions = data.sessions || [];
-    
+
     const sessionData = sessions.length > 0
       ? sessions.map(s => ({ id: s.session_id, name: s.meeting_title + ' - ' + (s.start_time ? formatDate(s.start_time) : 'No date') }))
       : [{ id: '', name: 'No sessions found' }];
 
-    sessionDropdown = createDarkSearchableSelect({
-      containerId: 'sessionFilterContainer',
-      placeholder: 'All Sessions',
-      dataSource: sessionData,
-      displayField: 'name',
-      valueField: 'id',
-      onSelect: (value) => {
-        filterState.sessionId = value || '';
-        loadData();
-      }
-    });
+    initSessionsDropdown('All Sessions', sessionData);
   } catch(e) {
     console.error('Failed to load sessions:', e);
-    sessionDropdown = createDarkSearchableSelect({
-      containerId: 'sessionFilterContainer',
-      placeholder: 'Failed to load',
-      dataSource: [],
-      displayField: 'name',
-      valueField: 'id',
-      onSelect: () => {}
-    });
+    initSessionsDropdown('Failed to load', []);
   }
 }
 
@@ -223,8 +188,6 @@ function updateStats() {
 }
 
 function renderScores(page = 1) {
-  const root = document.getElementById('scoresRoot');
-
   // Flatten all categories into a simple array for the table
   let flatScores = [];
   allCategories.forEach(cat => {
@@ -239,50 +202,22 @@ function renderScores(page = 1) {
     });
   });
 
-  if (!flatScores.length) {
-    // Use centralized table component for empty state
-    if (!scoresTable) {
-      scoresTable = createTable({
-        containerId: 'scoresRoot',
-        headers: [
-          { label: 'Category', key: 'category_name' },
-          { label: 'Indicator', key: 'indicator_name' },
-          { label: 'Meeting', key: 'meeting_title' },
-          { label: 'Date', key: 'meeting_date', render: (v) => formatDate(v) },
-          { label: 'Type', key: 'score_type', render: (v) => v === 'AI' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">AI</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">HUMAN</span>' },
-          { label: 'Score', key: 'score', render: (v) => `<span class="font-bold ${getScoreColorClass(+v || 0)}">${(+v || 0).toFixed(1)}</span>`, width: '80px' },
-          { label: 'Reviewer', key: 'reviewer_name' }
-        ],
-        data: [],
-        emptyMessage: allCategories.message || 'No scores available. Try adjusting your filters or date range.',
-        pagination: {
-          perPage: 20,
-          currentPage: page,
-          onPageChange: (newPage) => loadData(newPage)
-        }
-      });
-    } else {
-      scoresTable.setData([]);
-      scoresTable.setPaginationPage(page);
-    }
-    return;
-  }
+  const headers = [
+    { label: 'Category', key: 'category_name' },
+    { label: 'Indicator', key: 'indicator_name' },
+    { label: 'Meeting', key: 'meeting_title' },
+    { label: 'Date', key: 'meeting_date', render: (v) => formatDate(v) },
+    { label: 'Type', key: 'score_type', render: (v) => v === 'AI' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-700">AI</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700">HUMAN</span>' },
+    { label: 'Score', key: 'score', render: (v) => `<span class="font-bold ${getScoreColorClass(+v || 0)}">${(+v || 0).toFixed(1)}</span>`, width: '80px' },
+    { label: 'Reviewer', key: 'reviewer_name' }
+  ];
 
-  // Use centralized table component with pagination
   if (!scoresTable) {
     scoresTable = createTable({
       containerId: 'scoresRoot',
-      headers: [
-        { label: 'Category', key: 'category_name' },
-        { label: 'Indicator', key: 'indicator_name' },
-        { label: 'Meeting', key: 'meeting_title' },
-        { label: 'Date', key: 'meeting_date', render: (v) => formatDate(v) },
-        { label: 'Type', key: 'score_type', render: (v) => v === 'AI' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">AI</span>' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">HUMAN</span>' },
-        { label: 'Score', key: 'score', render: (v) => `<span class="font-bold ${getScoreColorClass(+v || 0)}">${(+v || 0).toFixed(1)}</span>`, width: '80px' },
-        { label: 'Reviewer', key: 'reviewer_name' }
-      ],
+      headers,
       data: flatScores,
-      emptyMessage: allCategories.message || 'No scores available',
+      emptyMessage: allCategories.message || 'No scores available. Try adjusting your filters or date range.',
       pagination: {
         perPage: 20,
         currentPage: page,
@@ -309,10 +244,10 @@ function toggleCategory(categoryId) {
 }
 
 function getScoreColorClass(score) {
-  if (score >= 4.0) return 'text-emerald-600';
-  if (score >= 3.0) return 'text-blue-400';
-  if (score >= 2.0) return 'text-amber-800';
-  return 'text-red-400';
+  if (score >= 4.0) return 'text-emerald-700';
+  if (score >= 3.0) return 'text-blue-700';
+  if (score >= 2.0) return 'text-amber-700';
+  return 'text-red-600';
 }
 
 async function exportScores() {
@@ -368,10 +303,10 @@ async function exportScores() {
 }
 
 function getScoreColor(score) {
-  if (score >= 4.0) return 'text-emerald-600';
-  if (score >= 3.0) return 'text-blue-400';
-  if (score >= 2.0) return 'text-amber-800';
-  return 'text-red-400';
+  if (score >= 4.0) return 'text-emerald-700';
+  if (score >= 3.0) return 'text-blue-700';
+  if (score >= 2.0) return 'text-amber-700';
+  return 'text-red-600';
 }
 
 function formatDate(dateStr) {
@@ -388,3 +323,4 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
+

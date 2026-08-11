@@ -88,7 +88,8 @@ function applySearchFilter() {
           var cls = value === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
           return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
         }},
-        { label: 'Last Updated', key: 'updated_at', render: function(value) { return '<span class="text-xs text-slate-500">' + fmtDate(value) + '</span>'; }},
+        { label: 'Calendar Connected', key: 'created_at', render: function(value) { return '<span class="text-xs text-slate-500">' + fmtDate(value) + '</span>'; }},
+        { label: 'Last Resync', key: 'last_synced_at', render: function(value) { return '<span class="text-xs text-slate-500">' + fmtDate(value) + '</span>'; }},
         { label: 'Role', key: 'role_name', render: function(value) { return '<span class="text-xs text-slate-500">' + escHtml(value || '--') + '</span>'; }}
       ],
       data: filtered,

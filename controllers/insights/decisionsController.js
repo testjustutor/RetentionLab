@@ -2,7 +2,7 @@
  * Decisions Insights Controller
  * Provides dynamic decision data from session evaluations and coaching feedback
  */
-const { db } = require('../../database/db');
+const DecisionsModel = require('../../models/insights/DecisionsModel');
 
 const controller = {
   /**
@@ -16,7 +16,7 @@ const controller = {
 
       // Get decisions from session final evaluations (recommended_action field)
       let sql = `
-        SELECT 
+        SELECT
           sfe.id,
           sfe.session_id,
           sfe.recommended_action as decision_text,
@@ -73,13 +73,11 @@ const controller = {
 
       sql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
 
-      const decisions = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const decisions = await DecisionsModel.getEvaluationDecisions(user, { from_date, to_date, instructor_id, decision_type });
 
       // Also get decisions from teacher coaching feedback
       let coachingSql = `
-        SELECT 
+        SELECT
           tcf.id,
           tcf.meeting_id,
           tcf.recommended_action as decision_text,
@@ -118,9 +116,7 @@ const controller = {
 
       coachingSql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
 
-      const coachingDecisions = await new Promise((resolve, reject) => {
-        db.all(coachingSql, coachingParams, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const coachingDecisions = await DecisionsModel.getCoachingDecisions(user, { from_date, to_date, instructor_id });
 
       // Combine all decisions
       const allDecisions = [

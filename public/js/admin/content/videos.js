@@ -14,12 +14,11 @@ function setDefaultDateRange() {
   const now = new Date();
   const weekAgo = new Date(now);
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const fromEl = document.getElementById('filterFromDate');
-  const toEl = document.getElementById('filterToDate');
-  if (fromEl && !fromEl.value) fromEl.value = weekAgo.toISOString().split('T')[0];
-  if (toEl && !toEl.value) toEl.value = now.toISOString().split('T')[0];
+  const fromEl = document.getElementById("filterFromDate");
+  const toEl = document.getElementById("filterToDate");
+  if (fromEl && !fromEl.value) fromEl.value = weekAgo.toISOString().split("T")[0];
+  if (toEl && !toEl.value) toEl.value = now.toISOString().split("T")[0];
 }
-
 function getOqiColorClass(score) {
   if (score >= 90) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
   if (score >= 80) return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
@@ -54,13 +53,11 @@ async function loadInstructors() {
   window.instructorFilter = instructorFilter;
 }
 
-async function loadVideos() {
-  if (videosTable) videosTable.setLoading(true);
+async function fetchVideos() {
   try {
     const instructorId = window.instructorFilter ? window.instructorFilter.getValue() : null;
     const fromDate = document.getElementById('filterFromDate')?.value || '';
     const toDate = document.getElementById('filterToDate')?.value || '';
-    const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
 
     const json = await apiFetch('/api/admin/content/videos', {
       method: 'POST',
@@ -72,57 +69,67 @@ async function loadVideos() {
       })
     });
     allVideos = json.recordings || [];
-
-    var filtered = allVideos;
-    if (searchTerm) {
-      filtered = allVideos.filter(function(v) {
-        return (v.title || '').toLowerCase().includes(searchTerm) ||
-               (v.instructor_name || '').toLowerCase().includes(searchTerm);
-      });
-    }
-
-    if (!videosTable) {
-      videosTable = createTable({
-        containerId: 'videosContainer',
-        headers: [
-          { label: 'Title', key: 'title', render: function(value, row) {
-            return '<p class="font-medium truncate max-w-[200px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>' +
-              (row.description ? '<p class="text-[10px] text-slate-500">' + escHtml(row.description) + '</p>' : '');
-          }},
-          { label: 'Instructor', key: 'instructor_name', render: function(value, row) {
-            return '<p class="text-xs text-slate-900">' + escHtml(value || '--') + '</p>' +
-              '<p class="text-[10px] text-slate-500">' + escHtml(row.instructor_email || '') + '</p>';
-          }},
-          { label: 'Platform', key: 'platform', render: function(value) {
-            return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
-          }},
-          { label: 'Date', key: 'scheduled_start_time', render: function(value) {
-            return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
-          }},
-          { label: 'Duration', key: 'session_start_time', render: function(value, row) {
-            return '<span class="text-xs text-slate-500">' + fmtDuration(value, row.session_end_time) + '</span>';
-          }},
-          { label: 'OQI Score', key: 'oqi_score', render: function(value) {
-            if (!value) return '<span class="text-slate-600">N/A</span>';
-            return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + getOqiColorClass(value) + '">' + value.toFixed(1) + '</span>';
-          }},
-          { label: 'Actions', key: 'has_video', render: function(value, row) {
-            return value ? '<button onclick="playVideo(' + row.meeting_id + ')" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">Play</button>'
-              : '<span class="text-[10px] text-slate-600">No video</span>';
-          }}
-        ],
-        data: filtered,
-        emptyMessage: 'No videos found',
-        pagination: { perPage: 10 }
-      });
-      videosTable.render();
-    } else {
-      videosTable.setData(filtered);
-    }
   } catch (err) {
-    if (videosTable) videosTable.setData([]);
-    document.getElementById('videosContainer').innerHTML = '<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-red-600"><p class="text-sm font-medium">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
+    console.error('Failed to fetch videos:', err);
+    allVideos = [];
   }
+}
+
+function applySearchFilter() {
+  const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  var filtered = allVideos;
+  if (searchTerm) {
+    filtered = allVideos.filter(function(v) {
+      return (v.title || '').toLowerCase().includes(searchTerm) ||
+             (v.instructor_name || '').toLowerCase().includes(searchTerm);
+    });
+  }
+
+  if (!videosTable) {
+    videosTable = createTable({
+      containerId: 'videosContainer',
+      headers: [
+        { label: 'Title', key: 'title', render: function(value, row) {
+          return '<p class="font-medium truncate max-w-[200px] text-slate-900">' + escHtml(value || 'Untitled') + '</p>' +
+            (row.description ? '<p class="text-[10px] text-slate-500">' + escHtml(row.description) + '</p>' : '');
+        }},
+        { label: 'Instructor', key: 'instructor_name', render: function(value, row) {
+          return '<p class="text-xs text-slate-900">' + escHtml(value || '--') + '</p>' +
+            '<p class="text-[10px] text-slate-500">' + escHtml(row.instructor_email || '') + '</p>';
+        }},
+        { label: 'Platform', key: 'platform', render: function(value) {
+          return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">' + escHtml(PLAT[value] || value || 'Unknown') + '</span>';
+        }},
+        { label: 'Date', key: 'scheduled_start_time', render: function(value) {
+          return '<span class="text-xs text-slate-500">' + fmtTime(value) + '</span>';
+        }},
+        { label: 'Duration', key: 'session_start_time', render: function(value, row) {
+          return '<span class="text-xs text-slate-500">' + fmtDuration(value, row.session_end_time) + '</span>';
+        }},
+        { label: 'OQI Score', key: 'oqi_score', render: function(value) {
+          if (!value) return '<span class="text-slate-600">N/A</span>';
+          return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + getOqiColorClass(parseFloat(value)) + '">' + parseFloat(value).toFixed(1) + '</span>';
+        }},
+        { label: 'Actions', key: 'has_video', render: function(value, row) {
+          return value ? '<button onclick="playVideo(' + row.meeting_id + ')" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">Play</button>'
+            : '<span class="text-[10px] text-slate-600">No video</span>';
+        }}
+      ],
+      data: filtered,
+      emptyMessage: 'No videos found',
+      pagination: { perPage: 10 }
+    });
+    videosTable.render();
+  } else {
+    videosTable.setData(filtered);
+  }
+}
+
+async function loadVideos() {
+  if (videosTable) videosTable.setLoading(true);
+  await fetchVideos();
+  if (videosTable) videosTable.setLoading(false);
+  applySearchFilter();
 }
 
 // Play video
@@ -180,9 +187,20 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// Search on input - filter directly from loaded data
+document.addEventListener('DOMContentLoaded', function() {
+  var searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      applySearchFilter();
+    });
+  }
+});
+
 // Initialize
 setDefaultDateRange();
 loadInstructors();
 
 // Auto-load data on page load
 setTimeout(function() { loadVideos(); }, 500);
+

@@ -22,7 +22,7 @@ async function showMessage(text, isError = false) {
     if (result && result.status === 'success') {
       await showMessage('Email successfully verified. Redirecting to login...');
       setTimeout(() => {
-        window.location.href = '/login.html?verified=success';
+        window.location.href = '/login?verified=success';
       }, 2000);
       return;
     }

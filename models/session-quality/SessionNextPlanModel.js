@@ -6,7 +6,7 @@
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
-class SessionNextPlanModel_v2 {
+class SessionNextPlanModel {
   static upsert(data) {
     return new Promise((resolve, reject) => {
       const sql = `INSERT INTO session_next_plan 
@@ -27,7 +27,7 @@ class SessionNextPlanModel_v2 {
       
       db.run(sql, params, function(err) {
         if (err) { 
-          logger.error('[SessionNextPlanModel_v2] upsert error', err); 
+          logger.error('[SessionNextPlanModel] upsert error', err); 
           return reject(err); 
         }
         resolve({ id: this.lastID, changes: this.changes });
@@ -41,7 +41,7 @@ class SessionNextPlanModel_v2 {
       
       db.get(sql, [sessionId], (err, row) => {
         if (err) { 
-          logger.error('[SessionNextPlanModel_v2] findBySessionId error', err); 
+          logger.error('[SessionNextPlanModel] findBySessionId error', err); 
           return reject(err); 
         }
         if (row) {
@@ -53,7 +53,7 @@ class SessionNextPlanModel_v2 {
             row.gaps_to_address = typeof row.gaps_to_address === 'string' 
               ? JSON.parse(row.gaps_to_address) : row.gaps_to_address;
           } catch (e) {
-            logger.warn('[SessionNextPlanModel_v2] JSON parse warning', e);
+            logger.warn('[SessionNextPlanModel] JSON parse warning', e);
           }
         }
         resolve(row || null);
@@ -67,7 +67,7 @@ class SessionNextPlanModel_v2 {
       
       db.run(sql, [sessionId], function(err) {
         if (err) { 
-          logger.error('[SessionNextPlanModel_v2] deleteBySession error', err); 
+          logger.error('[SessionNextPlanModel] deleteBySession error', err); 
           return reject(err); 
         }
         resolve({ changes: this.changes });
@@ -76,4 +76,4 @@ class SessionNextPlanModel_v2 {
   }
 }
 
-module.exports = SessionNextPlanModel_v2;
+module.exports = SessionNextPlanModel;

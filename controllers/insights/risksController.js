@@ -2,7 +2,7 @@
  * Risks Insights Controller
  * Provides dynamic risk data from session quality flags and coaching feedback
  */
-const { db } = require('../../database/db');
+const RisksModel = require('../../models/insights/RisksModel');
 
 const controller = {
   /**
@@ -16,7 +16,7 @@ const controller = {
 
       // Get risks from session quality flags
       let sql = `
-        SELECT 
+        SELECT
           sqf.id,
           sqf.session_id,
           sqf.flags,
@@ -58,9 +58,7 @@ const controller = {
 
       sql += ' ORDER BY sqf.created_at DESC LIMIT 100';
 
-      const risks = await new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const risks = await RisksModel.getQualityFlagRisks(user, { from_date, to_date, instructor_id });
 
       // Parse JSON flags and flatten into individual risks
       const parsedRisks = [];
@@ -93,7 +91,7 @@ const controller = {
 
       // Also get risks from session quality reports (low scores)
       let qualitySql = `
-        SELECT 
+        SELECT
           sqr.meeting_id,
           sqr.percentage_score,
           sqr.confidence_level,
@@ -130,9 +128,7 @@ const controller = {
 
       qualitySql += ' ORDER BY sqr.percentage_score ASC LIMIT 50';
 
-      const qualityRisks = await new Promise((resolve, reject) => {
-        db.all(qualitySql, qualityParams, (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const qualityRisks = await RisksModel.getQualityScoreRisks(user, { from_date, to_date, instructor_id });
 
       // Convert quality risks to standard format
       const qualityRiskItems = qualityRisks.map(qr => ({

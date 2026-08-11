@@ -76,8 +76,8 @@ export function getUserInitials() {
 export function requireAuth(returnUrl = null) {
   if (!isAuthenticated()) {
     const loginUrl = returnUrl 
-      ? `/login.html?returnUrl=${encodeURIComponent(returnUrl)}`
-      : '/login.html';
+      ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+      : '/login';
     window.location.href = loginUrl;
     return false;
   }

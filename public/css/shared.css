@@ -2994,12 +2994,12 @@ audio::-webkit-media-controls-volume-slider {
 }
 
 /* Select2 Dark Theme */
-.dark-select2-container .select2-selection {
+/*.dark-select2-container .select2-selection {
   background-color: #1e293b !important;
   border-color: #334155 !important;
   color: #e2e8f0 !important;
   min-height: 34px;
-}
+}*/
 
 .dark-select2-container .select2-selection__rendered {
   color: #e2e8f0 !important;
@@ -3025,7 +3025,7 @@ audio::-webkit-media-controls-volume-slider {
   color: #94a3b8 !important;
 }
 
-.dark-select2-dropdown {
+/*.dark-select2-dropdown {
   background-color: #1e293b !important;
   border-color: #334155 !important;
 }
@@ -3049,7 +3049,7 @@ audio::-webkit-media-controls-volume-slider {
   background-color: #0f172a !important;
   border-color: #334155 !important;
   color: #e2e8f0 !important;
-}
+}*/
 
 /* Members Content */
 .members-content {

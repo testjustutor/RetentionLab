@@ -1,4 +1,4 @@
-/**
+﻿/**
  * controllers/userController.js
  * Business logic for user CRUD and management.
  */
@@ -27,27 +27,19 @@ const userController = {
    */
   async list(req) {
     try {
-      let page, perPage, fromDate, toDate, roleId;
+      let fromDate, toDate, roleId;
 
       if (req.method === 'POST' || req.body) {
         // POST request - get params from body
         roleId = req.body.role_id || null;
-        page = parseInt(req.body.page) || 1;
-        perPage = parseInt(req.body.per_page) || 10;
-        fromDate = req.body.from_date || null;
+                fromDate = req.body.from_date || null;
         toDate = req.body.to_date || null;
       } else {
         // GET request - get params from query
-        page = parseInt(req.query.page) || 1;
-        perPage = parseInt(req.query.per_page) || 10;
-        fromDate = req.query.from_date || null;
+                fromDate = req.query.from_date || null;
         toDate = req.query.to_date || null;
       }
-
-      const result = await UsersModel.listUsers(req.user, { 
-        limit: 200,
-        page,
-        perPage,
+      const result = await UsersModel.listUsers(req.user, {
         fromDate,
         toDate,
         roleId

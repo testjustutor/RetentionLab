@@ -6,7 +6,7 @@
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
-class SessionCoachingFeedbackModel_v2 {
+class SessionCoachingFeedbackModel {
   static upsert(data) {
     return new Promise((resolve, reject) => {
       const sql = `INSERT INTO session_coaching_feedback 
@@ -25,7 +25,7 @@ class SessionCoachingFeedbackModel_v2 {
       
       db.run(sql, params, function(err) {
         if (err) { 
-          logger.error('[SessionCoachingFeedbackModel_v2] upsert error', err); 
+          logger.error('[SessionCoachingFeedbackModel] upsert error', err); 
           return reject(err); 
         }
         resolve({ id: this.lastID, changes: this.changes });
@@ -39,7 +39,7 @@ class SessionCoachingFeedbackModel_v2 {
       
       db.get(sql, [sessionId], (err, row) => {
         if (err) { 
-          logger.error('[SessionCoachingFeedbackModel_v2] findBySessionId error', err); 
+          logger.error('[SessionCoachingFeedbackModel] findBySessionId error', err); 
           return reject(err); 
         }
         if (row) {
@@ -49,7 +49,7 @@ class SessionCoachingFeedbackModel_v2 {
             row.areas_to_improve = typeof row.areas_to_improve === 'string' 
               ? JSON.parse(row.areas_to_improve) : row.areas_to_improve;
           } catch (e) {
-            logger.warn('[SessionCoachingFeedbackModel_v2] JSON parse warning', e);
+            logger.warn('[SessionCoachingFeedbackModel] JSON parse warning', e);
           }
         }
         resolve(row || null);
@@ -63,7 +63,7 @@ class SessionCoachingFeedbackModel_v2 {
       
       db.run(sql, [sessionId], function(err) {
         if (err) { 
-          logger.error('[SessionCoachingFeedbackModel_v2] deleteBySession error', err); 
+          logger.error('[SessionCoachingFeedbackModel] deleteBySession error', err); 
           return reject(err); 
         }
         resolve({ changes: this.changes });
@@ -72,4 +72,4 @@ class SessionCoachingFeedbackModel_v2 {
   }
 }
 
-module.exports = SessionCoachingFeedbackModel_v2;
+module.exports = SessionCoachingFeedbackModel;

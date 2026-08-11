@@ -94,6 +94,23 @@ class DepartmentsModel {
     });
   }
 
+  /**
+   * Find a user's role_id by user ID.
+   * @param {number} userId
+   * @returns {Promise<object|null>} { role_id }
+   */
+  static findUserRoleId(userId) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT role_id FROM users WHERE id = ?', [userId], (err, row) => {
+        if (err) {
+          logger.error('DepartmentsModel.findUserRoleId:', err);
+          return reject(err);
+        }
+        resolve(row || null);
+      });
+    });
+  }
+
   /** Add a member to a department (or restore if soft-deleted) */
   static addMember(departmentId, userId, { role_id, created_by, joined_by } = {}) {
     return new Promise((resolve, reject) => {

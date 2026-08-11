@@ -5,7 +5,7 @@ import AuthAPI from '../auth.js';
 
 const form = document.getElementById('registerForm');
 const errorEl = document.getElementById('registerError');
-const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/instructor/index.html';
+const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/instructor/index';
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();

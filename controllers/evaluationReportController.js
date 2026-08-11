@@ -3,7 +3,7 @@
  * Business logic for evaluation reports dashboard.
  */
 
-const { db } = require('../database/db');
+const EvaluationReportModel = require('../models/reports/EvaluationReportModel');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
@@ -19,41 +19,10 @@ const controller = {
       const companyId = req.user?.company_id;
 
       // Get scores with meeting and reviewer info
-      const scoresSql = `
-        SELECT ms.*, 
-               m.title as meeting_title, 
-               m.platform, 
-               m.scheduled_start_time as meeting_date,
-               CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
-        FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
-        LEFT JOIN users u ON u.id = ms.reviewer_id
-        WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-           OR ms.scored_at IS NULL
-        ORDER BY ms.scored_at DESC
-        LIMIT 500
-      `;
-
-      const scores = await new Promise((resolve, reject) => {
-        db.all(scoresSql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const scores = await EvaluationReportModel.getRecentScores(days);
 
       // Get meetings list
-      const meetingsSql = `
-        SELECT m.*,
-               CONCAT(u.first_name, ' ', u.last_name) as owner_name,
-               u.email as owner_email
-        FROM meetings m
-        LEFT JOIN users u ON u.email = m.calendar_account
-        WHERE m.scheduled_start_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-           OR m.scheduled_start_time IS NULL
-        ORDER BY m.scheduled_start_time DESC
-        LIMIT 100
-      `;
-
-      const meetings = await new Promise((resolve, reject) => {
-        db.all(meetingsSql, [days], (err, rows) => err ? reject(err) : resolve(rows || []));
-      });
+      const meetings = await EvaluationReportModel.getRecentMeetings(days);
 
       // Calculate stats
       const aiScores = scores.filter(s => s.score_type === 'AI');
@@ -64,7 +33,7 @@ const controller = {
 
       // Count unique rubrics/categories
       const rubricGroups = new Set(scores.map(s => s.category_id || s.rubric_id).filter(Boolean));
-      
+
       // Count unique reviewers
       const reviewerIds = new Set(scores.map(s => s.reviewer_id).filter(Boolean));
 

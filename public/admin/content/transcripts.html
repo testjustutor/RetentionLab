@@ -21,29 +21,25 @@
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
 
         <!-- Filter Bar -->
-        <div class="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-4">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="flex flex-wrap items-end gap-3">
               <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">From Date</label>
-                <input type="date" id="filterFromDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">From Date</label>
+                <input type="date" id="filterFromDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
               </div>
               <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">To Date</label>
-                <input type="date" id="filterToDate" class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">To Date</label>
+                <input type="date" id="filterToDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
               </div>
               <div>
-                <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Instructor</label>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Instructor</label>
                 <div id="instructorFilterContainer"></div>
               </div>
-              <button onclick="loadTranscripts()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5">
+              <button onclick="loadTranscripts()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors shadow-sm flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                 Get Data
               </button>
-            </div>
-            <div>
-              <label class="block text-[10px] text-slate-500 uppercase tracking-wide mb-1">Search</label>
-              <input type="text" id="searchInput" placeholder="Search by title..." class="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 min-w-[180px]">
             </div>
           </div>
         </div>
@@ -54,6 +50,43 @@
       </main>
     </div>
   </div>
+  <!-- Transcript Modal -->
+  <div id="transcript-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75">
+    <div class="bg-white rounded-xl shadow-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-slate-200">
+        <h3 id="modal-transcript-title" class="text-base font-semibold text-slate-900">Transcript</h3>
+        <button id="close-transcript-modal" class="text-slate-500 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto flex-1">
+        <div id="transcript-details" class="mb-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span class="font-semibold text-slate-700">Meeting:</span>
+            <span id="modal-transcript-meeting" class="text-slate-600 ml-1"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Instructor:</span>
+            <span id="modal-transcript-instructor" class="text-slate-600 ml-1"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Date:</span>
+            <span id="modal-transcript-date" class="text-slate-600 ml-1"></span>
+          </div>
+          <div>
+            <span class="font-semibold text-slate-700">Platform:</span>
+            <span id="modal-transcript-platform" class="text-slate-600 ml-1"></span>
+          </div>
+        </div>
+        <div class="border-t border-slate-200 pt-4">
+          <iframe id="transcript-iframe" src="" class="w-full h-[60vh] rounded-lg border border-slate-200"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
   <script src="../../js/admin/content/transcripts.js"></script>

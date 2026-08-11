@@ -3,8 +3,8 @@
  * Provides cascading filter options for the session quality report pages.
  */
 
-const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
+const SessionQualityFilterModel = require('../../models/session-quality/SessionQualityFilterModel');
 
 /**
  * Get all instructors/teachers.
@@ -15,20 +15,7 @@ async function getInstructors(req) {
   try {
     const loggedInUserId = req.user?.id;
     
-    const query = `
-      SELECT DISTINCT u.id as user_id, u.first_name, u.last_name, u.email
-      FROM users u
-      JOIN roles r ON r.id = u.role_id
-      LEFT JOIN calendar_integrations ci ON ci.user_id = u.id
-      WHERE r.role_name = 'instructor'
-        AND u.status = 'active'
-        AND u.created_by = ?
-        AND ci.id IS NOT NULL
-      ORDER BY u.first_name, u.last_name
-    `;
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, [loggedInUserId], (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getInstructors(loggedInUserId);
 
     const instructors = rows.map(r => ({
       value: r.user_id,
@@ -50,23 +37,7 @@ async function getBoards(req) {
   try {
     const loggedInUserId = req.user?.id;
     const instructorId = req.body?.instructor_id;
-    let query = `
-      SELECT DISTINCT sm.curriculum as value, sm.curriculum as label
-      FROM session_metadata sm
-      JOIN users u ON u.id = sm.teacher_user_id
-      WHERE sm.curriculum IS NOT NULL AND sm.curriculum != ''
-        AND u.created_by = ?
-    `;
-    const params = [loggedInUserId];
-    if (instructorId) {
-      query += ' AND sm.teacher_user_id = ?';
-      params.push(instructorId);
-    }
-    query += ' ORDER BY sm.curriculum';
-
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getBoards(loggedInUserId, instructorId);
 
     return { statusCode: 200, success: true, data: { options: rows } };
   } catch (error) {
@@ -84,27 +55,7 @@ async function getClasses(req) {
     const loggedInUserId = req.user?.id;
     const instructorId = req.body?.instructor_id;
     const board = req.body?.board;
-    let query = `
-      SELECT DISTINCT sm.student_grade as value, sm.student_grade as label
-      FROM session_metadata sm
-      JOIN users u ON u.id = sm.teacher_user_id
-      WHERE sm.student_grade IS NOT NULL AND sm.student_grade != ''
-        AND u.created_by = ?
-    `;
-    const params = [loggedInUserId];
-    if (instructorId) {
-      query += ' AND sm.teacher_user_id = ?';
-      params.push(instructorId);
-    }
-    if (board) {
-      query += ' AND sm.curriculum = ?';
-      params.push(board);
-    }
-    query += ' ORDER BY sm.student_grade';
-
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getClasses(loggedInUserId, instructorId, board);
 
     return { statusCode: 200, success: true, data: { options: rows } };
   } catch (error) {
@@ -123,31 +74,7 @@ async function getSubjects(req) {
     const instructorId = req.body?.instructor_id;
     const board = req.body?.board;
     const grade = req.body?.grade;
-    let query = `
-      SELECT DISTINCT sm.subject as value, sm.subject as label
-      FROM session_metadata sm
-      JOIN users u ON u.id = sm.teacher_user_id
-      WHERE sm.subject IS NOT NULL AND sm.subject != ''
-        AND u.created_by = ?
-    `;
-    const params = [loggedInUserId];
-    if (instructorId) {
-      query += ' AND sm.teacher_user_id = ?';
-      params.push(instructorId);
-    }
-    if (board) {
-      query += ' AND sm.curriculum = ?';
-      params.push(board);
-    }
-    if (grade) {
-      query += ' AND sm.student_grade = ?';
-      params.push(grade);
-    }
-    query += ' ORDER BY sm.subject';
-
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getSubjects(loggedInUserId, instructorId, board, grade);
 
     return { statusCode: 200, success: true, data: { options: rows } };
   } catch (error) {
@@ -166,29 +93,11 @@ async function getMeetings(req) {
     const loggedInUserId = req.user?.id;
     const instructorId = req.body?.instructor_id;
 
-    let query = `
-      SELECT m.id as internal_id, m.title, m.scheduled_start_time
-      FROM meetings m
-      JOIN users u ON m.calendar_account = u.email
-      JOIN roles r ON r.id = u.role_id
-      WHERE u.created_by = ?
-        AND r.role_name = 'instructor'
-    `;
-    const params = [loggedInUserId];
-    
-    if (instructorId) {
-      query += ' AND u.id = ?';
-      params.push(instructorId);
-    }
-    query += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
-
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getMeetings(loggedInUserId, instructorId);
 
     const meetings = rows.map(r => ({
       value: r.internal_id,
-      label: `${r.title || 'Untitled'} - ${r.start_time ? new Date(r.start_time).toLocaleDateString() : 'No date'}`
+      label: `${r.title || 'Untitled'} - ${r.scheduled_start_time ? new Date(r.scheduled_start_time).toLocaleDateString() : 'No date'}`
     }));
 
     return { statusCode: 200, success: true, data: { options: meetings } };
@@ -216,31 +125,7 @@ async function getSessions(req) {
       return { statusCode: 400, success: false, error: 'Meeting identifier is required' };
     }
 
-    let query = `
-      SELECT ms.id as internal_id, ms.start_time
-      FROM meeting_sessions ms
-      JOIN meetings m ON ms.meeting_id = m.external_meeting_id
-      JOIN users u ON m.calendar_account = u.email
-      JOIN roles r ON r.id = u.role_id
-    `;
-    const params = [];
-    
-    // If numeric, it's an internal ID; otherwise it's a real meeting_id
-    if (/^\d+$/.test(lookupId)) {
-      query += ' WHERE m.id = ?';
-      params.push(parseInt(lookupId, 10));
-    } else {
-      query += ' WHERE m.external_meeting_id = ?';
-      params.push(lookupId);
-    }
-    
-    query += ' AND u.created_by = ? AND r.role_name = \'instructor\'';
-    params.push(loggedInUserId);
-    query += ' ORDER BY ms.start_time DESC';
-
-    const rows = await new Promise((resolve, reject) => {
-      db.all(query, params, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
+    const rows = await SessionQualityFilterModel.getSessions(loggedInUserId, lookupId);
 
     const sessions = rows.map(r => ({
       value: r.internal_id,

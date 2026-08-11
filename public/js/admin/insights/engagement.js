@@ -7,13 +7,11 @@ let dateFilter = null;
 let instructorFilter = null;
 
 (async () => {
-  // Initialize date filter (30 days default)
+  // Initialize date filter (30 days default) - sets default From/To dates in the filter.
   dateFilter = createDateFilter({
     days: 30,
     onFilter: () => loadEngagementData()
   });
-
-  await loadEngagementData();
 })();
 
 async function loadEngagementData() {
@@ -47,87 +45,80 @@ function renderSummary(summary) {
   document.getElementById('avgLearningImpact').textContent = summary.avg_learning_impact || 0;
   document.getElementById('avgScore').textContent = summary.avg_score || 0;
 
-  // Engagement level distribution
-  const levels = summary.engagement_levels || { high: 0, medium: 0, low: 0 };
-  const total = levels.high + levels.medium + levels.low;
-  
-  if (total > 0) {
-    const highPct = Math.round((levels.high / total) * 100);
-    const mediumPct = Math.round((levels.medium / total) * 100);
-    const lowPct = Math.round((levels.low / total) * 100);
-    
-    document.getElementById('highEngagement').textContent = highPct + '%';
-    document.getElementById('mediumEngagement').textContent = mediumPct + '%';
-    document.getElementById('lowEngagement').textContent = lowPct + '%';
+  renderDistribution(summary.engagement_levels);
+}
+
+function renderDistribution(levels) {
+  const tbody = document.getElementById('distributionTable');
+  if (!tbody) return;
+
+  const data = levels || { high: 0, medium: 0, low: 0 };
+  const total = (data.high || 0) + (data.medium || 0) + (data.low || 0);
+
+  if (total === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="py-2 text-center text-emerald-800 font-medium">No data available</td></tr>';
+    return;
   }
+
+  const rows = [
+    { label: 'High (70%+)', count: data.high || 0, color: 'text-emerald-700' },
+    { label: 'Medium (40-69%)', count: data.medium || 0, color: 'text-amber-700' },
+    { label: 'Low (<40%)', count: data.low || 0, color: 'text-red-600' }
+  ];
+
+  tbody.innerHTML = rows.map(r => {
+    const pct = ((r.count / total) * 100).toFixed(1);
+    return `
+      <tr class="border-b border-emerald-200 hover:bg-emerald-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-emerald-950">${escapeHtml(r.label)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${r.color} text-right">${r.count}</td>
+        <td class="py-2 px-2 text-[11px] font-semibold text-emerald-800 text-right">${pct}%</td>
+      </tr>`;
+  }).join('');
 }
 
 function renderInstructorBreakdown(instructors) {
-  const container = document.getElementById('instructorBreakdown');
-  
+  const tbody = document.getElementById('instructorTable');
+  if (!tbody) return;
+
   if (!instructors || instructors.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No instructor data available</p>';
+    tbody.innerHTML = '<tr><td colspan="4" class="py-2 text-center text-blue-800 font-medium">No instructor data available</td></tr>';
     return;
   }
 
-  const html = instructors.map(inst => `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-center justify-between">
-        <div class="flex-1">
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(inst.instructor_name)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${inst.session_count} session${inst.session_count !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="flex gap-3">
-          <div class="text-right">
-            <p class="text-sm font-bold ${getEngagementColor(inst.avg_engagement)}">${inst.avg_engagement}%</p>
-            <p class="text-[10px] text-slate-500">Engagement</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold ${getEngagementColor(inst.avg_learning_impact)}">${inst.avg_learning_impact}%</p>
-            <p class="text-[10px] text-slate-500">Impact</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  container.innerHTML = html;
+  tbody.innerHTML = instructors.map(inst => `
+    <tr class="border-b border-blue-200 hover:bg-blue-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escapeHtml(inst.instructor_name)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-blue-900 text-right">${inst.session_count}</td>
+      <td class="py-2 px-2 text-[11px] font-bold ${getEngagementColor(inst.avg_engagement)} text-right">${inst.avg_engagement}%</td>
+      <td class="py-2 px-2 text-[11px] font-bold ${getEngagementColor(inst.avg_learning_impact)} text-right">${inst.avg_learning_impact}%</td>
+    </tr>`).join('');
 }
 
 function renderRecentSessions(sessions) {
-  const container = document.getElementById('recentSessions');
-  
+  const tbody = document.getElementById('recentSessionsTable');
+  if (!tbody) return;
+
   if (!sessions || sessions.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No recent sessions available</p>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-2 text-center text-violet-800 font-medium">No recent sessions available</td></tr>';
     return;
   }
 
-  const html = sessions.map(session => `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(session.meeting_title)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${formatDate(session.meeting_date)} • ${escapeHtml(session.instructor_name)}</p>
-        </div>
-        <div class="flex gap-2 ml-3">
-          <div class="text-right">
-            <p class="text-sm font-bold ${getEngagementColor(session.student_engagement)}">${session.student_engagement}%</p>
-            <p class="text-[10px] text-slate-500">Engagement</p>
-          </div>
-        </div>
-      </div>
-      ${session.overall_rating ? `<p class="text-[10px] text-slate-400 mt-1.5"><span class="text-violet-400">Rating:</span> ${escapeHtml(session.overall_rating)}</p>` : ''}
-    </div>
-  `).join('');
-
-  container.innerHTML = html;
+  tbody.innerHTML = sessions.map(session => `
+    <tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">${escapeHtml(session.meeting_title)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-900">${escapeHtml(session.instructor_name)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-900 whitespace-nowrap">${formatDate(session.meeting_date)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold ${getEngagementColor(session.student_engagement)} text-right">${session.student_engagement}%</td>
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-900">${session.overall_rating ? escapeHtml(session.overall_rating) : '—'}</td>
+    </tr>`).join('');
 }
 
 function getEngagementColor(value) {
   const num = parseFloat(value) || 0;
-  if (num >= 70) return 'text-emerald-600';
-  if (num >= 40) return 'text-amber-800';
-  return 'text-red-400';
+  if (num >= 70) return 'text-emerald-700';
+  if (num >= 40) return 'text-amber-700';
+  return 'text-red-600';
 }
 
 function formatDate(dateStr) {
