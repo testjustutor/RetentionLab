@@ -633,8 +633,13 @@ const controller = {
       }
 
       // Use existing CalendarSyncController to sync the user's calendar
+      logger.info(`[InstructorCalendar] Starting sync for user_id=${user_id}, email=${integration.email}`);
+      logger.debug(`[InstructorCalendar] Token data - has access_token: ${!!integration.access_token}, has refresh_token: ${!!integration.refresh_token}, token_expiry: ${integration.token_expiry}`);
+      
       const CalendarSyncController = require('../../controllers/calendar/CalendarSyncController');
       const syncResult = await CalendarSyncController.syncUserCalendar({ email: integration.email });
+      
+      logger.info(`[InstructorCalendar] Sync result for ${integration.email}: success=${syncResult.success}, eventsProcessed=${syncResult.eventsProcessed || 0}, error=${syncResult.error || 'none'}`);
       
       // Map the result to match our expected format
       const result = {

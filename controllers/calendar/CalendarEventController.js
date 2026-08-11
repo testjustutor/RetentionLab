@@ -45,19 +45,28 @@ class CalendarEventController {
     }
     if (CalendarAuthModel.isTokenExpired(tokens.expiry_date)) {
       if (!tokens.refresh_token) {
-        throw new Error('Token expired and no refresh_token available');
+        logger.error(`Token expired for ${email} but no refresh_token available in database`);
+        throw new Error('Token expired and no refresh_token available. Re-authorize required.');
       }
 
-      logger.info(`Refreshing token for ${email}`);
+      logger.info(`Token expired for ${email}, attempting refresh with refresh_token from calendar_integrations table`);
+      logger.debug(`Refresh token for ${email}: ${tokens.refresh_token.substring(0, 20)}...`);
+      
       try {
         const { credentials } = await oauth2Client.refreshAccessToken();
+        logger.info(`Token refreshed successfully for ${email}, new expiry: ${new Date(credentials.expiry_date).toISOString()}`);
+        
         await CalendarAuthModel.saveUserTokens(email, credentials);
         oauth2Client.setCredentials(credentials);
-        logger.info(`Token refreshed successfully for ${email}`);
+        
+        logger.info(`Updated tokens saved to calendar_integrations table for ${email}`);
       } catch (err) {
         logger.error(`Token refresh failed for ${email}:`, err.message);
+        logger.error(`Full error:`, err);
         throw new Error('Token refresh failed. Re-authorize required.');
       }
+    } else {
+      logger.debug(`Token valid for ${email}, expires at: ${new Date(tokens.expiry_date).toISOString()}`);
     }
   }
 

@@ -51,8 +51,12 @@ class CalendarAuthModel {
     }
     
     if (!user || !user.access_token) {
+      logger.warn(`[CalendarAuthModel] No tokens found for ${userIdOrEmail}`);
       return null;
     }
+    
+    logger.debug(`[CalendarAuthModel] Retrieved tokens from calendar_integrations for ${userIdOrEmail}: access_token=${!!user.access_token}, refresh_token=${!!user.refresh_token}, expiry=${user.token_expiry}`);
+    
     return {
       access_token: user.access_token,
       refresh_token: user.refresh_token,

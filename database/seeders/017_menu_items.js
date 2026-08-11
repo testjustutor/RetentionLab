@@ -53,10 +53,10 @@ const MENU_ITEMS = [
   },
   { menu_key: 'admin-meetings', label: 'Meetings', icon: 'calendar', route_path: null, parent_id: null, sort_order: 10, role_id: 2,
     children: [
-      { menu_key: 'admin-calendar', label: 'Calendar', icon: null, route_path: '/admin/meetings/calendar', parent_id: 'admin-meetings', sort_order: 1, role_id: 2 }
+      { menu_key: 'admin-calendar', label: 'Calendar', icon: null, route_path: '/admin/meetings/calendar', parent_id: 'admin-meetings', sort_order: 1, role_id: 2 },
       { menu_key: 'admin-schedule', label: 'Schedule', icon: null, route_path: '/admin/meetings/schedule', parent_id: 'admin-meetings', sort_order: 2, role_id: 2 },
       { menu_key: 'admin-live', label: 'Live Meetings', icon: null, route_path: '/admin/meetings/live', parent_id: 'admin-meetings', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-completed', label: 'Completed', icon: null, route_path: '/admin/meetings/completed', parent_id: 'admin-meetings', sort_order: 4, role_id: 2 },
+      { menu_key: 'admin-completed', label: 'Completed', icon: null, route_path: '/admin/meetings/completed', parent_id: 'admin-meetings', sort_order: 4, role_id: 2 }
     ]
   },
   { menu_key: 'admin-content', label: 'Content', icon: 'folder', route_path: null, parent_id: null, sort_order: 20, role_id: 2,
