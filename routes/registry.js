@@ -31,6 +31,7 @@ const routeRegistry = [
   // Users & Auth
   { method: 'use', path: '/api/users', handler: 'users' },
   { method: 'use', path: '/api/admin/users', handler: 'users' },
+  { method: 'use', path: '/api/admin/people/users', handler: 'users' },
   { method: 'use', path: '/api/auth', handler: 'auth' },
   { method: 'use', path: '/api/roles', handler: 'roles' },
   { method: 'use', path: '/api/companies', handler: 'companies' },
@@ -84,6 +85,7 @@ const routeRegistry = [
   
   // Instructor Calendar
   { method: 'use', path: '/api/instructor-calendar', handler: 'instructor-calendar' },
+  { method: 'use', path: '/api/admin/meetings/calendar', handler: 'meetings-calendar' },
   { method: 'use', path: '/api/admin/instructor-meetings', handler: 'instructor-meetings' },
   
   // Admin Tutoring & Session Quality

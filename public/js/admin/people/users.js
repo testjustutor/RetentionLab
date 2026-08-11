@@ -2,7 +2,6 @@
 // ── State ──
 let allUsers = [];
 let editingUserId = null;
-let calendarMap = {};
 let currentUserId = null;
 let tableObj = null;
 
@@ -42,23 +41,6 @@ document.getElementById('formRole').addEventListener('change', function() {
   }
 });
 
-// ── Load calendar connections ──
-async function loadCalendarConnections() {
-  try {
-    const json = await apiFetch('/api/instructor-calendar/connections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    const connections = json.data || [];
-    connections.forEach(c => {
-      if (c.email) calendarMap[c.email.toLowerCase()] = c.status === 'active' ? 'connected' : 'pending';
-    });
-  } catch {
-    /* ignore - calendar connections optional */
-  }
-}
-
 // ── Format date helper ──
 function formatDate(dateStr) {
   if (!dateStr) return '--';
@@ -76,12 +58,6 @@ const tableHeaders = [
   { label: 'Name', key: 'first_name', width: '15%', render: (val, row) => '<p class="font-medium text-slate-900">' + escHtml(row.first_name || '') + ' ' + escHtml(row.last_name || '') + '</p>' },
   { label: 'Email', key: 'email', width: '25%' },
   { label: 'Role', key: 'role_name', width: '12%' },
-  { label: 'Calendar', key: 'email', width: '15%', render: (val, row) => {
-    const status = calendarMap[val?.toLowerCase()] || 'not_connected';
-    const cls = status === 'connected' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
-    const label = status === 'connected' ? 'Connected' : 'Not Connected';
-    return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + label + '</span>';
-  }},
   { label: 'Status', key: 'status', width: '12%', render: (val) => {
     const cls = val === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
     return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + escHtml(val || 'unknown') + '</span>';
@@ -98,9 +74,7 @@ const tableHeaders = [
 // ── Load users with date filter using createTable ──
 async function loadUsers() {
   try {
-    await loadCalendarConnections();
 
-    
     if (!currentUserId) {
       currentUserId = window.currentUser?.id || null;
     }
@@ -148,7 +122,8 @@ async function loadUsers() {
 
 // ── User Actions ──
 window.editUser = async function(id) {
-  const u = allUsers.find(item => item.id === id);
+  const idNum = Number(id);
+  const u = allUsers.find(item => Number(item.id) === idNum);
   if (!u) return;
   editingUserId = u.id;
   document.getElementById('modalTitle').textContent = 'Edit User';
@@ -188,15 +163,23 @@ window.toggleUser = async function(id, newStatus) {
   }
 };
 
-window.deleteUser = async function(id) {
-  if (!confirm('Are you sure you want to delete this user?')) return;
-  try {
-    await apiFetch('/api/users/' + id, { method: 'DELETE' });
-    showToast('User deleted');
-    loadUsers();
-  } catch (err) {
-    showToast(err.message, true);
-  }
+window.deleteUser = function(id) {
+  showConfirmDialog({
+    title: 'Delete User',
+    message: 'Are you sure you want to delete this user? This action cannot be undone.',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    color: 'red',
+    onConfirm: async () => {
+      try {
+        await apiFetch('/api/users/' + id, { method: 'DELETE' });
+        showToast('User deleted');
+        loadUsers();
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+  });
 };
 
 document.getElementById('userForm').addEventListener('submit', async (e) => {
@@ -244,7 +227,7 @@ document.getElementById('userForm').addEventListener('submit', async (e) => {
 
   try {
     const isEdit = !!editingUserId;
-    const endpoint = '/api/users' + (isEdit ? '/' + editingUserId : '');
+    const endpoint = isEdit ? '/api/users/' + editingUserId : '/api/admin/people/users/addusers';
     const method = isEdit ? 'PUT' : 'POST';
 
     const json = await apiFetch(endpoint, {

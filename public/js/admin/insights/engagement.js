@@ -10,14 +10,31 @@ let instructorFilter = null;
   // Initialize date filter (30 days default) - sets default From/To dates in the filter.
   dateFilter = createDateFilter({
     days: 30,
-    onFilter: () => loadEngagementData()
+    onFilter: (fromDate, toDate) => loadEngagementData(fromDate, toDate)
   });
+
+  // Auto-load data when From or To date changes (same behavior as clicking Get Data)
+  document.getElementById('filterFromDate').addEventListener('change', () => {
+    const { fromDate, toDate } = dateFilter.getDates();
+    if (fromDate && toDate) loadEngagementData(fromDate, toDate);
+  });
+  document.getElementById('filterToDate').addEventListener('change', () => {
+    const { fromDate, toDate } = dateFilter.getDates();
+    if (fromDate && toDate) loadEngagementData(fromDate, toDate);
+  });
+
+  // Load initial data on page load
+  loadEngagementData();
 })();
 
-async function loadEngagementData() {
+async function loadEngagementData(fromDate, toDate) {
   try {
-    const { fromDate, toDate } = dateFilter.getDates();
-    
+    if (!fromDate || !toDate) {
+      const dates = dateFilter.getDates();
+      fromDate = dates.fromDate;
+      toDate = dates.toDate;
+    }
+
     const data = await apiFetch('/api/admin/insights/engagement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -27,11 +44,11 @@ async function loadEngagementData() {
       })
     });
     engagementData = data;
-    
+
     renderSummary(data.summary);
     renderInstructorBreakdown(data.instructor_breakdown);
     renderRecentSessions(data.recent_sessions);
-    
+
     showToast('Engagement data loaded successfully');
   } catch (e) {
     console.error('Failed to load engagement data:', e);
@@ -110,7 +127,7 @@ function renderRecentSessions(sessions) {
       <td class="py-2 px-2 text-[11px] text-violet-900">${escapeHtml(session.instructor_name)}</td>
       <td class="py-2 px-2 text-[11px] text-violet-900 whitespace-nowrap">${formatDate(session.meeting_date)}</td>
       <td class="py-2 px-2 text-[11px] font-bold ${getEngagementColor(session.student_engagement)} text-right">${session.student_engagement}%</td>
-      <td class="py-2 px-2 text-[11px] font-semibold text-violet-900">${session.overall_rating ? escapeHtml(session.overall_rating) : 'â€”'}</td>
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-900">${session.overall_rating ? escapeHtml(session.overall_rating) : '—'}</td>
     </tr>`).join('');
 }
 

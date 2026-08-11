@@ -484,6 +484,45 @@ function createTable(options = {}) {
   };
 }
 
+// ── Confirm Dialog (reusable, matches app styling) ──
+// Options:
+//   title        - Heading text (default: 'Confirm')
+//   message      - Body message (default: 'Are you sure?')
+//   confirmText  - Confirm button label (default: 'Confirm')
+//   cancelText   - Cancel button label (default: 'Cancel')
+//   color        - 'violet' (default) or 'red' for the confirm button
+//   onConfirm    - callback invoked when the user confirms
+function showConfirmDialog(options = {}) {
+  const { title = 'Confirm', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', color = 'violet', onConfirm } = options;
+
+  const existing = document.getElementById('confirmDialog');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'confirmDialog';
+  overlay.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm';
+  const confirmBtnCls = color === 'red' ? 'bg-red-600 hover:bg-red-700' : 'bg-violet-600 hover:bg-violet-700';
+  overlay.innerHTML =
+    '<div class="bg-white border-2 border-slate-200 rounded-xl p-5 w-full max-w-sm mx-4 shadow-2xl">' +
+      '<h3 class="text-base font-bold text-slate-900 mb-2">' + escHtml(title) + '</h3>' +
+      '<p class="text-sm text-slate-600 mb-5">' + escHtml(message) + '</p>' +
+      '<div class="flex justify-end gap-2">' +
+        '<button type="button" data-cancel class="px-3 py-1.5 rounded-md bg-slate-100 border-2 border-slate-300 text-xs text-slate-700 hover:bg-slate-200 transition-colors">' + escHtml(cancelText) + '</button>' +
+        '<button type="button" data-confirm class="px-3 py-1.5 rounded-md text-white text-xs font-semibold transition-colors ' + confirmBtnCls + '">' + escHtml(confirmText) + '</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-confirm]').addEventListener('click', () => {
+    close();
+    if (typeof onConfirm === 'function') onConfirm();
+  });
+}
+
+// ── Date Filter Service (lightweight, no HTML rendering) ──
 // ── Date Filter Service (lightweight, no HTML rendering) ──
 // Options:
 //   onFilter(fromDate, toDate)  - Called when Get Data is clicked

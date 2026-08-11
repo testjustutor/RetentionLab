@@ -41,6 +41,9 @@ router.post('/create', requireAuth, handle(userController.create));
 // POST /api/admin/users/add - Admin add user endpoint
 router.post('/add', requireAuth, handle(userController.create));
 
+// POST /api/admin/people/users/addusers - Create user (Admin > People > Users page)
+router.post('/addusers', requireAuth, handle(userController.create));
+
 // PUT /api/users/:id
 router.put('/:id', requireAuth, handle(userController.update));
 

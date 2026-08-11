@@ -52,10 +52,10 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'roles', label: 'Roles', href: '/admin/people/roles' }
     ]},
     { id: 'meetings', label: 'Meetings', icon: 'calendar', href: null, submenu: [
+      { id: 'calendar', label: 'Calendar', href: '/admin/meetings/calendar' },
       { id: 'schedule', label: 'Schedule', href: '/admin/meetings/schedule' },
       { id: 'live', label: 'Live Sessions', href: '/admin/meetings/live' },
-      { id: 'completed', label: 'Completed Sessions', href: '/admin/meetings/completed' },
-      { id: 'calendar', label: 'Calendar', href: '/admin/meetings/calendar' }
+      { id: 'completed', label: 'Completed Sessions', href: '/admin/meetings/completed' }
     ]},
     { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
       { id: 'recordings', label: 'Recordings', href: '/admin/content/recordings' },

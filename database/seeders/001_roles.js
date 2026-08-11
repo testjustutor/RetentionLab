@@ -11,17 +11,17 @@ const seedRoles = async () => {
     // which breaks downstream seeders like superAdmin/admin.
 
     const rolesToSeed = [
-        { role_name: 'super_admin', description: 'Full platform administrator' },
-        { role_name: 'admin', description: 'Company-level administrator' },
-        { role_name: 'instructor', description: 'Instructor or tutor being reviewed' },
-        { role_name: 'reviewer', description: 'Meeting reviewer' },
-        { role_name: 'solo_instructor', description: 'Self-registered individual instructor with their own workspace' }
+        { role_name: 'super_admin', display_name: 'Super Admin', description: 'Full platform administrator' },
+        { role_name: 'admin', display_name: 'Admin', description: 'Company-level administrator' },
+        { role_name: 'instructor', display_name: 'Instructor', description: 'Instructor or tutor being reviewed' },
+        { role_name: 'reviewer', display_name: 'Reviewer', description: 'Meeting reviewer' },
+        { role_name: 'solo_instructor', display_name: 'Solo Instructor', description: 'Self-registered individual instructor with their own workspace' }
     ];
 
     for (const role of rolesToSeed) {
         await runAsync(
-            `INSERT IGNORE INTO roles (role_name, description) VALUES (?, ?)`,
-            [role.role_name, role.description]
+            `INSERT IGNORE INTO roles (role_name, role_display_name, description) VALUES (?, ?)`,
+            [role.role_name, role.display_name, role.description]
         );
     }
 };

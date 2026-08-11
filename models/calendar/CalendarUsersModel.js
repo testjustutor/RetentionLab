@@ -179,12 +179,6 @@ class CalendarUsersModel {
       const conditions = [];
       const params = [];
 
-      // Filter by calendar integration status
-      if (status) {
-        conditions.push('calendar_integrations.status = ?');
-        params.push(status);
-      }
-      
       // Always filter for active users
       conditions.push('users.status = ?');
       params.push('active');
@@ -208,15 +202,32 @@ class CalendarUsersModel {
         params.push(adminId);
       }
 
+      // Filter by calendar integration status (applied after LEFT JOIN)
+      if (status) {
+        conditions.push('(calendar_integrations.status = ? OR calendar_integrations.status IS NULL)');
+        params.push(status);
+      }
+
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
       const sql = `
-        SELECT calendar_integrations.*, users.id AS user_id_ref, users.email, users.first_name, users.last_name, users.role_id, users.user_uuid, roles.role_name
-        FROM calendar_integrations
-        LEFT JOIN users ON users.id = calendar_integrations.user_id
-        LEFT JOIN roles ON roles.id = users.role_id
+        SELECT 
+          ci.*, 
+          users.id AS user_id_ref, 
+          users.email, 
+          users.first_name, 
+          users.last_name, 
+          users.role_id, 
+          users.user_uuid, 
+          users.is_active, 
+          roles.role_display_name,
+          cp.display_name
+        FROM users
+        JOIN roles ON roles.id = users.role_id
+        LEFT JOIN calendar_integrations ci ON ci.user_id = users.id
+        LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         ${whereClause}
-        ORDER BY users.email
+        ORDER BY users.id DESC
       `;
 
       db.all(sql, params, (err, rows) => {

@@ -591,7 +591,61 @@ const controller = {
       });
     } catch (e) { return err(e.message); }
   }
+
+  /**
+   * POST /api/admin/meetings/calendar/sync-user
+   * Sync calendar for a single user by user_id
+   * Checks token expiry, refreshes if needed, then syncs meetings
+   */
+  async syncUserCalendar(req) {
+    try {
+      const { user_id } = req.body;
+      
+      if (!user_id) {
+        return err('user_id is required', 400);
+      }
+
+      // Get user's calendar integration data
+      const integration = await CalendarUsersModel.getUser(user_id);
+      if (!integration) {
+        return err('User calendar not connected', 404);
+      }
+
+      // Get user email
+      const user = await UsersModel.getUserByEmail(integration.email);
+      if (!user) {
+        return err('User not found', 404);
+      }
+
+      // Import and use the sync service
+      const { syncGoogleCalendar } = require('../../services/calendarSyncService');
+      
+      // Sync the user's calendar (service handles token refresh automatically)
+      const result = await syncGoogleCalendar(integration.email, user_id, 30, 90);
+
+      if (result.synced > 0) {
+        return ok({
+          message: `Successfully synced ${result.synced} meetings for ${integration.email}`,
+          data: result
+        });
+      } else if (result.message) {
+        return ok({
+          message: result.message,
+          data: result
+        });
+      } else {
+        return ok({
+          message: 'Sync completed',
+          data: result
+        });
+      }
+    } catch (e) {
+      logger.error('[InstructorCalendar] Sync user calendar error:', e);
+      return err(e.message);
+    }
+  }
 };
 
 module.exports = controller;
+
 
