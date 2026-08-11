@@ -20,7 +20,7 @@ const seedRoles = async () => {
 
     for (const role of rolesToSeed) {
         await runAsync(
-            `INSERT IGNORE INTO roles (role_name, role_display_name, description) VALUES (?, ?)`,
+            `INSERT IGNORE INTO roles (role_name, role_display_name, description) VALUES (?, ?, ?)`,
             [role.role_name, role.display_name, role.description]
         );
     }
