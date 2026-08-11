@@ -204,7 +204,7 @@ class CalendarUsersModel {
 
       // Filter by calendar integration status (applied after LEFT JOIN)
       if (status) {
-        conditions.push('(calendar_integrations.status = ? OR calendar_integrations.status IS NULL)');
+        conditions.push('(ci.status = ? OR ci.status IS NULL)');
         params.push(status);
       }
 

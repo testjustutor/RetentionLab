@@ -51,8 +51,15 @@ async function loadConnections() {
 
     // Apply client-side search filter
     applySearchFilter();
-  } catch(err) {
+    
+    // Hide loading state
     if (connectionsTable) {
+      connectionsTable.setLoading(false);
+    }
+  } catch(err) {
+    // Hide loading state on error
+    if (connectionsTable) {
+      connectionsTable.setLoading(false);
       connectionsTable.setData([]);
     }
     document.getElementById('connectionsContainer').innerHTML = '<div class="bg-white border border-slate-200 rounded-lg p-4 text-center text-red-600"><p class="text-sm font-medium">Failed to load</p><p class="text-xs mt-1 text-slate-500">' + escHtml(err.message) + '</p></div>';
@@ -158,9 +165,8 @@ document.addEventListener('click', async function(e) {
     var userId = btn.getAttribute('data-user-id');
     var email = btn.getAttribute('data-email');
     
-    if (!confirm('Sync calendar for ' + email + '? This will check for token expiry and fetch recent meetings.')) {
-      return;
-    }
+    // Show info toast
+    showToast('Starting sync for ' + email + '...');
 
     // Show loading state
     var originalText = btn.innerHTML;

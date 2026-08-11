@@ -70,6 +70,22 @@ function verifyToken(token) {
 
 const controller = {
   /**
+   * GET /api/admin/meetings/calendar/calendar-providers
+   * Returns all active calendar providers
+   */
+  async listProviders(req) {
+    try {
+      const CalendarProvidersModel = require('../../models/calendar/CalendarProvidersModel');
+      const providers = await CalendarProvidersModel.getAll({ includeInactive: false });
+      
+      return ok({ providers }, 'Providers retrieved successfully');
+    } catch (e) {
+      logger.error('[InstructorCalendar] List providers error:', e);
+      return err(e.message);
+    }
+  },
+
+  /**
    * GET /api/instructor-calendar/connections
    * Returns calendar connections based on user role:
    * - Admin: Returns all instructor calendar connections in their company
@@ -97,7 +113,8 @@ const controller = {
             email: row.email,
             status: row.status || 'disconnected',
             provider: row.provider || null,
-            updated_at: row.updated_at,
+            token_expire_at: row.token_expiry || null, // Map DB field to frontend expected name
+            last_synced_at: row.updated_at || null, // Use updated_at as last synced timestamp
             user_id: row.user_id,
             role_name: userRole
           }]
@@ -117,9 +134,12 @@ const controller = {
 
         const connections = (integrations || []).map(conn => ({
           email: conn.email,
-          status: conn.status || 'disconnected',
-          provider: conn.provider || null,
-          updated_at: conn.updated_at,
+          name: conn.first_name,
+          Calendarstatus: conn.status || 'disconnected',
+          Userstatus: conn.is_active || 'disconnected',
+          provider: conn.display_name || null,
+          token_expire_at: conn.token_expiry || null, // Map DB field to frontend expected name
+          last_synced_at: conn.updated_at || null, // Use updated_at as last synced timestamp
           user_id: conn.user_id,
           role_name: conn.role_name || 'instructor'
         }));
@@ -590,13 +610,8 @@ const controller = {
         results: syncResults 
       });
     } catch (e) { return err(e.message); }
-  }
+  },
 
-  /**
-   * POST /api/admin/meetings/calendar/sync-user
-   * Sync calendar for a single user by user_id
-   * Checks token expiry, refreshes if needed, then syncs meetings
-   */
   async syncUserCalendar(req) {
     try {
       const { user_id } = req.body;
@@ -617,11 +632,25 @@ const controller = {
         return err('User not found', 404);
       }
 
-      // Import and use the sync service
-      const { syncGoogleCalendar } = require('../../services/calendarSyncService');
+      // Use existing CalendarSyncController to sync the user's calendar
+      const CalendarSyncController = require('../../controllers/calendar/CalendarSyncController');
+      const syncResult = await CalendarSyncController.syncUserCalendar({ email: integration.email });
       
-      // Sync the user's calendar (service handles token refresh automatically)
-      const result = await syncGoogleCalendar(integration.email, user_id, 30, 90);
+      // Map the result to match our expected format
+      const result = {
+        synced: syncResult.eventsProcessed || 0,
+        message: syncResult.success ? 'Sync completed' : (syncResult.error || 'Sync failed')
+      };
+
+      // Handle token refresh failure - clean up invalid tokens
+      if (!syncResult.success && syncResult.error && syncResult.error.includes('Token refresh failed')) {
+        logger.warn(`[InstructorCalendar] Token refresh failed for ${integration.email}, clearing invalid tokens`);
+        
+        // Delete invalid tokens from database
+        await CalendarUsersModel.deleteUser(user_id);
+        
+        return err('Token refresh failed. The calendar connection has been removed. Please ask the user to re-authorize their Google Calendar connection.', 400);
+      }
 
       if (result.synced > 0) {
         return ok({
