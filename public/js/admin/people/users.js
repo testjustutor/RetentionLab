@@ -55,15 +55,15 @@ function formatDate(dateStr) {
 
 // ── Table headers for createTable ──
 const tableHeaders = [
-  { label: 'Name', key: 'first_name', width: '15%', render: (val, row) => '<p class="font-medium text-slate-900">' + escHtml(row.first_name || '') + ' ' + escHtml(row.last_name || '') + '</p>' },
-  { label: 'Email', key: 'email', width: '25%' },
-  { label: 'Role', key: 'role_name', width: '12%' },
-  { label: 'Status', key: 'status', width: '12%', render: (val) => {
+  { label: 'Name', key: 'first_name', width: '25%', render: (val, row) => '<p class="font-medium text-slate-900">' + escHtml(row.first_name || '') + ' ' + escHtml(row.last_name || '') + '</p>' },
+  { label: 'Email', key: 'email', width: '30%' },
+  { label: 'Role', key: 'role_name', width: '10%' },
+  { label: 'Status', key: 'status', width: '10%', render: (val) => {
     const cls = val === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-100 text-slate-500 border-slate-200';
     return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + escHtml(val || 'unknown') + '</span>';
   }},
-  { label: 'Created At', key: 'created_at', width: '13%', render: (val) => formatDate(val) },
-  { label: 'Actions', key: 'id', width: '18%', align: 'right', render: (val, row) => {
+  { label: 'Created At', key: 'created_at', width: '15%', render: (val) => formatDate(val) },
+  { label: 'Actions', key: 'id', width: '10%', align: 'right', render: (val, row) => {
     return '<div class="flex gap-1.5 justify-end">' +
       '<button onclick="editUser(\'' + val + '\')" class="px-2 py-1 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 text-[10px] font-medium transition-colors">Edit</button>' +
       '<button onclick="deleteUser(\'' + val + '\')" class="px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 text-[10px] font-medium transition-colors">Delete</button>' +
@@ -84,7 +84,7 @@ async function loadUsers() {
     if (fromDate) body.from_date = fromDate;
     if (toDate) body.to_date = toDate;
 
-    const usersJson = await apiFetch('/api/users/list', {
+    const usersJson = await apiFetch('/api/admin/users/list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

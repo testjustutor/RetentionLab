@@ -37,7 +37,8 @@ class UsersModel {
       email: row.email,
       phone: row.phone,
       profile_image: row.profile_image,
-      status: row.status
+      status: row.status,
+      created_at: row.created_at
     };
 
     return clean;
