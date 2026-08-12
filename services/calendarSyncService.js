@@ -1,11 +1,11 @@
 /**
+ * root/services/calendarSyncService.js
  * Calendar Sync Service
  * Syncs meetings from Google Calendar to local database
  */
 
 const { google } = require('googleapis');
-const CalendarUsersModel = require('../models/calendar/CalendarUsersModel');
-const MeetingsModel = require('../models/meetings/MeetingModel');
+const MeetingsController = require('../controllers/meetings/meetingsController');
 const { logger } = require('../utils/logger');
 
 /**
@@ -18,7 +18,7 @@ const { logger } = require('../utils/logger');
 async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward = 90) {
   try {
     // Get stored calendar credentials using user_id (not email)
-    const calendarUser = await CalendarUsersModel.getUser(userId);
+    const calendarUser = await MeetingsController.getCalendarUser(userId);
     if (!calendarUser || !calendarUser.access_token) {
       logger.info(`[CalendarSync] No calendar connection for user ${userId}`);
       return { synced: 0, message: 'Calendar not connected' };
@@ -48,7 +48,7 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
       oauth2Client.setCredentials(token);
       
       // Save new tokens using user_id
-      await CalendarUsersModel.createOrUpdateUserCalendar(userId, {
+      await MeetingsController.saveCalendarUserTokens(userId, {
         access_token: token.access_token,
         refresh_token: token.refresh_token || calendarUser.refresh_token,
         expiry_date: token.expiry_date,
@@ -97,28 +97,14 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
           continue;
         }
 
-        // Check if meeting already exists (by title + time + owner)
-        const existingMeeting = await MeetingsModel.findMeetingByTitleAndTime(eventTitle, event.start.dateTime, userId);
-
-        if (existingMeeting) {
-          // Update existing meeting using model method
-          await MeetingsModel.updateMeetingFromCalendar(
-            existingMeeting.meeting_id,
-            eventTitle,
-            'Google Calendar',
-            event.start.dateTime,
-            event.end.dateTime
-          );
-        } else {
-          // Create new meeting using model method
-          await MeetingsModel.createMeetingFromCalendar(
-            eventTitle,
-            'Google Calendar',
-            event.start.dateTime,
-            event.end.dateTime,
-            userId
-          );
-        }
+        // Create/update meeting via controller (dedup by title + time + owner)
+        await MeetingsController.syncMeetingFromCalendar({
+          title: eventTitle,
+          platform: 'Google Calendar',
+          startTime: event.start.dateTime,
+          endTime: event.end.dateTime,
+          userId
+        });
 
         synced++;
       } catch (err) {

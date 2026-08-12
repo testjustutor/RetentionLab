@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS meeting_assets (
     processed_at DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_ma_meeting (meeting_id)
+    INDEX idx_ma_meeting (meeting_id),
+    UNIQUE KEY uq_ma_meeting_session (meeting_id, session_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);
 

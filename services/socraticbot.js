@@ -29,14 +29,16 @@ const GoogleParticipantTracker = require('./platforms/google-meet/participantTra
 const AudioRecorder = require('./audioRecorder');
 const ScreenRecorder = require('./screenRecorder');
 
-const MeetingAssetsModel = require('../models/recordings/MeetingAssetsModel');
-const MeetingModel = require('../models/meetings/MeetingModel');
+const MeetingSessionController = require('../controllers/meetings/meeting-session/meetingSessionController');
+const MeetingAssetController = require('../controllers/meetings/assets/meetingAssetController');
+
+/*  here call meeting session controller that will update status of session and next
+ is no need to update in meeting table for any status so please do this change*/
 
 const PythonBridge = require('./shared/pythonBridge');
 
 const fs = require('fs');
 const path = require('path');
-const TranscriptModel = require('../models/transcripts/transcriptModel');
 const { logger } = require('../utils/logger');
 
 class SocraticBot {
@@ -367,10 +369,10 @@ class SocraticBot {
           logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
           // 1. Save audio path to DB
-          await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
+          await MeetingSessionController.updateMeetingSessionAudioPath(this.meetingId, this.sessionId, finalAudioPath);
           
           // 2. MATCHING: Get the speaker-labeled transcript file from Database
-          const session = await TranscriptModel.getSessionById(this.sessionId);
+          const session = await MeetingSessionController.getMeetingSessionById(this.sessionId);
           
           if (session && session.transcript_file_name) {
 
@@ -379,16 +381,15 @@ class SocraticBot {
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
-              await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
+              await MeetingSessionController.updateMeetingSessionStatus(this.meetingId, this.sessionId, 'completed');
 
-              await MeetingAssetsModel.initializeAssets(this.meetingId, finalAudioPath);
+              await MeetingAssetController.initializeAssets(this.meetingId, this.sessionId, finalAudioPath, transcriptPath);
 
               const finalAudioFileName = path.basename(finalAudioPath);
-              const auditResults = await PythonBridge.runFullAudioPipeline(finalAudioFileName);
-
+              const auditResults = await PythonBridge.runFullAudioPipeline(this.meetingId, this.sessionId, finalAudioFileName);
 
               if (auditResults) {
-                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.auditResult?.oqi_score}`);
               }
             }
           }

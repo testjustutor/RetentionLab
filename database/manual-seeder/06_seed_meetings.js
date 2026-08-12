@@ -23,7 +23,7 @@ const seedMeetings = async () => {
         if (instructors.length === 0) { console.log('[Manual Seeder] ℹ No instructors found. Run 02_seed_users.js first.'); return; }
 
         const platforms = ['zoom', 'google-meet', 'teams'];
-        const statuses = ['scheduled', 'active', 'completed', 'joining'];
+        const statuses = ['sync'];
         const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History', 'Geography', 'Computer Science', 'Economics', 'Psychology'];
         const timezones = ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo', 'Asia/Kolkata', 'Australia/Sydney', 'Europe/Berlin'];
 
@@ -56,7 +56,7 @@ const seedMeetings = async () => {
                 let actualStart = null;
                 let actualEnd = null;
 
-                if (status === 'completed' || status === 'active' || status === 'joining') {
+                if (status === 'sync') {
                     // Actual start can be 5-15 min after scheduled start, OR 5-10 min early
                     const earlyOrLate = Math.random();
                     let actualStartOffset = 0;
@@ -68,7 +68,7 @@ const seedMeetings = async () => {
                     actualStart = new Date(scheduledStart.getTime() + actualStartOffset);
                 }
 
-                if (status === 'completed' || status === 'active') {
+                if (status === 'sync') {
                     // Actual duration can be 40-75 min (random)
                     const actualDuration = (Math.floor(Math.random() * 36) + 40) * 60 * 1000; // 40-75 min
                     actualEnd = new Date(actualStart.getTime() + actualDuration);

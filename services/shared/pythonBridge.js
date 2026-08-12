@@ -7,7 +7,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { logger } = require('../../utils/logger');
-const MeetingAssetsModel = require('../../models/recordings/MeetingAssetsModel');
+const MettingAssetController = require('../../controllers/meetings/assets/meetingAssetController');
 
 class PythonBridge {
   /**
@@ -26,10 +26,10 @@ class PythonBridge {
       const pythonExecutable = process.env.PYTHON_EXECUTABLE
         || (fs.existsSync(venvPython) ? venvPython : 'python');
 
-      logger.info(`[Bridge Initialization] Spawning ${scriptName}`);
-      logger.info(`[Bridge CLI Arguments] target_file="${args[0]}", settings_size=${args[1]?.length || 0} bytes`);
-      logger.info(`[Bridge System Path] Execution path: ${scriptPath}`);
-      logger.info(`[Bridge Python Executable] ${pythonExecutable}`);
+      logger.info(`[Python Bridge Initialization] Spawning ${scriptName}`);
+      logger.info(`[Python Bridge CLI Arguments] target_file="${args[0]}", settings_size=${args[1]?.length || 0} bytes`);
+      logger.info(`[Python Bridge System Path] Execution path: ${scriptPath}`);
+      logger.info(`[Python Bridge Python Executable] ${pythonExecutable}`);
 
       const pyProcess = spawn(pythonExecutable, ['-u', scriptPath, ...args], {
         env: {
@@ -67,17 +67,17 @@ class PythonBridge {
       });
 
       pyProcess.on('error', (err) => {
-        logger.error(`[Bridge Critical Error] Failed to launch child process process: ${err.message}`);
+        logger.error(`[Python Bridge Critical Error] Failed to launch child process process: ${err.message}`);
         reject(err);
       });
 
       // Process Termination Lifecycle Handler
       pyProcess.on('close', (code) => {
         const standardOutCleaned = outputData.trim();
-        logger.info(`[Bridge Engine Disconnect] Script ${scriptName} terminated with exit code: ${code}`);
+        logger.info(`[Python Bridge Engine Disconnect] Script ${scriptName} terminated with exit code: ${code}`);
 
         if (code !== 0) {
-          logger.error(`[Bridge Pipeline Failure] Engine processing aborted. Reason: ${errorData || 'Check standard error diagnostics.'}`);
+          logger.error(`[Python Bridge Pipeline Failure] Engine processing aborted. Reason: ${errorData || 'Check standard error diagnostics.'}`);
           return reject(new Error(`Engine execution crashed with exit code ${code}`));
         }
 
@@ -104,7 +104,7 @@ class PythonBridge {
 
         const jsonPayload = extractTrailingJsonContext(standardOutCleaned);
         if (!jsonPayload) {
-          logger.error('[Bridge Parsing Error] Process returned success but no structural JSON output block was recovered.');
+          logger.error('[Python Bridge Parsing Error] Process returned success but no structural JSON output block was recovered.');
           return reject(new Error('Invalid engine standard stream response footprint'));
         }
 
@@ -118,10 +118,8 @@ class PythonBridge {
    * track extraction to transcript parsing and structural audits in one smooth process.
    * @param {string} fileName - Absolute base filename target.
    */
-  static async runFullAudioPipeline(fileName) {
-    const meetingId = fileName.match(/^REC_(.+?)_Sess/)?.[1] || "UNKNOWN_MEETING";
-    
-    logger.info(`[Pipeline Orchestrator] Initializing high-performance single-invocation loop for ID: ${meetingId}`);
+  static async runFullAudioPipeline(meetingId, sessionId, fileName) {
+    logger.info(`[Python Bridge] Initializing high-performance single-invocation loop for ID: ${meetingId} session ${sessionId}`);
     const aiProfile = appSettings.ai || {};
 
     try {
@@ -136,7 +134,7 @@ class PythonBridge {
       };
       const stringifiedConfig = JSON.stringify(runtimeSettings);
 
-      logger.info(`[Pipeline Orchestrator] Dispatching tasks down the bridge to engine_main.py...`);
+      logger.info(`[Python Bridge] Dispatching tasks down the bridge to engine_main.py...`);
       
       // 2. Dispatch data package via arguments array matching positional criteria
       const standardJsonOutput = await this.runStage('engine_main.py', [fileName, stringifiedConfig]);
@@ -148,25 +146,21 @@ class PythonBridge {
       logger.error('========== JSON PAYLOAD END ==========');
 
       const executionMatrix = JSON.parse(standardJsonOutput);
-      logger.info(`[Pipeline Orchestrator] Execution data package parsed successfully.`);
+      logger.info(`[Python Bridge] Execution data package parsed successfully.`);
 
       // 4. Handle sequential Database initialization tracking matching your model interface requirements
-      logger.info(`[Database Syncing] Initializing storage asset references...`);
-      await MeetingAssetsModel.initializeAssets(meetingId, fileName, executionMatrix.audio_path);
+      logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
+      await MettingAssetController.updateAssets(meetingId, sessionId, { audio_path: executionMatrix.audio_path });
 
-      logger.info(`[Database Syncing] Flushing final transcript and audit matrix indicators...`);
-      await MeetingAssetsModel.updateAssets(meetingId, {
+      logger.info(`[Python Bridge Database Syncing] Flushing final transcript and audit matrix indicators...`);
+      await MettingAssetController.updateAssets(meetingId, sessionId, {
         transcript_path: executionMatrix.transcript_path || null,
-        diarization_path: executionMatrix.transcript_path ? executionMatrix.transcript_path.replace('AUDIO_TRANS', 'DIAR').replace('cache_audio_transcripts', 'cache_diarization').replace('.txt', '.json') : null,
-        talk_ratio_json_path: executionMatrix.sentiment_path || null, // Map downstream analytics safely
-        audit_json_path: executionMatrix.audit_json_path || null,
         summary_path: executionMatrix.summary_path || null,
         oqi_score: executionMatrix.oqi_score || 0,
-        evidence_quote: "Evaluation criteria completed successfully.",
         status: 'Completed'
       });
 
-      logger.info(`[Pipeline Orchestrator] Transaction complete. Asset tracking record finalized for ${meetingId}.`);
+      logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${meetingId}.`);
 
       // Match data resolution format expected back in test-engine.js
       return {
@@ -185,15 +179,15 @@ class PythonBridge {
 
     } catch (error) {
       logger.error(
-        `[Pipeline Orchestrator Error] Structural collapse at ${meetingId}: ${
+        `[Python Bridge Error] Structural collapse at ${meetingId}: ${
           error.stack || error.message
         }`
       );
       // Safely mark the failure flag in database storage
       try {
-        await MeetingAssetsModel.updateAssets(meetingId, { status: 'Error' });
+        await MettingAssetController.updateAssets(meetingId, sessionId, { status: 'Error' });
       } catch (dbErr) {
-        logger.error(`[Database Critical Error] Failed to write failure flag trace context: ${dbErr.message}`);
+        logger.error(`[Python Bridge Database Critical Error] Failed to write failure flag trace context: ${dbErr.message}`);
       }
       
       throw error;

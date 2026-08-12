@@ -5,6 +5,7 @@
 const { logger } = require('../../utils/logger');
 const TranscriptModel = require('../../models/transcripts/transcriptModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
+const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const botManager = require('../../services/shared/botManager');
 const PlatformFactory = require('../../services/platforms/platformFactory');
 
@@ -83,6 +84,44 @@ const controller = {
       logger.error('Controller(meeting): Error getting meeting status:', err);
       res.status(500).json({ status: 'error', message: err.message });
     }
+  },
+
+  /**
+   * Get a user's stored Google Calendar credentials.
+   * (Helper for calendarSyncService — no database logic here.)
+   */
+  async getCalendarUser(userId) {
+    if (!userId) throw new Error('Controller(meeting): getCalendarUser requires userId');
+    return CalendarUsersModel.getUser(userId);
+  },
+
+  /**
+   * Persist refreshed Google Calendar tokens for a user.
+   * (Helper for calendarSyncService — no database logic here.)
+   */
+  async saveCalendarUserTokens(userId, tokens) {
+    if (!userId) throw new Error('Controller(meeting): saveCalendarUserTokens requires userId');
+    return CalendarUsersModel.createOrUpdateUserCalendar(userId, tokens);
+  },
+
+  /**
+   * Sync a single calendar event into the meetings table, deduplicating by
+   * title + start time + owner: update the existing meeting or create a new one.
+   * (Helper for calendarSyncService — wraps the MeetingModel calendar-sync queries.)
+   */
+  async syncMeetingFromCalendar({ title, platform, startTime, endTime, userId }) {
+    if (!title || !startTime || !endTime || !userId) {
+      throw new Error('Controller(meeting): syncMeetingFromCalendar requires title, startTime, endTime, userId');
+    }
+    const existingMeeting = await MeetingModel.findMeetingByTitleAndTime(title, startTime, userId);
+
+    if (existingMeeting) {
+      await MeetingModel.updateMeetingFromCalendar(existingMeeting.meeting_id, title, platform, startTime, endTime);
+      return { created: false, meetingId: existingMeeting.meeting_id };
+    }
+
+    const created = await MeetingModel.createMeetingFromCalendar(title, platform, startTime, endTime, userId);
+    return { created: true, meetingId: created.meetingId };
   }
 };
 

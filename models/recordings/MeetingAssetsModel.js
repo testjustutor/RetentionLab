@@ -9,7 +9,7 @@ class MeetingAssetsModel {
   /**
    * Step 0: Initialize a record with placeholders.
    */
-  static initializeAssets(meetingId, sessionId, audioPath, wav_audio_path) {
+  static initializeAssets(meetingId, sessionId, audioPath, transcriptPath) {
 
     return new Promise((resolve, reject) => {
 
@@ -18,14 +18,15 @@ class MeetingAssetsModel {
             meeting_id,
             session_id,
             audio_path,
-            wav_audio_path,
+            transcript_path,
             status,
             processed_at
         )
         VALUES (?, ?, ?, ?, 'Conversion', CURRENT_TIMESTAMP)
 
         ON DUPLICATE KEY UPDATE
-            wav_audio_path = VALUES(wav_audio_path),
+            audio_path = VALUES(audio_path),
+            transcript_path = VALUES(transcript_path),
             status = 'Conversion',
             processed_at = CURRENT_TIMESTAMP
       `;
@@ -36,7 +37,7 @@ class MeetingAssetsModel {
           meetingId,
           sessionId,
           audioPath,
-          wav_audio_path
+          transcriptPath
         ],
         function(err) {
 

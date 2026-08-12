@@ -353,7 +353,7 @@ class MeetingModel {
   // gets its status updated — meeting_id is shared across every occurrence
   // of a recurring meeting, so using it here could flip the status of the
   // wrong day's row (e.g. tomorrow's queued row instead of today's).
-  static updateMeetingStatus(eventId, status, sessionId = null) {
+  static updateMeetingStatus(eventId, status) {
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE meetings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status IN ('queued', 'launching')`,

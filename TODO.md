@@ -431,6 +431,29 @@ node test_videos_api.js
 - [x] Create test file for API verification
 
 
+## Task: Build meeting-session & meeting-asset controllers/models (socraticbot rewiring)
+
+- [x] Verify meeting_assets columns from migration 031 (meeting_id, session_id, audio_path, transcript_path, summary_path, video_path, oqi_score, audit_summary, audit_completed_at, status, processed_at, created_at, updated_at, UNIQUE(meeting_id, session_id))
+- [x] Verify meeting_sessions columns from migration 029 (id, meeting_id, transcript_file_name, audio_file_name, start_time, end_time, status, created_at, updated_at)
+- [x] Fix filename typo: mettingAssetController.js -> meetingAssetController.js, mettingAssetModel.js -> meetingAssetModel.js (matches require in socraticbot.js)
+- [x] Create MeetingSessionModel (getById/updateAudioPath/updateStatus) - SQL only
+- [x] Create MeetingSessionController (updateMeetingSessionAudioPath/getMeetingSessionById/updateMeetingSessionStatus) - logic only, no SQL, calls model
+- [x] Create MeetingAssetModel (initializeAssets upsert on (meeting_id, session_id)) - SQL only
+- [x] Create MeetingAssetController (initializeAssets) - logic only, no SQL, calls model
+- [x] Verify socraticbot.js controller requires resolve and methods exist
+- [x] Syntax-check all 4 files + services/socraticbot.js
+
+## Task: Add updateAssets to meeting-asset controller/model (pythonBridge rewiring)
+
+- [x] pythonBridge.js now requires MettingAssetController (../../controllers/...) and calls updateAssets 3 times
+- [x] Fix pythonBridge.js relative require path (../controllers -> ../../controllers) so module resolves
+- [x] Add MeetingAssetModel.updateAssets - UPDATE meeting_assets by meeting_id, filters writes to real columns (audio_path, transcript_path, summary_path, video_path, oqi_score, audit_summary, audit_completed_at, status)
+- [x] Add MeetingAssetController.updateAssets - supports 2-arg (meetingId, dataObject) and legacy 3-arg (meetingId, fileName, audioPath -> stores audio_path) shapes
+- [x] Verify dropped legacy columns don't break query (diarization_path, talk_ratio_json_path, audit_json_path, evidence_quote)
+- [x] Syntax-check controller, model, pythonBridge.js; confirm require resolves and methods exist
+
+
+
 ## Task: Add "Entries per page" dropdown to centralized table component
 
 - [x] Add page size options (10, 20, 50, 100, 200, All) with default 10 in createTable
@@ -447,6 +470,59 @@ node test_videos_api.js
 ## Task: Move SQL out of auditReportController into a model
 ## Task: Move SQL out of controllers/meetings/meetingReportController into a model
 ## Task: Move SQL out of controllers/insights/risksController into a model
+
+## Task: Thread meetingId + sessionId through runFullAudioPipeline and updateAssets
+
+## Task: Remove non-existent columns from updateAssets payload in pythonBridge.js
+
+## Task: Add MeetingSessionController.createSession + model createSession (botManager launch)
+
+## Task: Fix updateMeetingSessionStatus calls in botManager.js
+
+## Task: Fix MODULE_NOT_FOUND in botManager.js (controller require depth)
+
+## Task: Route calendarSyncService through meetingsController (no direct model usage)
+
+- [x] Add MeetingsController.getCalendarUser(userId) -> CalendarUsersModel.getUser
+- [x] Add MeetingsController.saveCalendarUserTokens(userId, tokens) -> CalendarUsersModel.createOrUpdateUserCalendar
+- [x] Add MeetingsController.syncMeetingFromCalendar({title,platform,startTime,endTime,userId}) -> dedup find/update/create via MeetingModel
+- [x] Refactor calendarSyncService.js to call MeetingsController; removed CalendarUsersModel and MeetingModel imports
+- [x] Verify no Model references remain in service; syntax OK; service loads and exports syncGoogleCalendar
+
+
+- [x] botManager.js (services/shared/) had require('../controllers/meetings/meeting-session/meetingSessionController') -> resolves to services/controllers/... (broken)
+- [x] Fixed to require('../../controllers/meetings/meeting-session/meetingSessionController') (2 levels up -> root/controllers)
+- [x] Verified botManager.js loads (node require OK, instances is a Map)
+- [x] Confirmed analogous pythonBridge.js require already fixed; all services/shared requires correct depth
+
+
+- [x] Capture `let session = null` at function scope so catch can access it (line 138)
+- [x] Fix line 93 -> updateMeetingSessionStatus(meetingId, session.id, 'launching')
+- [x] Fix line 127 -> updateMeetingSessionStatus(meetingId, session.id, 'completed')
+- [x] Fix line 132 -> updateMeetingSessionStatus(meetingId, session.id, 'error')
+- [x] Fix line 139 -> updateMeetingSessionStatus(meetingRecord.meeting_id, session?.id ?? null, 'failed')
+- [x] Syntax check passes
+
+
+- [x] Add MeetingSessionModel.createSession(meetingId) with run/get helpers (INSERT ... ON DUPLICATE KEY, return latest session)
+- [x] Add MeetingSessionController.createSession(meetingId) - validates, calls model, logs
+- [x] botManager.js launchFromDb calls MeetingSessionController.createSession(meetingId) and passes session.id to SocraticBot
+- [x] Syntax check model, controller, botManager.js; createSession wired end-to-end
+
+
+- [x] Removed diarization_path, talk_ratio_json_path, audit_json_path, evidence_quote from updateAssets data object (not in meeting_assets)
+- [x] Payload now only has real columns: transcript_path, summary_path, oqi_score, status
+- [x] Kept return-object's audit_json_path (API contract for test-engine.js, not a DB write)
+- [x] Syntax check passes
+
+
+- [x] socraticbot.js calls PythonBridge.runFullAudioPipeline(this.meetingId, this.sessionId, fileName)
+- [x] pythonBridge.js runFullAudioPipeline(meetingId, sessionId, fileName) - removed redeclared `const meetingId` (SyntaxError)
+- [x] pythonBridge.js passes (meetingId, sessionId) to all 3 MettingAssetController.updateAssets calls
+- [x] MeetingAssetController.updateAssets(meetingId, sessionId, data) - validates both ids + data object
+- [x] MeetingAssetModel.updateAssets(meetingId, sessionId, data) - targets row WHERE meeting_id AND session_id (matches unique key), filters writes to existing columns
+- [x] Syntax-check pythonBridge.js, controller, model, socraticbot.js; verify arity=3 on updateAssets
+
 ## Task: Move SQL out of controllers/insights/engagementController into a model
 ## Task: Move SQL out of controllers/insights/decisionsController into a model
 ## Task: Move SQL out of controllers/insights/actionsController into a model
