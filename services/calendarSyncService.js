@@ -2,6 +2,19 @@
  * root/services/calendarSyncService.js
  * Calendar Sync Service
  * Syncs meetings from Google Calendar to local database
+ *
+ * ─────────────────────────────────────────────────────────────
+ * PROCESS FLOW
+ *   User has Google Calendar connected
+ *      │
+ *      ▼
+ *   1. Get user's saved Google OAuth tokens
+ *   2. Check/refresh expired token
+ *   3. Ask Google Calendar for events
+ *   4. Loop through events
+ *   5. Ignore invalid/all-day events
+ *   6. Create/update local meeting  ──► meetings table
+ * ─────────────────────────────────────────────────────────────
  */
 
 const { google } = require('googleapis');
@@ -17,7 +30,10 @@ const { logger } = require('../utils/logger');
  */
 async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward = 90) {
   try {
-    // Get stored calendar credentials using user_id (not email)
+    // =========================================================
+    // STEP 1 — Get user's saved Google OAuth tokens
+    // Fetch the stored Google Calendar credentials for this user.
+    // =========================================================
     const calendarUser = await MeetingsController.getCalendarUser(userId);
     if (!calendarUser || !calendarUser.access_token) {
       logger.info(`[CalendarSync] No calendar connection for user ${userId}`);
@@ -39,10 +55,13 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
       expiry_date: calendarUser.expiry_date
     });
 
-    const new_data =  new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-
-    // Check if token needs refresh
-    if (calendarUser.token_expiry && new Date(calendarUser.token_expiry) < new Date(new_data) ) {
+    // =========================================================
+    // STEP 2 — Check/refresh expired token
+    // If the access token has expired, refresh it via Google and
+    // persist the new tokens so future syncs stay authorized.
+    // =========================================================
+    // Check if token needs refresh (timestamp comparison is reliable)
+    if (calendarUser.token_expires_at && new Date(calendarUser.token_expires_at).getTime() < Date.now()) {
       logger.info(`[CalendarSync] Refreshing token for user ${userId}`);
       const { token } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(token);
@@ -57,7 +76,11 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
       });
     }
 
-    // Fetch events from Google Calendar
+    // =========================================================
+    // STEP 3 — Ask Google Calendar for events
+    // Request the user's upcoming events over the configured
+    // time window (daysBack → daysForward).
+    // =========================================================
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
     
     const response = await calendar.events.list({
@@ -78,12 +101,19 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
     let skipped = 0;
     let failed = 0;
 
+    // =========================================================
+    // STEP 4 — Loop through events
+    // Process every Google Calendar event one at a time.
+    // =========================================================
     for (const event of events) {
       try {
         const eventId = event.id || 'unknown';
         const eventTitle = event.summary || 'Untitled';
         
-        // Skip events without start/end times
+        // -----------------------------------------------
+        // STEP 5 — Ignore invalid/all-day events
+        // -----------------------------------------------
+        // Skip events that have no start/end times
         if (!event.start?.dateTime || !event.end?.dateTime) {
           logger.info(`[CalendarSync] Skipping event ${eventId} (${eventTitle}): no start/end times`);
           skipped++;
@@ -97,7 +127,12 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
           continue;
         }
 
-        // Create/update meeting via controller (dedup by title + time + owner)
+        // -------------------------------------------------
+        // STEP 6 — Create/update local meeting
+        // Ensure the event exists in the meetings table
+        // (dedup by title + start time + owner): update the
+        // existing row or create a new one.
+        // -------------------------------------------------
         await MeetingsController.syncMeetingFromCalendar({
           title: eventTitle,
           platform: 'Google Calendar',

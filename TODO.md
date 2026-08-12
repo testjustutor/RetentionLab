@@ -483,6 +483,106 @@ node test_videos_api.js
 
 ## Task: Route calendarSyncService through meetingsController (no direct model usage)
 
+## Task: Design merged calendar_connections table (calendar_integrations + calendar_verifications)
+
+- [x] Drop calendar_integrations + calendar_verifications after backfill (data temporary, no safety net)
+## Task: Apply calendar_connections renames across models/controllers/services
+
+## Task: Run migration 058 + verify status mapping
+
+- [x] Ran migration 058 up(): calendar_connections created, calendar_integrations + calendar_verifications dropped
+## Task: Run full DB reset (npm run db:reset)
+
+- [x] Explained migration 058 phases: CREATE (new table) -> INSERT (backfill) -> DROP (old tables)
+- [x] Ran node database/reset-db.js --force: all tables dropped, recreated, seeded
+- [x] Verified final state: calendar_connections present, calendar_integrations + calendar_verifications not-created, calendar_providers present
+- [x] Verified backfill: 9 rows preserved; rows with matching (user_id, provider_id) merged; provider-3 (teams) vs google-meet(2) rows kept separate (correct per key)
+- [x] Verified connection status mapping: instructor frontend reads conn.status (instructor branch maps connection_status); admin calendar page reads Calendarstatus (maps connection_status) - both show 'active'
+- [x] Verified verification status (pending/verified/expired/connected) is internal to CalendarVerificationModel (verification_status); not exposed to any generic frontend status field
+- [x] Removed temp test scripts
+- [x] CalendarUsersModel -> calendar_connections; connection_status, token_expires_at, provider_id; provider name via join to calendar_providers
+- [x] CalendarVerificationModel -> calendar_connections; verification_status, verification_token, verification_expires_at; resolveProviderId helper
+- [x] CalendarAuthModel getUserTokens -> token_expires_at
+- [x] calendarSyncService token check -> token_expires_at
+- [x] MeetingModel getUserStats (x2) -> calendar_connections + provider join; aliased output keeps API contract (status/token_expiry)
+- [x] SessionQualityFilterModel -> calendar_connections
+- [x] meetingScheduleController, calendarController, instructorCalendarController, recordingsController, MeetingRecordingsModel -> connection_status / token_expires_at
+- [x] Removed all calendar_integrations / calendar_verifications table references (backend); updated comments/logs
+- [x] Syntax check (14 files) + load tests for models/controllers + migration; all pass
+- [x] Removed calendar_credentials entirely (migration 021, model, seeder, controller/frontend dependency); kept google_oauth_credentials (still used by GoogleOAuthCredentialsModel)
+- [x] Removed platform/provider from merged table; provider_id is identity; resolves provider_id for verifications via calendar_providers
+
+
+## Task: Remove calendar_credentials entirely
+
+## Task: Run DB reset + manual seed (with updated calendar seeders)
+
+## Task: Fix verification_status showing 'expired' (locale date-parsing bug)
+
+- [x] Root cause: verifyToken + sync token check built "now" via toLocaleString('en-IN') (DD/MM/YYYY) but Date() parses as US MM/DD/YYYY, swapping day/month -> expiry always compared as past -> 'expired'
+- [x] Fixed CalendarVerificationModel.verifyToken to compare timestamps (new Date(expires).getTime() < Date.now())
+## Task: Never leave verification_status as 'expired' (use Google access TTL + refresh)
+
+- [x] Changed verification expiry from 30 min to 1 hour (Google access token TTL = 3600s) in create() and updateTokenByUserId()
+- [x] verifyToken no longer writes 'expired' - re-verifies via refresh token (sync auto-refreshes access token) so status stays 'verified'
+- [x] Confirmed no remaining calendar 'expired' writes; syntax + load pass
+- [x] Fixed calendarSyncService.js token-refresh check to the same reliable comparison
+## Task: Always keep calendar sync active via refresh token (polling/auto-run)
+
+- [x] CalendarUsersModel.getConnectedUsers() only returns users whose row has ALL: access_token, refresh_token, token_expires_at, connection_status='active', verification_token, verification_status='verified' (deduped by user)
+- [x] Verified via live DB demo: 0 before -> 1 when a row is fully qualified -> 0 after revert
+- [x] getConnectedUsers() includes verification_status IN ('verified','expired') - expired users with a refresh token are still synced
+- [x] Added CalendarUsersModel.markVerifiedByEmail(email) - flips 'expired' -> 'verified'
+## Task: Fix FK error on token refresh (email passed as user_id)
+
+## Task: Store timezone / scheduled_start_time / scheduled_end_time / description in sync
+
+- [x] Root causes: storeMeetingFromEvent passed startTime/endTime (getMeetingByIdOrCreate reads scheduled_*); used e.start.timezone (Google returns timeZone); never passed description
+- [x] storeMeetingFromEvent now passes scheduled_start_time/end_time, e.start.timeZone, and description (default 'no description')
+- [x] getMeetingByIdOrCreate (models/meetings) added description to INSERT + UPDATE and fixed param/column alignment
+- [x] Verified live: start/end stored (UTC), timezone stored, description stored, and 'no description' default works
+## Task: Fix auto-sync stopping after first run (only worked on restart)
+
+## Task: Fix polling launch error (meeting_id missing)
+
+- [x] Root cause: BotManager.launchFromDb read meetingRecord.meeting_id (undefined) but getQueuedMeetings returns external_meeting_id -> createSession(undefined) threw
+- [x] Fixed line 113 to use meetingRecord.external_meeting_id
+- [x] Verified syntax + load; launchFromDb working
+- [x] Root cause: scheduleBackgroundSync did `await globalSync()` then schedule setTimeout; if globalSync threw, setTimeout never ran -> periodic loop died
+- [x] Wrapped in try/catch/finally so the loop always re-schedules (auto-sync stays alive)
+- [x] Fixed misleading startup log (Auto-Sync 1min -> 30min, matching actual interval)
+- [x] Syntax check passes
+- [x] Root cause: CalendarAuthModel.saveUserTokens used the passed value as calendar_connections.user_id (FK to users.id); both callers passed an email
+- [x] Fixed saveUserTokens to accept email OR id - resolves email -> user id via UsersModel.getUserByEmail
+- [x] Verified test.justtutors@gmail.com -> user_id 20; syntax + load pass
+- [x] CalendarEventController.ensureValidToken calls markVerifiedByEmail after a successful refresh
+- [x] Verified live demo: expired user included in sync candidates; after refresh verification_status -> 'verified'
+- [x] CalendarSyncController.globalSync() now targets connected users (have refresh token) instead of all users
+- [x] Background sync refreshes expired access token via refresh_token (CalendarEventController.ensureValidToken) then syncs meetings
+- [x] server.js no longer gates background sync behind RUN_CAL_SYNC_AT_START - scheduleBackgroundSync() always runs (every 30 min)
+- [x] Verified getConnectedUsers returns the connected users; syntax + load pass
+- [x] Confirmed remaining sv-SE usages are store/format only (safe); syntax + load pass
+- [x] Updated 03_seed_calendar_verifications.js + 04_seed_calendar_integrations.js to seed merged calendar_connections (provider_id, connection_status, verification_*)
+- [x] Ran node database/reset-db.js --force (all tables dropped, recreated, seeded)
+- [x] Ran node database/run-manual-seeders.js -> 21 succeeded, 0 failed
+- [x] Verified calendar_connections populated (verification rows @ provider_id 2 + integration rows @ random providers)
+
+- [x] Deleted migration 021_create_calendar_credentials_table.js
+- [x] Deleted models/calendar/CalendarCredentialsModel.js
+- [x] Deleted manual-seeder 05_seed_calendar_credentials.js
+- [x] Removed CalendarCredentialsModel dependency from calendarIntegrationController.js (has_credentials: true since creds are .env-based)
+- [x] Removed DELETE FROM calendar_credentials from CalendarProvidersModel.deleteById
+- [x] Updated comments in routes/calendar-integrations.js, routes/index.js, public/js/admin/settings/integrations.js
+- [x] Dropped calendar_credentials table from DB
+- [x] Verified no code references remain; controller/route/models load OK; syntax checks pass
+
+- [x] Inventory all call sites of calendar_integrations / calendar_verifications / token_expiry (models, controllers, services, seeders)
+- [x] Decide status collision -> split into connection_status + verification_status (recommended)
+- [x] Decide expires_at collision -> token_expires_at + verification_expires_at; flag token_expiry as redundant duplicate of expires_at
+- [x] Create migration 058_create_calendar_connections_table.js (CREATE TABLE + 2-pass backfill; old tables kept as safety net)
+- [x] Provide proposed (not applied) query updates per call site + rollback plan
+
+
 - [x] Add MeetingsController.getCalendarUser(userId) -> CalendarUsersModel.getUser
 - [x] Add MeetingsController.saveCalendarUserTokens(userId, tokens) -> CalendarUsersModel.createOrUpdateUserCalendar
 - [x] Add MeetingsController.syncMeetingFromCalendar({title,platform,startTime,endTime,userId}) -> dedup find/update/create via MeetingModel

@@ -145,7 +145,7 @@ router.use('/api/sidebar-menu-admin', require('./sidebar-menu-admin'));
 // Google OAuth credentials management (super admin) - legacy (kept for backward compatibility)
 router.use('/api/google-credentials', require('./google-credentials'));
 
-// Calendar providers + credentials (new schema)
+// Calendar providers (new schema)
 router.use('/api/calendar-integrations', require('./calendar-integrations'));
 
 // Menu management

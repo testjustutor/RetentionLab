@@ -1,7 +1,7 @@
 /**
  * controllers/recordingsController.js
  * Business logic for meeting recordings, transcripts, summaries, and assets.
- * Uses user_id from calendar_integrations for lookups (not email in URL).
+ * Uses user_id from calendar_connections for lookups (not email in URL).
  */
 const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const MeetingRecordingsModel = require('../../models/recordings/MeetingRecordingsModel');
@@ -105,7 +105,7 @@ const controller = {
   async listUsers(req) {
     try {
       const conns = await CalendarUsersModel.getAllUsers();
-      const users = (conns || []).filter(c => c.status === 'active' && c.email)
+      const users = (conns || []).filter(c => c.connection_status === 'active' && c.email)
         .map(c => ({ user_id: c.user_id || c.user_id_ref, email: c.email, role_name: c.role_name || 'instructor' }));
       return ok({ users });
     } catch (e) { return err(e.message); }

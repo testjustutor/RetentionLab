@@ -6,6 +6,7 @@
 const { google } = require('googleapis');
 const { logger } = require('../../utils/logger');
 const CalendarAuthModel = require('../../models/calendar/CalendarAuthModel');
+const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const CalendarHelper = require('../../utils/calendarHelper');
 const MeetingModel = require('../../models/meetings/MeetingModel');
 
@@ -49,7 +50,7 @@ class CalendarEventController {
         throw new Error('Token expired and no refresh_token available. Re-authorize required.');
       }
 
-      logger.info(`Token expired for ${email}, attempting refresh with refresh_token from calendar_integrations table`);
+      logger.info(`Token expired for ${email}, attempting refresh with refresh_token from calendar_connections table`);
       logger.debug(`Refresh token for ${email}: ${tokens.refresh_token.substring(0, 20)}...`);
       
       try {
@@ -58,8 +59,12 @@ class CalendarEventController {
         
         await CalendarAuthModel.saveUserTokens(email, credentials);
         oauth2Client.setCredentials(credentials);
-        
-        logger.info(`Updated tokens saved to calendar_integrations table for ${email}`);
+
+        logger.info(`Updated tokens saved to calendar_connections table for ${email}`);
+
+        // A successful refresh proves the connection is still valid, so any
+        // 'expired' verification is re-marked 'verified'.
+        await CalendarUsersModel.markVerifiedByEmail(email);
       } catch (err) {
         logger.error(`Token refresh failed for ${email}:`, err.message);
         logger.error(`Full error:`, err);

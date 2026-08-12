@@ -45,15 +45,15 @@ class MeetingRecordingsModel {
 
     // If userId is provided, get recordings for that specific instructor
     if (userId) {
-      // First try to get from calendar_integrations
+      // First try to get from calendar_connections
       const conns = await CalendarUsersModel.getAllUsers();
-      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.status === 'active');
+      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.connection_status === 'active');
       
       if (conn && conn.email) {
         sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
         params.push(conn.email);
       } else {
-        // If not found in calendar_integrations, try to get email from users table
+        // If not found in calendar_connections, try to get email from users table
         const user = await new Promise((resolve, reject) => {
           db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [userId], (err, row) => {
             if (err) reject(err);
@@ -71,15 +71,15 @@ class MeetingRecordingsModel {
       }
     } else if (userRole === 'admin') {
 
-      // First try to get from calendar_integrations
+      // First try to get from calendar_connections
       const conns = await CalendarUsersModel.getAllUsers();
-      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.status === 'active');
+      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.connection_status === 'active');
       
       if (conn && conn.email) {
         sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
         params.push(conn.email);
       } else {
-        // If not found in calendar_integrations, try to get email from users table
+        // If not found in calendar_connections, try to get email from users table
         const user = await new Promise((resolve, reject) => {
           db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [userId], (err, row) => {
             if (err) reject(err);
@@ -182,11 +182,11 @@ class MeetingRecordingsModel {
       .filter(u => u.email)
       .map(u => u.email.toLowerCase());
     
-    // If no instructors found in users table, try calendar_integrations as fallback
+    // If no instructors found in users table, try calendar_connections as fallback
     if (emails.length === 0) {
       const conns = await CalendarUsersModel.getAllUsers({ createdBy: adminId, excludeSelf: true, adminId: adminId });
       emails = (conns || [])
-        .filter(c => c.email && c.status === 'active')
+        .filter(c => c.email && c.connection_status === 'active')
         .map(c => c.email.toLowerCase());
     }
     

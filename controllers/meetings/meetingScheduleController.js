@@ -55,9 +55,9 @@ async function getActiveEmails(adminId = null, userRole = null) {
   const connections = await CalendarUsersModel.getAllUsers(filterOptions);
   // Filter out users with invalid token status
   const validConnections = (connections || []).filter(c => {
-    const hasValidStatus = c.status === 'active';
-    const hasTokens = c.email && (c.access_token || c.token_expiry);
-    const notInvalid = c.status !== 'invalid';
+    const hasValidStatus = c.connection_status === 'active';
+    const hasTokens = c.email && (c.access_token || c.token_expires_at);
+    const notInvalid = c.connection_status !== 'invalid';
     return hasValidStatus && hasTokens && notInvalid;
   });
   
@@ -89,7 +89,7 @@ const controller = {
       }
       
       const connections = await CalendarUsersModel.getAllUsers(filterOptions);
-      const activeConnections = (connections || []).filter(c => c.status === 'active' && c.email && (c.access_token || c.token_expiry));
+      const activeConnections = (connections || []).filter(c => c.connection_status === 'active' && c.email && (c.access_token || c.token_expires_at));
       if (!activeConnections.length) return ok({ users: [], totalUsers: 0, totalEvents: 0, synced: 0, message: 'No connected accounts' });
 
       const now = new Date();
@@ -208,7 +208,7 @@ const controller = {
         
         // Get ALL connected users (not just those with meetings)
         const connections = await CalendarUsersModel.getAllUsers(filterOptions);
-        targetEmails = (connections || []).filter(c => c.status === 'active' && c.email).map(c => c.email.toLowerCase());
+        targetEmails = (connections || []).filter(c => c.connection_status === 'active' && c.email).map(c => c.email.toLowerCase());
       }
       
       // Calculate time range
@@ -328,7 +328,7 @@ const controller = {
       const rows = await MeetingModel.getCompletedMeetingsByAccounts([], hours);
       const users = groupByAccount(rows);
       
-      // Connected calendars count from calendar_integrations, users, roles, calendar_verifications & created_by admin
+      // Connected calendars count from calendar_connections, users, roles, calendar_connections & created_by admin
       const connectedCount = await CalendarUsersModel.getConnectedCalendarCount(adminId);
       
       return ok({ hours, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });

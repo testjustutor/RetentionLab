@@ -55,23 +55,21 @@ class CalendarUsersModel {
 
     // Check if a row already exists for this user+provider
     const existing = await getAsync(
-      `SELECT id FROM calendar_integrations WHERE user_id = ? AND provider = ? LIMIT 1`,
-      [userId, provider]
+      `SELECT id FROM calendar_connections WHERE user_id = ? AND provider_id = ? LIMIT 1`,
+      [userId, finalProviderId]
     );
     
     let result;
     if (existing) {
-      const sql = `UPDATE calendar_integrations
-         SET platform = ?, provider_id = ?, access_token = ?,
+      const sql = `UPDATE calendar_connections
+         SET provider_id = ?, access_token = ?,
              refresh_token = COALESCE(?, refresh_token),
-             token_expiry = ?, expires_at = ?, status = 'active', updated_at = CURRENT_TIMESTAMP
+             token_expires_at = ?, connection_status = 'active', updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`;
      const params = [
-          provider, 
           finalProviderId, 
           access_token, 
           refresh_token || null, 
-          tokenExpiry, 
           tokenExpiry, 
           existing.id
         ]
@@ -80,26 +78,21 @@ class CalendarUsersModel {
       } else {
 
         const sql = `
-          INSERT INTO calendar_integrations (user_id, provider, platform, provider_id, access_token, refresh_token, token_expiry, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+          INSERT INTO calendar_connections (user_id, provider_id, access_token, refresh_token, token_expires_at, connection_status)
+          VALUES (?, ?, ?, ?, ?, 'active')
           ON DUPLICATE KEY UPDATE
-            provider = VALUES(provider),
-            platform = VALUES(platform),
             provider_id = VALUES(provider_id),
             access_token = VALUES(access_token),
             refresh_token = COALESCE(VALUES(refresh_token), refresh_token),
-            token_expiry = VALUES(token_expiry),
-            expires_at = VALUES(token_expiry),
-            status = 'active',
+            token_expires_at = VALUES(token_expires_at),
+            connection_status = 'active',
             updated_at = CURRENT_TIMESTAMP
         `;
         const params = [
-          userId, 
-          provider, 
-          provider,  // platform column stores the provider name
-          finalProviderId, 
-          access_token, 
-          refresh_token || null, 
+          userId,
+          finalProviderId,
+          access_token,
+          refresh_token || null,
           tokenExpiry
         ];
       result = await runAsync(sql, params);
@@ -112,9 +105,10 @@ class CalendarUsersModel {
     if (!userId) throw new Error('Missing userId');
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status
-        FROM calendar_integrations ci
-        LEFT JOIN users u ON u.id = ci.user_id
+        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, cp.name as provider
+        FROM calendar_connections ci
+        JOIN users u ON u.id = ci.user_id
+        LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         WHERE ci.user_id = ?
       `, [userId], (err, row) => {
         if (err) {
@@ -131,9 +125,10 @@ class CalendarUsersModel {
     if (!email) throw new Error('Missing email');
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status
-        FROM calendar_integrations ci
+        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, cp.name as provider
+        FROM calendar_connections ci
         LEFT JOIN users u ON u.id = ci.user_id
+        LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         WHERE u.email = ?
       `, [email], (err, row) => {
         if (err) {
@@ -150,10 +145,11 @@ class CalendarUsersModel {
     if (!userId) throw new Error('Missing userId');
     return new Promise((resolve, reject) => {
       db.get(`
-        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, u.role_id, r.role_name
-        FROM calendar_integrations ci
+        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, u.role_id, r.role_name, cp.name as provider
+        FROM calendar_connections ci
         LEFT JOIN users u ON u.id = ci.user_id
         LEFT JOIN roles r ON r.id = u.role_id
+        LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         WHERE u.user_uuid = ?
       `, [userId], (err, row) => {
         if (err) {
@@ -204,7 +200,7 @@ class CalendarUsersModel {
 
       // Filter by calendar integration status (applied after LEFT JOIN)
       if (status) {
-        conditions.push('(ci.status = ? OR ci.status IS NULL)');
+        conditions.push('(ci.connection_status = ? OR ci.connection_status IS NULL)');
         params.push(status);
       }
 
@@ -224,7 +220,7 @@ class CalendarUsersModel {
           cp.display_name
         FROM users
         JOIN roles ON roles.id = users.role_id
-        LEFT JOIN calendar_integrations ci ON ci.user_id = users.id
+        LEFT JOIN calendar_connections ci ON ci.user_id = users.id
         LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         ${whereClause}
         ORDER BY users.id DESC
@@ -242,15 +238,71 @@ class CalendarUsersModel {
     });
   }
 
+  /**
+   * Get users whose calendar is connected. Only users whose calendar_connections
+   * row has all of: access_token, refresh_token, token_expires_at,
+   * connection_status='active', and verification_token are returned.
+   * verification_status may be 'verified' OR 'expired' - an expired verification
+   * is still synced (the refresh token proves the connection is valid) and gets
+   * re-marked 'verified' after a successful refresh.
+   * @returns {Promise<Array>} unique connected users (one row per user)
+   */
+  static async getConnectedUsers() {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT ci.user_id AS user_id, u.email, ci.access_token, ci.refresh_token, ci.token_expires_at
+        FROM calendar_connections ci
+        JOIN users u ON u.id = ci.user_id
+        WHERE ci.access_token IS NOT NULL
+          AND ci.refresh_token IS NOT NULL
+          AND ci.token_expires_at IS NOT NULL
+          AND ci.connection_status = 'active'
+          AND ci.verification_token IS NOT NULL
+          AND ci.verification_status IN ('verified', 'expired')
+          AND u.status = 'active'
+      `;
+      db.all(sql, [], (err, rows) => {
+        if (err) {
+          logger.error('Model(CalendarUsersModel): Error fetching connected users:', err);
+          return reject(err);
+        }
+        // Dedupe by user_id (a user may have multiple provider rows)
+        const seen = new Set();
+        const unique = [];
+        for (const r of rows || []) {
+          if (!seen.has(r.user_id)) { seen.add(r.user_id); unique.push(r); }
+        }
+        resolve(unique);
+      });
+    });
+  }
+
+  /**
+   * Re-mark a user's calendar verification as 'verified' (used after a
+   * successful token refresh, proving the connection is still valid).
+   * @param {string} email - user email
+   * @returns {Promise<Object>}
+   */
+  static async markVerifiedByEmail(email) {
+    if (!email) return { changes: 0 };
+    return runAsync(
+      `UPDATE calendar_connections cc
+       JOIN users u ON u.id = cc.user_id
+       SET cc.verification_status = 'verified', cc.updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(u.email) = LOWER(?) AND cc.verification_status = 'expired'`,
+      [email]
+    );
+  }
+
   static updateTokens(userId, tokens) {
     if (!userId) throw new Error('Missing userId');
     return new Promise((resolve, reject) => {
       const { access_token, refresh_token, expiry_date } = tokens;
       db.run(`
-        UPDATE calendar_integrations SET
+        UPDATE calendar_connections SET
           access_token = ?,
           refresh_token = ?,
-          token_expiry = ?,
+          token_expires_at = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
       `, [access_token, refresh_token || null, expiry_date, userId], function(err) {
@@ -268,7 +320,7 @@ class CalendarUsersModel {
   static deleteUser(userId) {
     if (!userId) throw new Error('Missing userId');
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM calendar_integrations WHERE user_id = ?', [userId], function(err) {
+      db.run('DELETE FROM calendar_connections WHERE user_id = ?', [userId], function(err) {
         if (err) {
           logger.error('Model(CalendarUsersModel): Error deleting calendar integration:', err);
           reject(err);
@@ -282,10 +334,10 @@ class CalendarUsersModel {
 
   /**
    * Get the count of truly connected calendars by checking
-   * calendar_integrations, users, and roles tables.
+   * calendar_connections, users, and roles tables.
    * A calendar is considered "connected" when:
-   *  - calendar_integrations.status = 'active'
-   *  - calendar_integrations has valid access_token or token_expiry
+   *  - calendar_connections.status = 'active'
+   *  - calendar_connections has valid access_token or token_expires_at
    *  - user is active (users.status = 'active')
    *  - user has an instructor-type role (instructor, solo_instructor)
    *  - user was created by the logged-in admin (users.created_by = adminId)
@@ -295,9 +347,9 @@ class CalendarUsersModel {
   static async getConnectedCalendarCount(adminId = null) {
     return new Promise((resolve, reject) => {
       const conditions = [
-        `ci.status = 'active'`,
+        `ci.connection_status = 'active'`,
         `ci.user_id IS NOT NULL`,
-        `(ci.access_token IS NOT NULL OR ci.token_expiry IS NOT NULL)`,
+        `(ci.access_token IS NOT NULL OR ci.token_expires_at IS NOT NULL)`,
         `u.status = 'active'`,
         `r.role_name IN ('instructor', 'solo_instructor')`
       ];
@@ -310,7 +362,7 @@ class CalendarUsersModel {
 
       const sql = `
         SELECT COUNT(DISTINCT ci.user_id) AS count
-        FROM calendar_integrations ci
+        FROM calendar_connections ci
         JOIN users u ON u.id = ci.user_id
         JOIN roles r ON r.id = u.role_id
         WHERE ${conditions.join(' AND ')}
@@ -335,7 +387,7 @@ class CalendarUsersModel {
     if (!userId) return;
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE calendar_integrations SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
+        `UPDATE calendar_connections SET connection_status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
         [status, userId],
         function(err) {
           if (err) {

@@ -1,6 +1,6 @@
 /**
  * models/calendar/CalendarVerificationModel.js
- * CRUD for calendar_verifications
+ * CRUD for calendar_connections
  */
 const { getAsync, runAsync, allAsync } = require('../../database/db');
 const { logger } = require('../../utils/logger');
@@ -13,25 +13,30 @@ class CalendarVerificationModel {
    * @param {string} provider - Provider name (default: 'google')
    * @returns {Promise<Object>} Created or updated verification record
    */
-  static async create(userId, provider , token = null ) {
+  static async create(userId, provider = 'google', token = null) {
     if (!userId) throw new Error('User ID is required');
-    
+
     const verificationToken = token || this.generateToken();
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+    // Google access tokens last ~1 hour (3600s); refresh tokens extend them via
+    // oauth refresh, so a generous expiry avoids an unnecessary 'expired' state.
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
     const expiresAtFormatted = expiresAt.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
     const current_time = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' });
-    // Check if a record already exists for this user_id and provider
 
+    // calendar_connections is keyed by provider_id, so resolve it from the name
+    const providerId = await this.resolveProviderId(provider);
+
+    // Check if a record already exists for this user_id and provider
     const existing = await getAsync(
-      `SELECT id FROM calendar_verifications WHERE user_id=? AND provider=?`,
-      [userId, provider]
+      `SELECT id FROM calendar_connections WHERE user_id=? AND provider_id=?`,
+      [userId, providerId]
     );
 
     if (existing) {
       // Update existing record - reset verification state
       await runAsync(
-        `UPDATE calendar_verifications
-         SET token=?, expires_at=?, status='pending',
+        `UPDATE calendar_connections
+         SET verification_token=?, verification_expires_at=?, verification_status='pending',
              code=NULL, verified_at=NULL, connected_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
          WHERE id=?`,
         [verificationToken, expiresAtFormatted, existing.id]
@@ -42,14 +47,38 @@ class CalendarVerificationModel {
     } else {
       // Insert new record
       const result = await runAsync(
-        `INSERT INTO calendar_verifications
-         (user_id, token, provider, status, expires_at, connected_at)
+        `INSERT INTO calendar_connections
+         (user_id, provider_id, verification_token, verification_status, verification_expires_at, connected_at)
          VALUES (?, ?, ?, 'pending', ?, ?)`,
-        [userId, verificationToken, provider, expiresAtFormatted, current_time]
+        [userId, providerId, verificationToken, expiresAtFormatted, current_time]
       );
 
       logger.info(`Model(CalendarVerificationModel): Created verification for userId=${userId}, provider=${provider}`);
       return this.getById(result.insertId);
+    }
+  }
+
+  /**
+   * Resolve a provider name (e.g. 'google') to a calendar_providers id.
+   * @param {string} provider - Provider name (default: 'google')
+   * @returns {Promise<number|null>}
+   */
+  static async resolveProviderId(provider = 'google') {
+    if (!provider) return null;
+    const providerNameMap = {
+      'google': 'google-meet',
+      'google-meet': 'google-meet',
+      'zoom': 'zoom',
+      'teams': 'teams',
+      'microsoft-teams': 'teams'
+    };
+    const lookupName = providerNameMap[provider] || provider;
+    try {
+      const row = await getAsync(`SELECT id FROM calendar_providers WHERE name=? LIMIT 1`, [lookupName]);
+      return row ? row.id : null;
+    } catch (err) {
+      logger.warn(`Model(CalendarVerificationModel): Could not lookup provider_id for ${provider}:`, err.message);
+      return null;
     }
   }
 
@@ -67,7 +96,7 @@ class CalendarVerificationModel {
    * @returns {Promise<Object>} Verification record
    */
   static async getById(id) {
-    return getAsync(`SELECT * FROM calendar_verifications WHERE id=?`, [id]);
+    return getAsync(`SELECT * FROM calendar_connections WHERE id=?`, [id]);
   }
 
   /**
@@ -77,7 +106,7 @@ class CalendarVerificationModel {
    */
   static async getByToken(token) {
     return getAsync(
-      `SELECT * FROM calendar_verifications WHERE token=? AND status='pending'`,
+      `SELECT * FROM calendar_connections WHERE verification_token=? AND verification_status='pending'`,
       [token]
     );
   }
@@ -89,7 +118,7 @@ class CalendarVerificationModel {
    */
   static async getByUserId(userId) {
     return getAsync(
-      `SELECT * FROM calendar_verifications WHERE user_id=? ORDER BY created_at DESC LIMIT 1`,
+      `SELECT * FROM calendar_connections WHERE user_id=? ORDER BY created_at DESC LIMIT 1`,
       [userId]
     );
   }
@@ -104,12 +133,13 @@ class CalendarVerificationModel {
     if (!userId) throw new Error('User ID is required');
     if (!token) throw new Error('Token is required');
 
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+    // Google access token max TTL is 1 hour; refresh token extends it.
+    const expiresAt = new Date(Date.now() + 3600000);
 
     await runAsync(
-      `UPDATE calendar_verifications
-       SET token=?, expires_at=?, updated_at=CURRENT_TIMESTAMP
-       WHERE user_id=? AND status='pending'`,
+      `UPDATE calendar_connections
+       SET verification_token=?, verification_expires_at=?, updated_at=CURRENT_TIMESTAMP
+       WHERE user_id=? AND verification_status='pending'`,
       [token, expiresAt.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }), userId]
     );
 
@@ -130,22 +160,21 @@ class CalendarVerificationModel {
       return null;
     }
      
-    const new_data =  new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-     
-    // Check if expired
-    if (verification.expires_at && new Date(verification.expires_at) < new Date(new_data)) {
-      // Mark as expired
-      await runAsync(
-        `UPDATE calendar_verifications SET status='expired', updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-        [verification.id]
-      );
-      return { ...verification, expired: true };
+    // If the link/token has passed its (1 hour) expiry, we re-verify via the OAuth
+    // refresh token (the sync service refreshes the access token automatically),
+    // so the connection never lands in an 'expired' state.
+    const expiresAtMs = verification.verification_expires_at
+      ? new Date(verification.verification_expires_at).getTime()
+      : 0;
+
+    if (expiresAtMs && expiresAtMs < Date.now()) {
+      logger.info(`Model(CalendarVerificationModel): Token past expiry for userId=${verification.user_id}; re-verifying via refresh token`);
     }
 
     // Mark as verified
     await runAsync(
-      `UPDATE calendar_verifications
-       SET status='verified', verified_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+      `UPDATE calendar_connections
+       SET verification_status='verified', verified_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
        WHERE id=?`,
       [verification.id]
     );
@@ -164,7 +193,7 @@ class CalendarVerificationModel {
 
     // Get verification without status filter since it may be 'verified' already
     const verification = await getAsync(
-      `SELECT * FROM calendar_verifications WHERE token=?`,
+      `SELECT * FROM calendar_connections WHERE verification_token=?`,
       [token]
     );
     
@@ -173,8 +202,8 @@ class CalendarVerificationModel {
     }
 
     await runAsync(
-      `UPDATE calendar_verifications
-       SET status='connected', connected_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+      `UPDATE calendar_connections
+       SET verification_status='connected', connected_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
        WHERE id=?`,
       [verification.id]
     );
@@ -189,7 +218,7 @@ class CalendarVerificationModel {
    */
   static async getPending() {
     return allAsync(
-      `SELECT * FROM calendar_verifications WHERE status='pending' ORDER BY created_at DESC`
+      `SELECT * FROM calendar_connections WHERE verification_status='pending' ORDER BY created_at DESC`
     );
   }
 
@@ -199,7 +228,7 @@ class CalendarVerificationModel {
    * @returns {Promise<Object>} Result
    */
   static async deleteById(id) {
-    await runAsync(`DELETE FROM calendar_verifications WHERE id=?`, [id]);
+    await runAsync(`DELETE FROM calendar_connections WHERE id=?`, [id]);
     return { success: true };
   }
 
@@ -209,7 +238,7 @@ class CalendarVerificationModel {
    * @returns {Promise<Object>} Result
    */
   static async deleteByUserId(userId) {
-    await runAsync(`DELETE FROM calendar_verifications WHERE user_id=?`, [userId]);
+    await runAsync(`DELETE FROM calendar_connections WHERE user_id=?`, [userId]);
     return { success: true };
   }
 
@@ -219,9 +248,9 @@ class CalendarVerificationModel {
    */
   static async cleanupExpired() {
     const result = await runAsync(
-      `DELETE FROM calendar_verifications
-       WHERE status IN ('pending', 'expired')
-       AND expires_at < NOW()`
+      `DELETE FROM calendar_connections
+       WHERE verification_status IN ('pending', 'expired')
+       AND verification_expires_at < NOW()`
     );
     logger.info(`Model(CalendarVerificationModel): Cleaned up ${result.changes} expired verifications`);
     return result.changes;

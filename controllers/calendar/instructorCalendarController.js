@@ -111,9 +111,9 @@ const controller = {
           count: 1,
           data: [{
             email: row.email,
-            status: row.status || 'disconnected',
+            status: row.connection_status || 'disconnected',
             provider: row.provider || null,
-            token_expire_at: row.token_expiry || null, // Map DB field to frontend expected name
+            token_expire_at: row.token_expires_at || null, // Map DB field to frontend expected name
             last_synced_at: row.updated_at || null, // Use updated_at as last synced timestamp
             user_id: row.user_id,
             role_name: userRole
@@ -135,10 +135,10 @@ const controller = {
         const connections = (integrations || []).map(conn => ({
           email: conn.email,
           name: conn.first_name,
-          Calendarstatus: conn.status || 'disconnected',
+          Calendarstatus: conn.connection_status || 'disconnected',
           Userstatus: conn.is_active || 'disconnected',
           provider: conn.display_name || null,
-          token_expire_at: conn.token_expiry || null, // Map DB field to frontend expected name
+          token_expire_at: conn.token_expires_at || null, // Map DB field to frontend expected name
           last_synced_at: conn.updated_at || null, // Use updated_at as last synced timestamp
           user_id: conn.user_id,
           role_name: conn.role_name || 'instructor'
@@ -171,7 +171,7 @@ const controller = {
       }
 
       // Sign a JWT token (encrypted, expiring, single-use)
-      // NOTE: This JWT MUST be the same value stored in calendar_verifications.token,
+      // NOTE: This JWT MUST be the same value stored in calendar_connections.token,
       // otherwise verifyToken() cannot find the row and status will stay 'pending'.
       const token = signVerifyToken(email);
 
@@ -480,7 +480,7 @@ const controller = {
 
       }
 
-      logger.info(`[InstructorCalendar] handleCallback: about to save tokens to calendar_integrations for userId=${user.id}`);
+      logger.info(`[InstructorCalendar] handleCallback: about to save tokens to calendar_connections for userId=${user.id}`);
       
       // Get provider_id from calendar_providers table (name = 'google-meet')
       let providerId = null;
@@ -634,7 +634,7 @@ const controller = {
 
       // Use existing CalendarSyncController to sync the user's calendar
       logger.info(`[InstructorCalendar] Starting sync for user_id=${user_id}, email=${integration.email}`);
-      logger.debug(`[InstructorCalendar] Token data - has access_token: ${!!integration.access_token}, has refresh_token: ${!!integration.refresh_token}, token_expiry: ${integration.token_expiry}`);
+      logger.debug(`[InstructorCalendar] Token data - has access_token: ${!!integration.access_token}, has refresh_token: ${!!integration.refresh_token}, token_expires_at: ${integration.token_expires_at}`);
       
       const CalendarSyncController = require('../../controllers/calendar/CalendarSyncController');
       const syncResult = await CalendarSyncController.syncUserCalendar({ email: integration.email });
@@ -657,22 +657,23 @@ const controller = {
         return err('Token refresh failed. The calendar connection has been removed. Please ask the user to re-authorize their Google Calendar connection.', 400);
       }
 
+      // Any other sync failure — return err(), don't mask it as ok()
+      if (!syncResult.success) {
+        return err(result.message || 'Sync failed', 502);
+      }
+
       if (result.synced > 0) {
         return ok({
           message: `Successfully synced ${result.synced} meetings for ${integration.email}`,
           data: result
         });
-      } else if (result.message) {
-        return ok({
-          message: result.message,
-          data: result
-        });
-      } else {
-        return ok({
-          message: 'Sync completed',
-          data: result
-        });
       }
+
+      return ok({
+        message: result.message || 'Sync completed',
+        data: result
+      });
+
     } catch (e) {
       logger.error('[InstructorCalendar] Sync user calendar error:', e);
       return err(e.message);

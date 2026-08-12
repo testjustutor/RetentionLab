@@ -1,13 +1,13 @@
- /**
-  * Manual Seeder: calendar_integrations
-  * Inserts data ONLY into the calendar_integrations table
-  * Run command: node database/manual-seeder/06_seed_calendar_integrations.js
-  */
+﻿/**
+ * Manual Seeder: calendar_connections (connection/integration side)
+ * Inserts connection rows into the merged calendar_connections table.
+ * Run command: node database/manual-seeder/04_seed_calendar_integrations.js
+ */
 
 const { runAsync, getAsync, allAsync } = require('../seedHelpers');
 
 const seedCalendarIntegrations = async () => {
-  console.log('[Manual Seeder] Starting calendar_integrations seeder...');
+  console.log('[Manual Seeder] Starting calendar_connections (integrations) seeder...');
 
   try {
     const adminEmail = process.env.ADMIN_EMAIL;
@@ -22,7 +22,7 @@ const seedCalendarIntegrations = async () => {
     );
 
     if (!adminUser) {
-      console.log('[Manual Seeder] ⚠ Admin user not found.');
+      console.log('[Manual Seeder] Warning: Admin user not found.');
       process.exit(1);
     }
 
@@ -41,46 +41,26 @@ const seedCalendarIntegrations = async () => {
       [adminUser.company_id]
     );
 
-    // provider_id mapping:
-    // 1 = zoom
-    // 2 = google
-    // 3 = microsoft
-    const platforms = {
-      1: 'zoom',
-      2: 'google',
-      3: 'microsoft'
-    };
-
-    const providerIds = Object.keys(platforms).map(Number);
+    // provider_id mapping (calendar_providers): 1=zoom, 2=google-meet, 3=teams
+    const providerIds = [1, 2, 3];
 
     let count = 0;
 
     for (const instructor of instructors) {
+      const providerId = providerIds[Math.floor(Math.random() * providerIds.length)];
+
       const existing = await getAsync(
         `SELECT id
-         FROM calendar_integrations
+         FROM calendar_connections
          WHERE user_id = ?
+           AND provider_id = ?
          LIMIT 1`,
-        [instructor.id]
+        [instructor.id, providerId]
       );
 
       if (existing) {
         continue;
       }
-
-      // Random provider ID: 1, 2, or 3
-      const providerId =
-        providerIds[Math.floor(Math.random() * providerIds.length)];
-
-      // Provider name based on provider_id
-      const platform = platforms[providerId];
-
-      const provider =
-        platform === 'zoom'
-          ? 'zoom'
-          : platform === 'google'
-            ? 'google_calendar'
-            : 'microsoft_teams';
 
       const accessToken =
         'acc_' + Math.random().toString(36).substring(2, 20);
@@ -89,16 +69,13 @@ const seedCalendarIntegrations = async () => {
         'ref_' + Math.random().toString(36).substring(2, 20);
 
       await runAsync(
-        `INSERT INTO calendar_integrations (
+        `INSERT INTO calendar_connections (
           user_id,
-          platform,
-          provider,
           provider_id,
           access_token,
           refresh_token,
-          expires_at,
-          token_expiry,
-          status,
+          token_expires_at,
+          connection_status,
           created_at,
           updated_at
         )
@@ -107,9 +84,6 @@ const seedCalendarIntegrations = async () => {
           ?,
           ?,
           ?,
-          ?,
-          ?,
-          DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 DAY),
           DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 DAY),
           'active',
           CURRENT_TIMESTAMP,
@@ -117,8 +91,6 @@ const seedCalendarIntegrations = async () => {
         )`,
         [
           instructor.id,
-          platform,
-          provider,
           providerId,
           accessToken,
           refreshToken
@@ -129,11 +101,11 @@ const seedCalendarIntegrations = async () => {
     }
 
     console.log(
-      `[Manual Seeder] ✓ Created ${count} calendar_integrations`
+      `[Manual Seeder] Created ${count} calendar_connections (integrations)`
     );
   } catch (err) {
     console.error(
-      '[Manual Seeder] ✗ calendar_integrations seeder failed:',
+      '[Manual Seeder] calendar_connections (integrations) seeder failed:',
       err
     );
 

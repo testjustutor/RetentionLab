@@ -1,6 +1,6 @@
 /**
  * Admin Settings - Integrations Page
- * Fetches dynamic calendar integration data from calendar_providers and calendar_credentials tables
+ * Fetches dynamic calendar integration data from calendar_providers table
  */
 
 // API helper

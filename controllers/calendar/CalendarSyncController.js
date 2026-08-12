@@ -36,12 +36,14 @@ class CalendarSyncController {
   }
 
   /**
-   * Global calendar sync - syncs all authenticated users
+   * Global calendar sync - syncs all connected users' calendars
+   * Only users with a connected calendar (refresh token available) are synced,
+   * so the access token can always be refreshed and meeting sync stays active.
    */
   static async globalSync() {
     try {
-      const users = await CalendarUsersModel.getAllUsers();
-      logger.debug(`Global Sync: checking ${users.length} authenticated users`);
+      const users = await CalendarUsersModel.getConnectedUsers();
+      logger.debug(`Global Sync: checking ${users.length} connected users (have refresh token)`);
 
       const results = [];
       for (const user of users) {

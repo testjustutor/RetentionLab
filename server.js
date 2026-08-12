@@ -93,12 +93,18 @@ registerRoutes(app);
 // ============================================================================
 
 /**
- * Global calendar sync - runs every 30 minutes
- * Syncs all authenticated users' calendar events
+ * Global calendar sync - runs periodically.
+ * Syncs connected users' calendar events. Uses try/finally so the loop is
+ * always re-scheduled even if a sync run throws, keeping auto-sync alive.
  */
 async function scheduleBackgroundSync() {
-  await CalendarSyncController.globalSync();
-  setTimeout(scheduleBackgroundSync, 30 * 60 * 1000);
+  try {
+    await CalendarSyncController.globalSync();
+  } catch (err) {
+    logger.error('Background calendar sync error:', err.message);
+  } finally {
+    setTimeout(scheduleBackgroundSync, 1 * 60 * 1000);
+  }
 }
 
 // Expose controller methods for use in routes or other parts of the application
@@ -123,7 +129,7 @@ const io = new Server(httpServer, {
 });
 
 // Start bot polling
-setTimeout(pollQueuedMeetings, 30000);
+setTimeout(pollQueuedMeetings, 10000);
 
 // Database initialization and server startup
 initDB()
@@ -134,17 +140,15 @@ initDB()
     app.locals.db = db;
   })
   .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
-  .then(async () => {
-    // Optional background sync to reduce startup noise
-    if (process.env.RUN_CAL_SYNC_AT_START === 'true') {
-      await scheduleBackgroundSync();
-    } else {
-      logger.info('[Startup] Calendar sync at start disabled (set RUN_CAL_SYNC_AT_START=true to enable)');
-    }
+  .then(() => {
+    // Always run the background calendar sync so connected calendars stay
+    // refreshed (via their refresh token) and meetings stay in sync.
+    scheduleBackgroundSync();
+    logger.info('[Startup] Background calendar sync scheduled (runs every 1m seconds)');
 
     httpServer.listen(PORT, () => {
       logger.info(`(ServerJS File): Server is LIVE on Port: ${PORT}`);
-      logger.info(`(ServerJS File): Auto-Sync (1min) and Polling (30s) are now ACTIVE.`);
+      logger.info(`(ServerJS File): Auto-Sync (1m) and Polling (10s) are now ACTIVE.`);
     });
   })
   .catch(err => {

@@ -16,11 +16,11 @@ class SessionQualityFilterModel {
       SELECT DISTINCT u.id as user_id, u.first_name, u.last_name, u.email
       FROM users u
       JOIN roles r ON r.id = u.role_id
-      LEFT JOIN calendar_integrations ci ON ci.user_id = u.id
+      LEFT JOIN calendar_connections cc ON cc.user_id = u.id
       WHERE r.role_name = 'instructor'
         AND u.status = 'active'
         AND u.created_by = ?
-        AND ci.id IS NOT NULL
+        AND cc.id IS NOT NULL
       ORDER BY u.first_name, u.last_name
     `;
     return new Promise((resolve, reject) => {

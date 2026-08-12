@@ -74,8 +74,6 @@ class CalendarProvidersModel {
   }
 
   static async deleteById(id) {
-    // ON DELETE behavior depends on FK; do explicit delete of credentials first if needed.
-    await runAsync(`DELETE FROM calendar_credentials WHERE provider_id=?`, [id]);
     await runAsync(`DELETE FROM calendar_providers WHERE id=?`, [id]);
     return { success: true };
   }

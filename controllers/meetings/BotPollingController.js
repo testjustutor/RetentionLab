@@ -62,7 +62,7 @@ class BotPollingController {
     } catch (err) {
       logger.error('Polling error:', err);
     } finally {
-      setTimeout(BotPollingController.pollQueuedMeetings, 30000);
+      setTimeout(BotPollingController.pollQueuedMeetings, 10000); //  10s poll
     }
   }
 }

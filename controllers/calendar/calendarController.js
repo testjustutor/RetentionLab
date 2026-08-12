@@ -41,7 +41,7 @@ const controller = {
       const users = await CalendarUsersModel.getAllUsers();
       res.json({ status: 'success', count: users.length, data: users.map(u => ({
         id: u.user_id_ref || u.user_id || null, email: u.email,
-        tokenExpiry: u.token_expiry ? new Date(u.token_expiry).toLocaleString() : null,
+        tokenExpiry: u.token_expires_at ? new Date(u.token_expires_at).toLocaleString() : null,
         updated: u.updated_at, role_name: u.role_name || null
       })) });
     } catch (err) {

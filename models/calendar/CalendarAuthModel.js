@@ -55,21 +55,32 @@ class CalendarAuthModel {
       return null;
     }
     
-    logger.debug(`[CalendarAuthModel] Retrieved tokens from calendar_integrations for ${userIdOrEmail}: access_token=${!!user.access_token}, refresh_token=${!!user.refresh_token}, expiry=${user.token_expiry}`);
+    logger.debug(`[CalendarAuthModel] Retrieved tokens from calendar_connections for ${userIdOrEmail}: access_token=${!!user.access_token}, refresh_token=${!!user.refresh_token}, expiry=${user.token_expires_at}`);
     
     return {
       access_token: user.access_token,
       refresh_token: user.refresh_token,
-      expiry_date: user.token_expiry
+      expiry_date: user.token_expires_at
     };
   }
 
   /**
    * Save user tokens to database
+   * Accepts either a numeric user id or an email (an email is resolved to the
+   * user id, because calendar_connections.user_id is a FK to users.id).
    */
-  static async saveUserTokens(userId, tokens) {
-    if (!userId) throw new Error('Missing userId');
-    
+  static async saveUserTokens(userIdOrEmail, tokens) {
+    if (!userIdOrEmail) throw new Error('Missing userId');
+
+    // Resolve email -> user id if an email was passed instead of an id
+    let userId = userIdOrEmail;
+    if (typeof userIdOrEmail === 'string' && userIdOrEmail.includes('@')) {
+      const UsersModel = require('../users/UsersModel');
+      const user = await UsersModel.getUserByEmail(userIdOrEmail);
+      if (!user) throw new Error(`User not found for email ${userIdOrEmail}`);
+      userId = user.id;
+    }
+
     // Try to get provider_id from calendar_providers for Google
     let providerId = null;
     try {
@@ -82,7 +93,7 @@ class CalendarAuthModel {
     } catch (err) {
       logger.warn(`[CalendarAuthModel] Could not lookup provider_id for google:`, err.message);
     }
-    
+
     await CalendarUsersModel.createOrUpdateUserCalendar(userId, {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,

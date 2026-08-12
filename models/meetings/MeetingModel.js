@@ -70,18 +70,25 @@ class MeetingModel {
           } else {
             // Update existing meeting with fresh data from calendar sync
             db.run(
-              `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, scheduled_end_time = ?, title = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
-              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.scheduled_end_time || null, meetingData.title, meetingData.timezone || null, meetingData.eventId],
+              `UPDATE meetings SET platform = ?, passcode = ?, meeting_link = ?, scheduled_start_time = ?, scheduled_end_time = ?, title = ?, timezone = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+              [meetingData.platform, meetingData.passcode || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.scheduled_end_time || null, meetingData.title, meetingData.timezone || null, meetingData.description || null, meetingData.eventId],
               function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, updated: true, ...meetingData }); }
             );
           }
         } else {
-          const insertSql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, meeting_link, scheduled_start_time, title, scheduled_end_time, timezone, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, CURRENT_TIMESTAMP)`;
+          const insertSql = `INSERT INTO meetings (external_meeting_id, platform, passcode, event_id, calendar_account, meeting_link, scheduled_start_time, title, scheduled_end_time, timezone, description, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, CURRENT_TIMESTAMP)`;
           const insertParams = [
-            meetingData.meetingId, meetingData.platform, meetingData.passcode || null, meetingData.eventId,
-            meetingData.account, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.title,
-            meetingData.scheduled_end_time || null, meetingData.timezone || null, meetingData.sessionId || null,
-            meetingData.company_id || null, meetingData.owner_user_id || null, meetingData.reviewer_id || null,
+            meetingData.meetingId,
+            meetingData.platform,
+            meetingData.passcode || null,
+            meetingData.eventId,
+            meetingData.account,
+            meetingData.meetingLink,
+            meetingData.scheduled_start_time || null,
+            meetingData.title,
+            meetingData.scheduled_end_time || null,
+            meetingData.timezone || null,
+            meetingData.description || null,
             meetingData.created_by_user_id || null
           ];
           db.run(insertSql, insertParams, function(err) {
@@ -436,7 +443,7 @@ class MeetingModel {
 
   static getUserStats() {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT ci.id, u.email, ci.provider, ci.token_expiry, ci.status, ci.created_at, ci.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.scheduled_start_time IS NOT NULL AND m.scheduled_end_time IS NOT NULL THEN CAST((julianday(m.scheduled_end_time) - julianday(m.scheduled_start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = u.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.scheduled_end_time ELSE NULL END) AS last_meeting_at FROM calendar_integrations ci LEFT JOIN users u ON u.id = ci.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN meetings m ON m.calendar_account = u.email GROUP BY ci.id ORDER BY u.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
+      db.all(`SELECT cc.id, u.email, cp.name AS provider, cc.token_expires_at AS token_expiry, cc.connection_status AS status, cc.created_at, cc.updated_at, u.id AS user_id, r.role_name, COUNT(m.id) AS total_meetings, SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) AS completed_meetings, COALESCE(SUM(CASE WHEN m.status = 'completed' AND m.scheduled_start_time IS NOT NULL AND m.scheduled_end_time IS NOT NULL THEN CAST((julianday(m.scheduled_end_time) - julianday(m.scheduled_start_time)) * 86400 AS INTEGER) ELSE 0 END), 0) AS total_duration_seconds, (SELECT m2.platform FROM meetings m2 WHERE m2.calendar_account = u.email AND m2.platform IS NOT NULL GROUP BY m2.platform ORDER BY COUNT(*) DESC LIMIT 1) AS top_platform, MAX(CASE WHEN m.status = 'completed' THEN m.scheduled_end_time ELSE NULL END) AS last_meeting_at FROM calendar_connections cc LEFT JOIN users u ON u.id = cc.user_id LEFT JOIN roles r ON r.id = u.role_id LEFT JOIN calendar_providers cp ON cp.id = cc.provider_id LEFT JOIN meetings m ON m.calendar_account = u.email GROUP BY cc.id ORDER BY u.email ASC`, [], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching user stats:', err); reject(err); } else resolve(rows); });
     });
   }
 

@@ -5,7 +5,6 @@
  * OAuth credentials must be configured via .env file only.
  */
 const CalendarProvidersModel = require('../../models/calendar/CalendarProvidersModel');
-const CalendarCredentialsModel = require('../../models/calendar/CalendarCredentialsModel');
 
 // Helper wrapper similar to other controllers
 function handle(fn) {
@@ -23,17 +22,9 @@ const getIntegrationStatus = async (req, res) => {
   try {
     // Get all active providers
     const providers = await CalendarProvidersModel.getAll({ includeInactive: false });
-    
-    // Get all active credentials
-    const credentials = await CalendarCredentialsModel.getAll({ includeInactive: false });
-    
-    // Create a map of provider_id -> credential for quick lookup
-    const credentialMap = new Map();
-    credentials.forEach(cred => {
-      credentialMap.set(cred.provider_id, cred);
-    });
-    
-    // Join providers with their credentials
+
+    // OAuth credentials are configured via .env file (not stored in DB), so an
+    // active provider is considered configured.
     const integrations = providers.map(provider => ({
       id: provider.id,
       provider_id: provider.provider_id,
@@ -43,10 +34,9 @@ const getIntegrationStatus = async (req, res) => {
       token_url: provider.token_url,
       scopes: provider.scopes,
       is_active: provider.is_active,
-      has_credentials: credentialMap.has(provider.id),
-      credential: credentialMap.get(provider.id) || null
+      has_credentials: true
     }));
-    
+
     res.json({ 
       success: true, 
       data: integrations 

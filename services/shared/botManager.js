@@ -110,7 +110,7 @@ class BotManager {
   async launchFromDb(meetingRecord) {
     let session = null;
     try {
-      const meetingId = meetingRecord.meeting_id;
+      const meetingId = meetingRecord.external_meeting_id;
       const platform = meetingRecord.platform;
       const passcode = meetingRecord.passcode || '';
 

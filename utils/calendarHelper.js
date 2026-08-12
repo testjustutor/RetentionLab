@@ -169,10 +169,11 @@ class CalendarHelper {
         passcode: passcode,
         account: email,
         meetingLink: link,
-        startTime: e.start.dateTime || e.start.date,
-        endTime: e.end.dateTime || e.end.date,
-        timezone: e.start.timezone,
-        title: e.summary || 'Untitled Meeting'
+        scheduled_start_time: e.start.dateTime || e.start.date,
+        scheduled_end_time: e.end.dateTime || e.end.date,
+        timezone: e.start.timeZone || e.start.timezone || null,
+        title: e.summary || 'Untitled Meeting',
+        description: e.description ? e.description : 'no description'
       });
       return true;
     }
