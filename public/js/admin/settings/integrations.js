@@ -52,7 +52,7 @@
       disabled: 'bg-slate-200 text-slate-600 border-slate-300'
     };
     const cls = map[val] || (activeCls || 'bg-slate-100 text-slate-600 border-slate-200');
-    return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-sm font-medium border ' + cls + '">' + escHtml(value || 'unknown') + '</span>';
+    return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium border ' + cls + '">' + escHtml(value || 'unknown') + '</span>';
   }
 
   // ── Render summary stat cards ──
@@ -106,14 +106,14 @@
               : '<span class="px-2 py-0.5 rounded-full text-sm font-bold bg-slate-200 text-slate-700 border border-slate-300">Inactive</span>') +
           '</div>' +
           '<div class="grid grid-cols-3 gap-2">' +
-            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.connected_count || 0) + '</p><p class="text-xs font-bold-400 ' + t.text + '/80 uppercase">Connected</p></div>' +
-            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.active_connections || 0) + '</p><p class="text-xs font-bold-400 ' + t.text + '/80 uppercase">Active</p></div>' +
-            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.verified_connections || 0) + '</p><p class="text-xs font-bold-400 ' + t.text + '/80 uppercase">Verified</p></div>' +
+            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.connected_count || 0) + '</p><p class="text-[10px] font-bold-400 ' + t.text + '/80 uppercase">Connected</p></div>' +
+            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.active_connections || 0) + '</p><p class="text-[10px] font-bold-400 ' + t.text + '/80 uppercase">Active</p></div>' +
+            '<div class="rounded-md ' + t.chip + ' border px-2 py-2 text-center"><p class="text-sm font-medium ' + accent + '">' + (p.verified_connections || 0) + '</p><p class="text-[10px] font-bold-400 ' + t.text + '/80 uppercase">Verified</p></div>' +
           '</div>' +
           '<div class="mt-3 space-y-1.5 ' + t.text + '">' +
-            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Join</span><span class="text-[12px] font-semibold">' + escHtml(p.join_strategy || 'webclient') + '</span></p>' +
-            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Passcode</span><span class="text-[12px] font-semibold">' + (p.requires_passcode ? 'Yes' : 'No') + '</span></p>' +
-            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Scopes</span><span class="text-[12px] font-semibold">' + scopes + '</span></p>' +
+            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Join</span><span class="text-[12px] font-bold-500">' + escHtml(p.join_strategy || 'webclient') + '</span></p>' +
+            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Passcode</span><span class="text-[12px] font-bold-500">' + (p.requires_passcode ? 'Yes' : 'No') + '</span></p>' +
+            '<p class="flex justify-between"><span class="text-[10px] font-bold-600 uppercase">Scopes</span><span class="text-[12px] font-bold-500">' + scopes + '</span></p>' +
           '</div>' +
         '</div>'
       );
@@ -134,7 +134,7 @@
         { label: 'Connected At', key: 'connected_at', render: function (value) { return fmtDate(value); } },
         { label: 'Actions', key: 'connection_id', render: function (value, row) {
           if ((row.connection_status || '').toLowerCase() === 'active') {
-            return '<button class="disconnect-btn px-2.5 py-1 rounded-md bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold transition-colors" data-connection-id="' + value + '">Disconnect</button>';
+            return '<button class="disconnect-btn px-2.5 py-1 rounded-md bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold transition-colors" data-connection-id="' + value + '">Disconnect</button>';
           }
           return '<span class="text-sm text-slate-400">-</span>';
         } }
