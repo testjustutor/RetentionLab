@@ -1,196 +1,256 @@
+﻿/**
+ * Evaluation Reports dashboard (admin).
+ * Light theme + scrollable tables; filter bar (From/To + Active + Instructor + Get Data).
+ * No Chart.js - score trends render as a lightweight table.
+ */
 let allScores = [];
 let allMeetings = [];
-let trendsChart = null;
+let dateFilter = null;
+let instructorFilter = null;
 
 (async () => {
-  await loadScores();
-  updateStats();
-  renderEvaluationTable();
-  initChart();
+  // Date filter (30 days default). autoLoad:false => data is fetched only when Get Data is clicked.
+  dateFilter = createDateFilter({
+    days: 30,
+    autoLoad: false,
+    onFilter: (fromDate, toDate) => loadScores(fromDate, toDate)
+  });
+
+  // Instructor dropdown (Select2 via centralized component).
+  loadInstructors();
+
+  // Load initial data using the default (30-day) range.
+  loadScores();
 })();
 
-async function loadScores() {
+async function loadInstructors() {
   try {
-    const data = await apiFetch('/api/admin/evaluations/reports/summary');
-    allScores = data.scores || [];
-    allMeetings = data.meetings || [];
-    
-    // Update stats if available
-    if (data.stats) {
-      document.getElementById('totalMeetings').textContent = data.stats.totalMeetings || 0;
-      document.getElementById('avgAiScore').textContent = data.stats.avgAiScore || '0.0';
-      document.getElementById('avgHumanScore').textContent = data.stats.avgHumanScore || '0.0';
-      document.getElementById('totalRubrics').textContent = data.stats.totalRubrics || 0;
-      document.getElementById('totalReviewers').textContent = data.stats.totalReviewers || 0;
-    }
-  } catch(e) {
-    console.error('Failed to load scores:', e);
-    // Fallback to direct endpoints
-    try {
-      const scoresData = await apiFetch('/api/admin/scores');
-      allScores = scoresData.scores || [];
-    } catch(e2) { console.error('Fallback scores failed:', e2); }
-    try {
-      const meetingsData = await apiFetch('/api/admin/meetings/list');
-      allMeetings = meetingsData.meetings || [];
-    } catch(e2) { console.error('Fallback meetings failed:', e2); }
+    instructorFilter = createSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All instructors',
+      dataSource: async () => {
+        const json = await apiFetch('/api/admin/evaluations/reports/instructors');
+        return json.instructors || [];
+      },
+      displayField: 'name',
+      valueField: 'id'
+    });
+  } catch (e) {
+    console.error('Failed to load instructors:', e);
   }
 }
 
-// Rubrics derived from meeting/rubric score data
-function getRubricsForMeeting(meetingId) {
-  const meetingScores = allScores.filter(s => s.meeting_id === meetingId);
-  const rubricIds = new Set(meetingScores.map(s => s.rubric_id || s.category_id).filter(Boolean));
-  return Array.from(rubricIds);
+async function loadScores(fromDate, toDate) {
+  try {
+    if (!fromDate || !toDate) {
+      const dates = dateFilter.getDates();
+      fromDate = dates.fromDate;
+      toDate = dates.toDate;
+    }
+
+    const params = new URLSearchParams();
+    params.append('from_date', fromDate);
+    params.append('to_date', toDate);
+    const instructorId = instructorFilter ? instructorFilter.getValue() : null;
+    if (instructorId) params.append('instructor_id', instructorId);
+    const activeEl = document.getElementById('activeFilter');
+    if (activeEl && activeEl.checked) params.append('active', '1');
+
+    showLoadingRows();
+
+    const data = await apiFetch('/api/admin/evaluations/reports/summary?' + params.toString());
+    allScores = data.scores || [];
+    allMeetings = data.meetings || [];
+
+    const stats = data.stats || {};
+    document.getElementById('totalMeetings').textContent = stats.totalMeetings || 0;
+    document.getElementById('avgAiScore').textContent = stats.avgAiScore || '0.0';
+    document.getElementById('avgHumanScore').textContent = stats.avgHumanScore || '0.0';
+    document.getElementById('totalRubrics').textContent = stats.totalRubrics || 0;
+    document.getElementById('totalReviewers').textContent = stats.totalReviewers || 0;
+
+    renderScoreTrendTable();
+    renderEvaluationTable();
+    showToast('Evaluation data loaded successfully');
+  } catch (e) {
+    console.error('loadScores:', e);
+    allScores = [];
+    allMeetings = [];
+    renderScoreTrendTable();
+    renderEvaluationTable();
+    showToast('Failed to load evaluation data: ' + e.message, true);
+  }
 }
 
-function updateStats() {
-  const aiScores = allScores.filter(s => s.score_type === 'AI');
-  const humanScores = allScores.filter(s => s.score_type === 'HUMAN');
-
-  const avgAi = aiScores.length ? (aiScores.reduce((sum, s) => sum + (+s.score || 0), 0) / aiScores.length).toFixed(1) : '0.0';
-  const avgHuman = humanScores.length ? (humanScores.reduce((sum, s) => sum + (+s.score || 0), 0) / humanScores.length).toFixed(1) : '0.0';
-
-  document.getElementById('totalMeetings').textContent = allMeetings.length;
-  document.getElementById('avgAiScore').textContent = avgAi;
-  document.getElementById('avgHumanScore').textContent = avgHuman;
-  // Count unique indicator/category groups from scores
-  const rubricGroups = new Set(allScores.map(s => s.category_id || s.rubric_id).filter(Boolean));
-  document.getElementById('totalRubrics').textContent = rubricGroups.size || 0;
-
-  // Count unique reviewers
-  const reviewerIds = new Set(allScores.map(s => s.reviewer_id).filter(Boolean));
-  document.getElementById('totalReviewers').textContent = reviewerIds.size;
+function showLoadingRows() {
+  const eBody = document.getElementById('evaluationBody');
+  const tBody = document.getElementById('scoreTrendBody');
+  if (eBody) eBody.innerHTML = `<tr><td class='py-6 px-2 text-blue-800 text-center' colspan='7'>Loading evaluation data...</td></tr>`;
+  if (tBody) tBody.innerHTML = `<tr><td colspan='3' class='py-2 text-center text-indigo-800 font-medium'>Loading...</td></tr>`;
 }
 
-function renderEvaluationTable() {
-  const tbody = document.getElementById('evaluationBody');
-  const filterType = document.getElementById('scoreTypeFilter')?.value || '';
-
-  // Group scores by meeting
+function groupScoresByMeeting() {
   const byMeeting = {};
-  allScores.forEach(score => {
+  allScores.forEach((score) => {
     const mid = score.meeting_id || 'unknown';
     if (!byMeeting[mid]) byMeeting[mid] = { ai: [], human: [] };
     if (score.score_type === 'AI') byMeeting[mid].ai.push(+score.score || 0);
     else byMeeting[mid].human.push(+score.score || 0);
   });
+  return byMeeting;
+}
 
-  const meetings = allMeetings.filter(m => !filterType || byMeeting[m.meeting_id]);
-  
-  if (!meetings.length) {
-    tbody.innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="7">No evaluation data found</td></tr>';
+function getRubricsForMeeting(meetingId) {
+  const meetingScores = allScores.filter((s) => (s.meeting_id || '') === (meetingId || ''));
+  const rubricIds = new Set(meetingScores.map((s) => s.indicator_id || s.rubric_id || s.category_id).filter(Boolean));
+  return Array.from(rubricIds);
+}
+
+function computeScores(ms) {
+  if (!ms) return { ai: '-', human: '-', final: '-' };
+  const ai = ms.ai.length ? ms.ai.reduce((a, b) => a + b, 0) / ms.ai.length : null;
+  const human = ms.human.length ? ms.human.reduce((a, b) => a + b, 0) / ms.human.length : null;
+  const finals = [ai, human].filter((v) => v !== null);
+  return {
+    ai: ai === null ? '-' : ai.toFixed(1),
+    human: human === null ? '-' : human.toFixed(1),
+    final: finals.length ? (finals.reduce((a, b) => a + b, 0) / finals.length).toFixed(1) : '-'
+  };
+}
+
+function scoreColor(value) {
+  const v = parseFloat(value);
+  if (!value || value === '-' || isNaN(v)) return 'text-slate-600';
+  if (v >= 4) return 'text-emerald-700';
+  if (v >= 3) return 'text-blue-700';
+  return 'text-slate-600';
+}
+
+function renderScoreTrendTable() {
+  const tbody = document.getElementById('scoreTrendBody');
+  if (!tbody) return;
+  if (!allScores.length) {
+    tbody.innerHTML = `<tr><td colspan='3' class='py-2 text-center text-indigo-800 font-medium'>No trend data available</td></tr>`;
     return;
   }
-
-  let html = '';
-  meetings.forEach(m => {
-    const ms = byMeeting[m.meeting_id];
-    const rubrics = getRubricsForMeeting(m.meeting_id);
-    const aiAvg = ms?.ai?.length ? (ms.ai.reduce((a,b) => a+b, 0) / ms.ai.length).toFixed(1) : '-';
-    const humanAvg = ms?.human?.length ? (ms.human.reduce((a,b) => a+b, 0) / ms.human.length).toFixed(1) : '-';
-    const finalScore = ms ? (((ms.ai.reduce((a,b) => a+b, 0) + ms.human.reduce((a,b) => a+b, 0)) / (ms.ai.length + ms.human.length)) || 0).toFixed(1) : '-';
-    const totalReviews = (ms?.ai?.length || 0) + (ms?.human?.length || 0);
-
-    html += `<tr class="hover:bg-slate-800/30">
-      <td class="py-2 px-3 text-xs ">${escapeHtml(m.title || 'Untitled')}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-400">${rubrics.length} rubric${rubrics.length !== 1 ? 's' : ''}</td>
-      <td class="py-2 px-3 text-[10px] font-medium ${+aiAvg >= 4 ? 'text-emerald-600' : +aiAvg >= 3 ? 'text-blue-400' : 'text-slate-400'}">${aiAvg}</td>
-      <td class="py-2 px-3 text-[10px] font-medium ${+humanAvg >= 4 ? 'text-emerald-600' : +humanAvg >= 3 ? 'text-blue-400' : 'text-slate-400'}">${humanAvg}</td>
-      <td class="py-2 px-3 text-xs font-bold ">${finalScore}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-400">${totalReviews}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-500">${formatDate(m.start_time)}</td>
-    </tr>`;
+  const byDate = {};
+  allScores.forEach((s) => {
+    const iso = s.scored_at ? new Date(s.scored_at).toISOString().slice(0, 10) : 'unknown';
+    if (!byDate[iso]) {
+      byDate[iso] = {
+        label: s.scored_at ? new Date(s.scored_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown',
+        ai: [],
+        human: []
+      };
+    }
+    if (s.score_type === 'AI') byDate[iso].ai.push(+s.score || 0);
+    else byDate[iso].human.push(+s.score || 0);
   });
-
+  const entries = Object.entries(byDate).sort((a, b) => {
+    if (a[0] === 'unknown') return 1;
+    if (b[0] === 'unknown') return -1;
+    return a[0].localeCompare(b[0]);
+  });
+  let html = '';
+  entries.forEach((entry) => {
+    const group = entry[1];
+    const aiAvg = group.ai.length ? (group.ai.reduce((x, y) => x + y, 0) / group.ai.length).toFixed(1) : '-';
+    const hAvg = group.human.length ? (group.human.reduce((x, y) => x + y, 0) / group.human.length).toFixed(1) : '-';
+    html += `<tr class='border-b border-indigo-200 hover:bg-indigo-100/70 transition-colors'>`;
+    html += `<td class='py-2 px-2 text-[11px] font-bold text-indigo-950'>${escapeHtml(group.label)}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] font-medium ${scoreColor(aiAvg)} text-right'>${aiAvg}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] font-medium ${scoreColor(hAvg)} text-right'>${hAvg}</td>`;
+    html += `</tr>`;
+  });
   tbody.innerHTML = html;
 }
 
-function initChart() {
-  const ctx = document.getElementById('trendsChart').getContext('2d');
-  
-  // Group scores by date
-  const byDate = {};
-  allScores.forEach(s => {
-    const date = new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (!byDate[date]) byDate[date] = { ai: [], human: [] };
-    if (s.score_type === 'AI') byDate[date].ai.push(+s.score || 0);
-    else byDate[date].human.push(+s.score || 0);
+function renderEvaluationTable() {
+  const tbody = document.getElementById('evaluationBody');
+  if (!tbody) return;
+  const typeEl = document.getElementById('scoreTypeFilter');
+  const filterType = typeEl ? typeEl.value : '';
+  const byMeeting = groupScoresByMeeting();
+  const meetings = allMeetings.filter((m) => {
+    const mid = String(m.id || "");
+    return !filterType || byMeeting[mid];
   });
-
-  const dates = Object.keys(byDate).sort((a,b) => new Date(a) - new Date(b));
-  const aiAvgs = dates.map(d => byDate[d].ai.length ? (byDate[d].ai.reduce((a,b) => a+b, 0) / byDate[d].ai.length) : null);
-  const humanAvgs = dates.map(d => byDate[d].human.length ? (byDate[d].human.reduce((a,b) => a+b, 0) / byDate[d].human.length) : null);
-
-  trendsChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: dates,
-      datasets: [
-        {
-          label: 'AI Score',
-          data: aiAvgs,
-          borderColor: 'rgba(139, 92, 246, 1)',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          tension: 0.4,
-          pointRadius: 4
-        },
-        {
-          label: 'Human Score',
-          data: humanAvgs,
-          borderColor: 'rgba(34, 197, 94, 1)',
-          backgroundColor: 'rgba(34, 197, 94, 0.1)',
-          tension: 0.4,
-          pointRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: '#e2e8f0' } }
-      },
-      scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-        y: { min: 0, max: 5, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
-      }
-    }
+  if (!meetings.length) {
+    tbody.innerHTML = `<tr><td class='py-6 px-2 text-blue-800 text-center' colspan='7'>No evaluation data found</td></tr>`;
+    return;
+  }
+  let html = '';
+  meetings.forEach((m) => {
+    const mid = String(m.id || "");
+    const comp = computeScores(byMeeting[mid]);
+    const rubrics = getRubricsForMeeting(mid);
+    const ms = byMeeting[mid];
+    const totalReviews = (ms && ms.ai ? ms.ai.length : 0) + (ms && ms.human ? ms.human.length : 0);
+    const meetDate = m.scheduled_start_time || m.start_time || m.actual_start_time;
+    const title = escapeHtml(m.title || 'Untitled');
+    html += `<tr class='border-b border-blue-200 hover:bg-blue-100/70 transition-colors'>`;
+    html += `<td class='py-2 px-2 text-[11px] font-semibold text-blue-950' title='${title}'>${title}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] text-blue-800'>${rubrics.length} rubric${rubrics.length !== 1 ? 's' : ''}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] font-medium ${scoreColor(comp.ai)} text-right'>${comp.ai}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] font-medium ${scoreColor(comp.human)} text-right'>${comp.human}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] font-bold ${scoreColor(comp.final)} text-right'>${comp.final}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] text-blue-800 text-right'>${totalReviews}</td>`;
+    html += `<td class='py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap'>${formatDate(meetDate)}</td>`;
+    html += `</tr>`;
   });
+  tbody.innerHTML = html;
 }
 
-async function exportReport() {
-  try {
-    const rows = allScores.map(s => ({
-      meeting: s.meeting_title || 'Untitled',
-      indicator: s.indicator_name || 'Unknown',
-      type: s.score_type || 'HUMAN',
-      score: (+s.score || 0).toFixed(1),
-      reviewer: s.reviewer_name || 'System',
-      date: formatDate(s.created_at)
-    }));
-
-    if (!rows.length) { showToast('No data to export', true); return; }
-
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.join(',')].concat(rows.map(r => headers.map(k => `"${String(r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `evaluation-report-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showToast('Report exported');
-  } catch(e) { showToast('Export failed: ' + e.message, true); }
+function exportCsv() {
+  if (!allScores.length && !allMeetings.length) { showToast('No data to export', true); return; }
+  const NL = String.fromCharCode(10);
+  const DQ = String.fromCharCode(34);
+  const headers = ['Meeting', 'Rubric', 'AI Avg', 'Human Avg', 'Final Score', 'Reviews', 'Date'];
+  const byMeeting = groupScoresByMeeting();
+  const rows = allMeetings.map((m) => {
+    const mid = String(m.id || "");
+    const comp = computeScores(byMeeting[mid]);
+    const rubrics = getRubricsForMeeting(mid);
+    const ms = byMeeting[mid];
+    const totalReviews = (ms && ms.ai ? ms.ai.length : 0) + (ms && ms.human ? ms.human.length : 0);
+    return [
+      m.title || '',
+      rubrics.length,
+      comp.ai === '-' ? '' : comp.ai,
+      comp.human === '-' ? '' : comp.human,
+      comp.final === '-' ? '' : comp.final,
+      totalReviews,
+      formatDate(m.scheduled_start_time || m.start_time)
+    ];
+  });
+  const csv = [headers.join(',')].concat(rows.map((r) => r.map((v) => csvEscape(v, DQ)).join(','))).join(NL);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'evaluation-report-' + new Date().toISOString().split('T')[0] + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Report exported');
 }
 
-// Set up filter
+function csvEscape(v, DQ) {
+  let s = String(v == null ? '' : v);
+  const C = String.fromCharCode(44);
+  const NL = String.fromCharCode(10);
+  const CR = String.fromCharCode(13);
+  if (s.indexOf(DQ) >= 0 || s.indexOf(C) >= 0 || s.indexOf(NL) >= 0 || s.indexOf(CR) >= 0) {
+    s = DQ + s.split(DQ).join(DQ + DQ) + DQ;
+  }
+  return s;
+}
+
+// Re-render evaluation table when score-type filter changes (no refetch).
 document.addEventListener('change', (e) => {
   if (e.target.id === 'scoreTypeFilter') renderEvaluationTable();
+  if (e.target.id === 'activeFilter') loadScores();
 });
 
 function formatDate(d) {
@@ -204,3 +264,4 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
+

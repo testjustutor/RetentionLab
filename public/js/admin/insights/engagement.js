@@ -10,22 +10,36 @@ let instructorFilter = null;
   // Initialize date filter (30 days default) - sets default From/To dates in the filter.
   dateFilter = createDateFilter({
     days: 30,
+    autoLoad: false, // only fetch when Get Data is clicked (no auto-load on date change)
     onFilter: (fromDate, toDate) => loadEngagementData(fromDate, toDate)
   });
 
-  // Auto-load data when From or To date changes (same behavior as clicking Get Data)
-  document.getElementById('filterFromDate').addEventListener('change', () => {
-    const { fromDate, toDate } = dateFilter.getDates();
-    if (fromDate && toDate) loadEngagementData(fromDate, toDate);
-  });
-  document.getElementById('filterToDate').addEventListener('change', () => {
-    const { fromDate, toDate } = dateFilter.getDates();
-    if (fromDate && toDate) loadEngagementData(fromDate, toDate);
-  });
+  // Data is fetched only when the Get Data button is clicked (date/instructor changes do NOT auto-load).
+
+  // Load instructor filter dropdown (centralized component)
+  loadInstructors();
 
   // Load initial data on page load
   loadEngagementData();
 })();
+
+async function loadInstructors() {
+  try {
+    instructorFilter = createSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All instructors',
+      dataSource: async () => {
+        const json = await apiFetch('/api/admin/insights/instructors');
+        return json.instructors || [];
+      },
+      displayField: 'name',
+      valueField: 'id'
+      // No onSelect - instructor changes do NOT auto-load; use Get Data button
+    });
+  } catch (e) {
+    console.error('Failed to load instructors:', e);
+  }
+}
 
 async function loadEngagementData(fromDate, toDate) {
   try {
@@ -35,12 +49,15 @@ async function loadEngagementData(fromDate, toDate) {
       toDate = dates.toDate;
     }
 
+    const instructorId = instructorFilter ? instructorFilter.getValue() : null;
+
     const data = await apiFetch('/api/admin/insights/engagement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from_date: fromDate,
-        to_date: toDate
+        to_date: toDate,
+        instructor_id: instructorId
       })
     });
     engagementData = data;
@@ -127,7 +144,7 @@ function renderRecentSessions(sessions) {
       <td class="py-2 px-2 text-[11px] text-violet-900">${escapeHtml(session.instructor_name)}</td>
       <td class="py-2 px-2 text-[11px] text-violet-900 whitespace-nowrap">${formatDate(session.meeting_date)}</td>
       <td class="py-2 px-2 text-[11px] font-bold ${getEngagementColor(session.student_engagement)} text-right">${session.student_engagement}%</td>
-      <td class="py-2 px-2 text-[11px] font-semibold text-violet-900">${session.overall_rating ? escapeHtml(session.overall_rating) : '—'}</td>
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-900">${session.overall_rating ? escapeHtml(session.overall_rating) : 'ï¿½'}</td>
     </tr>`).join('');
 }
 

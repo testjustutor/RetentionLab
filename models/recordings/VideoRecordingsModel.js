@@ -99,7 +99,6 @@ class VideoRecordingsModel {
         sql += ` LIMIT ?`;
         params.push(filters.limit);
       }
-
       db.all(sql, params, (err, rows) => {
         if (err) {
           logger.error('[VideoRecordingsModel] Get assets error:', err);

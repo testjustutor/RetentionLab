@@ -7,6 +7,9 @@ const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
 const requireSuperAdmin = requireRole('super_admin');
 const settingsController = require('../controllers/settings/settingsController');
+const organizationController = require('../controllers/settings/organizationController');
+const notificationSettingsController = require('../controllers/settings/notificationSettingsController');
+const meetingSettingsController = require('../controllers/settings/meetingSettingsController');
 
 
 function handle(fn) {
@@ -35,5 +38,17 @@ router.post('/user/bulk', requireAuth, requireSuperAdmin, handle(settingsControl
 // Import/Export Routes (Super Admin only)
 router.get('/export', requireAuth, requireSuperAdmin, handle(settingsController.exportSettings));
 router.post('/import', requireAuth, requireSuperAdmin, handle(settingsController.importSettings));
+
+// Organization Settings Routes (admin)
+router.get('/organization', requireAuth, handle(organizationController.get));
+router.put('/organization', requireAuth, handle(organizationController.update));
+
+// Notification Settings Routes (admin)
+router.get('/notifications', requireAuth, handle(notificationSettingsController.get));
+router.put('/notifications', requireAuth, handle(notificationSettingsController.update));
+
+// Meeting Settings Routes (admin)
+router.get('/meetings', requireAuth, handle(meetingSettingsController.get));
+router.put('/meetings', requireAuth, handle(meetingSettingsController.update));
 
 module.exports = router;

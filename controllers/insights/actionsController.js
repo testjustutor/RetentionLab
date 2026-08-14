@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Action Items Insights Controller
  * Provides dynamic action items from coaching feedback and session quality data
  */
@@ -14,101 +14,10 @@ const controller = {
       const user = req.user;
       const { from_date, to_date, instructor_id, status } = req.body;
 
-      // Get action items from teacher coaching feedback
-      let sql = `
-        SELECT
-          tcf.id,
-          tcf.meeting_id,
-          tcf.recommended_action as action_text,
-          'medium' as priority,
-          'pending' as status,
-          tcf.created_at,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM teacher_coaching_feedback tcf
-        JOIN meetings m ON m.id = tcf.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-      `;
-      const params = [];
-
-      // Filter by company (admin sees their company's data)
-      if (user.role_name === 'admin') {
-        sql += ' AND u.company_id = ?';
-        params.push(user.company_id);
-      }
-
-      // Filter by date range
-      if (from_date) {
-        sql += ' AND m.scheduled_start_time >= ?';
-        params.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        sql += ' AND m.scheduled_start_time <= ?';
-        params.push(to_date + ' 23:59:59');
-      }
-
-      // Filter by instructor
-      if (instructor_id) {
-        sql += ' AND u.id = ?';
-        params.push(parseInt(instructor_id));
-      }
-
-      // Filter by status (tables don't have status column - all are pending)
-      // Only filter if status is not 'pending'
-      if (status && status !== 'pending') {
-        sql += ' AND 1=0';
-      }
-
-      sql += ' ORDER BY tcf.created_at DESC LIMIT 100';
-
+      // Get action items from teacher coaching feedback (SQL lives in ActionsModel)
       const actionItems = await ActionsModel.getCoachingActionItems(user, { from_date, to_date, instructor_id, status });
 
-      // Also get better alternatives as action items
-      let altSql = `
-        SELECT
-          tba.id,
-          tba.meeting_id,
-          tba.better_alternative as action_text,
-          'medium' as priority,
-          'pending' as status,
-          tba.created_at,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM teacher_better_alternatives tba
-        JOIN meetings m ON m.id = tba.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-      `;
-      const altParams = [...params];
-
-      if (user.role_name === 'admin') {
-        altSql += ' AND u.company_id = ?';
-        altParams.push(user.company_id);
-      }
-      if (from_date) {
-        altSql += ' AND m.scheduled_start_time >= ?';
-        altParams.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        altSql += ' AND m.scheduled_start_time <= ?';
-        altParams.push(to_date + ' 23:59:59');
-      }
-      if (instructor_id) {
-        altSql += ' AND u.id = ?';
-        altParams.push(parseInt(instructor_id));
-      }
-      // Filter by status (tables don't have status column - all are pending)
-      if (status && status !== 'pending') {
-        altSql += ' AND 1=0';
-      }
-
-      altSql += ' ORDER BY tba.created_at DESC LIMIT 100';
-
+      // Get better alternatives as action items (SQL lives in ActionsModel)
       const alternatives = await ActionsModel.getBetterAlternatives(user, { from_date, to_date, instructor_id, status });
 
       // Combine and deduplicate

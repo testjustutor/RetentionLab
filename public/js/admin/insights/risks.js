@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Risks Insights Page
  * Displays dynamic risks and issues from session quality flags and low scores
  */
@@ -34,7 +34,7 @@ async function loadRisks() {
   try {
     const { fromDate, toDate } = dateFilter.getDates();
     const severityValue = severityFilter ? severityFilter.getValue() : null;
-    
+
     const body = {
       from_date: fromDate,
       to_date: toDate
@@ -50,11 +50,11 @@ async function loadRisks() {
       body: JSON.stringify(body)
     });
     risksData = data;
-    
+
     renderSummary(data.summary);
-    renderInstructorBreakdown(data.instructor_breakdown);
+    renderInstructorTable(data.instructor_breakdown);
     renderRecentRisks(data.recent_risks);
-    
+
     showToast('Risks data loaded successfully');
   } catch (e) {
     console.error('Failed to load risks:', e);
@@ -68,109 +68,110 @@ function renderSummary(summary) {
   document.getElementById('mediumRisks').textContent = summary.medium_risks || 0;
   document.getElementById('lowRisks').textContent = summary.low_risks || 0;
 
-  // Risk type distribution
-  const types = summary.risk_type_distribution || { quality_flag: 0, quality_score: 0 };
-  document.getElementById('qualityFlagRisks').textContent = types.quality_flag || 0;
-  document.getElementById('qualityScoreRisks').textContent = types.quality_score || 0;
+  renderRiskTypeDistribution(summary.risk_type_distribution);
 }
 
-function renderInstructorBreakdown(instructors) {
-  const container = document.getElementById('instructorBreakdown');
-  
-  if (!instructors || instructors.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No instructor data available</p>';
+function renderRiskTypeDistribution(distribution) {
+  const tbody = document.getElementById('riskTypeTableBody');
+  if (!tbody) return;
+
+  const types = distribution || { quality_flag: 0, quality_score: 0 };
+  const rows = [
+    { label: 'Quality Flag', count: types.quality_flag || 0, color: 'text-violet-700' },
+    { label: 'Low Quality Score', count: types.quality_score || 0, color: 'text-cyan-700' }
+  ];
+
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+
+  if (total === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="py-2 px-2 text-center text-violet-800 font-medium">No data available</td></tr>';
     return;
   }
 
-  const html = instructors.map(inst => {
-    const riskScore = inst.total_risks > 0 
-      ? Math.round(((inst.high_risks * 3 + inst.medium_risks * 2 + inst.low_risks) / (inst.total_risks * 3)) * 100)
-      : 0;
-    
+  tbody.innerHTML = rows.map(r => {
+    const pct = total > 0 ? ((r.count / total) * 100).toFixed(1) : '0.0';
     return `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-center justify-between">
-        <div class="flex-1">
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(inst.instructor_name)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${inst.total_risks} risk${inst.total_risks !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="flex gap-3">
-          <div class="text-right">
-            <p class="text-sm font-bold text-red-400">${inst.high_risks}</p>
-            <p class="text-[10px] text-slate-500">High</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold text-amber-800">${inst.medium_risks}</p>
-            <p class="text-[10px] text-slate-500">Medium</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold text-slate-400">${inst.low_risks}</p>
-            <p class="text-[10px] text-slate-500">Low</p>
-          </div>
-        </div>
-      </div>
-      <div class="mt-2 pt-2 border-t border-slate-700/50">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] text-slate-400">Risk Score</span>
-          <span class="text-xs font-bold ${riskScore >= 60 ? 'text-red-400' : riskScore >= 30 ? 'text-amber-800' : 'text-emerald-600'}">${riskScore}%</span>
-        </div>
-        <div class="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-          <div class="h-full ${riskScore >= 60 ? 'bg-red-500' : riskScore >= 30 ? 'bg-amber-800' : 'bg-emerald-600'}" style="width: ${riskScore}%"></div>
-        </div>
-      </div>
-    </div>
-  `;
+      <tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">${escapeHtml(r.label)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${r.color} text-right">${r.count}</td>
+        <td class="py-2 px-2 text-[11px] font-semibold text-violet-800 text-right">${pct}%</td>
+      </tr>`;
   }).join('');
+}
 
-  container.innerHTML = html;
+function getSeverityColor(severity) {
+  switch (severity) {
+    case 'high': return 'text-red-600';
+    case 'low': return 'text-slate-600';
+    case 'medium':
+    default: return 'text-amber-700';
+  }
+}
+
+function getRiskTypeLabel(riskType) {
+  return riskType === 'quality_score' ? 'Low Score' : 'Quality Flag';
+}
+
+function getRiskTypeColor(riskType) {
+  return riskType === 'quality_score' ? 'text-cyan-700' : 'text-violet-700';
+}
+
+function renderInstructorTable(instructors) {
+  const tbody = document.getElementById('instructorTable');
+  if (!tbody) return;
+
+  if (!instructors || instructors.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="py-2 px-2 text-center text-red-800 font-medium">No instructor data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = instructors.map(inst => {
+    const total = inst.total_risks || 0;
+    const riskPct = total > 0
+      ? Math.round(((inst.high_risks * 3 + inst.medium_risks * 2 + inst.low_risks) / (total * 3)) * 100)
+      : 0;
+    return `
+      <tr class="border-b border-red-200 hover:bg-red-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-red-950">${escapeHtml(inst.instructor_name)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-red-700 text-right">${total}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-red-600 text-right">${inst.high_risks || 0}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-amber-700 text-right">${inst.medium_risks || 0}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-slate-600 text-right">${inst.low_risks || 0}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-red-700 text-right">${riskPct}%</td>
+      </tr>`;
+  }).join('');
 }
 
 function renderRecentRisks(risks) {
-  const container = document.getElementById('recentRisks');
-  
+  const tbody = document.getElementById('recentRisksTable');
+  if (!tbody) return;
+
   if (!risks || risks.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No risks identified</p>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-2 px-2 text-center text-amber-800 font-medium">No risks identified</td></tr>';
     return;
   }
 
-  const html = risks.map(risk => {
-    const severityColors = {
-      'high': 'border-red-500/30 bg-red-500/5',
-      'medium': 'border-amber-500/30 bg-amber-500/5',
-      'low': 'border-slate-500/30 bg-slate-500/5'
-    };
-    const severityBadgeColors = {
-      'high': 'bg-red-500/10 text-red-400',
-      'medium': 'bg-amber-500/10 text-amber-800',
-      'low': 'bg-slate-500/10 text-slate-400'
-    };
-    const typeBadgeColors = {
-      'quality_flag': 'bg-violet-500/10 text-violet-400',
-      'quality_score': 'bg-cyan-500/10 text-cyan-400'
-    };
-    
-    return `
-    <div class="border ${severityColors[risk.severity] || severityColors.medium} rounded-md p-3 hover:bg-slate-800/30 transition-colors">
-      <div class="flex items-start gap-2">
-        <div class="flex-shrink-0 mt-0.5">
-          <span class="text-base font-bold ${risk.severity === 'high' ? 'text-red-400' : risk.severity === 'medium' ? 'text-amber-800' : 'text-slate-400'}">!</span>
-        </div>
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="text-[10px] px-1.5 py-0.5 rounded ${severityBadgeColors[risk.severity] || severityBadgeColors.medium}">${risk.severity || 'medium'}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded ${typeBadgeColors[risk.risk_type] || typeBadgeColors.quality_flag}">${risk.risk_type === 'quality_score' ? 'Low Score' : 'Quality Flag'}</span>
-          </div>
-          <p class="text-xs font-semibold text-slate-100 mb-1">${escapeHtml(risk.risk_description)}</p>
-          ${risk.evidence ? `<p class="text-[10px] text-slate-400 mb-1.5 line-clamp-2">${escapeHtml(risk.evidence)}</p>` : ''}
-          ${risk.recommended_fix ? `<p class="text-[10px] text-emerald-400 mb-1.5">Fix: ${escapeHtml(risk.recommended_fix)}</p>` : ''}
-          <p class="text-[10px] text-slate-500">${formatDate(risk.meeting_date)} • ${escapeHtml(risk.instructor_name)}</p>
-        </div>
-      </div>
-    </div>
-  `;
-  }).join('');
+  tbody.innerHTML = risks.map(risk => {
+    const sev = risk.severity || 'medium';
+    const sevColor = getSeverityColor(sev);
+    const typeLabel = getRiskTypeLabel(risk.risk_type);
+    const typeColor = getRiskTypeColor(risk.risk_type);
+    const evidence = risk.evidence ? `<div class="mt-0.5 text-[10px] text-slate-500 line-clamp-2">${escapeHtml(risk.evidence)}</div>` : '';
+    const fix = risk.recommended_fix ? `<div class="mt-0.5 text-[10px] text-emerald-600 line-clamp-2">Fix: ${escapeHtml(risk.recommended_fix)}</div>` : '';
 
-  container.innerHTML = html;
+    return `
+      <tr class="border-b border-amber-200 hover:bg-amber-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-amber-950">
+          <div>${escapeHtml(risk.risk_description)}</div>
+          ${evidence}
+          ${fix}
+        </td>
+        <td class="py-2 px-2 text-[11px] font-bold ${sevColor}">${escapeHtml(sev)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${typeColor}">${escapeHtml(typeLabel)}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-700">${escapeHtml(risk.instructor_name)}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-600 text-right whitespace-nowrap">${formatDate(risk.meeting_date)}</td>
+      </tr>`;
+  }).join('');
 }
 
 function formatDate(dateStr) {

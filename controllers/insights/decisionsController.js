@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Decisions Insights Controller
  * Provides dynamic decision data from session evaluations and coaching feedback
  */
@@ -14,108 +14,10 @@ const controller = {
       const user = req.user;
       const { from_date, to_date, instructor_id, decision_type } = req.body;
 
-      // Get decisions from session final evaluations (recommended_action field)
-      let sql = `
-        SELECT
-          sfe.id,
-          sfe.session_id,
-          sfe.recommended_action as decision_text,
-          sfe.summary_narrative as context,
-          sfe.overall_session_rating,
-          sfe.teacher_performance,
-          sfe.student_engagement,
-          sfe.learning_impact,
-          sfe.parent_communication_readiness,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM session_final_evaluation sfe
-        JOIN meeting_sessions ms ON ms.id = sfe.session_id
-        JOIN meetings m ON m.id = ms.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-          AND sfe.recommended_action IS NOT NULL
-          AND sfe.recommended_action != ''
-      `;
-      const params = [];
-
-      // Filter by company (admin sees their company's data)
-      if (user.role_name === 'admin') {
-        sql += ' AND u.company_id = ?';
-        params.push(user.company_id);
-      }
-
-      // Filter by date range
-      if (from_date) {
-        sql += ' AND m.scheduled_start_time >= ?';
-        params.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        sql += ' AND m.scheduled_start_time <= ?';
-        params.push(to_date + ' 23:59:59');
-      }
-
-      // Filter by instructor
-      if (instructor_id) {
-        sql += ' AND u.id = ?';
-        params.push(parseInt(instructor_id));
-      }
-
-      // Filter by decision type (based on overall_session_rating)
-      if (decision_type) {
-        if (decision_type === 'positive') {
-          sql += ' AND sfe.overall_session_rating IN ("Excellent", "Good")';
-        } else if (decision_type === 'improvement') {
-          sql += ' AND sfe.overall_session_rating IN ("Average", "Needs Improvement")';
-        }
-      }
-
-      sql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
-
+      // Get decisions from session final evaluations (SQL lives in DecisionsModel)
       const decisions = await DecisionsModel.getEvaluationDecisions(user, { from_date, to_date, instructor_id, decision_type });
 
-      // Also get decisions from teacher coaching feedback
-      let coachingSql = `
-        SELECT
-          tcf.id,
-          tcf.meeting_id,
-          tcf.recommended_action as decision_text,
-          'coaching' as decision_source,
-          'medium' as priority,
-          'pending' as status,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM teacher_coaching_feedback tcf
-        JOIN meetings m ON m.id = tcf.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-          AND tcf.recommended_action IS NOT NULL
-          AND tcf.recommended_action != ''
-      `;
-      const coachingParams = [];
-
-      if (user.role_name === 'admin') {
-        coachingSql += ' AND u.company_id = ?';
-        coachingParams.push(user.company_id);
-      }
-      if (from_date) {
-        coachingSql += ' AND m.scheduled_start_time >= ?';
-        coachingParams.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        coachingSql += ' AND m.scheduled_start_time <= ?';
-        coachingParams.push(to_date + ' 23:59:59');
-      }
-      if (instructor_id) {
-        coachingSql += ' AND u.id = ?';
-        coachingParams.push(parseInt(instructor_id));
-      }
-
-      coachingSql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
-
+      // Get decisions from teacher coaching feedback (SQL lives in DecisionsModel)
       const coachingDecisions = await DecisionsModel.getCoachingDecisions(user, { from_date, to_date, instructor_id });
 
       // Combine all decisions

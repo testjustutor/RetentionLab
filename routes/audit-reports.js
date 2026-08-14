@@ -14,5 +14,6 @@ function handle(fn) {
 
 router.get('/summary', requireAuth, handle(ctrl.getSummary));
 router.get('/detail/:type', requireAuth, handle(ctrl.getByType));
+router.get('/instructors', requireAuth, handle(ctrl.getInstructors));
 
 module.exports = router;

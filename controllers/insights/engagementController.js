@@ -2,8 +2,6 @@
  * Engagement Insights Controller
  * Provides dynamic engagement metrics from session quality data
  */
-const SessionQualityReportsModel = require('../../models/session-quality/SessionQualityReportsModel');
-const MeetingModel = require('../../models/meetings/MeetingModel');
 const EngagementModel = require('../../models/insights/EngagementModel');
 
 const controller = {
@@ -16,54 +14,7 @@ const controller = {
       const user = req.user;
       const { from_date, to_date, instructor_id } = req.body;
 
-      // Build base query
-      let sql = `
-        SELECT
-          sqr.meeting_id,
-          sqr.student_engagement,
-          sqr.learning_impact,
-          sqr.overall_rating,
-          sqr.percentage_score,
-          sqr.confidence_level,
-          sqr.executive_summary,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          m.calendar_account as instructor_email,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM session_quality_reports sqr
-        JOIN meetings m ON m.id = sqr.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-      `;
-      const params = [];
-
-      // Filter by company (admin sees their company's data)
-      if (user.role_name === 'admin') {
-        sql += ' AND u.company_id = ?';
-        params.push(user.company_id);
-      }
-
-      // Filter by date range
-      if (from_date) {
-        sql += ' AND m.scheduled_start_time >= ?';
-        params.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        sql += ' AND m.scheduled_start_time <= ?';
-        params.push(to_date + ' 23:59:59');
-      }
-
-      // Filter by instructor
-      if (instructor_id) {
-        sql += ' AND u.id = ?';
-        params.push(parseInt(instructor_id));
-      }
-
-      // Only get meetings with quality reports
-      sql += ' AND sqr.student_engagement IS NOT NULL';
-      sql += ' ORDER BY m.scheduled_start_time DESC LIMIT 100';
-
+      // Get engagement reports (SQL lives in EngagementModel)
       const reports = await EngagementModel.getEngagementReports(user, { from_date, to_date, instructor_id });
 
       // Calculate aggregate metrics
@@ -148,6 +99,20 @@ const controller = {
       });
     } catch (err) {
       console.error('Engagement insights error:', err);
+      res.status(500).json({ error: err.message, success: false });
+    }
+  },
+
+  /**
+   * GET /api/admin/insights/instructors
+   * Get instructor list for insights filter dropdowns (SQL lives in EngagementModel).
+   */
+  async getInstructors(req, res) {
+    try {
+      const instructors = await EngagementModel.getInstructors(req.user);
+      res.json({ success: true, instructors });
+    } catch (err) {
+      console.error('Engagement instructors error:', err);
       res.status(500).json({ error: err.message, success: false });
     }
   }

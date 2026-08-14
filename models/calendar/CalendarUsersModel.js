@@ -401,6 +401,92 @@ class CalendarUsersModel {
       );
     });
   }
+
+  /**
+   * Per-provider connection statistics (dynamic), scoped to the logged-in
+   * admin's company so an admin only ever sees accounts they manage
+   * (users.created_by = adminId matches getConnectedCalendarCount).
+   * @param {number|null} adminId - logged-in admin user id (null => all).
+   * @returns {Promise<Array>} one row per provider with connected/active/verified counts
+   */
+  static async getProviderStats(adminId = null) {
+    const adminJoin = adminId ? 'AND u.created_by = ?' : '';
+    const params = adminId ? [adminId] : [];
+    const sql = `
+      SELECT cp.id AS provider_id, cp.name, cp.display_name, cp.is_active,
+             COUNT(DISTINCT ci.user_id) AS connected_count,
+             COALESCE(SUM(CASE WHEN ci.connection_status = 'active'
+                               AND u.status = 'active'
+                               AND r.role_name IN ('instructor', 'solo_instructor')
+                              THEN 1 ELSE 0 END), 0) AS active_connections,
+             COALESCE(SUM(CASE WHEN ci.verification_status = 'verified' THEN 1 ELSE 0 END), 0) AS verified_connections
+      FROM calendar_providers cp
+      LEFT JOIN calendar_connections ci ON ci.provider_id = cp.id
+      LEFT JOIN users u ON u.id = ci.user_id ${adminJoin}
+      LEFT JOIN roles r ON r.id = u.role_id
+      GROUP BY cp.id, cp.name, cp.display_name, cp.is_active
+      ORDER BY cp.display_name ASC, cp.name ASC
+    `;
+    return allAsync(sql, params);
+  }
+
+  /**
+   * Connected accounts (users) for a provider, scoped to the logged-in admin's
+   * company. Used to render the "connected accounts" table on the settings page.
+   * @param {number} providerId - calendar_providers.id
+   * @param {number|null} adminId - admin user id (null => all)
+   * @param {string|null} connectionStatus - optional filter ('active','disconnected', etc.)
+   * @returns {Promise<Array>}
+   */
+  static async getConnectedAccounts(providerId, adminId = null, connectionStatus = null) {
+    const conditions = ['ci.provider_id = ?'];
+    const params = [providerId];
+    if (connectionStatus) {
+      conditions.push('ci.connection_status = ?');
+      params.push(connectionStatus);
+    }
+    if (adminId) {
+      conditions.push('u.created_by = ?');
+      params.push(adminId);
+    }
+    const sql = `
+      SELECT ci.id AS connection_id, ci.connection_status, ci.verification_status,
+             ci.token_expires_at, ci.connected_at, ci.updated_at,
+             u.id AS user_id, u.first_name, u.last_name, u.email, u.status AS user_status,
+             r.role_name
+      FROM calendar_connections ci
+      JOIN users u ON u.id = ci.user_id
+      LEFT JOIN roles r ON r.id = u.role_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY ci.updated_at DESC
+    `;
+    return allAsync(sql, params);
+  }
+
+  /**
+   * Disconnect a calendar connection (flip connection_status to 'disconnected').
+   * Scoped to the admin's company so an admin can only disconnect their own
+   * instructors' accounts.
+   * @param {number} connectionId - calendar_connections.id
+   * @param {number|null} adminId - admin user id (null => skip scope check)
+   * @returns {Promise<{success: boolean, changes: number}>}
+   */
+  static async disconnectConnection(connectionId, adminId = null) {
+    const params = [connectionId];
+    let adminClause = '';
+    if (adminId) {
+      adminClause = 'AND u.created_by = ?';
+      params.push(adminId);
+    }
+    const sql = `
+      UPDATE calendar_connections ci
+      JOIN users u ON u.id = ci.user_id
+      SET ci.connection_status = 'disconnected', ci.updated_at = CURRENT_TIMESTAMP
+      WHERE ci.id = ? ${adminClause}
+    `;
+    const result = await runAsync(sql, params);
+    return { success: true, changes: result && result.affectedRows ? result.affectedRows : 0 };
+  }
 }
 
 module.exports = CalendarUsersModel;

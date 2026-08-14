@@ -531,7 +531,7 @@ function showConfirmDialog(options = {}) {
 //   days                        - Number of days for default range (default: 7)
 // Returns: { getDates(), setDates(from, to), reset(), validate() }
 function createDateFilter(options = {}) {
-  const { onFilter, onClear, onSearch, days = 7 } = options;
+  const { onFilter, onClear, onSearch, days = 7, autoLoad = true } = options;
 
   const today = new Date();
   const defaultFromDate = new Date(today);
@@ -588,11 +588,19 @@ function createDateFilter(options = {}) {
     return true;
   }
 
-  if (fromInput) {
-    fromInput.addEventListener('change', () => validateDateRange(fromInput.value, toInput.value));
+  // Auto-load data when From/To dates change (same behavior as clicking Get Data).
+  // Set autoLoad: false to only fetch when the Get Data button is clicked.
+  function handleDateChange() {
+    const fromDate = fromInput ? fromInput.value : '';
+    const toDate = toInput ? toInput.value : '';
+    if (!validateDateRange(fromDate, toDate)) return;
+    if (fromDate && toDate && onFilter) onFilter(fromDate, toDate);
   }
-  if (toInput) {
-    toInput.addEventListener('change', () => validateDateRange(fromInput.value, toInput.value));
+  if (autoLoad && fromInput) {
+    fromInput.addEventListener('change', handleDateChange);
+  }
+  if (autoLoad && toInput) {
+    toInput.addEventListener('change', handleDateChange);
   }
   if (getDataBtn) {
     getDataBtn.addEventListener('click', () => {

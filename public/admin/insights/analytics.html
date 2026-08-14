@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -8,26 +8,85 @@
   <title>Analytics | RetentionLab</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-800 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
       <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div></div>
+
+        <!-- Analytics Filters (#analytics-filters) -->
+        <div id="analytics-filters" class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-4 insight-section filters-section">
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">From Date</label>
+              <input type="date" id="filterFromDate" class="w-full md:w-auto bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-violet-500">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">To Date</label>
+              <input type="date" id="filterToDate" class="w-full md:w-auto bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-violet-500">
+            </div>
+            <div class="flex items-end">
+              <button id="getDataBtn" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors shadow-sm">Get Data</button>
+            </div>
+          </div>
         </div>
- <div class="grid grid-cols-1 lg:grid-cols-3 gap-3"><div class="bg-slate-900 border border-slate-800 rounded-lg p-3 lg:col-span-2"><h3 class="text-xs font-semibold mb-3">Meeting Trends</h3><div class="flex items-end gap-1 h-24"><div class="flex-1 bg-violet-500/40 rounded-t" style="height:50%"></div><div class="flex-1 bg-violet-500/50 rounded-t" style="height:65%"></div><div class="flex-1 bg-violet-500/60 rounded-t" style="height:72%"></div><div class="flex-1 bg-violet-500/70 rounded-t" style="height:78%"></div><div class="flex-1 bg-violet-500/80 rounded-t" style="height:85%"></div></div><div class="flex justify-between mt-1.5 text-[12px] text-slate-500"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div></div><div class="bg-slate-900 border border-slate-800 rounded-lg p-3"><h3 class="text-xs font-semibold mb-3">Score Distribution</h3><div class="space-y-1.5"><div class="flex items-center gap-2 text-[12px]"><span class="text-slate-400 w-8">9-10</span><div class="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:35%"></div></div></div><div class="flex items-center gap-2 text-[12px]"><span class="text-slate-400 w-8">7-8</span><div class="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 rounded-full" style="width:45%"></div></div></div></div></div></div>
+
+        <!-- Analytics Summary Stats (#analytics-summary-stats) -->
+        <div id="analytics-summary-stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 insight-section">
+          <!-- Total Sessions -->
+          <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg px-3 py-2 shadow-md">
+            <p class="text-[10px] font-bold text-violet-900 uppercase tracking-wide">Total Sessions</p>
+            <p class="text-xl font-bold text-violet-950" id="totalSessions">-</p>
+          </div>
+          <!-- Avg Score -->
+          <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-200 rounded-lg px-3 py-2 shadow-md">
+            <p class="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Avg Score</p>
+            <p class="text-xl font-bold text-amber-950" id="avgScore">-</p>
+          </div>
+          <!-- Avg Engagement -->
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg px-3 py-2 shadow-md">
+            <p class="text-[10px] font-bold text-emerald-900 uppercase tracking-wide">Avg Engagement</p>
+            <p class="text-xl font-bold text-emerald-950" id="avgEngagement">-</p>
+          </div>
+          <!-- Avg Learning Impact -->
+          <div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg px-3 py-2 shadow-md">
+            <p class="text-[10px] font-bold text-blue-900 uppercase tracking-wide">Avg Learning Impact</p>
+            <p class="text-xl font-bold text-blue-950" id="avgLearningImpact">-</p>
+          </div>
+        </div>
+
+        <!-- Analytics Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <!-- Meeting Trends (#analytics-meeting-trends) -->
+          <div id="analytics-meeting-trends" class="bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-200 rounded-lg p-4 shadow-md insight-section">
+            <h3 class="text-[13px] font-bold text-indigo-900 mb-3 uppercase tracking-wide">Meeting Trends</h3>
+            <div id="meetingTrendsChart">
+              <div class="animate-pulse space-y-2">
+                <div class="h-24 bg-indigo-200/50 rounded-md"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Score Distribution (#analytics-score-distribution) -->
+          <div id="analytics-score-distribution" class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg p-4 shadow-md insight-section">
+            <h3 class="text-[13px] font-bold text-emerald-900 mb-3 uppercase tracking-wide">Score Distribution</h3>
+            <div id="scoreDistribution">
+              <div class="animate-pulse space-y-2">
+                <div class="h-24 bg-emerald-200/50 rounded-md"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
+
   <script type="module" src="../../js/auth.js"></script>
   <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/insights/analytics.js"></script>
 </body>
 </html>
-
-
-
-
-

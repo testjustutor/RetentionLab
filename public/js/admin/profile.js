@@ -183,27 +183,27 @@ function populateAccountInfo(user) {
   };
   const statusColor = statusColors[status] || 'text-slate-600';
 
-  accountInfo.innerHTML = `
-    <div class="space-y-3">
-      <div class="flex justify-between items-center py-2">
-        <span class="text-sm text-slate-600">User ID</span>
-        <span class="text-sm font-semibold text-slate-900">#${user.id || 'N/A'}</span>
+    accountInfo.innerHTML = `
+    <div class="bg-white rounded-lg border border-violet-200 divide-y divide-violet-200 overflow-hidden">
+      <div class="flex justify-between items-center gap-3 px-3 py-2.5">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">User ID</span>
+        <span class="text-xs font-semibold text-slate-900 text-right">#${user.id || 'N/A'}</span>
       </div>
-      <div class="flex justify-between items-center py-2 border-t border-slate-100">
-        <span class="text-sm text-slate-600">Role</span>
-        <span class="text-sm font-semibold text-slate-900 capitalize">${escHtml(roleName.replace(/_/g, ' '))}</span>
+      <div class="flex justify-between items-center gap-3 px-3 py-2.5">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">Role</span>
+        <span class="text-xs font-semibold text-slate-900 capitalize text-right">${escHtml(roleName.replace(/_/g, ' '))}</span>
       </div>
-      <div class="flex justify-between items-center py-2 border-t border-slate-100">
-        <span class="text-sm text-slate-600">Status</span>
-        <span class="text-sm font-semibold capitalize ${statusColor}">${escHtml(status)}</span>
+      <div class="flex justify-between items-center gap-3 px-3 py-2.5">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">Status</span>
+        <span class="text-xs font-semibold capitalize text-right ${statusColor}">${escHtml(status)}</span>
       </div>
-      <div class="flex justify-between items-center py-2 border-t border-slate-100">
-        <span class="text-sm text-slate-600">Member Since</span>
-        <span class="text-sm font-semibold text-slate-900">${createdDate}</span>
+      <div class="flex justify-between items-center gap-3 px-3 py-2.5">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">Member Since</span>
+        <span class="text-xs font-semibold text-slate-900 text-right">${createdDate}</span>
       </div>
-      <div class="flex justify-between items-center py-2 border-t border-slate-100">
-        <span class="text-sm text-slate-600">User UUID</span>
-        <span class="text-xs font-mono text-slate-500 text-right max-w-[150px] truncate" title="${escHtml(user.user_uuid || 'N/A')}">${escHtml(user.user_uuid || 'N/A')}</span>
+      <div class="flex justify-between items-center gap-3 px-3 py-2.5">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">User UUID</span>
+        <span class="text-[11px] font-mono text-slate-500 text-right max-w-[150px] truncate" title="${escHtml(user.user_uuid || 'N/A')}">${escHtml(user.user_uuid || 'N/A')}</span>
       </div>
     </div>
   `;

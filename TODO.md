@@ -1,3 +1,53 @@
+## Task: Improve Providers grid color theme on /admin/settings/integrations
+
+- [+] ISSUE: provider cards all plain white with light slate text → not color-themed / low visual hierarchy.
+- [+] FIX: integrations.js renderProviderCards → per-provider color theme (Zoom=cyan, Google Meet=emerald, Teams=indigo): gradient card backgrounds, vivid borders, dark bold headings, white-on-badge status, bold count chips + uppercase bold labels, bold config rows.
+- [ ] Verify: node --check integrations.js; themes + bold classes present.
+
+## Task: Improve Account Details line-by-line separation on /admin/profile
+
+## Task: Improve Account Details line-by-line separation on /admin/profile
+
+- [x] ISSUE: populateAccountInfo rendered rows on the violet card with only a very light `border-slate-100` divider → hard to read line by line.
+- [x] FIX: profile.js populateAccountInfo → render rows inside a white `divide-y divide-violet-200` card with uppercase label on left + value right, clear padding per row.
+- [x] Verify: node --check profile.js passes; structure present. Frontend-only → hard refresh (Ctrl+F5).
+
+## Task: Make notifications toggle show active/inactive colors reliably
+
+- [x] ISSUE: toggle used Tailwind `peer-checked:` variant on HTML injected after load → color not switching on toggle.
+- [x] FIX: notifications.js renderNotifBody → span-based track+thumb; bind checkbox change in JS to switch track bg (emerald ON / slate-400 OFF) + slide thumb (translateX). Keeps checkbox id for collectSettings.
+- [x] Verify: node --check passes; structure has js-notif-toggle / js-toggle-track / js-toggle-thumb; initial state reflects `on`. Frontend-only → hard refresh (Ctrl+F5).
+
+## Task: Fix 404 on /admin/settings/integrations (wrong API base path)
+
+- [x] ROOT CAUSE: route is mounted at `/api/calendar-integrations` (registry.js + routes/index.js), but integrations.js calls `/api/admin/calendar-integrations/...` → never mounted → 404.
+- [x] FIX: integrations.js — change all 3 API URLs (integration-status, connections, disconnect) to `/api/calendar-integrations/...`.
+- [x] NOTE: frontend-only change → no server restart; hard refresh (Ctrl+F5) to view.
+- [x] Verify: node --check integrations.js passes; 0 remaining `/api/admin/calendar-integrations` calls.
+
+## Task: Align /admin/profile with admin DASHBOARD theme & structure
+
+- [x] REASON: profile.html used old-style white cards (border-slate-300, text-sm, icon chips) not matching the gradient color-coded "DASHBOARD" theme used across admin settings/insights/reports pages.
+- [x] HTML: rebuild profile.html → light theme, gradient section cards (Profile=blue/cyan, Password=amber/orange, Account=violet/purple), colored uppercase tracking-wide headers, consistent compact inputs/buttons; add identity banner (userAvatar/userName/userRole) in Account card.
+- [x] Keep all IDs used by profile.js: profileForm, firstName, lastName, email, phone, cancelBtn, passwordForm, currentPassword, newPassword, confirmPassword, accountInfo (plus userAvatar/userName/userRole).
+- [x] Scripts: tailwind CDN + ../css/shared.css + ../js/common-ui.js (in head) + auth.js + load-components.js + profile.js.
+- [x] Verify: tags balanced (div/form/button/label/main closed; inputs self-closing), all IDs present, node --check profile.js passes.
+
+## Task: Make Company Profile view-only in Settings > Organization
+
+- [x] FIX (HTML): organization.html → all Company Profile fields rendered read-only (companyName, companyCode, domain, logoUrl, status); remove "Save Settings" button + saveMsg.
+- [x] FIX (JS): organization.js → remove bindSave() call and saveOrganization()/bindSave() so nothing attempts to edit the profile.
+- [x] FIX (backend): organizationController.update → reject profile edits (read-only), return 403 so API cannot change profile either.
+- [x] NOTE: Departments table + stats already view-only; only Company Profile changes.
+- [x] Verify: node --check on JS/controller; update() returns 403; GET still returns profile for viewing.
+- [ ] Requires server restart (backend change) + hard refresh (Ctrl+F5) to view.
+
+## Task: Fix invisible toggle/switch in Settings > Notifications page
+
+- [x] BUG: toggle uses `h-4.5` (invalid Tailwind class → no track height) and white thumb on light `bg-slate-300` track → OFF switch collapses/invisible on light background.
+- [x] FIX: notifications.js renderNotifBody → valid dimensions (w-9 h-5, thumb h-4 w-4), `relative` on track so `after:` thumb positions correctly, darker off-state track (slate-400) + emerald on; white thumb for clear contrast.
+- [x] Verify via node --check (passes). Frontend-only change → no server restart needed; hard-refresh (Ctrl+F5) to view.
+
 # TODO
 
 ## Task: Add "Get Data" button to /admin/insights/engagement page
@@ -545,6 +595,19 @@ node test_videos_api.js
 
 ## Task: Fix polling launch error (meeting_id missing)
 
+## Task: Engagement page should load data on date filter change
+
+## Task: Actions page showing no data - create manual seeder for teacher action tables
+
+- [x] Traced data source: /api/admin/insights/actions -> actionsController -> ActionsModel reads teacher_coaching_feedback (recommended_action) + teacher_better_alternatives (better_alternative), joined to meetings + users
+- [x] Root cause: both tables had 0 rows (existing seeders seed session_* tables, not teacher_*)
+- [x] Created manual-seeder/23_seed_teacher_actions.js (seeds meetings that join to admin-company users)
+- [x] Ran seeder: created 20 teacher_coaching_feedback + 20 teacher_better_alternatives
+- [x] Verified ActionsModel.getCoachingActionItems/getBetterAlternatives now return 20 rows each for admin
+- [x] Root cause: createDateFilter only fired onFilter on Get Data button click; date change only validated
+- [x] common-ui.js createDateFilter now auto-fires onFilter when From/To dates change (centralized - benefits all filter pages)
+- [x] engagement.js removed redundant page-specific date listeners (uses centralized onFilter now)
+- [x] Verified both files pass node --check
 - [x] Root cause: BotManager.launchFromDb read meetingRecord.meeting_id (undefined) but getQueuedMeetings returns external_meeting_id -> createSession(undefined) threw
 - [x] Fixed line 113 to use meetingRecord.external_meeting_id
 - [x] Verified syntax + load; launchFromDb working
@@ -738,3 +801,141 @@ node test_videos_api.js
 - [x] Update HTML comment
 - [x] Verify no search references remain
 
+## Task: Apply DASHBOARD IMPROVEMENT PROMPT TEMPLATE to /admin/insights/risks page
+- [x] Apply gradient color scheme to filter bar + summary KPI cards (light theme)
+- [x] Convert Risk Type Distribution / Instructor Risk Breakdown / Recent Risks to scrollable tables (max-h-64/80, sticky headers, custom-scrollbar)
+- [x] Update risks.js render functions to emit light-themed table rows (readable on light cards)
+## Task: Move SQL out of insights controllers into models (rules compliance)
+- [x] risksController.js - remove dead embedded SQL; route calls RisksModel.getQualityFlagRisks/getQualityScoreRisks
+- [x] decisionsController.js - remove dead SQL (sql + coachingSql); calls DecisionsModel.getEvaluationDecisions/getCoachingDecisions
+- [x] engagementController.js - remove dead SQL; calls EngagementModel.getEngagementReports; drop unused imports
+- [x] actionsController.js - remove dead SQL (sql + altSql); calls ActionsModel.getCoachingActionItems/getBetterAlternatives
+- [x] Verified all 4 controllers + 4 models node --check, load at require-time, no SQL/db remains in controllers
+## Task: Align /admin/insights/decisions page with engagement/risks template
+- [x] Convert dark card-lists to light-themed scrollable tables (instructor + recent) so JS text is readable
+- [x] Light-theme filter bar + -200 borders + text-[13px] headers for cross-page consistency
+- [x] Verify decisions.html tags balanced, all IDs match decisions.js, node --check on decisions.js
+## Task: Add instructor filter to /admin/insights/engagement page (full MVC stack)
+- [x] HTML: Add Instructor dropdown container (#instructorFilterContainer) to filter bar (between To Date and Get Data)
+- [x] JS: Add loadInstructors() using createSearchableSelect (centralized from common-ui.js), include instructor_id in POST body, auto-reload on select
+- [x] Route: Add GET /instructors to routes/insights.js (engagementController.getInstructors)
+- [x] Controller: Add getInstructors method that calls EngagementModel.getInstructors
+- [x] Model: Add getInstructors (SQL joins users -> meetings -> session_quality_reports, company_id filter for admin)
+- [x] DB: Existing tables (users, meetings, session_quality_reports) — no migration needed
+- [x] Verified: node --check all layers, routes load, model query returns instructors
+## Task: Add instructor filter to /admin/insights/decisions page (full MVC stack)
+- [x] HTML: Add Instructor dropdown (#instructorFilterContainer) to decisions filter bar; grid 4-col to 5-col
+- [x] JS: Add instructorFilter var + loadInstructors() (createSearchableSelect), send instructor_id in POST body, auto-reload on select
+- [x] Route: Reuse shared GET /api/admin/insights/instructors (already wired in routes/insights.js)
+- [x] Controller: Reuse shared engagementController.getInstructors (already wired)
+- [x] Model: Extend EngagementModel.getInstructors to cover ALL 4 insights data sources (session_quality_reports, session_final_evaluation, teacher_coaching_feedback, teacher_better_alternatives, session_quality_flags)
+- [x] DB: Verified extended query returns instructors (count 1 -> 3 with decisions/actions/risks sources)
+- [x] Fix: engagement.html was missing jQuery + Select2 CDN (createSearchableSelect requires both) - added so engagement instructor dropdown renders
+- [x] Verified: node --check all layers, routes load, HTML structure + tables balanced, decisions.js flow complete
+## Task: Build missing Analytics page MVC stack (HTML > JS > Routes > Controller > Model > DB)
+- [x] Verified engagement/decisions/actions/risks all follow MVC flow (all 4 return DB data)
+- [x] Identified analytics page as static placeholder - no API, no MSS, no DB data
+- [x] Model: Created AnalyticsModel.js (getMeetingTrends/getScoreDistribution/getOverallMetrics)
+- [x] Controller: Created analyticsController.js (getAnalytics calls model, no SQL)
+- [x] Route: Added POST /analytics to routes/insights.js
+- [x] JS: Created analytics.js (fetch + render meeting trends/score distribution/overall metrics)
+- [x] HTML: Rebuilt analytics.html (light template, section ids, dynamic containers, script tag)
+- [x] DB: Verified ANALYTICS API returns real data (trends 2, scoreBands 2, totalSessions 10)
+## Task: Add date filter + instructor filter to /admin/reports/meetings page (full MVC stack)
+- [x] Model: Replaced getRecentMeetings(days) with getMeetings({from_date, to_date, instructor_id}) + getInstructors(user) (active + calendar-connected)
+- [x] Controller: Updated getSummary to accept query params (from_date, to_date, instructor_id); added getInstructors
+- [x] Route: Added GET /api/meetings/reports/instructors
+- [x] HTML: Added filter bar (From/To date, Instructor dropdown, Get Data, Export CSV); jQuery+Select2; section IDs; scrollable table (max-h-[28rem] custom-scrollbar)
+- [x] JS: Rewritten with dateFilter (default 30 days, autoLoad false) + instructorFilter (createSearchableSelect); calls registered /api/meetings/reports/summary
+- [x] Verified: getMeetings=100 rows, getInstructors=5 rows, route loads, controller + syntax OK, HTML elements present
+## Task: Add date filter + Get Data + Active + Instructor filters to /admin/reports/evaluations
+
+- [x] Model: extend EvaluationReportModel (getRecentScores/getRecentMeetings accept from_date/to_date/instructor_id/active; add getInstructors)
+- [x] Controller: read new query params, pass filters to model; add getInstructors action
+- [x] Route: add GET /instructors to routes/evaluation-reports.js
+- [x] HTML: light template, filter bar (date+Get Data+Active+Instructor+scoreType+Export), compact stats, scrollable Evaluation section (7 headers), score-trend table (chart -> table), remove chart.js
+- [x] JS: createDateFilter(30d default, Get Data), instructor select w/ auto-reload, active checkbox, remove chart, render scrollable light tables
+- [x] Verify: node --check all layers (model/controller/route/JS) + require-load test pass; restart server by user for API 200 confirm
+## Task: Add MVC backend + date/instructor filters to /admin/reports/teams
+- [x] Model: create TeamReportModel (getTeams, getScores, getTeamPerformance, getInstructors - active + calendar-connected)
+- [x] Controller: create teamReportController (getSummary/getInstructors - no SQL)
+- [x] Route: create team-reports.js (GET /summary, GET /instructors) + register at /api/admin/reports/teams in registry.js
+- [x] JS: refactor teams.js to call /api/admin/reports/teams/summary with from_date/to_date/instructor_id; keep bar chart, 1-month default + Get Data, instructor Select2 filter (added jQuery/Select2 CDNs)
+- [x] Verify: node --check all layers + require-load + registry mount; server restart by user for API 200 confirm
+## Task: Fix /admin/reports/audits API wiring (align frontend to registered backend route)
+- [x] Verified page already provides the requested features: Pass/Fail Distribution + Audits by Category column/bar charts (type bar, indexAxis x), Start/End date filter (1-month default) + Get Data, auto-load on refresh, active + calendar-connected instructor filters (non-dependent), and full MVC backend (auditReportController + AuditReportModel + audit-reports route mounted at /api/admin/audit-reports)
+- [x] Fixed URL mismatch: audits.js called /api/audit-reports/* but the registry mounts handler 'audit-reports' at /api/admin/audit-reports -> updated 3 calls (2x /instructors, 1x /summary) to /api/admin/audit-reports/*
+- [x] Verified: node --check JS + zero stale /api/audit-reports refs; server restart by user for API 200 confirm
+## Task: Fix /admin/reports/evaluations - instructors API empty + Active filter inactive
+- [x] Root cause: meeting_scores.meeting_id maps to meetings.id (internal PK), not meetings.external_meeting_id (string like meeting_*). Fixed joins in EvaluationReportModel.getRecentScores (LEFT JOIN meetings m ON m.id = ms.meeting_id) and getInstructors EXISTS subquery (ms.meeting_id = m.id)
+- [x] getInstructors verified now returns 1 instructor (John Instructor, id 3) for admin company 1; getRecentScores now returns all 10 scores with meeting_title
+- [x] Active filter: meetings all have status 'sync' so the old IN ('active','joining') matched 0 -> changed to NOT IN ('completed','cancelled'); verified active query returns data
+- [x] JS: fixed meeting-key mapping from external_meeting_id to meetings.id (3 places), rubric count uses indicator_id, and Active checkbox now triggers loadScores() on change
+- [x] Verify: node --check model + JS; model test confirms instructors + scores + active
+## Task: Build /admin/settings/organization page with dynamic DB data (full MVC)
+- [x] DB: reuse companies, users, roles, departments, department_members, meetings, meeting_scores (no new tables)
+- [x] Model: create models/settings/OrganizationModel.js (getProfile from companies, getStats counts, getDepartments w/ member_count, updateProfile whitelist)
+- [x] Controller: create controllers/settings/organizationController.js (get = profile+stats+departments; update = PUT profile) - no SQL
+- [x] Route: add GET/PUT /api/admin/settings/organization in routes/settings.js
+- [x] JS: rewrite public/js/admin/settings/organization.js to load/save via the endpoint + render stats + departments
+- [x] HTML: rewrite public/admin/settings/organization.html (light theme, stats cards, editable company profile, departments table) + load common-ui.js (was missing so apiFetch/showToast were undefined)
+- [x] Verify: node --check model/controller/route/JS; live model test admin company 1 -> profile Default Organization, stats {users 18, instructors 11, departments 5, meetings 181, scores 10}, 5 departments; HTML IDs present
+## Task: Re-verify /admin/reports/evaluations (instructors + active filter) after re-report
+- [x] Confirmed prior fixes already in code: getRecentScores join ON m.id = ms.meeting_id; getInstructors EXISTS ms.meeting_id = m.id; active filter m.status NOT IN ('completed','cancelled'); JS sends active=1 + reloads on toggle
+- [x] Broadened EvaluationReportModel.getInstructors to return ALL active + calendar-connected instructors (roles/jobs/calendar_connections) instead of only those with scored meetings -> now returns 5 instructors for company 1 (was 1)
+- [x] Verified: node --check model + JS; live getInstructors = 5; JS active param + change listener present
+- [x] NOTE: running server must be restarted to pick up model changes
+## Task: Build /admin/settings/notifications page with dynamic DB data (full MVC)
+- [x] DB: reuse system_settings (company-scoped key/value) to store notif.<channel>.<role> keys; roles from roles/users
+- [x] Model: create models/settings/NotificationSettingsModel.js (getSettings defaults all-on, getRoleCounts admin/instructor/reviewer, updateSettings upsert per channel+role)
+- [x] Controller: create controllers/settings/notificationSettingsController.js (get = settings+roleCounts; update = PUT settings) - no SQL
+- [x] Route: add GET/PUT /api/admin/settings/notifications in routes/settings.js
+- [x] JS: rewrite public/js/admin/settings/notifications.js to load/save role x channel matrix + role reach stats
+- [x] HTML: rewrite public/admin/settings/notifications.html (light theme, 3 role stat cards, role x channel toggle table, save) + load common-ui.js (was missing)
+- [x] Verify: node --check all layers; live getSettings (defaults true), roleCounts {admin 1, instructor 11, reviewer 6}; update persists + reset; HTML IDs present
+## Task: Audits - replace two multi-select instructor filters with single centralized createSearchableSelect
+- [x] testimonials.html: remove 'Active Instructors' + 'Calendar Connected Instructors' blocks, add single #instructorFilterContainer
+- [x] testimonials.js: loadInstructors uses centralized createSearchableSelect (single) with /api/admin/audit-reports/instructors?calendarConnected=true; loadAudits reads single instructorId -> instructorIds param
+- [x] Cleaned stale refs: createDarkSearchableSelect=0, activeInstructorFilter=0, calendarInstructorFilter=0, multiSelect=0; SYNTAX=0
+- [x] Data source verified: AuditReportModel.getActiveInstructors(1, true) -> 5 instructors
+## Task: Audits page - scrollable table + heading, and dark graph text
+- [x] HTML: audit table card got 'Audit Records' heading + vertical scroll (overflow-y-auto max-h-96 custom-scrollbar); both chart cards converted from dark bg-slate-900 to light (from-blue-50 to-cyan-100) with clearer headings
+- [x] JS: chart text now dark - legend #0f172a, ticks #334155, light grid #e2e8f0 (readable on light cards)
+- [x] Verify: node --check (SYNTAX=0); HTML - 2 light chart cards, Audit Records heading, scrollable table, auditTypeFilter + stats intact
+- [x] Note: frontend-only change; no controller/model needed; hard refresh to view
+## Task: Teams - teamCards separation, bold text, full cover + title (no white text)
+- [x] HTML: wrapped teamCards in a full-cover panel (violet gradient border) with main title 'Team Performance Details'
+- [x] JS renderTeamCards: each metric (Members/Avg Score/Scores/Participation) in its own bordered+colored box (visible separation); labels font-bold, values font-extrabold
+- [x] No white text (dark/colored text throughout)
+- [x] Verify: node --check (SYNTAX=0); 4 metric boxes, ${accent} refs=4, font-extrabold=4, text-white=0; cover panel + title present
+## Task: Audits - Audit Records header text black + bold (lighten table for visibility)
+- [x] HTML: 'Audit Records' heading changed from text-white font-semibold -> text-black font-bold
+- [x] HTML: lightened the audit table card (dark bg-slate-900 -> blue gradient), header row blue-200, 8 headers text-blue-950, tbody divide-blue-200
+- [x] JS renderTable: row text/colors changed to dark for light bg (type/status/score colors to violet-700/blue-700/red-700, cells slate-700/600, hover blue)
+- [x] Verify: node --check (SYNTAX=0); black bold heading present; no stale light text refs
+## Task: Build /admin/settings/meetings page with dynamic DB data (full MVC)
+- [x] DB: reuse system_settings (meeting.* keys), meetings, meeting_sessions, meeting_scores, users/roles
+- [x] Model: create models/settings/MeetingSettingsModel.js (getSettings defaults, getStats counts, updateSettings upsert; fixed WHERE-before-JOIN bug)
+- [x] Controller: create controllers/settings/meetingSettingsController.js (get = settings+stats; update) - no SQL
+- [x] Route: add GET/PUT /api/admin/settings/meetings in routes/settings.js
+- [x] JS: rewrite public/js/admin/settings/meetings.js (load/save settings + render stats)
+- [x] HTML: rewrite public/admin/settings/meetings.html (7 stat cards + meeting rules form: auto-record, retention, duration, platform, transcript, notify instructor, auto-assign reviewer, reminders) + load common-ui.js
+- [x] Verify: node --check all; live getSettings defaults, getStats {181/0/181 meetings, 154 sessions, 10 reviews, 11 instructors, 6 reviewers}, update ok; HTML ids present
+## Task: Enhance /admin/settings/integrations page with dynamic DB data (full MVC)
+- [x] Already: basic provider status API (`GET /api/admin/calendar-integrations/integration-status`)
+- [+] NEW: Model method `getProviderConnectionStats(providerId)` → per-provider connected/active/verified counts
+- [+] NEW: Model method `getConnectedUsersByProvider(providerId, adminId)` → user rows with name/email/connection+verification status per provider
+- [+] NEW: Controller `getIntegrationDetails` returning provider stats + connected users
+- [+] NEW: Route `GET /api/admin/calendar-integrations/details` (auth + role admin)
+- [+] NEW: JS `public/js/admin/settings/integrations.js` → render provider cards + stats + connected users table + per-provider config details
+- [+] NEW: HTML `public/admin/settings/integrations.html` → 3 provider stat cards, connected accounts per provider toggle, provider config panel
+- [x] Verify: existing route registration + model + controller all follow MVC flow and existing code conventions
+## Integrations Page — Dynamic Data (COMPLETED)
+- [x] Model (CalendarUsersModel): getProviderStats / getConnectedAccounts / disconnectConnection
+- [x] Controller (calendarIntegrationController): getIntegrationStatus parses config_json + attaches per-provider counts; added getConnectedAccounts + disconnectConnection
+- [x] Routes (calendar-integrations): GET /integration-status (enriched), GET /connections, POST /disconnect
+- [x] HTML: converted to light DASHBOARD template (stat cards + provider cards + connected-accounts panel)
+- [x] JS: renders dynamic stats + clickable provider cards + createTable accounts table + disconnect action (uses common-ui apiFetch/showToast/escHtml/createTable)
+- [x] Verified live DB: Zoom 2 active/0 verified, Google Meet 5/5, Teams 2/0; accounts join name/email/role/status
+- [x] node --check passes on all changed JS; controller + route require-load pass
+- [ ] Requires server restart (production node server.js) + hard refresh (Ctrl+F5) to see live

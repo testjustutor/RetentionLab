@@ -12,19 +12,41 @@ const controller = {
   /**
    * GET /api/audit/reports/summary
    * Returns aggregated audit summary stats for the reports dashboard
+   * Supports date range and instructor filtering
    */
   async getSummary(req) {
     try {
-      const days = parseInt(req.query.days) || 30;
       const companyId = req.user?.company_id;
+      let startDate, endDate;
 
-      // 1) Total scores as audit base
-      const scores = await AuditReportModel.getRecentScores(days);
+      // Parse date range from query params
+      if (req.query.startDate && req.query.endDate) {
+        startDate = new Date(req.query.startDate);
+        endDate = new Date(req.query.endDate);
+        // Set end date to end of day
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // Default: last 30 days
+        endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        startDate.setHours(0, 0, 0, 0);
+      }
 
-      // 2) Audit results from ai_audit_results table
-      const auditResults = await AuditReportModel.getRecentAuditResults(days);
+      // Parse instructor IDs from query params
+      let instructorIds = null;
+      if (req.query.instructorIds) {
+        instructorIds = Array.isArray(req.query.instructorIds)
+          ? req.query.instructorIds.map(id => parseInt(id, 10))
+          : [parseInt(req.query.instructorIds, 10)];
+      }
 
-      // 3) Build audit entries from both sources
+      // 1) Get scores and audit results using date range
+      const scores = await AuditReportModel.getScoresByDateRange(startDate, endDate, instructorIds);
+      const auditResults = await AuditReportModel.getAuditResultsByDateRange(startDate, endDate, instructorIds);
+
+      // 2) Build audit entries from both sources
       const audits = [];
 
       // From ai_audit_results
@@ -94,6 +116,12 @@ const controller = {
         byType[a.type] = (byType[a.type] || 0) + 1;
       });
 
+      // Calculate by category for charts
+      const byCategory = {};
+      limited.forEach(a => {
+        byCategory[a.category] = (byCategory[a.category] || 0) + 1;
+      });
+
       return ok({
         audits: limited,
         stats: {
@@ -101,7 +129,8 @@ const controller = {
           passed,
           failed,
           passRate: limited.length > 0 ? (passed / limited.length * 100).toFixed(1) : '0.0',
-          byType
+          byType,
+          byCategory
         }
       });
     } catch (e) { return err(e.message); }
@@ -118,6 +147,22 @@ const controller = {
       const type = req.params.type;
       const filtered = (result.audits || []).filter(a => a.type === type);
       return ok({ audits: filtered, total: filtered.length });
+    } catch (e) { return err(e.message); }
+  },
+
+  /**
+   * GET /api/audit/reports/instructors
+   * Get list of active instructors, optionally filtered by calendar connection status
+   */
+  async getInstructors(req) {
+    try {
+      const companyId = req.user?.company_id;
+      if (!companyId) return err('Company ID required', 400);
+
+      const calendarConnectedOnly = req.query.calendarConnected === 'true';
+      const instructors = await AuditReportModel.getActiveInstructors(companyId, calendarConnectedOnly);
+
+      return ok({ instructors });
     } catch (e) { return err(e.message); }
   }
 };

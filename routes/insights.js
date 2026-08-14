@@ -9,9 +9,13 @@ const engagementController = require('../controllers/insights/engagementControll
 const actionsController = require('../controllers/insights/actionsController');
 const decisionsController = require('../controllers/insights/decisionsController');
 const risksController = require('../controllers/insights/risksController');
+const analyticsController = require('../controllers/insights/analyticsController');
 
 // Engagement insights
 router.post('/engagement', requireAuth, engagementController.getEngagementInsights);
+
+// Instructor list for insights filters (shared across insights pages)
+router.get('/instructors', requireAuth, engagementController.getInstructors);
 
 // Action items insights
 router.post('/actions', requireAuth, actionsController.getActionItems);
@@ -21,5 +25,8 @@ router.post('/decisions', requireAuth, decisionsController.getDecisions);
 
 // Risks insights
 router.post('/risks', requireAuth, risksController.getRisks);
+
+// Analytics insights
+router.post('/analytics', requireAuth, analyticsController.getAnalytics);
 
 module.exports = router;

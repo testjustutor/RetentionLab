@@ -65,6 +65,8 @@ const routeRegistry = [
   { method: 'use', path: '/api/admin/audit', handler: 'audit' },
   { method: 'use', path: '/api/admin/audit-reports', handler: 'audit-reports' },
   { method: 'use', path: '/api/admin/evaluations/reports', handler: 'evaluation-reports' },
+  { method: 'use', path: '/api/admin/reports/teams', handler: 'team-reports' },
+
   
   // Admin Archives
   { method: 'use', path: '/api/admin/archives', handler: 'archives' },

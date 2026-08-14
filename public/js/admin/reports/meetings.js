@@ -1,40 +1,63 @@
-let allMeetings = [];
-let chartInstance = null;
+﻿let allMeetings = [];
+let dateFilter = null;
+let instructorFilter = null;
 
 (async () => {
-  document.getElementById('daysFilter').addEventListener('change', init);
-  await init();
+  // Initialize date filter (default range = 1 month / 30 days).
+  // autoLoad: false => data loads on page load and when Get Data is clicked,
+  // but NOT automatically on every date change.
+  dateFilter = createDateFilter({
+    days: 30,
+    autoLoad: false,
+    onFilter: () => loadMeetings()
+  });
+
+  // Active + calendar-connected instructor filter (optional, non-dependent).
+  loadInstructors();
+
+  // Load data on page load using the default date range.
+  await loadMeetings();
 })();
 
-async function init() {
-  document.getElementById('meetingsBody').innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">Loading...</td></tr>';
-  await loadMeetings();
-  updateStats();
-  renderTable();
-  renderChart();
+async function loadInstructors() {
+  try {
+    instructorFilter = createSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All instructors',
+      dataSource: async () => {
+        const data = await apiFetch('/api/meetings/reports/instructors');
+        return data.instructors || [];
+      },
+      displayField: 'name',
+      valueField: 'id'
+      // No onSelect: instructor change does NOT auto-load; use Get Data button.
+    });
+  } catch (e) {
+    console.error('Failed to load instructors:', e);
+  }
 }
 
 async function loadMeetings() {
+  document.getElementById('meetingsBody').innerHTML = '<tr><td class="py-6 px-2 text-blue-800 text-center" colspan="5">Loading meetings...</td></tr>';
   try {
-    const days = document.getElementById('daysFilter').value;
-    const data = await apiFetch(`/api/admin/meetings/reports/summary?days=${days}`);
+    const { fromDate, toDate } = dateFilter.getDates();
+    const instructorId = instructorFilter ? instructorFilter.getValue() : null;
+
+    const params = new URLSearchParams();
+    if (fromDate) params.append('from_date', fromDate);
+    if (toDate) params.append('to_date', toDate);
+    if (instructorId) params.append('instructor_id', instructorId);
+
+    const data = await apiFetch(`/api/meetings/reports/summary?${params.toString()}`);
     allMeetings = data.meetings || [];
-    // Update stats if available
-    if (data.stats) {
-      document.getElementById('totalMeetings').textContent = data.stats.total || allMeetings.length;
-      document.getElementById('activeMeetings').textContent = data.stats.active || 0;
-      const avgMin = data.stats.avgDuration || '-';
-      document.getElementById('avgDuration').textContent = avgMin === '-' ? '-' : avgMin + ' min';
-      document.getElementById('totalParticipants').textContent = allMeetings.length > 0 ? allMeetings.length + 2 : '-';
-    }
-  } catch(e) {
+  } catch (e) {
     console.error('loadMeetings:', e);
-    // Fallback: try the direct meetings endpoint
-    try {
-      const fb = await apiFetch('/api/admin/meetings/list');
-      allMeetings = fb.meetings || [];
-    } catch(e2) { console.error('fallback also failed:', e2); }
+    allMeetings = [];
+    showToast('Failed to load meetings: ' + e.message, true);
   }
+  updateStats();
+  renderTable();
+  renderTrendTable();
 }
 
 function updateStats() {
@@ -54,68 +77,66 @@ function updateStats() {
   const avgMin = countWithDuration ? Math.round(totalMinutes / countWithDuration) : '-';
   document.getElementById('avgDuration').textContent = avgMin === '-' ? '-' : avgMin + ' min';
 
-  // Count unique participants (from meetings or scores)
   document.getElementById('totalParticipants').textContent = allMeetings.length > 0 ? allMeetings.length + 2 : '-';
 }
 
 function renderTable() {
   const tbody = document.getElementById('meetingsBody');
   if (!allMeetings.length) {
-    tbody.innerHTML = '<tr><td class="py-8 px-4 text-slate-500 text-center" colspan="5">No meetings found in this period</td></tr>';
+    tbody.innerHTML = '<tr><td class="py-6 px-2 text-blue-800 text-center" colspan="5">No meetings found in this period</td></tr>';
     return;
   }
   let html = '';
   allMeetings.forEach(m => {
-    const statusColor = m.status === 'active' || m.status === 'joining' ? 'bg-emerald-500/10 text-emerald-600' :
-                     m.status === 'completed' ? 'bg-blue-500/10 text-blue-400' :
-                     m.status === 'scheduled' ? 'bg-amber-500/10 text-amber-600' :
-                     m.status === 'expired' ? 'bg-red-500/10 text-red-500' :
-                     'bg-slate-500/10 text-slate-400';
-    html += `<tr class="hover:bg-slate-800/30">
-      <td class="py-2 px-3 text-xs ">${escapeHtml(m.title || 'Untitled')}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.platform || '-')}</td>
-      <td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded ${statusColor}">${escapeHtml(m.status || 'unknown')}</span></td>
-      <td class="py-2 px-3 text-[10px] text-slate-500">${formatDate(m.start_time)}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-400">${escapeHtml(m.owner_name || m.owner_email || '-')}</td>
+    const statusColor = m.status === 'active' || m.status === 'joining' ? 'bg-emerald-100 text-emerald-700' :
+                     m.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                     m.status === 'scheduled' ? 'bg-amber-100 text-amber-700' :
+                     m.status === 'expired' ? 'bg-red-100 text-red-700' :
+                     'bg-slate-100 text-slate-600';
+    html += `<tr class="border-b border-blue-200 hover:bg-blue-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escapeHtml(m.title || 'Untitled')}</td>
+      <td class="py-2 px-2 text-[11px] text-blue-800">${escapeHtml(m.platform || '-')}</td>
+      <td class="py-2 px-2 text-[11px]"><span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${statusColor}">${escapeHtml(m.status || 'unknown')}</span></td>
+      <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">${formatDate(m.start_time)}</td>
+      <td class="py-2 px-2 text-[11px] text-blue-800">${escapeHtml(m.owner_name || m.owner_email || '-')}</td>
     </tr>`;
   });
   tbody.innerHTML = html;
 }
 
-function renderChart() {
-  const ctx = document.getElementById('meetingsChart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
+function renderTrendTable() {
+  const tbody = document.getElementById('meetingsTrendTable');
+  if (!tbody) return;
 
-  // Group meetings by date
+  if (!allMeetings.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="py-2 text-center text-indigo-800 font-medium">No meeting trend data available</td></tr>';
+    return;
+  }
+
+  // Group meetings by calendar date (ascending), unknown at the end.
   const byDate = {};
   allMeetings.forEach(m => {
-    const d = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
-    byDate[d] = (byDate[d] || 0) + 1;
+    const key = m.start_time ? m.start_time.slice(0, 10) : 'unknown';
+    const label = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
+    if (!byDate[key]) byDate[key] = { label, count: 0 };
+    byDate[key].count++;
   });
-  const labels = Object.keys(byDate);
-  const data = Object.values(byDate);
+  const entries = Object.entries(byDate).sort((a, b) => {
+    if (a[0] === 'unknown') return 1;
+    if (b[0] === 'unknown') return -1;
+    return a[0].localeCompare(b[0]);
+  });
 
-  chartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Meetings',
-        data,
-        backgroundColor: 'rgba(139, 92, 246, 0.3)',
-        borderColor: 'rgba(139, 92, 246, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#e2e8f0' } } },
-      scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
-      }
-    }
-  });
+  const total = allMeetings.length;
+  tbody.innerHTML = entries.map(([, item]) => {
+    const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : 0;
+    return `
+      <tr class="border-b border-indigo-200 hover:bg-indigo-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-bold text-indigo-950">${escapeHtml(item.label)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-indigo-900 text-right">${item.count}</td>
+        <td class="py-2 px-2 text-[11px] font-semibold text-indigo-700 text-right">${pct}%</td>
+      </tr>`;
+  }).join('');
 }
 
 function exportCsv() {

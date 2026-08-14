@@ -76,96 +76,69 @@ function renderSummary(summary) {
 }
 
 function renderInstructorBreakdown(instructors) {
-  const container = document.getElementById('instructorBreakdown');
-  
+  const tbody = document.getElementById('instructorTable');
+  if (!tbody) return;
+
   if (!instructors || instructors.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No instructor data available</p>';
+    tbody.innerHTML = '<tr><td colspan="6" class="py-2 px-2 text-center text-indigo-800 font-medium">No instructor data available</td></tr>';
     return;
   }
 
-  const html = instructors.map(inst => {
-    const completionRate = inst.total_actions > 0 
-      ? Math.round((inst.completed / inst.total_actions) * 100) 
+  tbody.innerHTML = instructors.map(inst => {
+    const completionRate = inst.total_actions > 0
+      ? Math.round((inst.completed / inst.total_actions) * 100)
       : 0;
-    
+    const rateColor = completionRate >= 70 ? 'text-emerald-700' : completionRate >= 40 ? 'text-amber-700' : 'text-red-600';
+
     return `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-center justify-between">
-        <div class="flex-1">
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(inst.instructor_name)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${inst.total_actions} action item${inst.total_actions !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="flex gap-3">
-          <div class="text-right">
-            <p class="text-sm font-bold text-amber-800">${inst.pending}</p>
-            <p class="text-[10px] text-slate-500">Pending</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold text-blue-400">${inst.in_progress}</p>
-            <p class="text-[10px] text-slate-500">In Progress</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold text-emerald-600">${inst.completed}</p>
-            <p class="text-[10px] text-slate-500">Completed</p>
-          </div>
-        </div>
-      </div>
-      <div class="mt-2 pt-2 border-t border-slate-700/50">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] text-slate-400">Completion Rate</span>
-          <span class="text-xs font-bold ${completionRate >= 70 ? 'text-emerald-600' : completionRate >= 40 ? 'text-amber-800' : 'text-red-400'}">${completionRate}%</span>
-        </div>
-        <div class="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-          <div class="h-full ${completionRate >= 70 ? 'bg-emerald-600' : completionRate >= 40 ? 'bg-amber-800' : 'bg-red-400'}" style="width: ${completionRate}%"></div>
-        </div>
-      </div>
-    </div>
-  `;
+      <tr class="border-b border-indigo-200 hover:bg-indigo-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-indigo-950">${escapeHtml(inst.instructor_name)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-indigo-900 text-right">${inst.total_actions}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-amber-700 text-right">${inst.pending}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-blue-700 text-right">${inst.in_progress}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-emerald-700 text-right">${inst.completed}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${rateColor} text-right">${completionRate}%</td>
+      </tr>`;
   }).join('');
-
-  container.innerHTML = html;
 }
-
 function renderRecentActions(actions) {
-  const container = document.getElementById('recentActions');
-  
+  const tbody = document.getElementById('recentActionsTable');
+  if (!tbody) return;
+
   if (!actions || actions.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No action items available</p>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-2 px-2 text-center text-violet-800 font-medium">No action items available</td></tr>';
     return;
   }
 
-  const html = actions.map(action => {
-    const statusColors = {
-      'pending': 'bg-amber-500/10 text-amber-800',
-      'in_progress': 'bg-blue-500/10 text-blue-400',
-      'completed': 'bg-emerald-500/10 text-emerald-600'
-    };
-    const priorityColors = {
-      'high': 'bg-red-500/10 text-red-400',
-      'medium': 'bg-amber-500/10 text-amber-800',
-      'low': 'bg-slate-500/10 text-slate-400'
-    };
-    
-    return `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-[10px] px-1.5 py-0.5 rounded ${priorityColors[action.priority] || priorityColors.medium}">${action.priority || 'medium'}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded ${statusColors[action.status] || statusColors.pending}">${action.status || 'pending'}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">${action.type === 'coaching_feedback' ? 'Coaching' : 'Alternative'}</span>
-          </div>
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(action.action_text)}</p>
-          <p class="text-[10px] text-slate-400 mt-1">${formatDate(action.meeting_date)} • ${escapeHtml(action.instructor_name)}</p>
-        </div>
-      </div>
-    </div>
-  `;
-  }).join('');
+  const statusColors = {
+    'pending': 'bg-amber-100 text-amber-800',
+    'in_progress': 'bg-blue-100 text-blue-700',
+    'completed': 'bg-emerald-100 text-emerald-700'
+  };
+  const priorityColors = {
+    'high': 'bg-red-100 text-red-700',
+    'medium': 'bg-amber-100 text-amber-700',
+    'low': 'bg-slate-100 text-slate-600'
+  };
 
-  container.innerHTML = html;
+  tbody.innerHTML = actions.map(action => `
+    <tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px]">
+        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${priorityColors[action.priority] || priorityColors.medium}">${escapeHtml(action.priority || 'medium')}</span>
+      </td>
+      <td class="py-2 px-2 text-[11px]">
+        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${statusColors[action.status] || statusColors.pending}">${escapeHtml(action.status || 'pending')}</span>
+      </td>
+      <td class="py-2 px-2 text-[11px]">
+        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-violet-100 text-violet-700">${action.type === 'coaching_feedback' ? 'Coaching' : 'Alternative'}</span>
+      </td>
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">
+        <div>${escapeHtml(action.action_text)}</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(action.instructor_name)}</div>
+      </td>
+      <td class="py-2 px-2 text-[11px] text-slate-600 text-right whitespace-nowrap">${formatDate(action.meeting_date)}</td>
+    </tr>`).join('');
 }
-
 function formatDate(dateStr) {
   if (!dateStr) return 'N/A';
   return new Date(dateStr).toLocaleDateString('en-US', {

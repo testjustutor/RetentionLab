@@ -5,6 +5,7 @@
 let decisionsData = null;
 let dateFilter = null;
 let typeFilter = null;
+let instructorFilter = null;
 
 (async () => {
   // Initialize date filter (30 days default)
@@ -26,17 +27,40 @@ let typeFilter = null;
     }
   });
 
+  // Initialize instructor filter (shared insights endpoint)
+  loadInstructors();
+
   await loadDecisions();
 })();
+
+async function loadInstructors() {
+  try {
+    instructorFilter = createSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All instructors',
+      dataSource: async () => {
+        const json = await apiFetch('/api/admin/insights/instructors');
+        return json.instructors || [];
+      },
+      displayField: 'name',
+      valueField: 'id',
+      onSelect: () => loadDecisions()
+    });
+  } catch (e) {
+    console.error('Failed to load instructors:', e);
+  }
+}
 
 async function loadDecisions() {
   try {
     const { fromDate, toDate } = dateFilter.getDates();
     const typeValue = typeFilter ? typeFilter.getValue() : null;
+    const instructorId = instructorFilter ? instructorFilter.getValue() : null;
     
     const body = {
       from_date: fromDate,
-      to_date: toDate
+      to_date: toDate,
+      instructor_id: instructorId
     };
 
     if (typeValue) {
@@ -51,7 +75,7 @@ async function loadDecisions() {
     decisionsData = data;
     
     renderSummary(data.summary);
-    renderInstructorBreakdown(data.instructor_breakdown);
+    renderInstructorTable(data.instructor_breakdown);
     renderRecentDecisions(data.recent_decisions);
     
     showToast('Decisions loaded successfully');
@@ -66,10 +90,20 @@ function renderSummary(summary) {
   document.getElementById('evaluationDecisions').textContent = summary.evaluation_decisions || 0;
   document.getElementById('coachingDecisions').textContent = summary.coaching_decisions || 0;
 
-  // Performance metrics
-  document.getElementById('avgTeacherPerformance').textContent = summary.avg_teacher_performance || 0;
-  document.getElementById('avgStudentEngagement').textContent = summary.avg_student_engagement || 0;
-  document.getElementById('avgLearningImpact').textContent = summary.avg_learning_impact || 0;
+  // Performance metrics table
+  const perfTbody = document.getElementById('performanceMetricsTable');
+  if (perfTbody) {
+    const metrics = [
+      { label: 'Avg Teacher Performance', value: summary.avg_teacher_performance || 0, color: 'text-cyan-800' },
+      { label: 'Avg Student Engagement', value: summary.avg_student_engagement || 0, color: 'text-emerald-700' },
+      { label: 'Avg Learning Impact', value: summary.avg_learning_impact || 0, color: 'text-blue-700' }
+    ];
+    perfTbody.innerHTML = metrics.map(m => `
+      <tr class="border-b border-cyan-200 hover:bg-cyan-100 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-cyan-950">${escapeHtml(m.label)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${m.color} text-right">${m.value}</td>
+      </tr>`).join('');
+  }
 
   // Rating distribution
   const ratings = summary.rating_distribution || {};
@@ -79,80 +113,62 @@ function renderSummary(summary) {
   document.getElementById('needsImprovementRating').textContent = ratings['Needs Improvement'] || 0;
 }
 
-function renderInstructorBreakdown(instructors) {
-  const container = document.getElementById('instructorBreakdown');
-  
+function renderInstructorTable(instructors) {
+  const tbody = document.getElementById('instructorTable');
+  if (!tbody) return;
+
   if (!instructors || instructors.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No instructor data available</p>';
+    tbody.innerHTML = '<tr><td colspan="4" class="py-2 px-2 text-center text-blue-800 font-medium">No instructor data available</td></tr>';
     return;
   }
 
-  const html = instructors.map(inst => {
-    const total = inst.evaluation_count + inst.coaching_count;
-    
+  tbody.innerHTML = instructors.map(inst => {
+    const total = (inst.evaluation_count || 0) + (inst.coaching_count || 0);
     return `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-center justify-between">
-        <div class="flex-1">
-          <p class="text-xs font-semibold text-slate-100">${escapeHtml(inst.instructor_name)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${total} decision${total !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="flex gap-3">
-          <div class="text-right">
-            <p class="text-sm font-bold text-violet-400">${inst.evaluation_count}</p>
-            <p class="text-[10px] text-slate-500">Evaluations</p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-bold text-amber-800">${inst.coaching_count}</p>
-            <p class="text-[10px] text-slate-500">Coaching</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+      <tr class="border-b border-blue-200 hover:bg-blue-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escapeHtml(inst.instructor_name)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-blue-700 text-right">${total}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-cyan-700 text-right">${inst.evaluation_count || 0}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-amber-700 text-right">${inst.coaching_count || 0}</td>
+      </tr>`;
   }).join('');
-
-  container.innerHTML = html;
 }
 
 function renderRecentDecisions(decisions) {
-  const container = document.getElementById('recentDecisions');
-  
+  const tbody = document.getElementById('recentDecisionsTable');
+  if (!tbody) return;
+
   if (!decisions || decisions.length === 0) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-8">No decisions available</p>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-2 px-2 text-center text-violet-800 font-medium">No decisions available</td></tr>';
     return;
   }
 
-  const html = decisions.map(decision => {
-    const typeColors = {
-      'evaluation': 'bg-violet-500/10 text-violet-400',
-      'coaching': 'bg-amber-500/10 text-amber-800'
-    };
-    const ratingColors = {
-      'Excellent': 'text-emerald-600',
-      'Good': 'text-blue-400',
-      'Average': 'text-amber-800',
-      'Needs Improvement': 'text-red-400'
-    };
-    
-    return `
-    <div class="bg-slate-800/30 border border-slate-700/50 rounded-md p-3 hover:bg-slate-800/50 transition-colors">
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="text-[10px] px-1.5 py-0.5 rounded ${typeColors[decision.decision_type] || typeColors.evaluation}">${decision.source}</span>
-            ${decision.overall_rating ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 ${ratingColors[decision.overall_rating] || 'text-slate-400'}">${decision.overall_rating}</span>` : ''}
-          </div>
-          <p class="text-xs font-semibold text-slate-100 mb-1">${escapeHtml(decision.decision_text)}</p>
-          ${decision.context ? `<p class="text-[10px] text-slate-400 mb-1.5 line-clamp-2">${escapeHtml(decision.context)}</p>` : ''}
-          <p class="text-[10px] text-slate-500">${formatDate(decision.meeting_date)} • ${escapeHtml(decision.instructor_name)}</p>
-        </div>
-      </div>
-    </div>
-  `;
-  }).join('');
+  const ratingColors = {
+    'Excellent': 'text-emerald-700',
+    'Good': 'text-blue-700',
+    'Average': 'text-amber-700',
+    'Needs Improvement': 'text-red-600'
+  };
 
-  container.innerHTML = html;
+  tbody.innerHTML = decisions.map(decision => {
+    const rating = decision.overall_rating || 'N/A';
+    const ratingColor = ratingColors[rating] || 'text-slate-600';
+    const context = decision.context
+      ? `<div class="mt-0.5 text-[10px] text-slate-500 line-clamp-2">${escapeHtml(decision.context)}</div>`
+      : '';
+
+    return `
+      <tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">
+          <div>${escapeHtml(decision.decision_text)}</div>
+          ${context}
+        </td>
+        <td class="py-2 px-2 text-[11px] font-bold text-violet-700">${escapeHtml(decision.source)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold ${ratingColor}">${escapeHtml(rating)}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-700">${escapeHtml(decision.instructor_name)}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-600 text-right whitespace-nowrap">${formatDate(decision.meeting_date)}</td>
+      </tr>`;
+  }).join('');
 }
 
 function formatDate(dateStr) {

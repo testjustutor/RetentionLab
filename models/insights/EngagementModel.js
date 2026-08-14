@@ -67,6 +67,64 @@ class EngagementModel {
       });
     });
   }
+
+  /**
+   * Get distinct instructors who have session-quality data (for filter dropdown).
+   * @param {object} user - { role_name, company_id }
+   * @returns {Promise<Array>} [{ id, name, email }]
+   */
+  static getInstructors(user) {
+    return new Promise((resolve, reject) => {
+      let sql = `
+        SELECT DISTINCT
+          u.id,
+          CONCAT(u.first_name, ' ', u.last_name) as name,
+          u.email
+        FROM users u
+        JOIN meetings m ON LOWER(m.calendar_account) = LOWER(u.email)
+        WHERE (
+          EXISTS (
+            SELECT 1 FROM session_quality_reports sqr
+            WHERE sqr.meeting_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM session_final_evaluation sfe
+            JOIN meeting_sessions ms ON ms.id = sfe.session_id
+            WHERE ms.meeting_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM teacher_coaching_feedback tcf
+            WHERE tcf.meeting_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM teacher_better_alternatives tba
+            WHERE tba.meeting_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM session_quality_flags sqf
+            JOIN meeting_sessions ms2 ON ms2.id = sqf.session_id
+            WHERE ms2.meeting_id = m.id
+          )
+        )
+      `;
+      const params = [];
+
+      if (user.role_name === 'admin') {
+        sql += ' AND u.company_id = ?';
+        params.push(user.company_id);
+      }
+
+      sql += ' ORDER BY u.first_name, u.last_name';
+
+      db.all(sql, params, (err, rows) => {
+        if (err) {
+          logger.error('Model(EngagementModel): Error fetching instructors:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      });
+    });
+  }
 }
 
 module.exports = EngagementModel;

@@ -1,243 +1,198 @@
-let allUsers = [];
-let allScores = [];
-let departments = [];
+﻿/**
+ * Team Performance Report (admin).
+ * Fetches server-side team aggregation from /api/admin/reports/teams/summary
+ * with date + instructor filters. Renders a column/bar chart + team cards.
+ */
+let teams = [];
+let teamStats = {};
+let dateFilter = null;
+let instructorFilter = null;
 let teamChart = null;
 
 (async () => {
-  await Promise.all([loadUsers(), loadScores(), loadDepartments()]);
-  updateStats();
-  renderTeamCards();
-  initChart();
-  populateTeamFilter();
+  dateFilter = createDateFilter({
+    days: 30,
+    autoLoad: false,
+    onFilter: (fromDate, toDate) => loadData(fromDate, toDate)
+  });
+  loadInstructors();
+  // Load on refresh using the default one-month date range.
+  await loadData();
 })();
 
-async function loadUsers() {
+async function loadInstructors() {
   try {
-    const data = await apiFetch('/api/admin/users/list', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: 1, per_page: 100 })
+    instructorFilter = createSearchableSelect({
+      containerId: 'instructorFilterContainer',
+      placeholder: 'All instructors',
+      dataSource: async () => {
+        const json = await apiFetch('/api/admin/reports/teams/instructors');
+        return json.instructors || [];
+      },
+      displayField: 'name',
+      valueField: 'id'
     });
-    allUsers = data.users || data.data || [];
-  } catch(e) { console.error('Failed to load users:', e); }
+  } catch (e) {
+    console.error('Failed to load instructors:', e);
+  }
 }
 
-async function loadScores() {
+async function loadData(fromDate, toDate) {
   try {
-    const data = await apiFetch('/api/admin/scores');
-    allScores = data.scores || [];
-  } catch(e) { console.error('Failed to load scores:', e); }
-}
-
-async function loadDepartments() {
-  try {
-    const data = await apiFetch('/api/admin/departments');
-    departments = data.data || data.departments || [];
-    if (!departments.length) {
-      // Fallback: derive from users
-      const deptSet = new Set(allUsers.map(u => u.department || u.team || 'Ungrouped').filter(Boolean));
-      departments = Array.from(deptSet).map(name => ({ id: name, name }));
+    if (!fromDate || !toDate) {
+      const dates = dateFilter.getDates();
+      fromDate = dates.fromDate;
+      toDate = dates.toDate;
     }
-  } catch(e) { console.error('Failed to load departments:', e); }
+    const params = new URLSearchParams();
+    params.append('from_date', fromDate);
+    params.append('to_date', toDate);
+    const instructorId = instructorFilter ? instructorFilter.getValue() : null;
+    if (instructorId) params.append('instructor_id', instructorId);
+
+    const json = await apiFetch('/api/admin/reports/teams/summary?' + params.toString());
+    teams = json.teams || [];
+    teamStats = json.stats || {};
+
+    renderStats();
+    populateTeamFilter();
+    renderChart();
+    renderTeamCards();
+    showToast('Team data loaded successfully');
+  } catch (e) {
+    console.error('loadData:', e);
+    teams = [];
+    teamStats = {};
+    renderStats();
+    populateTeamFilter();
+    renderChart();
+    renderTeamCards();
+    showToast('Failed to load team data: ' + e.message, true);
+  }
+}
+
+function renderStats() {
+  const ids = ['totalTeams', 'totalMembers', 'avgPerformance', 'growthRate'];
+  const vals = [teamStats.totalTeams || 0, teamStats.totalMembers || 0, teamStats.avgPerformance || '0.0', teamStats.growthRate || '0.0'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = vals[i];
+  });
 }
 
 function populateTeamFilter() {
   const filter = document.getElementById('teamFilter');
+  if (!filter) return;
   filter.innerHTML = '<option value="">All Teams</option>';
-  departments.forEach(d => {
-    filter.innerHTML += `<option value="${escapeHtml(d.name||d.id)}">${escapeHtml(d.name||d.id)}</option>`;
+  teams.forEach((t) => {
+    filter.innerHTML += `<option value='${escapeHtml(t.name || '')}'>${escapeHtml(t.name || '')}</option>`;
   });
-  filter.addEventListener('change', renderTeamCards);
+  filter.onchange = () => renderTeamCards();
 }
 
-function updateStats() {
-  document.getElementById('totalTeams').textContent = departments.length;
-  document.getElementById('totalMembers').textContent = allUsers.length;
+function renderChart() {
+  const ctx = document.getElementById('teamChart');
+  if (!ctx || typeof Chart === 'undefined') return;
+  const labels = teams.map((t) => t.name || 'Team');
+  const scores = teams.map((t) => Number(t.avgScore) || 0);
+  const members = teams.map((t) => Number(t.memberCount) || 0);
 
-  const avgPerf = allScores.length ? (allScores.reduce((sum, s) => sum + (+s.score || 0), 0) / allScores.length).toFixed(1) : '0.0';
-  document.getElementById('avgPerformance').textContent = avgPerf;
-  document.getElementById('growthRate').textContent = '+0.0'; // placeholder until historical comparison is added
-}
-
-function renderTeamCards() {
-  const container = document.getElementById('teamCards');
-  const selectedTeam = document.getElementById('teamFilter').value;
-  
-  const filteredDepts = selectedTeam ? departments.filter(d => (d.name||d.id) === selectedTeam) : departments;
-  
-  if (!filteredDepts.length) {
-    container.innerHTML = '<p class="text-slate-500 text-center py-16 col-span-2">No teams found</p>';
-    return;
-  }
-
-  let html = '';
-  filteredDepts.forEach(dept => {
-    const deptName = dept.name || dept.id;
-    const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-    const memberIds = members.map(m => m.id);
-    
-    const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-    const avgScore = deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : '0.0';
-    const participationRate = members.length > 0 ? Math.round((deptScores.length / Math.max(members.length, 1)) * 100) : 0;
-    
-    // Calculate score distribution
-    const scoreBins = { high: 0, medium: 0, low: 0 };
-    deptScores.forEach(s => {
-      const v = +s.score || 0;
-      if (v >= 4) scoreBins.high++;
-      else if (v >= 3) scoreBins.medium++;
-      else scoreBins.low++;
-    });
-
-    html += `<div class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-violet-500/30 transition-colors">
-      <div class="flex items-center justify-between mb-3">
-        <div>
-          <h3 class="text-sm font-semibold ">${escapeHtml(deptName)}</h3>
-          <p class="text-[10px] text-slate-500">${members.length} member${members.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="text-right">
-          <p class="text-xl font-bold ">${avgScore}</p>
-          <p class="text-[10px] text-slate-500">Avg Score</p>
-        </div>
-      </div>
-      
-      <div class="grid grid-cols-3 gap-2 mb-3">
-        <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-          <p class="text-base font-bold text-emerald-600">${scoreBins.high}</p>
-          <p class="text-[10px] text-slate-500">High (4+)</p>
-        </div>
-        <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-          <p class="text-base font-bold text-blue-400">${scoreBins.medium}</p>
-          <p class="text-[10px] text-slate-500">Med (3-4)</p>
-        </div>
-        <div class="bg-slate-800/30 rounded-md p-1.5 text-center">
-          <p class="text-base font-bold text-amber-800">${scoreBins.low}</p>
-          <p class="text-[10px] text-slate-500">Low (<3)</p>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between text-xs">
-        <span class="text-slate-400">Participation: <span class=" font-medium">${participationRate}%</span></span>
-        <span class="text-slate-400">Sessions: <span class=" font-medium">${deptScores.length}</span></span>
-      </div>
-
-      ${members.length > 0 ? `
-      <details class="mt-4">
-        <summary class="text-xs text-slate-400 cursor-pointer hover:text-white transition-colors">View Members</summary>
-        <div class="mt-2 space-y-1">
-          ${members.slice(0, 10).map(m => {
-            const memberScores = allScores.filter(s => (s.reviewer_id || s.user_id) === m.id);
-            const memberAvg = memberScores.length ? (memberScores.reduce((sum, s) => sum + (+s.score || 0), 0) / memberScores.length).toFixed(1) : '-';
-            return `<div class="flex items-center justify-between py-1 px-2 rounded bg-slate-800/20">
-              <span class="text-xs text-slate-300">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name || '')}</span>
-              <span class="text-xs font-medium text-violet-400">${memberAvg}</span>
-            </div>`;
-          }).join('')}
-          ${members.length > 10 ? `<p class="text-xs text-slate-500 pt-1">+${members.length - 10} more</p>` : ''}
-        </div>
-      </details>` : ''}
-    </div>`;
-  });
-
-  container.innerHTML = html;
-}
-
-function initChart() {
-  const ctx = document.getElementById('teamChart').getContext('2d');
-  
-  const labels = departments.map(d => d.name || d.id);
-  const scores = departments.map(dept => {
-    const deptName = dept.name || dept.id;
-    const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-    const memberIds = members.map(m => m.id);
-    const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-    return deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : 0;
-  });
-  
-  const members = departments.map(dept => {
-    const deptName = dept.name || dept.id;
-    return allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName).length;
-  });
+  if (teamChart) teamChart.destroy();
 
   teamChart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [
-        {
-          label: 'Average Score',
-          data: scores,
-          backgroundColor: 'rgba(139, 92, 246, 0.3)',
-          borderColor: 'rgba(139, 92, 246, 1)',
-          borderWidth: 1,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Members',
-          data: members,
-          backgroundColor: 'rgba(34, 197, 94, 0.3)',
-          borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 1,
-          yAxisID: 'y1'
-        }
+        { label: 'Average Score', data: scores, backgroundColor: 'rgba(139, 92, 246, 0.45)', borderColor: 'rgba(139, 92, 246, 1)', borderWidth: 1, yAxisID: 'y' },
+        { label: 'Members', data: members, backgroundColor: 'rgba(34, 197, 94, 0.35)', borderColor: 'rgba(34, 197, 94, 1)', borderWidth: 1, yAxisID: 'y1' }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { labels: { color: '#e2e8f0' } }
-      },
+      plugins: { legend: { labels: { color: '#c4b5fd', font: { size: 13, weight: 'bold' } } } },
       scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-        y: {
-          beginAtZero: true,
-          ticks: { color: '#94a3b8' },
-          grid: { color: '#334155' },
-          position: 'left'
-        },
-        y1: {
-          beginAtZero: true,
-          ticks: { color: '#94a3b8' },
-          grid: { display: false },
-          position: 'right'
-        }
+        x: { ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { color: '#475569' } },
+        y: { beginAtZero: true, ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { color: '#475569' }, position: 'left' },
+        y1: { beginAtZero: true, ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { display: false }, position: 'right' }
       }
     }
   });
 }
 
-async function exportTeamReport() {
-  try {
-    const rows = departments.map(dept => {
-      const deptName = dept.name || dept.id;
-      const members = allUsers.filter(u => (u.department || u.team || 'Ungrouped') === deptName);
-      const memberIds = members.map(m => m.id);
-      const deptScores = allScores.filter(s => memberIds.includes(s.reviewer_id || s.user_id));
-      const avgScore = deptScores.length ? (deptScores.reduce((sum, s) => sum + (+s.score || 0), 0) / deptScores.length).toFixed(1) : '0.0';
-      return {
-        team: deptName,
-        members: members.length,
-        avgScore,
-        totalScores: deptScores.length
-      };
-    });
+function getVisibleTeams() {
+  const selected = document.getElementById('teamFilter') ? document.getElementById('teamFilter').value : '';
+  return selected ? teams.filter((t) => (t.name || '') === selected) : teams;
+}
 
-    if (!rows.length) { showToast('No data to export', true); return; }
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.join(',')].concat(rows.map(r => headers.map(k => `"${String(r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `team-report-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showToast('Report exported');
-  } catch(e) { showToast('Export failed: ' + e.message, true); }
+function renderTeamCards() {
+  const container = document.getElementById('teamCards');
+  if (!container) return;
+  const visible = getVisibleTeams();
+  if (!visible.length) {
+    container.innerHTML = `<p class='text-slate-700 font-semibold text-center py-16 col-span-2'>No teams found</p>`;
+    return;
+  }
+  let html = '';
+  visible.forEach((t) => {
+    const avg = Number(t.avgScore) || 0;
+    const accent = avg >= 4 ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+      : avg >= 3 ? 'border-blue-300 bg-blue-50 text-blue-900'
+      : 'border-slate-300 bg-slate-50 text-slate-800';
+    html += `<div class='bg-white border-2 border-blue-200 rounded-lg p-3 shadow-md'>`;
+    html += `<h4 class='text-[14px] font-bold text-blue-950 mb-3 border-b-2 border-blue-100 pb-2'>${escapeHtml(t.name || 'Team')}</h4>`;
+    html += `<div class='grid grid-cols-2 gap-2'>`;
+    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Members</p>
+      <p class='text-lg font-extrabold'>${t.memberCount}</p>
+    </div>`;
+    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Avg Score</p>
+      <p class='text-lg font-extrabold text-blue-950'>${t.avgScore}</p>
+    </div>`;
+    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Scores</p>
+      <p class='text-lg font-extrabold'>${t.scoreCount}</p>
+    </div>`;
+    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Participation</p>
+      <p class='text-lg font-extrabold'>${t.participation}%</p>
+    </div>`;
+    html += `</div></div>`;
+  });
+  container.innerHTML = html;
+}
+
+function exportTeamReport() {
+  if (!teams.length) { showToast('No data to export', true); return; }
+  const headers = ['Team', 'Members', 'Avg Score', 'Scores', 'Participation', 'High', 'Medium', 'Low'];
+  const NL = String.fromCharCode(10);
+  const DQ = String.fromCharCode(34);
+  const rows = teams.map((t) => [t.name || '', t.memberCount, t.avgScore, t.scoreCount, t.participation + '%', t.high || 0, t.medium || 0, t.low || 0]);
+  const csv = [headers.join(',')].concat(rows.map((r) => r.map((v) => csvEscape(v, DQ)).join(','))).join(NL);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'team-report-' + new Date().toISOString().split('T')[0] + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Report exported');
+}
+
+function csvEscape(v, DQ) {
+  let s = String(v == null ? '' : v);
+  const C = String.fromCharCode(44);
+  const NL = String.fromCharCode(10);
+  const CR = String.fromCharCode(13);
+  if (s.indexOf(DQ) >= 0 || s.indexOf(C) >= 0 || s.indexOf(NL) >= 0 || s.indexOf(CR) >= 0) {
+    s = DQ + s.split(DQ).join(DQ + DQ) + DQ;
+  }
+  return s;
 }
 
 function escapeHtml(s) {
@@ -246,3 +201,4 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
+

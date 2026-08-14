@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Risks Insights Controller
  * Provides dynamic risk data from session quality flags and coaching feedback
  */
@@ -14,50 +14,7 @@ const controller = {
       const user = req.user;
       const { from_date, to_date, instructor_id, severity } = req.body;
 
-      // Get risks from session quality flags
-      let sql = `
-        SELECT
-          sqf.id,
-          sqf.session_id,
-          sqf.flags,
-          sqf.created_at,
-          sqf.updated_at,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM session_quality_flags sqf
-        JOIN meeting_sessions ms ON ms.id = sqf.session_id
-        JOIN meetings m ON m.id = ms.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-      `;
-      const params = [];
-
-      // Filter by company (admin sees their company's data)
-      if (user.role_name === 'admin') {
-        sql += ' AND u.company_id = ?';
-        params.push(user.company_id);
-      }
-
-      // Filter by date range
-      if (from_date) {
-        sql += ' AND m.scheduled_start_time >= ?';
-        params.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        sql += ' AND m.scheduled_start_time <= ?';
-        params.push(to_date + ' 23:59:59');
-      }
-
-      // Filter by instructor
-      if (instructor_id) {
-        sql += ' AND u.id = ?';
-        params.push(parseInt(instructor_id));
-      }
-
-      sql += ' ORDER BY sqf.created_at DESC LIMIT 100';
-
+      // Get risks from session quality flags (SQL lives in RisksModel)
       const risks = await RisksModel.getQualityFlagRisks(user, { from_date, to_date, instructor_id });
 
       // Parse JSON flags and flatten into individual risks
@@ -89,45 +46,7 @@ const controller = {
         });
       });
 
-      // Also get risks from session quality reports (low scores)
-      let qualitySql = `
-        SELECT
-          sqr.meeting_id,
-          sqr.percentage_score,
-          sqr.confidence_level,
-          sqr.confidence_reason,
-          sqr.executive_summary,
-          m.title as meeting_title,
-          m.scheduled_start_time as meeting_date,
-          CONCAT(u.first_name, ' ', u.last_name) as instructor_name,
-          u.id as instructor_id
-        FROM session_quality_reports sqr
-        JOIN meetings m ON m.id = sqr.meeting_id
-        JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
-        WHERE 1=1
-          AND sqr.percentage_score < 60
-      `;
-      const qualityParams = [];
-
-      if (user.role_name === 'admin') {
-        qualitySql += ' AND u.company_id = ?';
-        qualityParams.push(user.company_id);
-      }
-      if (from_date) {
-        qualitySql += ' AND m.scheduled_start_time >= ?';
-        qualityParams.push(from_date + ' 00:00:00');
-      }
-      if (to_date) {
-        qualitySql += ' AND m.scheduled_start_time <= ?';
-        qualityParams.push(to_date + ' 23:59:59');
-      }
-      if (instructor_id) {
-        qualitySql += ' AND u.id = ?';
-        qualityParams.push(parseInt(instructor_id));
-      }
-
-      qualitySql += ' ORDER BY sqr.percentage_score ASC LIMIT 50';
-
+      // Get risks from low quality scores (SQL lives in RisksModel)
       const qualityRisks = await RisksModel.getQualityScoreRisks(user, { from_date, to_date, instructor_id });
 
       // Convert quality risks to standard format
