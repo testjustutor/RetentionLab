@@ -8,16 +8,19 @@ let typeFilter = null;
 let instructorFilter = null;
 
 (async () => {
-  // Initialize date filter (30 days default)
+  // Initialize date filter (30 days default) - sets default From/To dates in the filter.
   dateFilter = createDateFilter({
     days: 30,
+    autoLoad: false, // only fetch when Get Data is clicked (no auto-load on date change)
     onFilter: () => loadDecisions()
   });
 
-  // Initialize decision type filter
+  // Initialize decision type filter (embedded "Get Data" button hidden —
+  // the single page-level Get Data button below triggers the fetch).
   typeFilter = createSelectFilter({
     containerId: 'typeFilterContainer',
     placeholder: 'All Types',
+    showButton: false,
     dataSource: [
       { id: 'positive', name: 'Positive Decisions' },
       { id: 'improvement', name: 'Improvement Needed' }
@@ -43,8 +46,8 @@ async function loadInstructors() {
         return json.instructors || [];
       },
       displayField: 'name',
-      valueField: 'id',
-      onSelect: () => loadDecisions()
+      valueField: 'id'
+      // No onSelect - instructor changes do NOT auto-load; use Get Data button
     });
   } catch (e) {
     console.error('Failed to load instructors:', e);

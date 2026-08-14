@@ -224,6 +224,7 @@ function createTable(options = {}) {
   let paginationObj = null;
   let currentPage = pagination?.currentPage || 1;
   let pageSize = pagination?.perPage || 10;   // current "entries per page" selection (number or 'All')
+  let serverTotalCount = (pagination && pagination.totalCount != null) ? Number(pagination.totalCount) : null;
   let searchTerm = '';
 
   function render() {
@@ -263,10 +264,13 @@ function createTable(options = {}) {
       });
     }
     let displayData = baseData;
-    const totalItems = baseData.length;
+    // Server-side pagination: use the true total from the backend and do NOT
+    // slice client-side (the API already returns only the requested page's rows).
+    const isServerPaged = pagination && serverTotalCount != null;
+    const totalItems = isServerPaged ? Math.max(serverTotalCount, baseData.length) : baseData.length;
     const totalPages = Math.ceil(totalItems / perPage) || 1;
 
-    if (pagination && totalItems > perPage) {
+    if (!isServerPaged && pagination && totalItems > perPage) {
       const start = (currentPage - 1) * perPage;
       const end = start + perPage;
       displayData = baseData.slice(start, end);
@@ -358,13 +362,18 @@ function createTable(options = {}) {
         '</table>' +
       '</div>';
 
-    // Pagination footer (count/info text on left, page controls on right)
-    if (pagination && totalPages > 1) {
+    // Pagination footer (count/info text on left, page controls on right).
+    // The "Showing X to Y of Z" count is always shown when there is data;
+    // page controls only render when there is more than one page.
+    if (pagination && totalItems > 0) {
       const pageStart = (currentPage - 1) * perPage + 1;
       const pageEnd = Math.min(pageStart + perPage - 1, totalItems);
+      const pageControls = totalPages > 1
+        ? '<div id="tablePagination_' + containerId + '"></div>'
+        : '<span class="text-xs text-slate-500">Page ' + currentPage + ' of ' + totalPages + '</span>';
       tableHtml += '<div class="border-t border-slate-200 bg-slate-200 px-4 py-2.5 flex items-center justify-between gap-4 flex-wrap">' +
         '<span class="text-xs text-slate-600">Showing ' + pageStart + ' to ' + pageEnd + ' of ' + totalItems + ' entries</span>' +
-        '<div id="tablePagination_' + containerId + '"></div>' +
+        pageControls +
       '</div>';
     }
 
@@ -446,13 +455,16 @@ function createTable(options = {}) {
       });
     }
 
-    // Store row click handler globally
+        // Store row click handler globally
     if (typeof onRowClick === 'function') {
       window['handleRowClick_' + containerId] = (rowIdx) => {
         onRowClick(displayData[rowIdx]);
       };
     }
   }
+
+  // Initial render — display the table with the provided data/headers
+  render();
 
   return {
     render,
@@ -469,11 +481,16 @@ function createTable(options = {}) {
       isLoading = bool;
       render();
     },
-    setPaginationPage: (page) => {
+    setPaginationPage: (page, totalCount) => {
+      if (totalCount != null) serverTotalCount = Number(totalCount);
       currentPage = page;
       if (paginationObj) {
         paginationObj.setPage(page);
       }
+      render();
+    },
+    setPaginationTotal: (totalCount) => {
+      if (totalCount != null) serverTotalCount = Number(totalCount);
       render();
     },
     getPagination: () => paginationObj,
@@ -645,9 +662,11 @@ function createDateFilter(options = {}) {
 //   onFilter: Callback when filter is submitted (receives selected value)
 //   displayField: Field name to display in dropdown (default: 'name')
 //   valueField: Field name to use as value (default: 'id')
+//   showButton: Show the embedded "Get Data" button (default: true). Set false
+//              to hide it (e.g. when a page-level single Get Data button is used).
 // Returns: { getValue(), setValue(), clear(), on(event, callback) }
 function createSelectFilter(options = {}) {
-  const { containerId, placeholder, dataSource, onFilter, displayField = 'name', valueField = 'id' } = options;
+  const { containerId, placeholder, dataSource, onFilter, displayField = 'name', valueField = 'id', showButton = true } = options;
   const container = document.getElementById(containerId);
   if (!container) {
     console.error('Select filter container not found:', containerId);
@@ -661,7 +680,7 @@ function createSelectFilter(options = {}) {
   // Create a native select element for Select2 to enhance
   container.innerHTML = '<div class="flex items-center gap-2">' +
     '<div class="flex-1"><select id="selectFilter_' + containerId + '" class="w-full text-xs" style="width:100%"></select></div>' +
-    '<button id="selectFilterBtn_' + containerId + '" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-4 py-1.5 rounded-md transition-colors whitespace-nowrap">Get Data</button>' +
+    (showButton ? '<button id="selectFilterBtn_' + containerId + '" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium px-4 py-1.5 rounded-md transition-colors whitespace-nowrap">Get Data</button>' : '') +
   '</div>';
 
   const selectEl = document.getElementById('selectFilter_' + containerId);
@@ -720,9 +739,11 @@ function createSelectFilter(options = {}) {
     selectedValue = $select.val() || null;
   });
 
-  btn.addEventListener('click', () => {
-    if (onFilter) onFilter(selectedValue);
-  });
+  if (btn) {
+    btn.addEventListener('click', () => {
+      if (onFilter) onFilter(selectedValue);
+    });
+  }
 
   loadItems();
 
@@ -737,7 +758,7 @@ function createSelectFilter(options = {}) {
       $select.val(null).trigger('change');
     },
     on: (event, callback) => {
-      if (event === 'filter' && onFilter) {
+      if (event === 'filter' && onFilter && btn) {
         btn.onclick = () => {
           if (onFilter) onFilter(selectedValue);
           if (callback) callback(selectedValue);

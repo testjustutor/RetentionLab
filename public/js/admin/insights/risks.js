@@ -10,6 +10,7 @@ let severityFilter = null;
   // Initialize date filter (30 days default)
   dateFilter = createDateFilter({
     days: 30,
+    autoLoad: false, // only fetch when Get Data is clicked (no auto-load on date change)
     onFilter: () => loadRisks()
   });
 
@@ -17,6 +18,7 @@ let severityFilter = null;
   severityFilter = createSelectFilter({
     containerId: 'severityFilterContainer',
     placeholder: 'All Severities',
+    showButton: false,
     dataSource: [
       { id: 'high', name: 'High Risk' },
       { id: 'medium', name: 'Medium Risk' },

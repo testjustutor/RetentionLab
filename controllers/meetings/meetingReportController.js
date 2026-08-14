@@ -28,8 +28,8 @@ const controller = {
       let totalDuration = 0;
       let countWithDuration = 0;
       meetings.forEach(m => {
-        if (m.start_time && m.end_time) {
-          const diff = new Date(m.end_time) - new Date(m.start_time);
+        if (m.scheduled_start_time && m.scheduled_end_time) {
+          const diff = new Date(m.scheduled_end_time) - new Date(m.scheduled_start_time);
           if (diff > 0) {
             totalDuration += diff / 60000; // Convert to minutes
             countWithDuration++;

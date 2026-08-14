@@ -129,8 +129,7 @@ class MeetingSessionScoresModel {
     return new Promise((resolve, reject) => {
       const sql = `
         SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date,
-               CONCAT(u.first_name, ' ', u.last_name) as reviewer_name,
-               u.id as reviewer_id
+               CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
         FROM meeting_scores ms
         LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id

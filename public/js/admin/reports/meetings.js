@@ -69,8 +69,8 @@ function updateStats() {
   let totalMinutes = 0;
   let countWithDuration = 0;
   allMeetings.forEach(m => {
-    if (m.start_time && m.end_time) {
-      const diff = new Date(m.end_time) - new Date(m.start_time);
+    if (m.scheduled_start_time && m.scheduled_end_time) {
+      const diff = new Date(m.scheduled_end_time) - new Date(m.scheduled_start_time);
       if (diff > 0) { totalMinutes += diff / 60000; countWithDuration++; }
     }
   });
@@ -97,7 +97,7 @@ function renderTable() {
       <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escapeHtml(m.title || 'Untitled')}</td>
       <td class="py-2 px-2 text-[11px] text-blue-800">${escapeHtml(m.platform || '-')}</td>
       <td class="py-2 px-2 text-[11px]"><span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${statusColor}">${escapeHtml(m.status || 'unknown')}</span></td>
-      <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">${formatDate(m.start_time)}</td>
+      <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">${formatDate(m.scheduled_start_time || m.actual_start_time)}</td>
       <td class="py-2 px-2 text-[11px] text-blue-800">${escapeHtml(m.owner_name || m.owner_email || '-')}</td>
     </tr>`;
   });
@@ -116,8 +116,9 @@ function renderTrendTable() {
   // Group meetings by calendar date (ascending), unknown at the end.
   const byDate = {};
   allMeetings.forEach(m => {
-    const key = m.start_time ? m.start_time.slice(0, 10) : 'unknown';
-    const label = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
+    const t = m.scheduled_start_time || m.actual_start_time || null;
+    const key = t ? t.slice(0, 10) : 'unknown';
+    const label = t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
     if (!byDate[key]) byDate[key] = { label, count: 0 };
     byDate[key].count++;
   });
@@ -146,7 +147,7 @@ function exportCsv() {
     `"${(m.title||'').replace(/"/g,'""')}"`,
     `"${(m.platform||'').replace(/"/g,'""')}"`,
     `"${(m.status||'').replace(/"/g,'""')}"`,
-    formatDate(m.start_time),
+    formatDate(m.scheduled_start_time || m.actual_start_time),
     `"${(m.owner_name||m.owner_email||'').replace(/"/g,'""')}"`
   ].join(','))).join('\n');
   const blob = new Blob([csv], { type:'text/csv' });

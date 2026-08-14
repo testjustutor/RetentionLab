@@ -104,19 +104,19 @@ function renderChart() {
     data: {
       labels,
       datasets: [
-        { label: 'Average Score', data: scores, backgroundColor: 'rgba(139, 92, 246, 0.45)', borderColor: 'rgba(139, 92, 246, 1)', borderWidth: 1, yAxisID: 'y' },
-        { label: 'Members', data: members, backgroundColor: 'rgba(34, 197, 94, 0.35)', borderColor: 'rgba(34, 197, 94, 1)', borderWidth: 1, yAxisID: 'y1' }
+        { label: 'Average Score', data: scores, backgroundColor: 'rgba(139, 92, 246, 0.6)', borderColor: '#8b5cf6', borderWidth: 1, yAxisID: 'y' },
+        { label: 'Members', data: members, backgroundColor: 'rgba(196, 181, 253, 0.45)', borderColor: '#c4b5fd', borderWidth: 1, yAxisID: 'y1' }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { color: '#c4b5fd', font: { size: 13, weight: 'bold' } } } },
+      plugins: { legend: { labels: { color: '#1e3a8a', font: { size: 13, weight: 'bold' } } } },
       scales: {
-        x: { ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { color: '#475569' } },
-        y: { beginAtZero: true, ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { color: '#475569' }, position: 'left' },
-        y1: { beginAtZero: true, ticks: { color: '#7dd3fc', font: { size: 12, weight: 'bold' } }, grid: { display: false }, position: 'right' }
+        x: { ticks: { color: '#334155', font: { size: 12, weight: 'bold' } }, grid: { color: '#e2e8f0' } },
+        y: { beginAtZero: true, ticks: { color: '#334155', font: { size: 12, weight: 'bold' } }, grid: { color: '#e2e8f0' }, position: 'left' },
+        y1: { beginAtZero: true, ticks: { color: '#334155', font: { size: 12, weight: 'bold' } }, grid: { display: false }, position: 'right' }
       }
     }
   });
@@ -137,27 +137,25 @@ function renderTeamCards() {
   }
   let html = '';
   visible.forEach((t) => {
-    const avg = Number(t.avgScore) || 0;
-    const accent = avg >= 4 ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-      : avg >= 3 ? 'border-blue-300 bg-blue-50 text-blue-900'
-      : 'border-slate-300 bg-slate-50 text-slate-800';
+    // Fixed cyan theme for all stat boxes (consistent design).
+    const box = 'border-cyan-300 bg-cyan-50 text-cyan-900';
     html += `<div class='bg-white border-2 border-blue-200 rounded-lg p-3 shadow-md'>`;
     html += `<h4 class='text-[14px] font-bold text-blue-950 mb-3 border-b-2 border-blue-100 pb-2'>${escapeHtml(t.name || 'Team')}</h4>`;
     html += `<div class='grid grid-cols-2 gap-2'>`;
-    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
-      <p class='text-[10px] font-bold uppercase tracking-wide'>Members</p>
+    html += `<div class='border-2 ${box} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Team Size</p>
       <p class='text-lg font-extrabold'>${t.memberCount}</p>
     </div>`;
-    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
+    html += `<div class='border-2 ${box} rounded-md p-2 text-center'>
       <p class='text-[10px] font-bold uppercase tracking-wide'>Avg Score</p>
-      <p class='text-lg font-extrabold text-blue-950'>${t.avgScore}</p>
+      <p class='text-lg font-extrabold text-cyan-950'>${t.avgScore}</p>
     </div>`;
-    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
-      <p class='text-[10px] font-bold uppercase tracking-wide'>Scores</p>
+    html += `<div class='border-2 ${box} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Total Reviews</p>
       <p class='text-lg font-extrabold'>${t.scoreCount}</p>
     </div>`;
-    html += `<div class='border-2 ${accent} rounded-md p-2 text-center'>
-      <p class='text-[10px] font-bold uppercase tracking-wide'>Participation</p>
+    html += `<div class='border-2 ${box} rounded-md p-2 text-center'>
+      <p class='text-[10px] font-bold uppercase tracking-wide'>Participation Rate</p>
       <p class='text-lg font-extrabold'>${t.participation}%</p>
     </div>`;
     html += `</div></div>`;

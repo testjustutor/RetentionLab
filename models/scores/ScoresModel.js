@@ -53,7 +53,6 @@ class ScoresModel {
       let sql = `
         SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name,
-               u.id as reviewer_id,
                i.name as indicator_name, i.category_id,
                c.name as category_name, c.weight as category_weight
         FROM meeting_session_scores ms
@@ -105,11 +104,8 @@ class ScoresModel {
         params.push(searchTerm, searchTerm, searchTerm);
       }
 
-      // Get total count
-      const countSql = sql.replace(
-        'SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date, CONCAT(u.first_name, \' \', u.last_name) as reviewer_name, u.id as reviewer_id, i.name as indicator_name, i.category_id, c.name as category_name, c.weight as category_weight',
-        'SELECT COUNT(*) as total'
-      );
+            // Get total count (use subquery to avoid fragile string replacement)
+      const countSql = 'SELECT COUNT(*) as total FROM (' + sql + ') as count_query';
       const countRow = await new Promise((resolve, reject) => {
         db.get(countSql, params, (err, row) => err ? reject(err) : resolve(row || { total: 0 }));
       });

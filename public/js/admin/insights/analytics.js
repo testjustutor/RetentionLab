@@ -54,20 +54,33 @@ function renderMeetingTrends(trends) {
     return;
   }
 
-  const max = Math.max(...trends.map(t => t.meeting_count));
+  const max = Math.max(...trends.map(t => t.meeting_count || 0));
+  // Fixed chart height (px); tallest bar reserved height leaves room for count + label.
+  const CHART_HEIGHT = 120;
+  const MAX_BAR = 84;
 
   const bars = trends.map(t => {
-    const h = max > 0 ? Math.round((t.meeting_count / max) * 100) : 0;
-    const monthLabel = t.month ? t.month.slice(0, 7) : '';
+    const count = t.meeting_count || 0;
+    const barHeight = max > 0 ? Math.round((count / max) * MAX_BAR) : 0;
     return `
-      <div class="flex flex-col items-center justify-end gap-1 flex-1">
-        <span class="text-[10px] font-bold text-indigo-900">${t.meeting_count}</span>
-        <div class="w-full max-w-8 bg-gradient-to-b from-indigo-400 to-indigo-600 rounded-t shadow-sm transition-all" style="height:${h}%"></div>
-        <span class="text-[10px] text-slate-600">${escapeHtml(monthLabel)}</span>
+      <div class="flex flex-col items-center justify-end flex-1 min-w-0 gap-1">
+        <span class="text-[10px] font-bold text-indigo-900">${count}</span>
+        <div class="w-full max-w-8 bg-gradient-to-b from-indigo-400 to-indigo-600 rounded-t shadow-sm transition-all"
+             style="height:${barHeight}px"></div>
+        <span class="text-[10px] text-slate-600 truncate w-full text-center" title="${escapeHtml(t.month || '')}">${escapeHtml(formatMonth(t.month))}</span>
       </div>`;
   }).join('');
 
-  container.innerHTML = `<div class="flex items-end gap-2 h-32">${bars}</div>`;
+  container.innerHTML = `<div class="flex items-end gap-2" style="height:${CHART_HEIGHT}px">${bars}</div>`;
+}
+
+function formatMonth(month) {
+  if (!month || /^\d{4}-\d{2}$/.test(month) === false) return month || '';
+  const [year, mm] = month.split('-');
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const idx = parseInt(mm, 10) - 1;
+  const name = names[idx] || mm;
+  return `${name} ${year}`;
 }
 
 function renderScoreDistribution(distribution) {

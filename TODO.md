@@ -1,10 +1,156 @@
+## Task: /admin/reports/teams — Team Performance Comparison chart text too light → dark
+
+- [x] Chart text was very light violet (`#e9d5ff` legend, `#c4b5fd` ticks) on a dark `bg-slate-900` card. To make text dark without becoming invisible, switched the chart card to a light blue/cyan theme (matches audits/meetings charts).
+- [x] HTML: chart card `bg-slate-900` → `bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200`; heading `text-violet-600` → `text-blue-900`.
+- [x] JS: legend `#e9d5ff` → `#1e3a8a`; axis ticks `#c4b5fd` → `#334155` (dark slate, x/y/y1); grid `#475569` → `#e2e8f0` (light lines on light card). Members bar border left as-is (`#c4b5fd`).
+- [x] Preserved user changes: `#teamCards` `grid-cols-4` (teams.html) untouched.
+- [x] Verify: `node --check teams.js` passes; 0 light text refs (`#e9d5ff`/`color: '#c4b5fd'`), 1 dark legend `#1e3a8a`, 3 dark ticks `#334155`.
+## Task: /admin/reports/teams — Team Performance Details → Blue/Cyan theme (preserve user changes)
+
+- [x] Changed the 4 stat boxes from violet to a Blue/Cyan theme: `const box = 'border-cyan-300 bg-cyan-50 text-cyan-900'`; Avg Score value `text-violet-950` → `text-cyan-950`; updated the descriptive comment.
+- [x] PRESERVED user's changes: `#teamCards` container in teams.html stays `grid-grid-cols-1 md:grid-cols-4 gap-3` (4-column) and box labels stay Team Size / Avg Score / Total Reviews / Participation Rate.
+- [x] Verify: `node --check teams.js` passes; 0 violet box refs, 1 cyan box ref, 0 text-violet-950, 1 text-cyan-950; teams.html untouched this round.
+## Task: /admin/reports/teams — change Team Performance Comparison chart to violet theme
+
+- [x] Restyled the "Team Performance Comparison" bar chart (`teams.js` `renderChart`) to a consistent violet theme matching the team detail boxes.
+- [x] Average Score bar: fill `rgba(139,92,246,0.6)` / border `#8b5cf6`; Members bar (was green): fill `rgba(196,181,253,0.45)` / border `#c4b5fd`.
+- [x] Axis tick text changed from sky `#7dd3fc` → violet `#c4b5fd` (all 3 axes); legend label `#c4b5fd` → brighter violet `#e9d5ff` for the dark container.
+- [x] Verify: `node --check teams.js` passes; 0 remaining sky `#7dd3fc` / green `rgba(34,197,94` refs; frontend-only change (hard refresh to see).
+## Task: /admin/reports/teams — restyle Team Performance Details boxes (color + text)
+
+- [x] Per user choice: fixed violet theme for all 4 stat boxes per team card (replaced score-based emerald/blue/slate `accent` logic) + renamed labels.
+- [x] Renamed: Members → Team Size, Scores → Total Reviews, Participation → Participation Rate; Avg Score kept (value text switched from blue-950 to violet-950 for consistency).
+- [x] Applied via `teams.js` `renderTeamCards()`: `const box = 'border-violet-300 bg-violet-50 text-violet-900'` for all boxes.
+- [x] Verify: `node --check teams.js` passes; 0 remaining `accent` refs, 4 `${box}` (violet) refs; frontend-only change (hard refresh to see).
+## Task: Fix /admin/reports/audits page (broken table — HTML & JS only)
+
+**Issue**: The page at `/admin/reports/audits` rendered nothing (Loading stuck, stats/charts/table empty).
+
+- [x] Root cause (same as meetings page): `audits.html` "Audit Records" table used `<div id="auditBodyContainer">` in place of `<tbody>`, and the `<table>` was never closed. `audits.js` `loadAudits()` calls `document.getElementById('auditBody').innerHTML = ...` on its first line → `Cannot set properties of null`, aborting before stats/charts render.
+- [x] Fix HTML: replaced `<div id="auditBodyContainer">` with `<tbody id="auditBody">` (with a loading row) and closed the `</table>` tag.
+- [x] Verified API contract already correct (HTML/JS only scope): JS calls `/api/admin/audit-reports/summary?startDate&endDate&instructorIds` and `/instructors?calendarConnected=true`; `auditReportController` reads the same param names. All element IDs (`auditBody`, `totalAudits`, `passedCount`, `failedCount`, `passRate`, `passRateChart`, `categoriesChart`) match between HTML and JS.
+- [x] Verify: `node --check` on audits.js passes; `auditBodyContainer` no longer present; `</table>` now closes properly.
+## Task: Fix /admin/reports/meetings page (broken table + wrong column names)
+
+**Issue**: The page at `/admin/reports/meetings` rendered nothing (loading spinner stuck, no stats/trend/list).
+
+- [x] Root cause #1 (CRITICAL): `meetings.html` "All Meetings" table had `<div id="meetingsBodyContainer">` in place of the `<tbody>` and the `<table>` was never closed — so `meetings.js` `loadMeetings()` threw `Cannot set properties of null (getElementById('meetingsBody'))` on its first line, aborting the whole page before stats/trend rendered.
+- [x] Fix HTML: replaced the stray `<div id="meetingsBodyContainer">` with `<tbody id="meetingsBody">` (plus a loading row) and properly closed `</table>`.
+- [x] Root cause #2: meetings table has no `start_time`/`end_time` columns (it uses `scheduled_start_time`/`scheduled_end_time`/`actual_start_time`/`actual_end_time` — confirmed in migration `014_create_meetings_table.js`). `meetings.js` used `m.start_time`/`m.end_time` so dates showed N/A, avg duration stayed "-", and the trend grouped everything under "Unknown".
+- [x] Fix JS (`public/js/admin/reports/meetings.js`): avg-duration calc + table/trend/CSV date fields now use `scheduled_start_time`/`scheduled_end_time` (fallback `actual_start_time`).
+- [x] Fix Controller (`controllers/meetings/meetingReportController.js`): `getSummary` avg-duration now uses `scheduled_start_time`/`scheduled_end_time`.
+- [x] Verify: `node --check` on meetings.js, controller, and model all pass; `meetingsBodyContainer` and `m.start_time`/`m.end_time` no longer present in the meetings report layer.
+## Task: Fix /admin/insights/decisions — filters do not trigger API call
+
+**Issue**: On `/admin/insights/decisions`, the API at `/api/admin/insights/decisions` is only called on page load (with default date settings). Changing filters or clicking "Get Data" does NOT trigger an API call.
+
+- [x] Root cause: `decisions.html` has no standalone `getDataBtn` button (unlike engagement.html). `createDateFilter()` in `common-ui.js` looks for `#getDataBtn` to wire up the click handler — when it's missing, no click handler is attached. Also `autoLoad` defaults to `true` (date changes auto-fire, but inconsistently), and instructor filter has `onSelect` auto-load (unlike engagement.js).
+- [x] Fix: 
+  - Added standalone `getDataBtn` button to `decisions.html` (matching engagement.html pattern with flex layout).
+  - Set `autoLoad: false` in `decisions.js` dateFilter config (matching engagement.js).
+  - Removed `onSelect` from instructor filter in `decisions.js` (matching engagement.js — use Get Data button only).
+- [x] Verify: node --check on JS; hard refresh (Ctrl+F5) to test.
+
+## Task: Restructure /admin/insights/decisions page design
+
+**Issue**: User reported the page was "totally unstructured".
+
+- [x] Found CRITICAL bug: `decisions.html` had an **extra `</div>`** (30 open / 31 close) at the end of the filters block, prematurely closing the `flex-1` column wrapper → summary/stats/tables nested incorrectly (broken top-level layout).
+- [x] Duplicate "Get Data" buttons: `createSelectFilter` (Decision Type) always rendered its own embedded "Get Data" button, plus the standalone `getDataBtn`. Removed duplication.
+- [x] Fixed `createSelectFilter` in `common-ui.js`: added optional `showButton` flag (default `true`, backward-compatible with `actions.js`/`risks.js`) and guarded button event listeners when the button is hidden.
+- [x] Rewrote `decisions.html` filters section with clean 2-space indentation, single page-level `getDataBtn` (matches engagement.html), removed extra `</div>` → divs balanced (30 open / 30 close).
+- [x] Updated `decisions.js`: typeFilter uses `showButton: false` (single Get Data button handles all filters); kept `autoLoad: false` + no instructor `onSelect`.
+- [x] Verify: node --check on common-ui.js + decisions.js passed; div counts balanced.
+
+## Task: Fix /admin/evaluation/scores — "Duplicate column name 'reviewer_id'"
+
+**Error**: `scores.js:157 Failed to load scores: Error: Duplicate column name 'reviewer_id'` hitting `/api/admin/scores/filtered`.
+
+- [x] Root cause: `ScoresModel.getFilteredScores` did `SELECT ms.*, ... u.id as reviewer_id`. `ms.*` already includes `meeting_session_scores.reviewer_id`, so the explicit `u.id as reviewer_id` alias produced a duplicate column → MySQL error. Since the join is `ON u.id = ms.reviewer_id`, the alias was redundant.
+- [x] Removed `u.id as reviewer_id` from `models/scores/ScoresModel.js` (`getFilteredScores`). `reviewer_id` still returned via `ms.*`.
+- [x] Fixed same latent bug in `models/meetings/MeetingSessionScoresModel.js` (`getAllScoresWithDetails`) — it used `SELECT ms.*, ... u.id as reviewer_id FROM meeting_scores` and `meeting_scores` also has `reviewer_id`. Used by scores report endpoint.
+- [x] Verified consumers (`evaluationReportController` uses `s.reviewer_id`, `performance.js` uses `score.reviewer_id`) still receive `reviewer_id` via `ms.*`.
+- [x] Checked `EvaluationReportModel.getRecentScores` — no duplicate (only `reviewer_name` alias), safe.
+- [x] Verify: node --check on both edited model files passed.
+
+## Task: Fix /admin/insights/risks — stop auto-calling risks API on date change
+
+**Issue**: On `/admin/insights/risks`, changing the date filter immediately calls `/api/admin/insights/risks`. Desired: the API should only be called on page load (with default dates) and when the "Get Data" button is clicked (with selected date/filter values).
+
+- [x] Root cause: `risks.js` uses `createDateFilter` with default `autoLoad: true` → date changes auto-fire `onFilter` → `loadRisks()`. Also there is no standalone `getDataBtn`.
+- [x] Fix: 
+  - `risks.html`: converted grid filter row to `flex flex-wrap items-end gap-3` and added a standalone `getDataBtn` (matching decisions/engagement pages).
+  - `risks.js`: set `autoLoad: false` on the date filter so date changes do NOT auto-load; single page-level "Get Data" button triggers the fetch.
+  - `risks.js`: severity filter uses `showButton: false` (avoid duplicate "Get Data" from createSelectFilter's embedded button).
+- [x] Verify: node --check risks.js (passed); div balance 23=23; getDataBtn count=1 in risks.html.
+
+## Task: Fix "Meeting Trends" chart on /admin/insights/analytics
+
+**Issue**: The "Meeting Trends" section is not showing proper data / design is broken. Data is confirmed correct (meeting count per month, e.g. 2026-07 → 103, 2026-08 → 78), so the problem is the rendering.
+
+- [x] Root cause (analytics.js `renderMeetingTrends`):
+  - Bars use `style="height:${h}%"` inside a `flex flex-col` column that has **no explicit height** → percentage heights resolve to auto/0, so bars collapse/do not render.
+  - Month label `t.month.slice(0,7)` on a value already in `'YYYY-MM'` shows raw "2026-07" instead of a friendly label.
+- [x] Fix (only `public/js/admin/insights/analytics.js`):
+  - Rebuilt bar chart with a fixed-height container and **pixel-based** bar heights (deterministic, bars render from the bottom).
+  - Added `formatMonth()` to show a friendly short month + year label (e.g. "Jul 2026") with truncation/tooltip for long labels.
+  - No changes to other pages.
+- [x] Verify: node --check analytics.js (passed); JSON shape [{month, meeting_count}] confirmed; shared components untouched.
+
+## Task: Enable server-side pagination + true total count footer on /admin/evaluation/scores
+
+**Issue**: The scores table only shows the current page's rows and never displays the true total count / page controls, even though the backend already returns `totalCount`, `totalPages`, `currentPage`. The `createTable` component was being used in a purely client-side way, so the footer and pagination computed totals only from the ~20 rows loaded on screen.
+
+- [x] Root cause:
+  - Backend `/api/admin/scores/filtered` already server-paginates (returns current page + totalCount/totalPages).
+  - `scores.js` flattened only the current page's rows into `createTable`; `createTable`'s client-side logic then treated those ~20 rows as the whole dataset → no true total footer, no page controls when totalCount > perPage.
+- [x] Fix `createTable` (common-ui.js, backward-compatible):
+  - Added `pagination.totalCount` support (server-side totals). When provided, use it for the footer "Showing X to Y of Z entries" and for totalPages, and do NOT double-slice client-side. When absent (existing pages), behavior is unchanged.
+  - Added `setPaginationTotal()` and made `setPaginationPage(page, totalCount)` accept an optional total for updating across loads.
+- [x] Fix `scores.js`:
+  - Keep a reference to the pagination config and pass `totalCount` from the API response.
+  - On each load, call `setPaginationTotal(totalCount)` + `setPaginationPage(page)` so page controls + footer stay in sync and `onPageChange` → `loadData(page)`.
+- [x] Verify: node --check common-ui.js + scores.js (passed). Live model: totalCount=90, 20 rows/page → 5 pages — footer will show "Showing 1 to 20 of 90 entries" + page controls.
+
+## Task: Enable pagination + total-count footer (createTable) on 4 report/insights pages
+
+**Goal**: Use the full centralized `createTable` feature (entries-per-page, search, pagination footer "Showing X to Y of Z entries" + page controls) on the main data table of these pages without touching anything else:
+- /admin/insights/risks (Recent Risks table)
+- /admin/reports/meetings (All Meetings table)
+- /admin/reports/evaluations (Evaluation Records table)
+- /admin/reports/audits (Audit Records table)
+
+- [ ] risks.html/js: convert #recentRisksTable to createTable container
+- [ ] meetings.html/js: convert #meetingsBody to createTable container
+- [ ] evaluations.html/js: convert #evaluationBody to createTable container
+- [ ] audits.html/js: convert #auditBody to createTable container
+- [ ] Verify: node --check all 4 JS + 4 HTML containers present; hard refresh to test.
+
 ## Task: Improve Providers grid color theme on /admin/settings/integrations
 
 - [+] ISSUE: provider cards all plain white with light slate text → not color-themed / low visual hierarchy.
 - [+] FIX: integrations.js renderProviderCards → per-provider color theme (Zoom=cyan, Google Meet=emerald, Teams=indigo): gradient card backgrounds, vivid borders, dark bold headings, white-on-badge status, bold count chips + uppercase bold labels, bold config rows.
 - [ ] Verify: node --check integrations.js; themes + bold classes present.
 
-## Task: Improve Account Details line-by-line separation on /admin/profile
+## Task: Debug: /admin/evaluation/scores — data from API not visible on page
+
+### Root Cause (PRIMARY BUG)
+- **File**: `public/js/common-ui.js` → `createTable()` function
+- **Issue**: `createTable()` never called `render()` on initial creation. When `scores.js` called `createTable({ ... data: flatScores ... })`, the data was stored in `currentData` but never rendered to the DOM. The `#scoresRoot` container retained the loading placeholder HTML indefinitely.
+- **Fix**: Added `render();` call before `return` in `createTable()` — now the table with provided data is displayed immediately on creation.
+- **Scope**: This fix benefits ALL pages using `createTable()`: scores, recordings, summaries, transcripts, videos, calendar, users, integrations.
+
+### Secondary Bug
+- **File**: `models/scores/ScoresModel.js` → `getFilteredScores()`
+- **Issue**: Count query used `sql.replace()` with a string literal that didn't match the template literal's whitespace/newlines, so the replacement silently failed. This caused `totalCount` to be always `undefined`, resulting in the message showing "undefined score(s) found".
+- **Fix**: Replaced fragile `sql.replace()` with a subquery: `SELECT COUNT(*) as total FROM (${sql}) as count_query`.
+- **Note**: Requires server restart (`node server.js`) to take effect since Node.js caches `require()`d modules.
+
+### Verification
+- [x] `node --check` passes on all changed files
+- [x] `require('./models/scores/ScoresModel.js')` loads without error
+- [x] API returns `SUCCESS: true, CATEGORIES: 1, TOTAL COUNT: undefined` (totalCount bug confirmed; will be fixed on server restart)
+- [x] `createTable` now calls `render()` on init — table will display immediately
 
 ## Task: Improve Account Details line-by-line separation on /admin/profile
 

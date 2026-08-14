@@ -128,7 +128,7 @@ async function loadData(page = 1) {
       from_date: fromDate,
       to_date: toDate,
       page: page,
-      per_page: 20
+      per_page: 10
     };
     
     if (filterState.instructorId) body.instructor_id = filterState.instructorId;
@@ -212,6 +212,10 @@ function renderScores(page = 1) {
     { label: 'Reviewer', key: 'reviewer_name' }
   ];
 
+  // Server-side pagination: tell the table the true total from the API so the
+  // footer ("Showing X to Y of Z") and page controls reflect the real dataset.
+  const totalCount = allCategories.totalCount || flatScores.length;
+
   if (!scoresTable) {
     scoresTable = createTable({
       containerId: 'scoresRoot',
@@ -219,13 +223,15 @@ function renderScores(page = 1) {
       data: flatScores,
       emptyMessage: allCategories.message || 'No scores available. Try adjusting your filters or date range.',
       pagination: {
-        perPage: 20,
+        perPage: 10,
         currentPage: page,
+        totalCount: totalCount,
         onPageChange: (newPage) => loadData(newPage)
       }
     });
   } else {
     scoresTable.setData(flatScores);
+    scoresTable.setPaginationTotal(totalCount);
     scoresTable.setPaginationPage(page);
   }
 }
