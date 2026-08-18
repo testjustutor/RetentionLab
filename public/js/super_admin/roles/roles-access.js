@@ -230,7 +230,7 @@ document.getElementById('addRoleForm').addEventListener('submit', async (event) 
     const description = document.getElementById('roleDescription').value.trim();
 
     if (!roleName) {
-        alert('Role name is required.');
+        showToast('Role name is required.', 'info');
         return;
     }
 

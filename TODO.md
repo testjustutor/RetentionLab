@@ -1,3 +1,375 @@
+## Task: Fix slow API - /api/super_admin/monitoring/audit
+
+Flow: API hangs -> check controller -> check data source path.
+
+- [x] Root cause: auditController.js resolved logsDir with 4 levels up (..\..\..\..) -> hit c:\xampp\htdocs\logs which does not exist. Should be 3 levels up to reach c:\xampp\htdocs\RetentionLab\logs.
+- [x] Fixed: changed path.join to use 3 levels up instead of 4.
+- [x] Verified: 17 .log files found, controller returns entries, syntax check passed.
+
+## Task: Fix slow API - /api/super_admin/sidebar-menu-management/permissions
+
+Flow: API hangs -> check controller -> check response logic.
+
+- [x] Root cause: menuController.js (getMenuPermissions + 4 other methods) used return ok(...) / return err(...) which return plain objects. Express ignores return values from async route handlers - the response was never sent via res.json(), so the HTTP request hung until browser timeout.
+- [x] Fixed: added sendOk() and sendErr() helper functions; all controller methods now call res.status().json().
+- [x] Verified: controller returns success=true with 8 permission entries in ~555ms, syntax check passed.
+
+## Task: Apply dashboard light theme to sidebar-menu-management page
+
+- [x] Converted modal from dark to light theme, matching dashboard (bg-slate-100 text-slate-900).
+- [x] Verified: 0 dark bg/text classes, 45/45 divs balanced, body uses light theme.
+## Task: Update theme (color + text) for settings pages: ai-providers, platforms, user-defaults, table-controls
+
+Flow: inspect each page -> apply distinct-color light theme (DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt gradients) -> verify data flow.
+
+- [x] ai-providers: INDIGO theme. Light provider cards (bg-white border-indigo-200), indigo headers/icons, indigo-600 test buttons, light inputs (bg-white border-indigo-300 text-slate-900). 67/67 divs balanced. Data: /api/super_admin/settings/ai-providers/settings(?category=ai)+/bulk.
+- [x] platforms: BLUE theme. Light header (blue-50/sky-100), blue info banner, blue-600 buttons. platforms.js rendering themed: white platform cards, blue-300 borders, blue-600 test buttons, 0 dark classes. Data: /api/super_admin/settings/platforms/settings(?category=platforms)+/bulk.
+- [x] user-defaults: EMERALD + multi-color stat cards (violet/cyan/emerald/amber light gradients). Config section emerald gradient, white form cards, emerald inputs. Summary table teal gradient with sticky teal headers. 35/35 divs. Data: /api/super_admin/settings/user-defaults/system/filter+/bulk.
+- [x] table-controls: CYAN theme. Light card (cyan-50/teal-100), cyan-100 header, teal-600 refresh button. table-controls.js rendering themed: cyan table headers, teal checkboxes/buttons, hover cyan-100. 10/10 divs. Data: /api/tables/controls (legacy registry handler - works).
+- [x] All 4: light bodies (bg-slate-100 text-slate-900), 0 remaining dark bg-slate-9xx or unreadable dark text; all JS pass node --check; routes load OK; header/sidebar untouched.
+
+## Task: Update /super_admin/settings/bot-configuration page theme (color + text)
+
+Flow: inspect page -> convert dark cards to light per-section colors -> verify data flow.
+
+- [x] Converted page from dark theme to light, per-section DISTINCT colors (used DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt gradients).
+- [x] 6 config sections now each have their own accent color + light gradient container: Puppeteer=violet, Audio=rose, Screen=cyan, Bot Engine=emerald, Retry=amber, Advanced=cyan.
+- [x] Page header: light slate gradient (slate-50/100), slate-950 title, slate-600 subtitle.
+- [x] config-cards: dark bg-slate-950 -> bg-white border-2 border-slate-200; labels -> text-slate-700 font-bold; inputs -> bg-white border-slate-300 text-slate-900; hints -> text-slate-600.
+- [x] Section headers: bg-{color}-100 bars, text-slate-950 uppercase title, colored icons + subtitles.
+- [x] Verified: 0 remaining dark bg-slate-900 sections, 0 dark bg-slate-950 cards, 0 dark inputs; 6 gradient sections; 27 white cards.
+- [x] Data flow intact: loads /api/super_admin/settings/bot-configuration/settings?category=bot, saves /settings/bulk. Body stays light (bg-slate-100 text-slate-900). Header/sidebar untouched.
+
+## Task: Update /super_admin/content/assets page theme (color + text)
+
+Flow: inspect page -> apply distinct theme -> verify.
+
+- [x] Applied a CYAN/TEAL theme (distinct from violet palette used on other pages) using DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt gradients (cyan-50/teal-100, border-cyan-400).
+- [x] HTML: themed storage sidebar (cyan-100 header, teal-700 folder buttons, teal active state), main file viewer (cyan-100 toolbar, teal Download All button, light cyan-950 header text), viewer modal (cyan/teal).
+- [x] JS (assets.bundle.js): updated asset card rendering to white/teal cards (cyan-950 names, teal-700 size/type, teal-300 borders), active folder teal, loading/empty/error states to light theme, viewer content text cyan-950.
+- [x] Verified: HTML div-balanced (17/17), body light (bg-slate-100 text-slate-900), assets.bundle.js passes node --check, no remaining dark text-slate-* classes making text unreadable, routes load OK.
+- [x] Data flow unchanged/working: /api/super_admin/content/assets/folder/:name (+ /file/:name). Header/sidebar untouched.
+
+## Task: Fix /super_admin/people/profile page (URL + design + data)
+
+Flow: inspect page -> fix URL/file location -> fix data/API -> apply theme -> verify.
+
+- [x] URL mismatch: page model resolves people/profile.html but HTML was only at public/super_admin/profile.html (single-level). Created public/super_admin/people/profile.html so the URL now serves the actual profile page.
+- [x] Theme: applied a MULTI-COLOR scheme using DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt patterns - blue/cyan profile card, emerald/teal personal details, amber/orange change-password, indigo/blue recent activity table (custom scrollbar + sticky header). Different colors per section for a user-friendly look (varied from the violet used on other pages).
+- [x] JS data fix: profile.js loadRecentActivity called /api/audit (unregistered) -> changed to /api/super_admin/monitoring/audit so real activity loads.
+- [x] Updated activity row styling to indigo light theme (hover:bg-indigo-100, indigo-600/700/800 text, rose-700/amber-700 level badges).
+- [x] Fixed #cardName id (JS references cardName but heading was missing the id).
+- [x] Added common-ui-super-admin.js script.
+- [x] Verified: page model resolves people/profile.html (exists); routes load OK; profile.js passes node --check; all 5 profile API calls map to registered super_admin routes.
+
+## Task: Fix /super_admin/settings/sidebar-menu-management page (URL + design + data)
+
+Flow: inspect page -> fix URL/file paths -> fix API calls -> apply theme -> verify.
+
+- [x] URL mismatch: page model resolves settings/sidebar-menu-management.html but HTML was only at public/super_admin/sidebar-menu-management.html (single-level). Copied HTML into public/super_admin/settings/sidebar-menu-management.html so the URL now serves the page.
+- [x] JS path mismatch: HTML ref /js/super_admin/settings/sidebar-menu-management.js which was missing. Copied js into public/js/super_admin/settings/.
+- [x] API mismatch: JS called base /api/menu/admin/menu-permissions + /reseed; updated to super_admin endpoints /api/super_admin/sidebar-menu-management/(permissions|reseed). Route registered in routes/super_admin/sidebar-menu-management.js. No old /api/menu refs remain.
+- [x] Theme: applied violet template theme (body light, violet gradient cards, violet table headers hover, custom-scrollbar max-h).
+- [x] Added auth.js + common-ui-super-admin.js scripts; sidebar/header placeholders intact.
+- [x] Removed stray file accidentally created. Verified JS passes node --check; routes load; page model resolves settings file.
+
+## Task: Fix /super_admin/monitoring/audit page (design + data connection)
+
+Flow: inspect page -> fix script/api/theme -> verify.
+
+- [x] Identified issues: HTML loaded wrong script path (/js/super_admin/reports/audit.js), no sidebar placeholder, JS called /api/audit (unregistered) so it fell back to synthetic logs, dark theme inconsistent with template.
+- [x] audit.html: fixed script src to /js/super_admin/monitoring/audit.js; added sidebar-placeholder; added common-ui-super-admin.js; applied violet template theme (bg-gradient violet-50/purple-100, violet headers/toolbar/pagination, sticky header).
+- [x] audit.js: changed API call /api/audit -> /api/super_admin/monitoring/audit so real log data loads; updated table row rendering to violet template theme.
+- [x] Verified audit.js passes node --check; auditController+route load; routes/super_admin/index.js loads OK.
+- [x] Data now comes from auditController.list (reads logs dir) via /api/super_admin/monitoring/audit.
+
+## Task: Audit + fix connections between routes/super_admin and public/js/super_admin
+
+Flow: scan frontend API calls -> compare to registered routes -> fix mismatches -> verify.
+
+- [x] Scanned all frontend API calls in public/js/super_admin/*.js.
+- [x] Compared to routes registered in routes/super_admin.
+- [x] Fixed profile: route mount /profile -> /people/profile (frontend calls /api/super_admin/people/profile/...); added POST /change-password; fixed profile.html script src people/profile.js -> profile.js (file is at root).
+- [x] Added changePassword method to controllers/super_admin/profile/profileController.js (uses base AuthModel hash/verify).
+- [x] Fixed ai-providers: added GET /settings/system route (frontend calls /settings/system?category=ai).
+- [x] Confirmed assets page loads assets.bundle.js (super_admin endpoints), not legacy assets.js (/api/assets) which is unused.
+- [x] Verified routes/super_admin/index.js loads; all changed JS pass node --check; profile controller loads.
+- [x] Base API calls (/api/users, /api/roles, /api/settings/system, /api/audit, etc.) are handled by other registry handlers, not super_admin.
+
+## Task: Replicate base models under models/super_admin/ and point super_admin controllers to them
+
+Flow: inspect model deps -> replicate models -> fix relative paths -> update controller requires -> verify -> test.
+
+- [x] Inspected all 13 base model dependencies (archives, companies, admin, dashboard, calendar, roles, header, menu, users, auth, rubrics, system-settings, user-settings).
+- [x] Replicated all 13 base models into models/super_admin/<dir>/<name>.js.
+- [x] Fixed relative paths: models moved from models/<dir>/ (depth 2) to models/super_admin/<dir>/ (depth 3), so ../../database, ../../utils, ../../config became ../../../; sibling refs (../users, ../roles, ../companies) unchanged.
+- [x] Updated 12 super_admin controllers to point their model requires to the new models/super_admin/ copies.
+- [x] Verified all 13 new super_admin models require() successfully.
+- [x] Verified routes/super_admin/index.js loads OK; 0 leftover base-model refs in super_admin controllers.
+- [x] Original base models NOT modified.
+
+## Task: Complete route wiring for new requires in routes/super_admin/index.js
+
+Flow: inspect referenced route files -> create/populate missing route files -> create supporting controllers -> mount routers -> verify -> test.
+
+- [x] Identified referenced route files that were missing or empty: settings/user-defaults.js, settings/table-controls.js, monitoring/server.js, monitoring/audit.js, sidebar-menu-management.js, profile.js.
+- [x] Created/populated all 6 route files with valid Express routers delegating to controllers.
+- [x] Created supporting controllers: monitoring/serverController.js, monitoring/auditController.js, profile/profileController.js.
+- [x] Added router.use() mounts for ai-providers, user-defaults, table-controls, monitoring/server, monitoring/audit, sidebar-menu-management, profile in routes/super_admin/index.js.
+- [x] Fixed relative require paths: ai-providers controller (../../../../ instead of ../../../../../../), sidebar-menu-management.js and profile.js (../../ instead of ../../../).
+- [x] Verified all referenced controller methods exist (settings: getSystemSettingsByFilter/bulkUpdateSystemSettings, tableControls: list/get/update, aiProviders: getSettings/saveSettings, menu: getResolvedUserMenu/getMenuPermissions/updateMenuPermissions/reseed, profile: me/update).
+- [x] routes/super_admin/index.js loads OK; all 6 route files load OK individually.
+
+## Task: Replicate Super Admin controllers under controllers/super_admin/
+
+Flow: Inspect original controllers -> copy replicas -> fix relative imports for deeper nesting -> update routes/super_admin/index.js -> verify -> test.
+
+- [x] Inspected all 10 referenced controllers (companies, dashboard, google, roles, users, rubrics/settings, menu, tableControls, sidebar).
+- [x] Created replicas under controllers/super_admin/<dir>/<name>.js (10 files).
+- [x] Fixed relative imports: controllers moved from controllers/<dir>/ (depth 2) to controllers/super_admin/<dir>/ (depth 3), so all ../.. became ../../.. (../../models -> ../../../models, ../../database -> ../../../database).
+- [x] routes/super_admin/index.js already references the new super_admin paths; confirmed it loads OK.
+- [x] All 10 new controllers require() successfully (no broken imports).
+- [x] Original controllers NOT modified; DB, auth, middleware, header/sidebar untouched.
+- [x] Temp helper scripts removed.
+
+## Task: Move Bot Configuration page URL + rebuild (common-ui + dedicated MVC)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB. URL moved from configuration -> settings section (file moved by user to `public/super_admin/settings/` + `js/super_admin/settings/`). Note: the user wrote "setting" (singular) but the file lives in the existing `settings` (plural) section, so the page URL resolves as `/super_admin/settings/bot-configuration`.
+
+- [x] **URL change**: Updated `models/super_admin/SuperAdminPageModel.js`: added `bot-configuration` to `settings`, removed from `configuration`. Verified `resolveNestedFile('settings','bot-configuration')` = `settings/bot-configuration.html`.
+- [x] **Frontend HTML**: fixed script src `configuration/bot-configuration.js` -> `/js/super_admin/settings/bot-configuration.js` (now in `settings/`); added `common-ui-super-admin.js`. **Header/sidebar untouched.**
+- [x] **Backend MVC** (`super_admin/settings/bot-configuration/`):
+  - `models/.../BotConfigModel.js` — listSettings (system_settings query, bot category), saveSettings (bulk upsert via SystemSettingsModel.upsertSetting).
+  - `controllers/.../botConfigController.js` — getSettings, saveSettings.
+  - `routes/.../index.js` — GET /settings, POST /settings/bulk.
+  - Mounted in `routes/super_admin/index.js` at `/settings/bot-configuration`.
+- [x] **Frontend JS**: endpoints now `/api/super_admin/settings/bot-configuration/settings[?category=bot]` + `/settings/bulk`.
+- [x] **Verify**: `node --check` passes on all touched JS; BotConfigModel loads (SystemSettingsModel path fixed to `../../../settings/`); route inspection confirms GET /settings + POST /settings/bulk; page model resolves new URL. (Page is a settings form, not a table, so createTable/table format does not apply.)
+
+## Task: Move Assets page URL + rebuild (common-ui + dedicated MVC)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB. URL changed storage/assets -> content/assets (DB sidebar route updated by user). Page is a file manager (folder grid + viewer), not a data table — so the table/theme treatment was applied where it fits (common-ui-super-admin.js + light body) while preserving the functional grid.
+
+- [x] **URL change**: Files already moved to `content/` by user. Updated `models/super_admin/SuperAdminPageModel.js` to `content: ['archives','assets']` (removed `storage`). Fixed `content/assets.html` script src `storage/assets.bundle.js` -> `/js/super_admin/content/assets.bundle.js`. Verified `resolveNestedFile('content','assets')` = `content/assets.html`.
+- [x] **Backend MVC** (`super_admin/content/assets/`):
+  - `models/.../ManageAssetsModel.js` — `listFolder`, `getFile` (filesystem reads moved OUT of controller into model; safe-path guard).
+  - `controllers/.../manageAssetsController.js` — getFolderAssets, getFolderFile.
+  - `routes/.../index.js` — GET /folder/:folderName, GET /folder/:folderName/file/:fileName.
+  - Mounted in `routes/super_admin/index.js` at `/content/assets`.
+- [x] **Frontend**: added `common-ui-super-admin.js`; light body theme; `assets.bundle.js` endpoints now `/api/super_admin/content/assets/folder/...`. **Header/sidebar untouched.**
+- [x] **Verify**: `node --check` passes on model/controller/router/main-router/page-model/bundle; archive routes GET /folder/:folderName + /folder/:folderName/file/:fileName registered; page model resolves new URL.
+
+## Task: Move Archives page URL + rebuild (light theme + createTable + dedicated MVC)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB. URL changed storage/archives -> content/archives (DB sidebar route updated by user).
+
+- [x] **URL change**: 
+  - Moved `public/super_admin/storage/archives.html` -> `public/super_admin/content/archives.html` and `public/js/super_admin/storage/archives.js` -> `public/js/super_admin/content/archives.js`; updated script src.
+  - Updated `models/super_admin/SuperAdminPageModel.js`: `nested.content = ['archives']` (removed from storage). Verified `resolveNestedFile('content','archives')` = `content/archives.html`.
+- [x] **Backend MVC** (`super_admin/content/archives/`):
+  - `models/.../ManageArchivesModel.js` — getMeetings, getInstructors (delegates to ArchivesModel).
+  - `controllers/.../manageArchivesController.js` — getMeetings (POST), getInstructors (GET).
+  - `routes/.../index.js` — POST /meetings, GET /instructors.
+  - Mounted in `routes/super_admin/index.js`; removed old GET /content/archives routes.
+- [x] **Frontend**: re-themed dark -> light emerald (per DASHBOARD template), added `common-ui-super-admin.js`, meetings list via centralized `createTable` (#meetingsTableContainer, export enabled), retained date/instructor/search filters + server-side external pagination + light meeting-detail modal & transcript rendering. **Header/sidebar untouched.**
+- [x] **Verify**: `node --check` passes on all touched JS; HTML div-balanced (18/18), containers/modals present; no leftover `meetingsTableBody`/`/api/archives`/`storage/archives`; archive routes POST /meetings + GET /instructors registered; page model resolves new URL.
+
+## Task: Complete Permission Rubrics page (light theme + createTable + dedicated MVC CRUD)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB. Reused existing MasterRubricModel CRUD ("short trick").
+
+- [x] **Backend MVC** (created + verified):
+  - `models/super_admin/people/manage-rubrics/ManageRubricsModel.js` — listCategories, createCategory, updateCategory, deleteCategory, listIndicators, createIndicator, updateIndicator, deleteIndicator (delegates to MasterRubricModel — no SQL reimplemented).
+  - `controllers/super_admin/people/manage-rubrics/manageRubricsController.js` — 8 thin handlers returning `{ success, data }`.
+  - `routes/super_admin/people/manage-rubrics/index.js` — GET/POST/PUT/DELETE for /categories and /indicators.
+  - Mounted in `routes/super_admin/index.js`; **removed** the old `GET /people/manage-rubrics/{categories,indicators}` routes (now handled by the sub-router).
+- [x] **Frontend HTML** (`public/super_admin/people/manage-rubrics.html`): re-themed dark -> light (violet Categories card + cyan Indicators card, gradient stat cards TotalCategories/TotalIndicators/ActiveItems/InactiveItems, light Category + Indicator modals), two `#categoriesTableContainer` / `#indicatorsTableContainer` createTable mounts, `common-ui-super-admin.js`. **Header/sidebar placeholders untouched.**
+- [x] **Frontend JS** (`public/js/super_admin/people/manage-rubrics.js`): rewritten — centralized `createTable` for both tables (search/pagination/export), all CRUD now hits `/api/super_admin/people/manage-rubrics/{categories,indicators}` (no more `/api/rubric-admin/...`).
+- [x] **Verify**: `node --check` passes on all touched JS; HTML div-balanced (49/49), body/html 1/1, containers present; endpoints all point to manage-rubrics; route inspection confirms all 8 routes registered.
+
+## Task: Complete Access Control page (light theme + createTable + dedicated MVC)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB. Used the reusable manage-users pattern ("short trick").
+
+- [x] **Backend MVC** (created + verified):
+  - `models/super_admin/people/access-control/AccessControlModel.js` — listRoles, listCompanies, listUsers, updateUser (mirror of ManageUsersModel).
+  - `controllers/super_admin/people/access-control/accessControlController.js` — listRoles, listCompanies, listUsers, updateUser.
+  - `routes/super_admin/people/access-control/index.js` — GET /roles, GET /companies, POST /users, PUT /users/:id.
+  - Mounted in `routes/super_admin/index.js`: `router.use('/people/access-control', requireAuth, requireSuperAdmin, accessControl)`.
+- [x] **Frontend HTML** (`public/super_admin/people/access-control.html`): re-themed dark -> light violet (per DASHBOARD template): gradient stat cards (cyan Total / emerald Active / amber Inactive / violet Roles), violet "User Access Control" card, filters, `#userTableContainer`, light Edit-Access / Reset / Confirm-Toggle modals. Added `common-ui-super-admin.js`. **Header/sidebar placeholders untouched.**
+- [x] **Frontend JS** (`public/js/super_admin/people/access-control.js`): copied from manage-users then adapted — endpoints now `/api/super_admin/people/access-control/{roles,companies,users,users/:id}`; centralized `createTable` (filters + pagination + export); modal ids editAccess*; stats use total/active/inactive; filters include super_admin; edit role dropdown includes all roles; status toggle uses the **Confirm-Toggle modal** (`openToggleConfirm`/`executeToggleStatus`/`closeConfirmModal`).
+- [x] **Verify**: `node --check` passes on all touched JS; HTML IDs present (editAccessModal, confirmToggleModal, userTableContainer, inactiveUsers; no totalCompanies); endpoints all point to access-control; route inspection confirms access-control/manage-users/add-user all registered.
+
+## Task: Complete Manage Users page (light theme + createTable + dedicated MVC)
+
+Flow followed: HTML -> JS -> Routes -> Controller -> Model -> DB.
+
+- [x] **Backend MVC** (created + verified):
+  - `models/super_admin/people/manage-users/ManageUsersModel.js` — `listRoles`, `listCompanies`, `listUsers` (delegates to UsersModel.listUsers), `updateUser` (whitelists first_name/last_name/email/role_id/company_id/is_active/password; hashes plain passwords via mirrored scrypt hashPassword).
+  - `controllers/super_admin/people/manage-users/manageUsersController.js` — `listRoles`, `listCompanies`, `listUsers`, `updateUser` (returns `{ success, data }` shape; 400 for bad id; 403/500 via model).
+  - `routes/super_admin/people/manage-users/index.js` — `GET /roles`, `GET /companies`, `POST /users` (list), `PUT /users/:id` (update).
+  - Mounted in `routes/super_admin/index.js`: `router.use('/people/manage-users', requireAuth, requireSuperAdmin, manageUsers)`.
+- [x] **Frontend HTML** (`public/super_admin/people/manage-users.html`): re-themed dark -> light violet (per DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt): gradient stat cards, violet User Directory card, light filters, light Edit/Reset modals. Added `common-ui-super-admin.js` (line 192, before manage-users.js) and a `#userTableContainer` mount. **Header/sidebar placeholders untouched** (`header-placeholder`/`sidebar-placeholder` + `load-components.js` preserved).
+- [x] **Frontend JS** (`public/js/super_admin/people/manage-users.js`): rewritten to use centralized `createTable` (clientside filters via searchInput/roleFilter/companyFilter/statusFilter; `searchable:false`, `pagination`, `exportable`), light/violet column renderers, and all actions now call the new MVC endpoints:
+  - `POST /api/super_admin/people/manage-users/users` (list)
+  - `PUT /api/super_admin/people/manage-users/users/:id` (edit / reset password / toggle status)
+  - `GET /api/super_admin/people/manage-users/roles` + `/companies` (dropdowns)
+- [x] **Verify**: `node --check` passes on all touched JS (model, controller, router, frontend); model `require` loads (RolesModel/CompaniesModel paths OK); route inspection confirms `POST /users`, `PUT /users/:id`, `GET /roles`, `GET /companies`; HTML script order common-ui-super-admin -> auth -> load-components -> manage-users.
+- [x] **Note**: header + sidebar are correct and untouched per user instruction.
+
+## Task: Refactor add-user Add Admin API into dedicated MVC (routes/controllers/models) with POST add-admin
+
+- [x] **Created model** `models/super_admin/people/add-user/AddUserModel.js`:
+  - `createAdmin(user, data)` -> delegates to `UsersModel.createUser` (reuses password hashing, crypto user_uuid, role/company rules) — no SQL in controller.
+  - `updateAdmin(id, data)` -> whitelists first_name/last_name/email and delegates to `UsersModel.updateUser`.
+- [x] **Created controller** `controllers/super_admin/people/add-user/addUserController.js`:
+  - `createAdmin` (validates required fields -> 400; calls AddUserModel -> 201).
+  - `updateAdmin` (validates numeric id -> 400; calls AddUserModel).
+- [x] **Created routes** `routes/super_admin/people/add-user/index.js`:
+  - `POST /add-admin`  -> create admin
+  - `PUT  /add-admin/:id` -> update admin
+- [x] **Mounted** in `routes/super_admin/index.js`: `require('./people/add-user')` + `router.use('/people/add-user', requireAuth, requireSuperAdmin, addUser)` — available under both `/api/super_admin` and `/api/super-admin`.
+- [x] **Frontend** `public/js/super_admin/people/add-user.js`:
+  - Create form: `POST /api/users` -> `POST /api/super_admin/people/add-user/add-admin` (POST method, ends with `add-admin`).
+  - Edit form: `PUT /api/users/:id` -> `PUT /api/super_admin/people/add-user/add-admin/:id`.
+  - Status toggle (`/api/users/:id`) left unchanged (separate activate action, out of scope).
+- [x] **Verify**: `node --check` passes on all 5 touched JS files; `node` require of the main super_admin router loads the full chain; route listing confirms mounted sub-router with `post /add-admin` + `put /add-admin/:id`. Temp test script removed.
+
+## Task: Use common-ui-super-admin.js + centralized table (user functionality) on add-user page
+
+- [x] **common-ui-super-admin.js**: Confirmed `add-user.html` already loads `/js/common-ui-super-admin.js` (line 181, before `add-user.js`) — verified it defines `createTable` (line 213), `escHtml` (line 57), and `createTable` returns `setData` (line 471).
+- [x] **HTML (`public/super_admin/people/add-user.html`)**: Replaced the hand-written Admin Users `<table>` (with `#adminTableBody`) with an empty mount point `<div id="adminTableContainer"></div>` where the centralized `createTable` renders.
+- [x] **JS (`public/js/super_admin/people/add-user.js`)**: 
+  - Added `let adminTable = null;` state.
+  - Rewrote `renderAdminTable(admins)` to map admins → flat rows (`id, name, email, company, userCount, roles, is_active`) and feed them into the centralized `createTable` via `adminTable.setData(rows)`.
+  - Table config: `searchable`, `pagination` (entries-per-page + info + page controls), `exportable` (Export Excel CSV), violet/themed column renderers, plus working **Edit** (`openEditModal`) and **Activate/Deactivate** (`toggleAdminStatus`) action buttons with violet hover styling.
+- [x] **Verify**: `node --check` passes (SYNTAX OK); confirmed `#adminTableContainer` present, old `adminTableBody` removed, temp helper script deleted.
+- [x] **Functionality kept**: stat cards, Add/Edit Admin modals, status toggle, role/company loads all unchanged (HTML → JS → Routes → Controller → Model → DB flow intact).
+
+## Task: Apply theme color + text to Admin Users table on add-user page (per DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt)
+
+- [x] **HTML (`public/super_admin/people/add-user.html`)** — themed the Admin Management card + Admin Users table with violet (matches the page's violet accent):
+  - Card wrapper → `bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400` (template card pattern)
+  - Header bar → `bg-violet-100` + `border-violet-300`; heading → `font-bold text-violet-950 uppercase tracking-wide`
+  - Table wrapped in `overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar`, `thead sticky top-0`
+  - Header row → `border-b-2 border-violet-300 bg-violet-200`; header cells → `font-bold text-violet-950 uppercase`
+  - `tbody` → `divide-y divide-violet-300`; loading row → `text-violet-800 font-medium`
+- [x] **JS (`public/js/super_admin/people/add-user.js`) `renderAdminTable`** — themed the data rows:
+  - Row hover → `hover:bg-violet-100 transition-colors`; avatar → violet (`bg-violet-100 text-violet-700`)
+  - Name → `text-violet-950 font-semibold`; email/company/roles → `text-violet-900`; users-managed count → `text-violet-700 font-bold`; empty state → `text-violet-800 font-medium`
+- [x] **Left unchanged (intentional/out of scope)**: page background (`bg-slate-100`), add/edit modals + form fields (neutral `slate`), the semantic "Inactive" status badge (`bg-slate-100`), and the action buttons — all outside the "Admin Users table data".
+- [x] **Verify**: `node --check` passes on add-user.js (SYNTAX OK).
+
+## Task: Fix empty "Meeting Trends" chart on Super Admin dashboard
+
+- [x] **Root cause**: `controllers/dashboard/dashboardController.js` `getSuperAdminStats` computed the trend by filtering on `m.start_time`, but the `meetings` table has **no `start_time` column** — it uses `scheduled_start_time` (confirmed in `database/migrations/014_create_meetings_table.js` lines 22-25 and previously noted in TODO.md). Since `m.start_time` was always `undefined`, `if (!m.start_time) return false` skipped every meeting, so every day's count was 0 → empty chart.
+- [x] **Fix (MVC flow)**: Changed `m.start_time` → `m.scheduled_start_time` in the trend filter (lines 85-86) and in the `recentMeetings` mapping (line 98). The model `DashboardModel.getRecentMeetingsWithOwner` already returns the column via `SELECT m.*`, and the route/HTML/JS already wired correctly, so **no model/route/JS changes were needed**.
+- [x] **Data flow verified**: HTML canvas `#meetingTrendsChart` → JS `renderCharts` reads `stats.trends.meetingTrends` → route `GET /api/super-admin/dashboard/stats` → `dashboardController.getSuperAdminStats` → `DashboardModel.getRecentMeetingsWithOwner` → `meetings` table (`scheduled_start_time`).
+- [x] **Verify**: `node --check` passes on the controller (SYNTAX OK). Restart server (backend change) + hard refresh `/super_admin/dashboard/index` to see the chart populate.
+
+## Task: Use common-ui-super-admin.js instead of common-ui.js in all Super Admin pages
+
+- [x] **Replaced** `common-ui.js` → `common-ui-super-admin.js` in the 3 Super Admin pages that loaded it:
+  - `public/super_admin/configuration/platforms.html` (line 64)
+  - `public/super_admin/dashboard/index.html` (lines 211-212, incl. comment)
+  - `public/super_admin/people/add-user.html` (line 200)
+- [x] **Verified**: Confirmed `common-ui.js` and `common-ui-super-admin.js` are byte-for-byte identical (same SHA256 `8A0D480E...`), so this is a safe rename with no behavior change.
+- [x] **Note**: Only these 3 Super Admin pages loaded `common-ui.js`. The other 17 Super Admin pages load neither common-ui file, and their JS does not use common-ui functions (`apiFetch`/`escHtml`), so nothing to change there. `common-ui.js` (non-super-admin) is still used by non-super-admin pages and left untouched.
+
+## Task: Verify add-user page matches dashboard light theme / colors / fonts
+
+- [x] **Verified no changes needed**: The add-user page (`/super_admin/people/add-user`) was the source/reference for the dashboard harmonization, so it already matches every convention applied to the dashboard:
+  - Body `font-sans` + `text-slate-900` (line 12)
+  - Stat labels `font-mono font-medium uppercase tracking-widest` with `-700` text color (lines 22/33/44/55)
+  - Stat values `font-bold font-sans` with `-950` text color (lines 23/34/45/56)
+  - Primary buttons `bg-violet-600 ... text-white` (lines 77/153/189)
+  - Light table (`bg-slate-200` header, `text-slate-500`/`text-slate-900`/`text-slate-600` rows)
+- [x] **Grep**: No dark-theme remnants remain in add-user.html or add-user.js (no `text-slate-100/200/300/400`, `bg-slate-700/800/900/950`, `#0f172a`, `#1e293b`, `#94a3b8`, `#334155`, `#475569`). Only `text-white` present is on correctly-styled primary buttons.
+
+## Task: Migrate Platform Settings page URL to /super_admin/settings/platforms
+
+- [x] **Page + JS moved to settings path**: `public/super_admin/settings/platforms.html` now loads `/js/super_admin/settings/platforms.js`, and `public/js/super_admin/settings/platforms.js` uses `/api/super_admin/settings/platforms/settings` + `/settings/bulk`.
+- [x] **Route + controller + model**: created `routes/super_admin/settings/platforms/index.js`, `controllers/super_admin/settings/platforms/platformsController.js`, and `models/super_admin/settings/platforms/PlatformsModel.js`; mounted under `routes/super_admin/index.js`.
+- [x] **Page registry updated**: `models/super_admin/SuperAdminPageModel.js` includes `settings: ['...', 'platforms']` so the page resolves under `/super_admin/settings/platforms`.
+- [x] **Legacy reference redirected**: `routes/configuration.js` now redirects `/super_admin/configuration/platforms` to `/super_admin/settings/platforms` rather than serving the old file.
+- [x] **DB-safe**: Existing `system_settings` platform rows were left intact and the new settings path reads the same data source without resetting or overwriting the DB.
+- [x] **Verification evidence**: `node --check` passed for the migrated route/controller/model/JS files, and the running app started successfully on port 3000. Accessing `/super_admin/settings/platforms` while unauthenticated resolves to `/login`, which is expected for a protected Super Admin page.
+- [x] **Final note**: Full authenticated browser verification requires a valid Super Admin login session; no DB reset or destructive change was performed.
+
+## Task: Harmonize Dashboard text colors & fonts with add-user page
+
+- [x] **Body font**: Added `font-sans` to `public/super_admin/dashboard/index.html` `<body>` (matches add-user body class `... text-slate-900 antialiased font-sans`).
+- [x] **Refresh button**: Added `text-white` to the Refresh button (`bg-indigo-600 ... text-white`) so label is readable on the indigo background (matches add-user primary buttons `bg-violet-600 ... text-white`).
+- [x] **Stat card labels**: Changed the 6 stat-card labels from `text-{color}-900 uppercase tracking-wide font-semibold` to `text-{color}-700 font-mono font-medium uppercase tracking-widest` — matching add-user's stat-label font style (`font-mono font-medium tracking-widest`) and its lighter `-700` label shade.
+- [x] **Verify**: Grep confirms no remaining `-900 ... font-semibold` stat labels; remaining `-900` are intentional section headings (chart titles / Recent Users / Recent Meetings).
+
+## Task: Apply DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE to /super_admin/dashboard/index
+
+- [x] **HTML**: Rewrote `public/super_admin/dashboard/index.html` to match admin dashboard light theme — gradient cards (`border-2`, `shadow-md`), themed colors per section, `text-slate-900` body text, themed table headers with sticky headers + `custom-scrollbar` + `max-h-64`, proper typography (`text-[12px] font-bold uppercase tracking-wide` headers, `text-[11px]` body), fixed script loading order to match admin pattern (common-ui.js first)
+- [x] **JS**: Updated `public/js/super_admin/dashboard/index.js` — light-theme status badges (bg-emerald-100/text-emerald-700 etc.), table row colors (`hover:bg-emerald-100`/`hover:bg-indigo-100`), role badge classes (light backgrounds), chart text/grid colors for light backgrounds (`#64748b` ticks, `#e2e8f0` grid)
+- [x] **Verify**: `node --check` passes on JS; all 22 element IDs preserved in HTML for JS compatibility; no dark theme patterns remain (text-slate-100/200/400/500, bg-slate-800/900, #94a3b8, #334155 all removed)
+
+
+- [x] `public/js/super_admin/configuration/bot-configuration.js`: Changed API call from `/api/settings/system?category=bot` to `/api/super_admin/configuration/bot-configuration/settings/system?category=bot` (line 10).
+- [x] `public/js/super_admin/configuration/ai-providers.js`: Changed API call from `/api/settings/system?category=ai` to `/api/super_admin/configuration/ai-providers/settings/system?category=ai` (line 10).
+- [x] Both files now use the new prefixed API URLs under `/api/super_admin/`.
+- [x] Restart server + hard refresh on both pages to see the new endpoints in action.
+## Task: Super Admin manage-rubrics page — API endpoints under /manage-rubrics
+
+- [x] Frontend `public/js/super_admin/people/manage-rubrics.js` updated the 2 API calls:
+  - `/api/rubric-admin/categories` → `/api/super_admin/people/manage-rubrics/categories` (GET, load categories)
+  - `/api/rubric-admin/indicators` → `/api/super_admin/people/manage-rubrics/indicators` (GET, load indicators)
+- [x] Backend `routes/super_admin/index.js` added 2 new routes (reusing `masterRubricController`):
+  - `GET /people/manage-rubrics/categories` → `masterCtrl.getMasterCategories`
+  - `GET /people/manage-rubrics/indicators` → `masterCtrl.getMasterIndicators`
+- [x] Verify: `node --check` on router passes; routes present in main router output (lines 55-56); master RubricModel methods exist.
+- [x] Restart server + hard refresh `/super_admin/people/manage-rubrics` to see the new endpoints in action.
+## Task: Super Admin manage-users page — API URLs under /manage-users/
+
+- [x] Frontend `public/js/super_admin/people/manage-users.js` updated the 3 API calls:
+  - `/api/roles` → `/api/super_admin/people/manage-users/roles` (GET, load roles)
+  - `/api/companies` → `/api/super_admin/people/manage-users/companies` (GET, load companies)
+  - `/api/users` (POST) → `/api/super_admin/people/manage-users/users` (POST, load users table)
+- [x] Backend `routes/super_admin/index.js` added 4 new routes under the same prefix, reusing existing controllers (`roles.list`, `companies.list`, `users.list`).
+- [x] Verify: `node --check` on router + JS passes; routes present in main router output; 3 frontend URLs now point to the new prefixed endpoints.
+- [x] Restart server + hard refresh `/super_admin/people/manage-users` to see the new URLs in action.
+## Task: Super Admin add-user page — move API URLs under /api/super_admin/people
+
+- [x] Added to `routes/super_admin/index.js` (already mounted at /api/super_admin): GET /people/roles/admin -> roles.getByName; GET /people/companies -> companies.list; GET /people/roles -> roles.list; POST /people/users -> users.list. New full URLs: /api/super_admin/people/{...}.
+- [x] Frontend `public/js/super_admin/people/add-user.js` updated the 4 calls (roles/admin, companies, roles, users list). Left create/update/delete `/api/users...` calls unchanged (not requested).
+- [x] Reuses existing controllers => identical response shapes (role.admin id=2, 5 roles, 1 company; users list works).
+- [x] Verify: node --check on router + JS + registry; routes present in main router; live callbacks return correct data.
+- [x] Restart server + hard refresh /super_admin/people/add-user to see it.
+## Task: Super Admin dashboard — new API URL /api/super-admin/dashboard/stats
+
+- [x] Frontend: `public/js/super_admin/dashboard/index.js` now calls `/api/super-admin/dashboard/stats?days=7` (was `/api/admin/dashboard/super-admin/stats?days=7`).
+- [x] Backend: added registry mount `/api/super-admin` → handler `super_admin` (routes/super_admin/index.js). Its existing `GET /dashboard/stats` route → dashboardController.getSuperAdminStats (reads `?days=`, default 7). Kept old `/api/super_admin` (underscore) mount too.
+- [x] Verify: node --check on JS + registry + main router; registry resolves both mounts; main router exposes GET /dashboard/stats; frontend now points to new URL.
+- [x] Restart server (backend change) + hard refresh on /super_admin/dashboard/index to see it.
+## Task: Re-verify /admin/reports/meetings (user re-reported)
+
+- [x] Confirmed previous fixes are intact: HTML has proper `<tbody id="meetingsBody">` + closed table; JS uses `scheduled_start_time`/`scheduled_end_time`; route `/api/meetings/reports` → 'meeting-reports' registered; controller returns `{ meetings, stats }`.
+- [x] common-ui `createDateFilter` wires `#getDataBtn` click to `onFilter` (works with autoLoad:false).
+- [x] Live DB test: getMeetings returned 100 rows (title/platform/status/scheduled_start_time/owner_name populated); getInstructors returned 5 (id/name/email).
+- [x] node --check passed on JS, controller, model, route; all layers require-load.
+- [x] Page is functional; only a server restart (backend controller change) + hard refresh were ever needed.
+## Task: Super Admin panel — dedicated page routes (controller + model + route), duplicates
+
+- [x] Per user guidance: do NOT touch login / sidebar (sidemenu) / header (routes/pages.js untouched); move only Super Admin page routes by creating new duplicates to minimize errors.
+- [x] Created `routes/super_admin/pages.js` — self-contained Express Router for all /super_admin/* HTML pages (nested `/:section/:page`, single `/:page`, `/`) with duplicated `pageAuth` + `requirePageRole('super_admin')` guards.
+- [x] Created `controllers/super_admin/superAdminPageController.js` — serveHome / serveNested / serveSingle; resolves via model and falls back to dashboard/index.html if a file is missing (no sendFile 500).
+- [x] Created `models/super_admin/SuperAdminPageModel.js` — registry of Super Admin pages (nested + single) + resolveNestedFile/resolveSingleFile helpers.
+- [x] Registered in `routes/registry.js`: `{ method:'use', path:'/super_admin', handler:'super_admin/pages' }` (placed before the catch-all `/` pages router).
+- [x] Verify: node --check all new files + registry; registry now 55 entries; handlers resolve (`./super_admin/pages`, `./super_admin`); dashboard/index.html exists; page model resolves known pages and null for unknown.
+- [x] NOTE: backend change -> restart server; login/sidebar/header routes in pages.js were left fully intact.
+## Task: Super Admin panel — create dedicated MVC folders (controller / model / routes)
+
+- [x] Created `controllers/super_admin/superAdminController.js` (no SQL; business logic only — ping + usersByCompany which calls the model).
+- [x] Created `models/super_admin/SuperAdminModel.js` (holds all SQL — countUsersByCompany; placeholder ping).
+- [x] Created `routes/super_admin/index.js` (thin Express Router wiring controller actions: GET /ping, GET /users-by-company).
+- [x] Registered in `routes/registry.js`: `{ method: 'use', path: '/api/super_admin', handler: 'super_admin' }` (registry resolves `./super_admin` → routes/super_admin/index.js).
+- [x] Verify: `node --check` on all new files + registry; require-load of route/controller/model resolves; registry loads with 54 routes including the super_admin entry; middleware requireAuth/requireRole present.
+- [x] NOTE: server restart required for the new route to serve (backend-only change).
 ## Task: /admin/reports/teams — Team Performance Comparison chart text too light → dark
 
 - [x] Chart text was very light violet (`#e9d5ff` legend, `#c4b5fd` ticks) on a dark `bg-slate-900` card. To make text dark without becoming invisible, switched the chart card to a light blue/cyan theme (matches audits/meetings charts).
@@ -1085,3 +1457,40 @@ node test_videos_api.js
 - [x] Verified live DB: Zoom 2 active/0 verified, Google Meet 5/5, Teams 2/0; accounts join name/email/role/status
 - [x] node --check passes on all changed JS; controller + route require-load pass
 - [ ] Requires server restart (production node server.js) + hard refresh (Ctrl+F5) to see live
+
+## Task: Light theme for Super Admin add-user page
+
+Apply same light theme transformation as dashboard to `/super_admin/people/add-user`:
+
+- [x] **HTML**: Removed `class="dark"` from `<html>`, added `bg-slate-100 text-slate-900` to `<body>`. Converted all 4 stats cards from `bg-slate-900/60 backdrop-blur-md` dark cards to light gradient cards (`bg-gradient-to-br from-{color}-50 to-{color}-100 border-2 border-{color}-400 shadow-md`). Converted Admin Management section from dark to light gradient card. Converted both modals (Add Admin + Edit Admin) from dark (`bg-slate-900 border-slate-800`) to light (`bg-white border-slate-300`). Updated table headers to `bg-slate-200 border-slate-300` with `text-slate-500` labels. Converted form inputs from dark (`bg-slate-800 text-slate-200`) to light (`bg-white text-slate-900`). Fixed script loading order (added `common-ui.js` before `auth.js`).
+- [x] **JS**: Updated `renderAdminTable` in `add-user.js` — light-theme status badges (`bg-emerald-100/text-emerald-700`, `bg-slate-100/text-slate-700`), light table row hover (`hover:bg-slate-100`), light avatar initials (`bg-indigo-100/text-indigo-700`), dark text colors replaced with `text-slate-900`/`text-slate-600`. Edit and toggle buttons converted from dark (`bg-slate-800`) to light (`bg-white`) with themed hover states.
+- [x] **Verify**: `node --check` passes on JS; no dark theme patterns remain in either file (grep finds zero matches for `class="dark"`, `bg-slate-800/900`, `bg-black/80`, `border-slate-700/800`, `backdrop-blur-md`, `shadow-*-500/*`, `text-slate-100/200/400/500`); all element IDs and JS functions preserved.
+- [ ] Restart server + hard refresh `/super_admin/people/add-user` to verify light theme rendering matches admin dashboard.
+- [ ] Restart server + hard refresh (`/super_admin/people/add-user`) to verify the admin role loads and no console errors appear.
+
+## Task: Fix route GET /api/super_admin/people/roles/admin — req.params.name undefined
+
+**Problem:** The add-user page's JS calls `fetch('/api/super_admin/people/roles/admin')`, but the route was defined with a **literal string** `'/people/roles/admin'` instead of a **parameter** `'/:name'`. The controller `roles.getByName` reads `req.params.name`, which was `undefined` for the literal route — causing `RolesModel.getRoleByName(undefined)` → `SELECT * FROM roles WHERE role_name = ?` to receive `undefined` instead of `'admin'`, returning no result.
+
+**Root cause:** `routes/super_admin/index.js` line 49 used `router.get('/people/roles/admin', ...)` instead of `router.get('/people/roles/:name', ...)`.
+
+**Fix:**
+```diff
+- router.get('/people/roles/admin', requireAuth, requireSuperAdmin, handle(roles.getByName));
++ router.get('/people/roles/:name', requireAuth, requireSuperAdmin, handle(roles.getByName));
+```
+
+This matches the existing pattern in `routes/roles.js:29` which uses the same controller via `router.get('/:name', ...)`. No conflicts: `/people/roles/:name` (3 path segments) does not overlap with `/people/roles` (2 segments, list route).
+
+**Flow after fix:**
+1. Browser: `fetch('/api/super_admin/people/roles/admin', { credentials: 'include' })`
+2. Express matches `GET /people/roles/:name` → `req.params.name = 'admin'`
+3. Controller `getByName`: `RolesModel.getRoleByName('admin')` → `SELECT * FROM roles WHERE role_name = 'admin'`
+4. Returns `{ id: 2, role_name: 'admin', ... }`
+5. JS sets `adminRoleId = role.id` (2)
+
+- [x] Applied route fix in `routes/super_admin/index.js`
+- [x] Verified `node --check routes/super_admin/index.js` passes
+- [x] Verified no other code references the old literal path
+- [x] Verified route ordering: `/:name` (3 segments) does not conflict with `/people/roles` list (2 segments)
+

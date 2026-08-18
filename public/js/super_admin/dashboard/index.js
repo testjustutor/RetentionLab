@@ -1,4 +1,4 @@
-/**
+﻿/**
  * public/js/super_admin/dashboard/index.js
  * Super Admin Dashboard - Real-time platform intelligence
  */
@@ -34,17 +34,17 @@ function formatDateTime(dateStr) {
 
 function statusBadge(status) {
   const colors = {
-    active: 'bg-emerald-500/10 text-emerald-400',
-    inactive: 'bg-slate-500/10 text-slate-400',
-    suspended: 'bg-red-500/10 text-red-400',
-    completed: 'bg-blue-500/10 text-blue-400',
-    in_progress: 'bg-emerald-500/10 text-emerald-400',
-    scheduled: 'bg-amber-500/10 text-amber-400',
-    pending: 'bg-amber-500/10 text-amber-400',
-    joining: 'bg-indigo-500/10 text-indigo-400',
-    deleted: 'bg-red-500/10 text-red-400'
+    active: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+    inactive: 'bg-slate-100 text-slate-700 border border-slate-300',
+    suspended: 'bg-red-100 text-red-700 border border-red-200',
+    completed: 'bg-blue-100 text-blue-700 border border-blue-200',
+    in_progress: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+    scheduled: 'bg-amber-100 text-amber-700 border border-amber-200',
+    pending: 'bg-amber-100 text-amber-700 border border-amber-200',
+    joining: 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+    deleted: 'bg-red-100 text-red-700 border border-red-200'
   };
-  const cls = colors[status] || 'bg-slate-500/10 text-slate-400';
+  const cls = colors[status] || 'bg-slate-100 text-slate-700 border border-slate-300';
   return `<span class="text-[10px] px-1.5 py-0.5 rounded ${cls}">${status || 'unknown'}</span>`;
 }
 
@@ -55,7 +55,7 @@ async function refreshDashboard() {
   const days = document.getElementById('timeRange')?.value || 7;
 
   try {
-    const data = await apiFetch(`/api/admin/dashboard/super-admin/stats?days=${days}`);
+    const data = await apiFetch(`/api/super-admin/dashboard/stats?days=${days}`);
     if (!data.success || !data.stats) {
       throw new Error('Invalid response from server');
     }
@@ -128,11 +128,11 @@ function renderRoleBadges(byRole) {
   if (!container) return;
 
   const roleColors = {
-    super_admin: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-    admin: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    reviewer: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    instructor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    solo_instructor: 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+        super_admin: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+        admin: 'bg-blue-100 text-blue-700 border-blue-200',
+        reviewer: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        instructor: 'bg-amber-100 text-amber-700 border-amber-200',
+        solo_instructor: 'bg-violet-100 text-violet-700 border-violet-200'
   };
 
   const roleLabels = {
@@ -145,12 +145,12 @@ function renderRoleBadges(byRole) {
 
   const entries = Object.entries(byRole);
   if (!entries.length) {
-    container.innerHTML = '<span class="text-[10px] text-slate-500">No users</span>';
+        container.innerHTML = '<span class="text-[10px] text-violet-700 font-medium">No users</span>';
     return;
   }
 
   container.innerHTML = entries.map(([role, count]) => {
-    const colors = roleColors[role] || 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+        const colors = roleColors[role] || 'bg-slate-100 text-slate-700 border-slate-300';
     const label = roleLabels[role] || role;
     return `<span class="text-[10px] px-1.5 py-0.5 rounded border ${colors}">${label}: ${count}</span>`;
   }).join('');
@@ -190,13 +190,13 @@ function renderCharts(stats) {
         },
         scales: {
           x: {
-            ticks: { color: '#94a3b8', font: { size: 10 } },
-            grid: { color: '#334155' }
+            ticks: { color: '#64748b', font: { size: 10 } },
+            grid: { color: '#e2e8f0' }
           },
           y: {
             beginAtZero: true,
-            ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 },
-            grid: { color: '#334155' }
+            ticks: { color: '#64748b', font: { size: 10 }, stepSize: 1 },
+            grid: { color: '#e2e8f0' }
           }
         }
       }
@@ -239,13 +239,13 @@ function renderCharts(stats) {
         },
         scales: {
           x: {
-            ticks: { color: '#94a3b8', font: { size: 10 } },
-            grid: { color: '#334155' }
+            ticks: { color: '#64748b', font: { size: 10 } },
+            grid: { color: '#e2e8f0' }
           },
           y: {
             beginAtZero: true,
-            ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 },
-            grid: { color: '#334155' }
+            ticks: { color: '#64748b', font: { size: 10 }, stepSize: 1 },
+            grid: { color: '#e2e8f0' }
           }
         }
       }
@@ -258,24 +258,21 @@ function renderRecentUsers(users) {
   if (!tbody) return;
 
   if (!users || !users.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-500">No users yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-emerald-800 font-medium">No users yet</td></tr>';
     return;
   }
 
   tbody.innerHTML = users.map(u => `
-    <tr class="hover:bg-slate-800/30">
-      <td class="py-2 px-3">
-        <div class="flex items-center gap-2">
-          <div class="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[8px] font-semibold text-indigo-400">
+    <tr class="hover:bg-emerald-100 transition-colors">\n      <td class="py-2 px-3">\n        <div class="flex items-center gap-2">\n          <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[8px] font-semibold text-indigo-700">
             ${(u.name || 'U').charAt(0).toUpperCase()}
           </div>
-          <span class="text-slate-200">${escHtml(u.name || 'Unknown')}</span>
+          <span class="text-slate-900">${escHtml(u.name || 'Unknown')}</span>
         </div>
       </td>
-      <td class="py-2 px-3 text-slate-400">${escHtml(u.role || 'N/A')}</td>
-      <td class="py-2 px-3 text-slate-400">${escHtml(u.company || 'N/A')}</td>
+      <td class="py-2 px-3 text-slate-700">${escHtml(u.role || 'N/A')}</td>
+      <td class="py-2 px-3 text-slate-700">${escHtml(u.company || 'N/A')}</td>
       <td class="py-2 px-3">${statusBadge(u.status)}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-500">${formatDate(u.created_at)}</td>
+      <td class="py-2 px-3 text-[10px] text-slate-700">${formatDate(u.created_at)}</td>
     </tr>
   `).join('');
 }
@@ -285,16 +282,16 @@ function renderRecentMeetings(meetings) {
   if (!tbody) return;
 
   if (!meetings || !meetings.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500">No meetings yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-indigo-800 font-medium">No meetings yet</td></tr>';
     return;
   }
 
   tbody.innerHTML = meetings.map(m => `
-    <tr class="hover:bg-slate-800/30">
-      <td class="py-2 px-3 text-slate-200 max-w-[140px] truncate" title="${escHtml(m.title)}">${escHtml(m.title)}</td>
+    <tr class="hover:bg-indigo-100 transition-colors">
+      <td class="py-2 px-3 text-slate-900 max-w-[140px] truncate" title="${escHtml(m.title)}">${escHtml(m.title)}</td>
       <td class="py-2 px-3">${statusBadge(m.status)}</td>
-      <td class="py-2 px-3 text-slate-400">${escHtml(m.owner || 'N/A')}</td>
-      <td class="py-2 px-3 text-[10px] text-slate-500">${formatDateTime(m.start_time)}</td>
+      <td class="py-2 px-3 text-slate-700">${escHtml(m.owner || 'N/A')}</td>
+      <td class="py-2 px-3 text-[10px] text-slate-700">${formatDateTime(m.start_time)}</td>
     </tr>
   `).join('');
 }
@@ -311,4 +308,6 @@ document.addEventListener('change', (e) => {
     refreshDashboard();
   }
 });
+
+
 

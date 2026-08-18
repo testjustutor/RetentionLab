@@ -99,6 +99,17 @@ const routeRegistry = [
   
   // Configuration Pages (super admin)
   { method: 'use', path: '/super_admin/configuration', handler: 'configuration' },
+
+  // Super Admin Panel (dedicated MVC folders: controllers/super_admin, models/super_admin, routes/super_admin)
+  { method: 'use', path: '/api/super_admin', handler: 'super_admin' },
+
+  // Super Admin dashboard stats (new URL used by public/js/super_admin/dashboard/index.js)
+  { method: 'use', path: '/api/super-admin', handler: 'super_admin' },
+
+  // Super Admin page routes (self-contained; takes priority over the catch-all pages router.
+  // lives in routes/super_admin/pages.js + superAdminPageController + SuperAdminPageModel.
+  // Does NOT touch routes/pages.js login/sidebar/header routes.)
+  { method: 'use', path: '/super_admin', handler: 'super_admin/pages' },
   
   // Per-table control visibility (search / entries / info / pagination)
   { method: 'use', path: '/api/tables', handler: 'table-controls' },

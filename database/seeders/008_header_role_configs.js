@@ -8,7 +8,7 @@ const DEFAULT_NAV_BY_ROLE = {
   super_admin: {
     home: { label: 'Dashboard', href: '/super_admin' },
     events: { label: 'Events', href: '/super_admin/integrations/bot' },
-    archives: { label: 'Archives', href: '/super_admin/storage/archives' },
+    archives: { label: 'Archives', href: '/super_admin/content/archives' },
     profile: { label: 'Profile', href: '/super_admin/people/profile' },
     settings: { label: 'Settings', href: '/super_admin/settings/settings' }
   },

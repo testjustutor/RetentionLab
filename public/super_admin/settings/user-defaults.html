@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/shared.css" />
 </head>
-<body class="antialiased font-sans p-2 sm:p-0">
+<body class="antialiased font-sans p-2 sm:p-0 bg-slate-100 text-slate-900">
     <div id="sidebar-placeholder"></div>
     <div class="mx-auto flex flex-col gap-2">
         <!-- Header -->
@@ -17,10 +17,10 @@
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 p-3">
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-violet-500/30 shadow-md shadow-violet-500/5 flex items-center justify-between">
+            <div class="bg-gradient-to-br from-violet-50 to-purple-100 rounded-lg p-2 border-2 border-violet-400 shadow-md flex items-center justify-between">
                 <div>
-                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Default Role</p>
-                    <p id="displayDefaultRole" class="text-base font-bold font-sans text-violet-400">Not Set</p>
+                    <p class="text-slate-700 text-[10px] font-mono font-bold uppercase tracking-widest mb-0.5">Default Role</p>
+                    <p id="displayDefaultRole" class="text-base font-bold font-sans text-violet-700">Not Set</p>
                 </div>
                 <div class="p-1.5 bg-violet-500/10 text-violet-400 rounded hidden sm:block">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -28,10 +28,10 @@
                     </svg>
                 </div>
             </div>
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-cyan-500/30 shadow-md shadow-cyan-500/5 flex items-center justify-between">
+            <div class="bg-gradient-to-br from-cyan-50 to-sky-100 rounded-lg p-2 border-2 border-cyan-400 shadow-md flex items-center justify-between">
                 <div>
-                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Default Company</p>
-                    <p id="displayDefaultCompany" class="text-base font-bold font-sans text-cyan-400">Not Set</p>
+                    <p class="text-slate-700 text-[10px] font-mono font-bold uppercase tracking-widest mb-0.5">Default Company</p>
+                    <p id="displayDefaultCompany" class="text-base font-bold font-sans text-cyan-700">Not Set</p>
                 </div>
                 <div class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded hidden sm:block">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,10 +39,10 @@
                     </svg>
                 </div>
             </div>
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-emerald-500/30 shadow-md shadow-emerald-500/5 flex items-center justify-between">
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 rounded-lg p-2 border-2 border-emerald-400 shadow-md flex items-center justify-between">
                 <div>
-                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Default Status</p>
-                    <p id="displayDefaultStatus" class="text-base font-bold font-sans text-emerald-400">Active</p>
+                    <p class="text-slate-700 text-[10px] font-mono font-bold uppercase tracking-widest mb-0.5">Default Status</p>
+                    <p id="displayDefaultStatus" class="text-base font-bold font-sans text-emerald-700">Active</p>
                 </div>
                 <div class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded hidden sm:block">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,10 +50,10 @@
                     </svg>
                 </div>
             </div>
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg p-2 border border-amber-500/30 shadow-md shadow-amber-500/5 flex items-center justify-between">
+            <div class="bg-gradient-to-br from-amber-50 to-orange-100 rounded-lg p-2 border-2 border-amber-400 shadow-md flex items-center justify-between">
                 <div>
-                    <p class="text-slate-400 text-[10px] font-mono font-medium uppercase tracking-widest mb-0.5">Min Password Length</p>
-                    <p id="displayMinPassword" class="text-base font-bold font-sans text-amber-400">6</p>
+                    <p class="text-slate-700 text-[10px] font-mono font-bold uppercase tracking-widest mb-0.5">Min Password Length</p>
+                    <p id="displayMinPassword" class="text-base font-bold font-sans text-amber-700">6</p>
                 </div>
                 <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded hidden sm:block">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,94 +65,94 @@
 
         <!-- User Defaults Configuration -->
         <div class="p-3">
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+            <div class="bg-gradient-to-b from-emerald-50 to-teal-100 rounded-lg border-2 border-emerald-400 shadow-md overflow-hidden">
                 <!-- Header -->
-                <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50">
+                <div class="px-3 py-2 border-b-2 border-emerald-300 bg-emerald-100">
                     <div class="flex items-center gap-2">
                         <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
                         </svg>
-                        <h2 class="text-sm font-semibold text-white">User Defaults Configuration</h2>
+                        <h2 class="text-sm font-bold text-emerald-950 uppercase tracking-wide">User Defaults Configuration</h2>
                     </div>
                 </div>
 
                 <div class="p-3">
-                    <p class="text-[10px] text-slate-400 mb-3">Configure default settings applied to newly created users. These can be overridden per-user after creation.</p>
+                    <p class="text-[10px] text-emerald-800 mb-3">Configure default settings applied to newly created users. These can be overridden per-user after creation.</p>
 
                     <form id="userDefaultsForm" class="space-y-3">
                         <!-- Default Role -->
-                        <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800/60">
-                            <label class="block text-xs font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <div class="bg-white rounded-lg p-3 border-2 border-emerald-200">
+                            <label class="block text-xs font-bold text-emerald-950 mb-2 flex items-center gap-2">
                                 <svg class="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 </svg>
                                 Default Role
                             </label>
-                            <p class="text-[10px] text-slate-500 mb-1.5">The role assigned to new users by default when creating accounts.</p>
+                            <p class="text-[10px] text-emerald-800 mb-1.5">The role assigned to new users by default when creating accounts.</p>
                             <select id="defaultRoleId" name="default_role_id"
-                                class="w-full lg:w-64 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                                class="w-full lg:w-64 bg-white border border-emerald-300 rounded px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 <option value="">Select a default role...</option>
                             </select>
                         </div>
 
                         <!-- Default Company -->
-                        <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800/60">
-                            <label class="block text-xs font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <div class="bg-white rounded-lg p-3 border-2 border-emerald-200">
+                            <label class="block text-xs font-bold text-emerald-950 mb-2 flex items-center gap-2">
                                 <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                                 </svg>
                                 Default Company
                             </label>
-                            <p class="text-[10px] text-slate-500 mb-1.5">The company assigned to new users by default.</p>
+                            <p class="text-[10px] text-emerald-800 mb-1.5">The company assigned to new users by default.</p>
                             <select id="defaultCompanyId" name="default_company_id"
-                                class="w-full lg:w-64 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                class="w-full lg:w-64 bg-white border border-emerald-300 rounded px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 <option value="">Select a default company...</option>
                             </select>
                         </div>
 
                         <!-- Default Status -->
-                        <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800/60">
-                            <label class="block text-xs font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <div class="bg-white rounded-lg p-3 border-2 border-emerald-200">
+                            <label class="block text-xs font-bold text-emerald-950 mb-2 flex items-center gap-2">
                                 <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                                 </svg>
                                 Default Account Status
                             </label>
-                            <p class="text-[10px] text-slate-500 mb-1.5">Whether new accounts are active immediately or require manual activation.</p>
+                            <p class="text-[10px] text-emerald-800 mb-1.5">Whether new accounts are active immediately or require manual activation.</p>
                             <div class="flex items-center gap-4">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="radio" name="default_status" value="active" checked
-                                        class="text-emerald-500 focus:ring-emerald-500 bg-slate-800 border-slate-700">
-                                    <span class="text-xs text-emerald-400">Active</span>
+                                        class="text-emerald-500 focus:ring-emerald-500 bg-white border-emerald-300">
+                                    <span class="text-xs text-emerald-700">Active</span>
                                 </label>
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="radio" name="default_status" value="inactive"
-                                        class="text-rose-500 focus:ring-rose-500 bg-slate-800 border-slate-700">
+                                        class="text-rose-600 focus:ring-rose-500 bg-white border-emerald-300">
                                     <span class="text-xs text-rose-400">Inactive</span>
                                 </label>
                             </div>
                         </div>
 
                         <!-- Password Policy -->
-                        <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800/60">
-                            <label class="block text-xs font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <div class="bg-white rounded-lg p-3 border-2 border-emerald-200">
+                            <label class="block text-xs font-bold text-emerald-950 mb-2 flex items-center gap-2">
                                 <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                                 </svg>
                                 Password Policy
                             </label>
-                            <p class="text-[10px] text-slate-500 mb-1.5">Default password requirements for new user accounts.</p>
+                            <p class="text-[10px] text-emerald-800 mb-1.5">Default password requirements for new user accounts.</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-[10px] font-medium text-slate-300 mb-0.5">Minimum Password Length</label>
+                                    <label class="block text-[10px] font-bold text-emerald-900 mb-0.5">Minimum Password Length</label>
                                     <input type="number" id="passwordMinLength" name="password_min_length" min="4" max="32" value="6"
-                                        class="w-32 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                        class="w-32 bg-white border border-emerald-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div class="flex items-end pb-1">
                                     <label class="flex items-center gap-1.5 cursor-pointer">
                                         <input type="checkbox" id="passwordRequireSpecial" name="password_require_special"
-                                            class="text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700 rounded">
-                                        <span class="text-xs text-slate-200">Require special characters (!@#$%)</span>
+                                            class="text-amber-500 focus:ring-amber-500 bg-white border-emerald-300 rounded">
+                                        <span class="text-xs text-emerald-950">Require special characters (!@#$%)</span>
                                     </label>
                                 </div>
                             </div>
@@ -174,27 +174,27 @@
 
         <!-- Current Settings Summary Table -->
         <div class="p-3">
-            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
-                <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+            <div class="bg-gradient-to-b from-teal-50 to-emerald-100 rounded-lg border-2 border-teal-400 shadow-md overflow-hidden">
+                <div class="px-3 py-2 border-b-2 border-teal-300 bg-teal-100 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
-                        <h2 class="text-sm font-semibold text-white">All Default Settings</h2>
+                        <h2 class="text-sm font-bold text-teal-950 uppercase tracking-wide">All Default Settings</h2>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-[10px]">
                         <thead>
-                            <tr class="border-b border-slate-800 bg-slate-800/30">
-                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Setting Key</th>
-                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Current Value</th>
-                                <th class="py-1.5 px-2 text-[10px] text-slate-400 uppercase font-medium">Last Updated</th>
+                            <tr class="border-b-2 border-teal-200 bg-teal-200">
+                                <th class="py-1.5 px-2 text-[10px] text-teal-950 uppercase font-bold">Setting Key</th>
+                                <th class="py-1.5 px-2 text-[10px] text-teal-950 uppercase font-bold">Current Value</th>
+                                <th class="py-1.5 px-2 text-[10px] text-teal-950 uppercase font-bold">Last Updated</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800" id="settingsTableBody">
+                        <tbody class="divide-y divide-teal-200" id="settingsTableBody">
                             <tr>
-                                <td colspan="3" class="py-3 px-2 text-center text-slate-500 text-[10px]">Loading settings...</td>
+                                <td colspan="3" class="py-3 px-2 text-center text-teal-800 text-[10px]">Loading settings...</td>
                             </tr>
                         </tbody>
                     </table>

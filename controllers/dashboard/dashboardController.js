@@ -82,8 +82,8 @@ const controller = {
         const d = new Date(); d.setDate(d.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
         const count = meetings.filter(m => {
-          if (!m.start_time) return false;
-          return new Date(m.start_time).toISOString().split('T')[0] === dateStr;
+          if (!m.scheduled_start_time) return false;
+          return new Date(m.scheduled_start_time).toISOString().split('T')[0] === dateStr;
         }).length;
         trendData.push({ date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), count });
       }
@@ -95,7 +95,7 @@ const controller = {
 
       const recentMeetings = meetings.slice(0, 10).map(m => ({
         id: m.id, title: m.title || m.meeting_id || 'Untitled', status: m.status || 'unknown',
-        owner: m.owner_name || 'N/A', start_time: m.start_time, duration: m.duration || null
+        owner: m.owner_name || 'N/A', start_time: m.scheduled_start_time, duration: m.duration || null
       }));
 
       const uptime = Math.floor(process.uptime());

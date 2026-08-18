@@ -23,15 +23,15 @@ const DEFAULT_MENU_BY_ROLE = {
     ]},
 
     { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-      { id: 'archives', label: 'Archives', href: '/super_admin/storage/archives' },
-      { id: 'assets', label: 'Assets', href: '/super_admin/storage/assets' },
-      { id: 'audit', label: 'Audit Log', href: '/super_admin/reports/audit' }
+      { id: 'archives', label: 'Archives', href: '/super_admin/content/archives' },
+      { id: 'assets', label: 'Assets', href: '/super_admin/content/assets' },
+      { id: 'audit', label: 'Audit Log', href: '/super_admin/monitoring/audit' }
     ]},
 
     { id: 'configuration', label: 'Configuration', icon: 'settings', href: null, submenu: [
-      { id: 'bot-config', label: 'Bot Configuration', href: '/super_admin/configuration/bot-configuration' },
-      { id: 'ai-providers', label: 'AI Providers', href: '/super_admin/configuration/ai-providers' },
-      { id: 'platforms', label: 'Platforms', href: '/super_admin/configuration/platforms' }
+      { id: 'bot-config', label: 'Bot Configuration', href: '/super_admin/settings/bot-configuration' },
+      { id: 'ai-providers', label: 'AI Providers', href: '/super_admin/settings/ai-providers' },
+      { id: 'platforms', label: 'Platforms', href: '/super_admin/settings/platforms' }
     ]},
 
     { id: 'monitoring', label: 'Monitoring', icon: 'activity', href: null, submenu: [

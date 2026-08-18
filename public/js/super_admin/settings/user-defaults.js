@@ -52,7 +52,7 @@ async function loadCompanies() {
 
 async function loadCurrentSettings() {
     try {
-        const response = await fetch('/api/settings/system/filter', {
+        const response = await fetch('/api/super_admin/settings/user-defaults/system/filter', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -236,7 +236,7 @@ document.getElementById('userDefaultsForm').addEventListener('submit', async (ev
         });
 
         // Save all settings using bulk endpoint
-        const response = await fetch('/api/settings/system/bulk', {
+        const response = await fetch('/api/super_admin/settings/user-defaults/system/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -250,7 +250,7 @@ document.getElementById('userDefaultsForm').addEventListener('submit', async (ev
 
         const result = await response.json();
         if (result.success) {
-            alert('User defaults saved successfully!');
+            showToast('User defaults saved successfully!', 'info');
             // Reload settings
             await refreshData();
         } else {

@@ -77,7 +77,7 @@ async function deleteCategory(categoryId) {
   try {
     const resp = await fetch('/api/rubric-admin/categories/' + categoryId, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Delete failed');
-    alert('Category deleted successfully!');
+    showToast('Category deleted successfully!', 'info');
     loadCategories();
   } catch (err) {
     alert('Error: ' + err.message);
@@ -173,7 +173,7 @@ async function deleteIndicator(indicatorId) {
   try {
     const resp = await fetch('/api/rubric-admin/indicators/' + indicatorId, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Delete failed');
-    alert('Indicator deleted successfully!');
+    showToast('Indicator deleted successfully!', 'info');
     loadIndicators();
   } catch (err) {
     alert('Error: ' + err.message);
@@ -208,7 +208,7 @@ function setupEventListeners() {
             });
             if (!resp.ok) throw new Error('Create failed');
           }
-          alert('Category saved!');
+          showToast('Category saved!', 'info');
           closeModal();
           loadCategories();
         } else if (mode === 'indicator') {
@@ -217,7 +217,7 @@ function setupEventListeners() {
           const type = document.getElementById('modalType').value;
           const isGate = document.getElementById('modalIsGate').checked ? 1 : 0;
           const value = parseFloat(document.getElementById('modalValue').value) || 1;
-          if (!categoryId) { alert('Please select a category'); return; }
+          if (!categoryId) { showToast('Please select a category', 'info'); return; }
           if (editId) {
             const resp = await fetch('/api/rubric-admin/indicators/' + editId, {
               method: 'PUT',
@@ -233,7 +233,7 @@ function setupEventListeners() {
             });
             if (!resp.ok) throw new Error('Create failed');
           }
-          alert('Indicator saved!');
+          showToast('Indicator saved!', 'info');
           closeModal();
           loadIndicators();
         }
@@ -249,7 +249,7 @@ function setupEventListeners() {
       e.preventDefault();
       const categoryId = document.getElementById('assignCategoryId').value;
       const adminUserId = document.getElementById('assignAdminUserId').value;
-      if (!categoryId || !adminUserId) { alert('Please select both a category and an admin.'); return; }
+      if (!categoryId || !adminUserId) { showToast('Please select both a category and an admin.', 'info'); return; }
       try {
         const resp = await fetch('/api/rubric-admin/assign', {
           method: 'POST',
@@ -342,7 +342,7 @@ async function unassign(categoryId, adminUserId) {
   try {
     const resp = await fetch('/api/rubric-admin/assign?category_id=' + categoryId + '&admin_user_id=' + adminUserId, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Failed to remove');
-    alert('Assignment removed!');
+    showToast('Assignment removed!', 'info');
     loadViewAssignments();
   } catch (err) {
     alert('Error: ' + err.message);

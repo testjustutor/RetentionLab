@@ -7,6 +7,7 @@ let adminRoleId = null;
 let allUsers = [];
 let allRoles = [];
 let allCompanies = [];
+let adminTable = null;
 
 // ─── Modal Functions ──────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ window.closeModal = closeModal;
 
 async function loadAdminRole() {
     try {
-        const response = await fetch('/api/roles/admin', { credentials: 'include' });
+        const response = await fetch('/api/super_admin/people/roles/admin', { credentials: 'include' });
         if (!response.ok) {
             const err = await response.json();
             throw new Error(err.error || 'Failed to fetch admin role');
@@ -41,7 +42,7 @@ async function loadAdminRole() {
 
 async function loadCompanies() {
     try {
-        const response = await fetch('/api/companies', { credentials: 'include' });
+        const response = await fetch('/api/super_admin/people/companies', { credentials: 'include' });
         if (!response.ok) throw new Error('Failed to fetch companies');
         const result = await response.json();
         allCompanies = result.data || [];
@@ -61,7 +62,7 @@ async function loadCompanies() {
 
 async function loadRoles() {
     try {
-        const response = await fetch('/api/roles', { credentials: 'include' });
+        const response = await fetch('/api/super_admin/people/roles', { credentials: 'include' });
         if (!response.ok) throw new Error('Failed to fetch roles');
         const result = await response.json();
         allRoles = result.data || [];
@@ -72,7 +73,7 @@ async function loadRoles() {
 
 async function loadAllUsers() {
     try {
-        const response = await fetch('/api/users', { 
+        const response = await fetch('/api/super_admin/people/users', { 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ page: 1, per_page: 100 }),
@@ -116,72 +117,64 @@ function calculateStats() {
 // ─── Admin Table Rendering ────────────────────────────────────────────────────
 
 function renderAdminTable(admins) {
-    const tbody = document.getElementById('adminTableBody');
-    
-    if (!admins || admins.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-slate-500">No admin users found</td></tr>`;
-        return;
-    }
+    const container = document.getElementById('adminTableContainer');
+    if (!container) return;
 
-    let html = '';
-    admins.forEach(admin => {
-        // Count users managed by this admin's company
+    // Map admins to flat rows for the centralized createTable component
+    const rows = (admins || []).map(admin => {
         const managedUsers = allUsers.filter(u => u.company_id === admin.company_id && u.id !== admin.id);
-        const userCount = managedUsers.length;
-        
-        // Get unique roles in this admin's company
-        const companyRoles = new Set(managedUsers.map(u => u.role_name).filter(Boolean));
-        const roleList = Array.from(companyRoles).join(', ') || 'None';
-        
-        // Status badge
-        const isActive = admin.is_active !== 0;
-        const statusBadge = isActive 
-            ? '<span class="px-1.5 py-[1px] bg-emerald-500/20 text-emerald-400 text-[9px] uppercase font-bold rounded border border-emerald-500/30">Active</span>'
-            : '<span class="px-1.5 py-[1px] bg-slate-500/20 text-slate-400 text-[9px] uppercase font-bold rounded border border-slate-500/30">Inactive</span>';
-
-        // Company name
         const company = allCompanies.find(c => c.id === admin.company_id);
-        const companyName = company ? company.company_name : 'N/A';
-
-        // Admin name
-        const adminName = admin.first_name || admin.name || 'Unknown';
-        const initials = adminName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-
-        html += `
-            <tr class="hover:bg-slate-800/30 transition">
-                <td class="py-1.5 px-2">
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-6 rounded bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-violet-300 font-bold text-[9px]">${initials}</div>
-                        <span class="text-slate-200 text-[10px] font-medium">${adminName}</span>
-                    </div>
-                </td>
-                <td class="py-1.5 px-2 text-slate-300 text-[10px]">${admin.email || 'N/A'}</td>
-                <td class="py-1.5 px-2 text-slate-300 text-[10px]">${companyName}</td>
-                <td class="py-1.5 px-2 text-slate-300 text-[10px]">${userCount} users</td>
-                <td class="py-1.5 px-2 text-slate-300 text-[10px]">${roleList}</td>
-                <td class="py-1.5 px-2">${statusBadge}</td>
-                <td class="py-1.5 px-2">
-                    <div class="flex gap-1">
-                        <button onclick="openEditModal(${admin.id})" class="px-1.5 py-0.5 bg-slate-800 hover:bg-violet-500/20 text-slate-300 hover:text-violet-400 text-[9px] rounded border border-slate-700 hover:border-violet-500/30 transition" title="Edit admin">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                            </svg>
-                        </button>
-                        <button onclick="toggleAdminStatus(${admin.id}, ${isActive})" class="px-1.5 py-0.5 bg-slate-800 hover:bg-${isActive ? 'rose-500' : 'emerald-500'}/20 text-slate-300 hover:text-${isActive ? 'rose-400' : 'emerald-400'} text-[9px] rounded border border-slate-700 hover:border-${isActive ? 'rose-500' : 'emerald-500'}/30 transition" title="${isActive ? 'Deactivate admin' : 'Activate admin'}">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                ${isActive 
-                                    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>'
-                                    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>'
-                                }
-                            </svg>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
+        return {
+            id: admin.id,
+            name: admin.first_name || admin.name || 'Unknown',
+            email: admin.email || 'N/A',
+            company: company ? company.company_name : 'N/A',
+            userCount: managedUsers.length,
+            roles: Array.from(new Set(managedUsers.map(u => u.role_name).filter(Boolean))).join(', ') || 'None',
+            is_active: admin.is_active
+        };
     });
 
-    tbody.innerHTML = html;
+    // Reusable icons (kept local to avoid duplication)
+    const EDIT_ICON = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
+    const DEACTIVATE = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>';
+    const ACTIVATE = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>';
+
+    // Initialize the centralized table only once
+    if (!adminTable) {
+        adminTable = createTable({
+            containerId: 'adminTableContainer',
+            searchable: true,
+            pagination: true,
+            exportable: true,
+            exportFilename: 'admin-users',
+            emptyMessage: 'No admin users found',
+            headers: [
+                { label: 'Admin', key: 'name', width: '20%', render: (val, row) => {
+                    const initials = String(row.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                    return '<div class="flex items-center gap-2">' + '<div class="w-6 h-6 rounded bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-700 font-bold text-[9px]">' + escHtml(initials) + '</div>' + '<span class="text-violet-950 text-xs font-semibold">' + escHtml(row.name || 'Unknown') + '</span>' + '</div>';
+                } },
+                { label: 'Email', key: 'email', width: '24%', render: (val) => '<span class="text-violet-900 text-xs">' + escHtml(val || 'N/A') + '</span>' },
+                { label: 'Company', key: 'company', width: '16%', render: (val) => '<span class="text-violet-900 text-xs">' + escHtml(val || 'N/A') + '</span>' },
+                { label: 'Users Managed', key: 'userCount', width: '10%', render: (val) => '<span class="text-violet-700 text-xs font-bold">' + (val || 0) + ' users</span>' },
+                { label: 'Roles', key: 'roles', width: '12%', render: (val) => '<span class="text-violet-900 text-xs">' + escHtml(val || 'None') + '</span>' },
+                { label: 'Status', key: 'is_active', width: '8%', render: (val) => {
+                    const active = val !== 0;
+                    return active ? '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">Active</span>' : '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-300">Inactive</span>';
+                } },
+                { label: 'Actions', key: 'id', width: '10%', align: 'right', render: (val, row) => {
+                    const active = row.is_active !== 0;
+                    return '<div class="flex gap-1 justify-end">' +
+                        '<button onclick="openEditModal(' + val + ')" class="px-1.5 py-0.5 bg-white hover:bg-violet-50 text-violet-700 text-[9px] rounded border border-slate-300 hover:border-violet-300 transition" title="Edit admin">' + EDIT_ICON + '</button>' +
+                        '<button onclick="toggleAdminStatus(' + val + ', ' + (active ? 'true' : 'false') + ')" class="px-1.5 py-0.5 bg-white hover:bg-' + (active ? 'rose-100' : 'emerald-100') + ' text-violet-700 text-[9px] rounded border border-slate-300 hover:border-' + (active ? 'rose-300' : 'emerald-300') + ' transition" title="' + (active ? 'Deactivate admin' : 'Activate admin') + '">' +
+                        '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">' + (active ? DEACTIVATE : ACTIVATE) + '</svg>' +
+                        '</button>' + '</div>';
+                } }
+            ]
+        });
+    }
+
+    adminTable.setData(rows);
 }
 
 // ─── Edit Admin Modal ─────────────────────────────────────────────────────────
@@ -244,7 +237,7 @@ document.getElementById('editAdminForm').addEventListener('submit', async (event
     const data = Object.fromEntries(formData.entries());
 
     try {
-        const response = await fetch(`/api/users/${adminId}`, {
+        const response = await fetch(`/api/super_admin/people/add-user/add-admin/${adminId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -258,7 +251,7 @@ document.getElementById('editAdminForm').addEventListener('submit', async (event
             throw new Error(err.error || 'Failed to update admin');
         }
 
-        alert('Admin updated successfully!');
+        showToast('Admin updated successfully!', 'info');
         closeEditModal();
         await loadDashboard();
     } catch (err) {
@@ -285,7 +278,7 @@ async function loadDashboard() {
 document.getElementById('addAdminForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!adminRoleId) {
-        alert('Admin role is not available. Refresh and try again.');
+        showToast('Admin role is not available. Refresh and try again.', 'info');
         return;
     }
     
@@ -293,7 +286,7 @@ document.getElementById('addAdminForm').addEventListener('submit', async (event)
     const userData = Object.fromEntries(formData.entries());
 
     try {
-        const response = await fetch('/api/users', {
+        const response = await fetch('/api/super_admin/people/add-user/add-admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',

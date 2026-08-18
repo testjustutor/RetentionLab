@@ -116,7 +116,7 @@ async function toggleStatus(roleId, pageKey, newStatus) {
         }
     } catch (err) {
         console.error('Failed to toggle status:', err);
-        alert('Error updating status');
+        showToast('Error updating status', 'info');
     }
 }
 
@@ -129,7 +129,7 @@ async function openEditModal(roleId, pageKey) {
         const data = await response.json();
         
         if (!data.success || !data.page) {
-            alert('Failed to load page config');
+            showToast('Failed to load page config', 'info');
             return;
         }
         
@@ -144,7 +144,7 @@ async function openEditModal(roleId, pageKey) {
         document.getElementById('editHeaderModal').classList.remove('hidden');
     } catch (err) {
         console.error('Failed to load page config:', err);
-        alert('Error loading page config');
+        showToast('Error loading page config', 'info');
     }
 }
 

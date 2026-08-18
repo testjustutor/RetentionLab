@@ -19,15 +19,15 @@ const MENU_ITEMS = [
   },
   { menu_key: 'sa-content', label: 'Content', icon: 'folder', route_path: null, parent_id: null, sort_order: 3, role_id: 1,
     children: [
-      { menu_key: 'sa-archives', label: 'Archives', icon: null, route_path: '/super_admin/storage/archives', parent_id: 'sa-content', sort_order: 1, role_id: 1 },
-      { menu_key: 'sa-media-assets', label: 'Media Assets', icon: null, route_path: '/super_admin/storage/assets', parent_id: 'sa-content', sort_order: 2, role_id: 1 }
+      { menu_key: 'sa-archives', label: 'Archives', icon: null, route_path: '/super_admin/content/archives', parent_id: 'sa-content', sort_order: 1, role_id: 1 },
+      { menu_key: 'sa-media-assets', label: 'Media Assets', icon: null, route_path: '/super_admin/content/assets', parent_id: 'sa-content', sort_order: 2, role_id: 1 }
     ]
   },
   { menu_key: 'sa-settings', label: 'Settings', icon: 'settings', route_path: null, parent_id: null, sort_order: 4, role_id: 1,
     children: [
-      { menu_key: 'sa-bot-config', label: 'Bot Configuration', icon: null, route_path: '/super_admin/configuration/bot-configuration', parent_id: 'sa-settings', sort_order: 1, role_id: 1 },
-      { menu_key: 'sa-ai-providers', label: 'AI Providers', icon: null, route_path: '/super_admin/configuration/ai-providers', parent_id: 'sa-settings', sort_order: 2, role_id: 1 },
-      { menu_key: 'sa-platforms', label: 'Platform Integrations', icon: null, route_path: '/super_admin/configuration/platforms', parent_id: 'sa-settings', sort_order: 3, role_id: 1 },
+      { menu_key: 'sa-bot-config', label: 'Bot Configuration', icon: null, route_path: '/super_admin/settings/bot-configuration', parent_id: 'sa-settings', sort_order: 1, role_id: 1 },
+      { menu_key: 'sa-ai-providers', label: 'AI Providers', icon: null, route_path: '/super_admin/settings/ai-providers', parent_id: 'sa-settings', sort_order: 2, role_id: 1 },
+      { menu_key: 'sa-platforms', label: 'Platform Integrations', icon: null, route_path: '/super_admin/settings/platforms', parent_id: 'sa-settings', sort_order: 3, role_id: 1 },
       { menu_key: 'sa-user-defaults', label: 'User Defaults', icon: null, route_path: '/super_admin/settings/user-defaults', parent_id: 'sa-settings', sort_order: 4, role_id: 1 },
       { menu_key: 'sa-table-controls', label: 'Table Controls', icon: null, route_path: '/super_admin/settings/table-controls', parent_id: 'sa-settings', sort_order: 5, role_id: 1 }
     ]
@@ -35,7 +35,7 @@ const MENU_ITEMS = [
   { menu_key: 'sa-monitoring', label: 'Monitoring', icon: 'activity', route_path: null, parent_id: null, sort_order: 5, role_id: 1,
     children: [
       { menu_key: 'sa-server-performance', label: 'Server Performance', icon: null, route_path: '/super_admin/monitoring/server', parent_id: 'sa-monitoring', sort_order: 1, role_id: 1 },
-      { menu_key: 'sa-audit-logs', label: 'Audit Logs', icon: null, route_path: '/super_admin/reports/audit', parent_id: 'sa-monitoring', sort_order: 2, role_id: 1 }
+      { menu_key: 'sa-audit-logs', label: 'Audit Logs', icon: null, route_path: '/super_admin/monitoring/audit', parent_id: 'sa-monitoring', sort_order: 2, role_id: 1 }
     ]
   },
   { menu_key: 'sa-menu-management', label: 'Manage Menu', icon: 'menu', route_path: '/super_admin/settings/sidebar-menu-management', parent_id: null, sort_order: 6, role_id: 1 },

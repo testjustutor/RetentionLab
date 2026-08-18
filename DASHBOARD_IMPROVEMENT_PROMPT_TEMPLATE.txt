@@ -1,10 +1,8 @@
-DASHBOARD IMPROVEMENT PROMPT TEMPLATE
+PAGES IMPROVEMENT PROMPT TEMPLATE
 ======================================
 
-Page URL: [Enter your page path here, e.g., public/admin/reports.html or public/instructor/dashboard.html]
-
 INSTRUCTIONS:
-Apply the same visual improvements made to the admin dashboard (public/admin/index.html) to the specified page. Follow these exact patterns:
+Apply the same visual improvements made to the to the specified page. Follow these exact patterns:
 
 ---
 

@@ -23,21 +23,21 @@ async function loadRoles() {
     });
   } catch (err) {
     console.error('Error loading roles:', err);
-    alert('Failed to load roles: ' + err.message);
+    showToast(Failed to load roles: ' + err.message);
   }
 }
 
 async function loadMenuItems() {
   const container = document.getElementById('treeContainer');
   if (!currentRoleId) {
-    container.innerHTML = '<p class="text-slate-400">Select a role to view its menu items.</p>';
+    container.innerHTML = '<p class="text-violet-800">Select a role to view its menu items.</p>';
     return;
   }
 
   try {
     let result;
 
-    const response = await fetch('/api/menu/admin/menu-permissions', {
+    const response = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role_id: parseInt(currentRoleId) })
@@ -67,18 +67,18 @@ async function loadMenuItems() {
     renderFlatTable();
     
     if (currentFlatItems.length === 0) {
-      container.innerHTML = '<p class="text-slate-400">No menu items found. Click "Reset" to load default menu items.</p>';
+      container.innerHTML = '<p class="text-violet-800">No menu items found. Click "Reset" to load default menu items.</p>';
     }
   } catch (err) {
     console.error('Error loading menu items:', err);
-    container.innerHTML = '<p class="text-red-400">Failed to load menu items: ' + err.message + '</p>';
+    container.innerHTML = '<p class="text-rose-700">Failed to load menu items: ' + err.message + '</p>';
   }
 }
 
 function renderMenuTree() {
   const container = document.getElementById('treeContainer');
   if (currentFlatItems.length === 0) {
-    container.innerHTML = '<p class="text-slate-400">No menu items found for this role.</p>';
+    container.innerHTML = '<p class="text-violet-800">No menu items found for this role.</p>';
     return;
   }
   const roots = currentFlatItems.filter(item => !item.parent_id);
@@ -94,19 +94,19 @@ function renderMenuItem(item, depth) {
   const children = currentFlatItems.filter(i => parseInt(i.parent_id) === parseInt(item.id));
   const hasChildren = children.length > 0;
   const indent = depth * 20;
-  let html = '<div class="flex items-center gap-2 py-1.5 px-2 hover:bg-slate-800/30 rounded">';
+  let html = '<div class="flex items-center gap-2 py-1.5 px-2 hover:bg-violet-100 rounded">';
   html += '<div style="margin-left: ' + indent + 'px" class="flex-1 flex items-center gap-2">';
   if (hasChildren) {
-    html += '<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
+    html += '<svg class="w-3 h-3 text-violet-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
   } else {
     html += '<span class="w-3"></span>';
   }
   html += '<span class="text-xs font-medium">' + item.label + '</span>';
-  html += '<span class="text-[10px] text-slate-500">(' + item.menu_id + ')</span>';
+  html += '<span class="text-[10px] text-violet-700">(' + item.menu_id + ')</span>';
   html += '</div>';
   html += '<div class="flex gap-1">';
-  html += '<button class="text-[10px] text-indigo-400 hover:text-indigo-600" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-  html += '<button class="text-[10px] text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
+  html += '<button class="text-[10px] text-violet-700 hover:text-violet-900" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
+  html += '<button class="text-[10px] text-rose-700 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
   html += '</div></div>';
   
   if (hasChildren) {
@@ -118,7 +118,7 @@ function renderMenuItem(item, depth) {
 }
 
 function showAddForm() {
-  alert('To add new menu items, use the database seeder. This page manages visibility and ordering.');
+  showToast(To add new menu items, use the database seeder. This page manages visibility and ordering.');
 }
 
 function editMenuItem(menuId) {
@@ -149,26 +149,26 @@ async function deleteMenuItemById(id) {
       sort_order: item.display_order || 0
     }));
 
-    const resp = await fetch('/api/menu/admin/menu-permissions', {
+    const resp = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
     });
 
     if (!resp.ok) throw new Error('Update failed');
-    alert('Menu item hidden');
+    showToast(Menu item hidden');
     loadMenuItems();
   } catch (err) {
-    alert('Error: ' + err.message);
+    showToast(Error: ' + err.message);
   }
 }
 
 async function reseedMenu() {
-  if (!currentRoleId) { alert('Select a role first.'); return; }
+  if (!currentRoleId) { showToast(Select a role first.'); return; }
   if (!confirm('This will reset all menu permissions for this role to defaults. Continue?')) return;
   
   try {
-    const resp = await fetch('/api/menu/admin/menu-permissions/reseed', {
+    const resp = await fetch('/api/super_admin/sidebar-menu-management/reseed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role_id: parseInt(currentRoleId) })
@@ -179,46 +179,46 @@ async function reseedMenu() {
       throw new Error(err.error || 'Reseed failed');
     }
     
-    alert('Menu reset to defaults!');
+    showToast(Menu reset to defaults!');
     loadMenuItems();
   } catch (err) {
-    alert('Error: ' + err.message);
+    showToast(Error: ' + err.message);
   }
 }
 
 function renderFlatTable() {
   const container = document.getElementById('flatTableContainer');
   if (currentFlatItems.length === 0) {
-    container.innerHTML = '<p class="text-slate-400 text-xs">No menu items found for this role.</p>';
+    container.innerHTML = '<p class="text-violet-800 text-xs">No menu items found for this role.</p>';
     return;
   }
   
   let html = '<div class="overflow-x-auto"><table class="min-w-full text-xs">';
-  html += '<thead class="bg-slate-800/50"><tr>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Menu ID</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Label</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Parent</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Icon</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Order</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Status</th>';
-  html += '<th class="px-3 py-2 text-left text-slate-300 font-medium">Actions</th>';
-  html += '</tr></thead><tbody class="divide-y divide-slate-800">';
+  html += '<thead class="bg-violet-200"><tr>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Menu ID</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Label</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Parent</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Icon</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Order</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Status</th>';
+  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Actions</th>';
+  html += '</tr></thead><tbody class="divide-y divide-violet-300">';
   
   currentFlatItems.forEach(item => {
     const parent = currentFlatItems.find(i => parseInt(i.id) === parseInt(item.parent_id));
     const parentLabel = parent ? parent.label : 'None';
-    const status = item.is_active !== 0 ? '<span class="text-green-400">Active</span>' : '<span class="text-red-400">Inactive</span>';
+    const status = item.is_active !== 0 ? '<span class="text-emerald-700">Active</span>' : '<span class="text-rose-700">Inactive</span>';
     
-    html += '<tr class="hover:bg-slate-800/20">';
-    html += '<td class="px-3 py-2 text-slate-300">' + item.menu_id + '</td>';
-    html += '<td class="px-3 py-2 text-white">' + item.label + '</td>';
-    html += '<td class="px-3 py-2 text-slate-400">' + parentLabel + '</td>';
-    html += '<td class="px-3 py-2 text-slate-400">' + (item.icon || '-') + '</td>';
-    html += '<td class="px-3 py-2 text-slate-400">' + (item.display_order || 0) + '</td>';
+    html += '<tr class="hover:bg-violet-100 transition-colors">';
+    html += '<td class="px-3 py-2 text-violet-900">' + item.menu_id + '</td>';
+    html += '<td class="px-3 py-2 text-violet-950">' + item.label + '</td>';
+    html += '<td class="px-3 py-2 text-violet-800">' + parentLabel + '</td>';
+    html += '<td class="px-3 py-2 text-violet-800">' + (item.icon || '-') + '</td>';
+    html += '<td class="px-3 py-2 text-violet-800">' + (item.display_order || 0) + '</td>';
     html += '<td class="px-3 py-2">' + status + '</td>';
     html += '<td class="px-3 py-2">';
-    html += '<button class="text-indigo-400 hover:text-indigo-600 mr-2" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-    html += '<button class="text-red-400 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
+    html += '<button class="text-violet-700 hover:text-violet-900 mr-2" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
+    html += '<button class="text-rose-700 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
     html += '</td></tr>';
   });
   
@@ -246,7 +246,7 @@ function saveModalForm() {
 
 async function savePermissions(permissions) {
   try {
-    const resp = await fetch('/api/menu/admin/menu-permissions', {
+    const resp = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
@@ -257,11 +257,11 @@ async function savePermissions(permissions) {
       throw new Error(err.error || 'Save failed');
     }
 
-    alert('Menu permissions saved!');
+    showToast(Menu permissions saved!');
     closeModal();
     loadMenuItems();
   } catch (err) {
-    alert('Error: ' + err.message);
+    showToast(Error: ' + err.message);
   }
 }
 
