@@ -16,12 +16,6 @@ def run_transcription_task(context):
     return handler(context)
 
 
-def run_intel_task(context):
-    log_with_type("info", "Engine(orchestrator > task_registry) : run_intel_task dispatched", "TASK")
-    from services.engine.task.intel.intel_task import run_intel_task as handler
-    return handler(context)
-
-
 def run_audit_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_audit_task dispatched", "TASK")
     from services.engine.task.audit.audit_task import run_audit_task as handler
@@ -37,6 +31,12 @@ def run_summary_task(context):
 def run_topics_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_topics_task dispatched", "TASK")
     from services.engine.task.topics.topics_task import run_topics_task as handler
+    return handler(context)
+
+
+def run_persist_results_task(context):
+    log_with_type("info", "Engine(orchestrator > task_registry) : run_persist_results_task dispatched", "TASK")
+    from services.engine.task.persist.persist_results_task import run_persist_results_task as handler
     return handler(context)
 
 
@@ -69,21 +69,6 @@ TASK_REGISTRY = {
         "parallel": False,
         "feature_flag": (
             "enable_transcription"
-        )
-    },
-
-    # ==========================================
-    # INTEL
-    # ==========================================
-
-    "intel": {
-        "handler": run_intel_task,
-        "dependencies": [
-            "transcription"
-        ],
-        "parallel": True,
-        "feature_flag": (
-            "enable_intel"
         )
     },
 
@@ -133,6 +118,28 @@ TASK_REGISTRY = {
         "parallel": True,
         "feature_flag": (
             "enable_topics"
+        )
+    },
+
+    # ==========================================
+    # PERSIST RESULTS
+    # Runs after summary/audit/topics have all
+    # produced their outputs. Persists structured
+    # results (summary + rubric + metrics) to MySQL.
+    # ==========================================
+
+    "persist_results": {
+        "handler": (
+            run_persist_results_task
+        ),
+        "dependencies": [
+            "summary",
+            "audit",
+            "topics"
+        ],
+        "parallel": False,
+        "feature_flag": (
+            "enable_persist_results"
         )
     }
 }

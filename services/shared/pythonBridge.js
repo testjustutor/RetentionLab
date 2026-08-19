@@ -148,19 +148,25 @@ class PythonBridge {
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Python Bridge] Execution data package parsed successfully.`);
 
-      // 4. Handle sequential Database initialization tracking matching your model interface requirements
-      logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
-      await MettingAssetController.updateAssets(meetingId, sessionId, { audio_path: executionMatrix.audio_path });
+      // 4. Handle sequential Database initialization tracking matching your model interface requirements.
+      //    Screen recordings (REC_*.mp3) have no seeded meeting/session, so meetingId/sessionId may be
+      //    null. The DB asset-sync is best-effort only — skip it gracefully when ids are absent.
+      if (meetingId && sessionId) {
+        logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
+        await MettingAssetController.updateAssets(meetingId, sessionId, { audio_path: executionMatrix.audio_path });
 
-      logger.info(`[Python Bridge Database Syncing] Flushing final transcript and audit matrix indicators...`);
-      await MettingAssetController.updateAssets(meetingId, sessionId, {
-        transcript_path: executionMatrix.transcript_path || null,
-        summary_path: executionMatrix.summary_path || null,
-        oqi_score: executionMatrix.oqi_score || 0,
-        status: 'Completed'
-      });
+        logger.info(`[Python Bridge Database Syncing] Flushing final transcript and audit matrix indicators...`);
+        await MettingAssetController.updateAssets(meetingId, sessionId, {
+          transcript_path: executionMatrix.transcript_path || null,
+          summary_path: executionMatrix.summary_path || null,
+          oqi_score: executionMatrix.oqi_score || 0,
+          status: 'Completed'
+        });
 
-      logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${meetingId}.`);
+        logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${meetingId}.`);
+      } else {
+        logger.warn(`[Python Bridge] Skipping asset DB-sync: missing meetingId/sessionId for "${meetingId}" / "${sessionId}".`);
+      }
 
       // Match data resolution format expected back in test-engine.js
       return {
@@ -183,11 +189,13 @@ class PythonBridge {
           error.stack || error.message
         }`
       );
-      // Safely mark the failure flag in database storage
-      try {
-        await MettingAssetController.updateAssets(meetingId, sessionId, { status: 'Error' });
-      } catch (dbErr) {
-        logger.error(`[Python Bridge Database Critical Error] Failed to write failure flag trace context: ${dbErr.message}`);
+      // Safely mark the failure flag in database storage (only when ids are present)
+      if (meetingId && sessionId) {
+        try {
+          await MettingAssetController.updateAssets(meetingId, sessionId, { status: 'Error' });
+        } catch (dbErr) {
+          logger.error(`[Python Bridge Database Critical Error] Failed to write failure flag trace context: ${dbErr.message}`);
+        }
       }
       
       throw error;

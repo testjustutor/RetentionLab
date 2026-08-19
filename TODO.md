@@ -1,4 +1,60 @@
-## Task: Add "named" video file support (2nd video type) to Video Processing page
+## Task: Make db.get()/db.all()/db.run()/db.prepare() match every model's calling convention (no model changes)
+
+Requirement: models across the app call `db.get`, `db.all`, `db.run`, `db.prepare` in several different ways (variadic prepare.run, array args, normal function callbacks reading `this.lastID`/`this.changes`, fire-and-forget run + finalize(cb)). Make database/db.js support all of them so no model edits are required.
+
+- [x] db.get: support (sql, params, cb), (sql, [], cb), (sql, cb); promise fallback
+- [x] db.all: support (sql, params, cb), (sql, [], cb), (sql, cb); promise fallback
+- [x] db.run: support (sql, params, fn) with `this.lastID`/`this.changes` bound; (sql, fn); (sql) fire-and-forget; promise fallback
+- [x] db.prepare: stmt.run variadic OR single-array OR trailing-callback; stmt.get; stmt.all; stmt.finalize(cb) waits for pending runs and reports last error; enforce no model changes
+- [x] Add db.serialize passthrough so RubricModel (uses db.serialize + prepare) does not crash
+- [x] Verify with a temp script exercising every pattern against the live DB; node --check; no regressions
+
+---
+## Task: AI Providers page — remove hardcoded data, get everything from DB via API
+
+Requirement: `/super_admin/settings/ai-providers` must not use hardcoded provider cards/data in HTML or JS. Load everything via the flow HTML → JS → routes → controller → model → DB (`ai_providers` table). If DB is empty, the page must tell the user instead of rendering defaults.
+
+- [x] AiProvidersModel: add getAllProviders() + bulkUpdateProviders() reading/writing `ai_providers` table
+- [x] aiProvidersController: getSettings -> getAllProviders(); fix saveSettings to read req.body.settings
+- [x] ai-providers.html: replace hardcoded cards with empty #providersGrid + empty-state fallback
+- [x] ai-providers.js: render provider cards from API, save dynamically, update active-provider banner, empty-state message
+- [x] Verify: node --check on changed JS; model/controller/routes load; model read/write DB (4 providers); API endpoint live & auth-guarded (401 unauth)
+
+---
+## Task: Completely remove `intel` from Python pipeline + add persist_results step
+
+Requirement: `intel` (embeddings / SentenceTransformer / voiceprints) is NOT required. Pipeline must become:
+media -> transcription -> [summary + audit + topics] (parallel) -> persist_results -> complete.
+
+- [x] Removed `intel` from task graph (task_registry.py) — removed run_intel_task + registry entry.
+- [x] Deleted intel task files: services/engine/task/intel/ (intel_task.py, __init__.py).
+- [x] Deleted EmbeddingEngine: services/engine/transcription_service/embedding_engine.py.
+- [x] Deleted voiceprints module: services/engine/voiceprints/ (voiceprint_builder, speaker_memory, speaker_matcher).
+- [x] Removed SentenceTransformer / all-MiniLM-L6-v2 loading (deleted embedding_engine).
+- [x] Removed enable_intel / intel_extraction from pipeline_context.py + config/settings.js.
+- [x] Removed intel artifacts (context.intel, vector_path, sentiment_path) from pipeline_context + task_result_builder (both copies).
+- [x] Removed intel/cache_embeddings/cache_voiceprints storage dirs from pipeline_context + pipeline_bootstrap.
+- [x] Removed EMBEDDING_MODEL from runtime_constants.py; cache_embeddings from cache cleanup/rotation/health tasks.
+- [x] topics_task now writes context.topics_data (not context.intel).
+- [x] summary_task now produces structured summary_data {summary, key_points, action_items}.
+- [x] audit_task now normalizes to structured {overall_score, max_score, percentage, rubric[], metrics{}}.
+- [x] Added new persist_results task (task/persist/persist_results_task.py) -> persists summary + rubric + metrics to MySQL.
+- [x] Registered persist_results in task graph (deps: summary/audit/topics, sequential).
+- [x] Added mysql-connector-python to requirements.txt.
+- [x] FIX: database/python_db.py init_pool "Unread result found" — cursor.fetchall() before close.
+- [x] Deleted stale storage/intel, storage/cache_embeddings, storage/cache_voiceprints data dirs.
+- [x] Verified: all Python files py_compile clean; task registry = [media, transcription, audit, summary, topics, persist_results]; audit normalization + persist task run against live MySQL (session_rubric_summary + ai_audit_results written).
+
+
+
+## Task: Fix runtime errors shown in zoom-transcript-bot / Video Processing logs
+
+- [x] FIX: `Object of type Decimal is not JSON serializable` in ai_audit_service/audit_worker.py — rubric weight/value columns come back as MySQL Decimal; json.dumps(raw_rubric) failed and the AI audit silently fell back to rule-based. Added `from decimal import Decimal`, a `_json_default` helper (Decimal->float), and `json.dumps(..., default=_json_default)`.
+- [x] FIX: `[MeetingAssetController] updateAssets requires meetingId and sessionId` — for screen recordings (REC_*.mp3) meetingId/sessionId are null, but pythonBridge.js still called updateAssets(null,null,..) which THREW and failed the whole run even though the pipeline succeeded. Guarded both success DB-sync calls and the catch-block failure-flag write with `if (meetingId && sessionId)`.
+- [x] FIX: Groq model `llama-3.3-70b-versatile` 404 (model_not_found) in summary/audit AI calls — model was hardcoded; made it configurable (`ai_config.groqModel`, default `llama-3.1-8b-instant`) in ai_config.py, api_worker.py, and sessionQualityGenerator.js.
+- [x] Verified: pythonBridge.js + sessionQualityGenerator.js pass node --check; api_worker.py/ai_config.py/audit_worker.py py_compile clean; Decimal fix unit-tested.
+
+
 
 Flow: For a named video like `1012_Shivani_Arora_Regular_248879_General_Discussion_2026_08_17_08715cb3.mp4`:
 - 1012 = instructor user id

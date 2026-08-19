@@ -210,7 +210,7 @@ For confidence, use exactly: "High", "Medium", or "Low".
 `;
 
   // Try providers in priority order
-  const providers = [...new Set([settings.ai.provider, 'groq', 'openai'])].filter(p => p);
+  const providers = [...new Set([settings.ai.provider, 'cloude', 'openai'])].filter(p => p);
 
   for (const provider of providers) {
     try {
@@ -221,10 +221,10 @@ For confidence, use exactly: "High", "Medium", or "Low".
         apiUrl = 'https://api.openai.com/v1/chat/completions';
         apiKey = settings.ai.openaiApiKey;
         model = settings.ai.openaiModel || 'gpt-4o-mini';
-      } else if (provider === 'groq') {
-        apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-        apiKey = settings.ai.groqApiKey;
-        model = 'llama-3.3-70b-versatile';
+      } else if (provider === 'cloude') {
+        apiUrl = 'https://api.cloude.com/openai/v1/chat/completions';
+        apiKey = settings.ai.cloudeApiKey;
+        model = settings.ai.cloudeModel || 'llama-3.1-8b-instant';
       } else {
         continue;
       }

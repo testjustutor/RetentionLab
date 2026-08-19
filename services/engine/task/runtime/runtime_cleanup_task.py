@@ -11,8 +11,6 @@ def run_cache_cleanup_task(
 
         "cache_whisper",
 
-        "cache_embeddings",
-
         "cache_voice_activity",
 
         "cache_diarization"

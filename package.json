@@ -43,7 +43,6 @@
     "puppeteer": "^23.5.3",
     "puppeteer-stream": "^3.0.4",
     "socket.io": "^4.8.3",
-    "sqlite3": "^5.1.7",
     "winston": "^3.14.2"
   },
   "devDependencies": {

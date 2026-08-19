@@ -145,7 +145,7 @@ function renderRoleBadges(byRole) {
 
   const entries = Object.entries(byRole);
   if (!entries.length) {
-        container.innerHTML = '<span class="text-[10px] text-violet-700 font-medium">No users</span>';
+        container.innerHTML = '<span class="text-[10px] text-slate-600 font-medium">No users</span>';
     return;
   }
 
@@ -258,12 +258,12 @@ function renderRecentUsers(users) {
   if (!tbody) return;
 
   if (!users || !users.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-emerald-800 font-medium">No users yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-700 font-medium">No users yet</td></tr>';
     return;
   }
 
   tbody.innerHTML = users.map(u => `
-    <tr class="hover:bg-emerald-100 transition-colors">\n      <td class="py-2 px-3">\n        <div class="flex items-center gap-2">\n          <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[8px] font-semibold text-indigo-700">
+    <tr class="hover:bg-emerald-100 transition-colors">\n      <td class="py-2 px-3">\n        <div class="flex items-center gap-2">\n          <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[8px] font-semibold text-slate-600">
             ${(u.name || 'U').charAt(0).toUpperCase()}
           </div>
           <span class="text-slate-900">${escHtml(u.name || 'Unknown')}</span>
@@ -282,7 +282,7 @@ function renderRecentMeetings(meetings) {
   if (!tbody) return;
 
   if (!meetings || !meetings.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-indigo-800 font-medium">No meetings yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-700 font-medium">No meetings yet</td></tr>';
     return;
   }
 

@@ -31,7 +31,7 @@ npm run db:init          # Initialize/reset database
 
 ✅ **Auto-join** any Zoom meeting (link/ID/passcode)
 ✅ **Live captions** with speaker names
-✅ **SQLite storage** (transcripts.db)
+✅ **MySQL storage** (retention_lab database)
 ✅ **JSON/TXT export** (storage/)
 ✅ **Participant detection** (live logs)
 ✅ **Auto-shutdown** when meeting ends
@@ -41,7 +41,7 @@ npm run db:init          # Initialize/reset database
 ## Structure
 
 ```
-database/     → SQLite setup
+database/     → MySQL setup (database/db.js, database/python_db.py)
 models/       → DB models
 services/     → Bot logic (join, captions, monitor)
 utils/        → Logger, export

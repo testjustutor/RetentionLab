@@ -67,6 +67,7 @@ def init_pool(
         conn = _pool.get_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT 1')
+        cursor.fetchall()   # consume result to avoid "Unread result found" on close
         cursor.close()
         conn.close()
         

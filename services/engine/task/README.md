@@ -51,19 +51,6 @@ Produces:
 
 ---
 
-## intel/
-
-Responsible for:
-- sentiment analysis
-- vector embeddings
-- local NLP intelligence
-
-Produces:
-- sentiment_path
-- vector_path
-
----
-
 ## audit/
 
 Responsible for:
@@ -74,6 +61,7 @@ Responsible for:
 Produces:
 - audit_json_path
 - oqi_score
+- structured rubric + metrics
 
 ---
 
@@ -86,6 +74,7 @@ Responsible for:
 
 Produces:
 - summary_path
+- summary_data (summary + key_points + action_items)
 
 ---
 
@@ -101,6 +90,17 @@ Produces:
 
 ---
 
+## persist/
+
+Responsible for:
+- persisting structured results to MySQL
+- summary + rubric answers + scores + metrics
+
+Produces:
+- MySQL rows (meeting_assets, session_rubric_summary, ai_audit_results)
+
+---
+
 # EXECUTION MODEL
 
 Sequential:
@@ -108,10 +108,12 @@ Sequential:
 2. transcription
 
 Parallel:
-3. intel
-4. audit
-5. summary
-6. topics
+3. audit
+4. summary
+5. topics
+
+Sequential:
+6. persist_results
 
 ---
 

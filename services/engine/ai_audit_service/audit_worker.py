@@ -5,9 +5,16 @@ import re
 import sys
 import time
 import traceback
+from decimal import Decimal
 from database.python_db import get_cursor, execute, fetch_all
 from services.engine.ai_audit_service.rubric_loader import RubricLoader
 
+
+def _json_default(o):
+    """json.dumps default handler: convert non-serializable types (Decimal etc.)."""
+    if isinstance(o, Decimal):
+        return float(o)
+    return str(o)
 
 class AuditWorker:
 
@@ -198,7 +205,7 @@ class AiAuditService:
             "}"
         )
 
-        prompt = f"Rubric Target Rules:\n{json.dumps(raw_rubric, indent=2)}\n\nTranscript Target Data:\n{transcript_text}"
+        prompt = f"Rubric Target Rules:\n{json.dumps(raw_rubric, indent=2, default=_json_default)}\n\nTranscript Target Data:\n{transcript_text}"
         print(f"[AUDIT MICROSERVICE] Status: Sending payload data to '{self.ai_api.provider.upper()}' engine...", flush=True)
 
         for progress_pct in range(10, 91, 20):

@@ -26,25 +26,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Flatpickr Initialization Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
+function defaultDateRange() {
+    // Returns { from, to } as YYYY-MM-DD covering the last 1 week (7 days).
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - 7);
+    const fmt = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    return { from: fmt(from), to: fmt(to) };
+}
+
 function initFlatpickr() {
     const fromEl = document.getElementById('fromDate');
     const toEl = document.getElementById('toDate');
+    const defaults = defaultDateRange();
 
     if (window.flatpickr) {
         try {
             flatpickr(fromEl, {
                 dateFormat: 'Y-m-d',
                 allowInput: false,
+                defaultDate: defaults.from,
                 onChange: () => applyFilters()
             });
             flatpickr(toEl, {
                 dateFormat: 'Y-m-d',
                 allowInput: false,
+                defaultDate: defaults.to,
                 onChange: () => applyFilters()
             });
         } catch (e) {
             console.warn('flatpickr init failed', e);
+            if (fromEl) fromEl.value = defaults.from;
+            if (toEl) toEl.value = defaults.to;
         }
+    } else {
+        // Fallback if flatpickr failed to load
+        if (fromEl) fromEl.value = defaults.from;
+        if (toEl) toEl.value = defaults.to;
     }
 }
 

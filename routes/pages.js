@@ -91,6 +91,15 @@ router.get('/register.html', (req, res) => {
   res.redirect('/register');
 });
 
+// Backward-compatible aliases so legacy/cached scripts that load `/header`,
+// `/sidebar` or `/common_footer` (without .html) still resolve to the actual
+// component files instead of 404ing (which previously caused a "missing )"
+// SyntaxError in the console when the 404 HTML body was parsed as JS).
+router.get('/header', (req, res) => { serveHTML(req, res, 'header.html'); });
+router.get('/header.html', (req, res) => { serveHTML(req, res, 'header.html'); });
+router.get('/sidebar', (req, res) => { serveHTML(req, res, 'sidebar.html'); });
+router.get('/sidebar.html', (req, res) => { serveHTML(req, res, 'sidebar.html'); });
+
 router.get('/forgot-password', (req, res) => {
   serveHTML(req, res, 'forgot-password.html');
 });

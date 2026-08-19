@@ -37,10 +37,9 @@ def build_ai_config(ai_settings: dict):
     provider = os.getenv("AI_PROVIDER", ai_settings.get("provider", "gemini")).lower()
 
     provider_keys = {
-        "groq": ai_settings.get("groqApiKey"),
+        "cloude": ai_settings.get("cloudeApiKey"),
         "gemini": ai_settings.get("geminiApiKey"),
         "openai": ai_settings.get("openaiApiKey"),
-        "xai": ai_settings.get("xaiApiKey"),
     }
 
     if not provider_keys.get(provider):
@@ -48,9 +47,9 @@ def build_ai_config(ai_settings: dict):
 
     return {
         "provider": provider,
-        "groqApiKey": ai_settings.get("groqApiKey"),
+        "cloudeModel": ai_settings.get("cloudeModel", "llama-3.1-8b-instant"),
+        "cloudeApiKey": ai_settings.get("cloudeApiKey"),
         "openaiApiKey": ai_settings.get("openaiApiKey"),
-        "xaiApiKey": ai_settings.get("xaiApiKey"),
         "ollamaUrl": ai_settings.get("ollamaUrl", "http://localhost:11434/v1"),
         "ollamaModel": ai_settings.get("ollamaModel", "llama3.1"),
         "geminiApiKey": ai_settings.get("geminiApiKey"),

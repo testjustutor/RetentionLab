@@ -37,6 +37,6 @@ class ActionItemDetector:
                         line
                     )
 
-                        break
+                    break
 
         return findings

@@ -20,6 +20,7 @@ const { seedHeaderConfigs } = require('./seeders/015_header_configs');
 const { seedCalendarProviders } = require('./seeders/016_calendar_providers');
 const { seedMenuItems } = require('./seeders/017_menu_items');
 const { seedRoleMenuPermissions } = require('./seeders/018_role_menu_permissions');
+const { seedAiProviders } = require('./seeders/019_seed_ai_providers');
 
 const runSeeder = async () => {
     console.log('🚀 Starting database seeding...\n');
@@ -114,6 +115,11 @@ const runSeeder = async () => {
     await seedRoleMenuPermissions();
     console.log('✅ Role menu permissions seeded\n');
 
+    // Step 18: Seed AI providers (drives the AI Providers settings page)
+    console.log('🧠 Step 18/18: Seeding AI providers...');
+    await seedAiProviders();
+    console.log('✅ AI providers seeded\n');
+
     console.log('🎉 Database seeding completed successfully!');
 };
 
@@ -137,4 +143,5 @@ module.exports = {
     seedCalendarProviders,
     seedMenuItems,
     seedRoleMenuPermissions,
+    seedAiProviders,
 };

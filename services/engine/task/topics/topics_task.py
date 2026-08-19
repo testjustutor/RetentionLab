@@ -50,9 +50,7 @@ def run_topics_task(context):
 
         log_with_type("info", f"Engine(task > topics > topics_task) : Topics saved path={output_path}", "TASK")
 
-        context.intel[
-            "topics"
-        ] = topics
+        context.topics_data = topics
 
         context.mark_task_completed(
             "topics"

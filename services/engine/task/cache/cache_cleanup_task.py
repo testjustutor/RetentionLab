@@ -16,8 +16,6 @@ def run_cache_cleanup_task(context):
 
         "cache_whisper",
 
-        "cache_embeddings",
-
         "cache_audio_transcripts",
 
         "cache_voice_activity",

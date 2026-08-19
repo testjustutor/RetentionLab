@@ -12,10 +12,6 @@ from services.engine.shared.file_store import (
     FileStore
 )
 
-from services.engine.shared.json_store import (
-    JsonStore
-)
-
 
 def run_summary_task(context):
 
@@ -37,25 +33,24 @@ def run_summary_task(context):
 
         log_with_type("info", "Engine(task > summary > summary_task) : Summary generated", "TASK")
 
-        JsonStore.save(
-            os.path.join(
-                context.storage_paths[
-                    "cache_llm_prompts"
-                ],
-                f"PROMPT_SUMMARY_{context.base_id}.json"
-            ),
-            {
-                "task": "summary",
-                "provider": "local-fallback",
-                "transcript_characters": len(
-                    context.labeled_transcript or ""
-                ),
-                "prompt_template": "Generate a concise meeting summary from the transcript."
+        # Build a structured summary payload (summary + key_points + action_items)
+        # so the persist_results task can store it to MySQL.
+        if isinstance(summary, dict):
+            context.summary_data = summary
+            summary_text = summary.get("summary", "")
+            key_points = summary.get("key_points", [])
+            action_items = summary.get("action_items", [])
+        else:
+            summary_text = summary or ""
+            key_points = []
+            action_items = []
+            context.summary_data = {
+                "summary": summary_text,
+                "key_points": key_points,
+                "action_items": action_items
             }
-        )
 
-        log_with_type("info", "Engine(task > summary > summary_task) : Prompt cached", "TASK")
-
+        # Save the summary text file for downstream/asset use
         output_path = os.path.join(
 
             context.storage_paths[
@@ -69,7 +64,7 @@ def run_summary_task(context):
 
             output_path,
 
-            summary
+            summary_text
         )
 
         log_with_type("info", f"Engine(task > summary > summary_task) : Summary saved path={output_path}", "TASK")

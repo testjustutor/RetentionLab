@@ -24,8 +24,8 @@ function removeSensitiveJsonValues(obj) {
   const SENSITIVE_JSON_KEYS = [
     'api_key', 'apikey', 'client_secret', 'client_id', 'secret',
     'password', 'token', 'hf_token', 'gemini_api_key', 'openai_api_key',
-    'groq_api_key', 'xai_api_key', 'geminiApiKey', 'openaiApiKey',
-    'groqApiKey', 'xaiApiKey', 'CLIENT_ID', 'CLIENT_SECRET',
+    'cloude_api_key', 'geminiApiKey', 'openaiApiKey',
+    'cloudeApiKey', 'CLIENT_ID', 'CLIENT_SECRET',
     'HF_TOKEN', 'jwt_secret', 'JWT_SECRET', 'webhookUrl', 'webhook_url'
   ];
   
@@ -58,7 +58,7 @@ function isSensitiveKey(key) {
   const SENSITIVE_PATTERNS = [
     'api_key', 'api.secret', 'client_secret', 'client_id', 
     'secret', 'token', 'password', 'hf_token', 'jwt_secret',
-    'gemini_api_key', 'openai_api_key', 'groq_api_key', 'xai_api_key',
+    'gemini_api_key', 'openai_api_key', 'cloude_api_key',
     'webhookurl', 'webhook_url'
   ];
   const k = key.toLowerCase().replace(/[._]/g, '');

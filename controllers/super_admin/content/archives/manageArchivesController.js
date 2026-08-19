@@ -21,10 +21,15 @@ const controller = {
         pageSize = 20
       } = req.body || {};
 
+      // Convert date strings (YYYY-MM-DD) to Date objects — the model expects
+      // Date instances (it calls .toISOString() on them). Invalid/empty -> null.
+      const fromDate = from ? new Date(from) : null;
+      const toDate = to ? new Date(to) : null;
+
       const result = await ManageArchivesModel.getMeetings({
         limit: limit ? Number(limit) : 50,
-        from,
-        to,
+        from: fromDate,
+        to: toDate,
         search,
         instructorId: instructorId ? Number(instructorId) : null,
         page: Math.max(1, Number(page) || 1),

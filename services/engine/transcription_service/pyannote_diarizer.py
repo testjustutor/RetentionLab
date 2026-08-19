@@ -73,7 +73,7 @@ class PyannoteDiarizer:
     def _probe_hf_files(self):
         """
         Best-effort HEAD-checks against common pyannote model artifact paths
-        to surface HTTP status codes similar to the GROQ_API traces.
+        to surface HTTP status codes similar to the cloude_API traces.
         """
         if requests is None:
             print("[PYANNOTE - HF PROBE] 'requests' not available; skipping HF probes", flush=True)

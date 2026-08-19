@@ -168,7 +168,6 @@ module.exports = {
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: "gpt-4o-mini",
     groqApiKey: process.env.GROQ_API_KEY,
-    xaiApiKey: process.env.XAI_API_KEY,
     ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434/v1",
     ollamaModel: process.env.OLLAMA_MODEL || "llama3.1"
   },
@@ -176,10 +175,10 @@ module.exports = {
   pipeline_features: {
     media_extraction: true,
     transcription: true,
-    intel_extraction: true,
     ai_audit: true,
     summary_generation: true,
-    topic_clustering: true
+    topic_clustering: true,
+    persist_results: true
   },
 
   services: {

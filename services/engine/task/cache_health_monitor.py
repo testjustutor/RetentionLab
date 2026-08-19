@@ -24,8 +24,6 @@ class CacheHealthMonitor:
 
         "cache_diarization",
 
-        "cache_embeddings",
-
         "cache_topic_trackers",
 
         "cache_voice_activity",

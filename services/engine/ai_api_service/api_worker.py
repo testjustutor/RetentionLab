@@ -9,20 +9,15 @@ class AiApiService:
         self.client = self._init_client()
 
     def _init_client(self):
-        if self.provider == "groq":
+        if self.provider == "cloude":
             return OpenAI(
-                api_key=self.config.get("groqApiKey"),
-                base_url="https://api.groq.com/openai/v1"
+                api_key=self.config.get("cloudeApiKey"),
+                base_url="https://api.cloude.com/openai/v1"
             )
         elif self.provider == "gemini":
             import google.generativeai as genai
             genai.configure(api_key=self.config.get("geminiApiKey"))
             return genai.GenerativeModel(self.config.get("geminiModel"))
-        elif self.provider == "xai":
-            return OpenAI(
-                api_key=self.config.get("xaiApiKey"),
-                base_url="https://api.x.ai/v1"
-            )
         elif self.provider == "ollama":
             return OpenAI(
                 api_key="ollama",
@@ -39,9 +34,8 @@ class AiApiService:
                 return response.text
 
             model_map = {
-                "groq": "llama-3.3-70b-versatile",
+                "cloude": self.config.get("cloudeModel", "llama-3.1-8b-instant"),
                 "openai": self.config.get("openaiModel"),
-                "xai": "grok-beta",
                 "ollama": self.config.get("ollamaModel")
             }
 

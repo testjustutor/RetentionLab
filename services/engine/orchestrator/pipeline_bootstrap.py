@@ -25,11 +25,7 @@ class PipelineBootstrap:
 
         "summaries",
 
-        "intel",
-
         "cache_whisper",
-
-        "cache_embeddings",
 
         "cache_audio_transcripts",
 
@@ -47,9 +43,7 @@ class PipelineBootstrap:
 
         "cache_llm_prompts",
 
-        "cache_screenshots",
-
-        "cache_voiceprints"
+        "cache_screenshots"
     ]
 
     def __init__(

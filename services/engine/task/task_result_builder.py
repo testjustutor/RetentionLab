@@ -30,10 +30,6 @@ class TaskResultBuilder:
 
             "transcript_path": context.transcript_path,
 
-            "sentiment_path": context.sentiment_path,
-
-            "vector_path": context.vector_path,
-
             "audit_json_path": context.audit_json_path,
 
             "summary_path": context.summary_path,
@@ -56,18 +52,10 @@ class TaskResultBuilder:
             "execution_metadata": context.execution_metadata,
 
             # ==========================================
-            # OPTIONAL INTELLIGENCE
+            # OPTIONAL OUTPUTS
             # ==========================================
 
             "topics_generated": (
-                context.intel.get("topics") is not None
-            ),
-
-            "sentiment_generated": (
-                context.intel.get("sentiment") is not None
-            ),
-
-            "embeddings_generated": (
-                context.intel.get("vectors") is not None
+                context.topics_data is not None
             )
         }

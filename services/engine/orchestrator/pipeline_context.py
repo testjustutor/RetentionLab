@@ -39,11 +39,6 @@ class PipelineContext:
 
         self.storage_paths = self._setup_directories()
 
-        self.db_path = os.path.join(
-            self.project_root,
-            "retention_lab.db"
-        )
-
         # ==========================================
         # PIPELINE FEATURE FLAGS
         # ==========================================
@@ -62,11 +57,6 @@ class PipelineContext:
             True
         )
 
-        self.enable_intel = self.str_to_bool(
-            features.get("intel_extraction"),
-            False
-        )
-
         self.enable_audit = self.str_to_bool(
             features.get("ai_audit"),
             False
@@ -82,13 +72,16 @@ class PipelineContext:
             False
         )
 
+        self.enable_persist_results = self.str_to_bool(
+            features.get("persist_results"),
+            True
+        )
+
         # ==========================================
         # SHARED PIPELINE ARTIFACTS
         # ==========================================
         self.audio_path = None
         self.transcript_path = None
-        self.sentiment_path = None
-        self.vector_path = None
         self.audit_json_path = None
         self.summary_path = None
 
@@ -98,11 +91,10 @@ class PipelineContext:
 
         self.audit_results = {}
 
-        self.intel = {
-            "sentiment": None,
-            "vectors": None,
-            "topics": None
-        }
+        # Structured outputs produced by the AI tasks and consumed by
+        # the persist_results task.
+        self.summary_data = {}
+        self.topics_data = None
 
         # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
@@ -118,10 +110,10 @@ class PipelineContext:
         self.task_status = {
             "media": "pending",
             "transcription": "pending",
-            "intel": "pending",
             "audit": "pending",
             "summary": "pending",
-            "topics": "pending"
+            "topics": "pending",
+            "persist_results": "pending"
         }
 
         # ==========================================
@@ -199,11 +191,6 @@ class PipelineContext:
                 "summaries"
             ),
 
-            "intel": os.path.join(
-                storage_base,
-                "intel"
-            ),
-
             # ==========================================
             # AUDIO + TRANSCRIPTION CACHE
             # ==========================================
@@ -252,11 +239,6 @@ class PipelineContext:
             # AI / NLP CACHE
             # ==========================================
 
-            "cache_embeddings": os.path.join(
-                storage_base,
-                "cache_embeddings"
-            ),
-
             "cache_topic_trackers": os.path.join(
                 storage_base,
                 "cache_topic_trackers"
@@ -265,11 +247,6 @@ class PipelineContext:
             "cache_llm_prompts": os.path.join(
                 storage_base,
                 "cache_llm_prompts"
-            ),
-
-            "cache_voiceprints": os.path.join(
-                storage_base,
-                "cache_voiceprints"
             ),
 
             "audits": os.path.join(
@@ -317,8 +294,6 @@ class PipelineContext:
             "meeting_id": self.base_id,
             "audio_path": self.audio_path,
             "transcript_path": self.transcript_path,
-            "sentiment_path": self.sentiment_path,
-            "vector_path": self.vector_path,
             "audit_json_path": self.audit_json_path,
             "summary_path": self.summary_path,
             "oqi_score": self.audit_results.get("oqi_score", 0)

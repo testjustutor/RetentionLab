@@ -16,7 +16,6 @@ class CacheCleanupTask:
     Safe for:
     - Whisper cache
     - diarization cache
-    - embeddings cache
     - topic trackers
     """
 
@@ -25,8 +24,6 @@ class CacheCleanupTask:
         "cache_whisper",
 
         "cache_diarization",
-
-        "cache_embeddings",
 
         "cache_topic_trackers",
 

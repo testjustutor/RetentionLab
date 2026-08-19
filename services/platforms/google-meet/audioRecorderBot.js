@@ -40,7 +40,7 @@ class ProfessionalMeetingBot {
             logger.info(`GoogleMeetAdapter(audioRecorderBot): Transcribing with speaker context from ${transcriptPath}`);
         }
 
-        const providers = [...new Set([settings.ai.provider, 'openai', 'groq'])].filter(p => p);
+        const providers = [...new Set([settings.ai.provider, 'openai', 'cloude'])].filter(p => p);
 
         for (const provider of providers) {
             try {
@@ -56,9 +56,9 @@ class ProfessionalMeetingBot {
                     apiUrl = 'https://api.openai.com/v1/audio/transcriptions';
                     apiKey = settings.ai.openaiApiKey;
                     modelName = 'whisper-1';
-                } else if (provider === 'groq') {
-                    apiUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-                    apiKey = settings.ai.groqApiKey;
+                } else if (provider === 'cloude') {
+                    apiUrl = 'https://api.cloude.com/openai/v1/audio/transcriptions';
+                    apiKey = settings.ai.cloudeApiKey;
                     modelName = 'whisper-large-v3';
                 } else {
                     continue;

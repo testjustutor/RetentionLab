@@ -14,8 +14,6 @@ def run_cache_rotation_task(context):
 
         "cache_whisper",
 
-        "cache_embeddings",
-
         "cache_audio_transcripts"
     ]
 

@@ -23,7 +23,7 @@ async function loadRoles() {
     });
   } catch (err) {
     console.error('Error loading roles:', err);
-    showToast(Failed to load roles: ' + err.message);
+    showToast('Failed to load roles: ' + err.message);
   }
 }
 
@@ -118,7 +118,7 @@ function renderMenuItem(item, depth) {
 }
 
 function showAddForm() {
-  showToast(To add new menu items, use the database seeder. This page manages visibility and ordering.');
+  showToast('To add new menu items, use the database seeder. This page manages visibility and ordering.');
 }
 
 function editMenuItem(menuId) {
@@ -156,15 +156,15 @@ async function deleteMenuItemById(id) {
     });
 
     if (!resp.ok) throw new Error('Update failed');
-    showToast(Menu item hidden');
+    showToast('Menu item hidden');
     loadMenuItems();
   } catch (err) {
-    showToast(Error: ' + err.message);
+    showToast('Error: ' + err.message);
   }
 }
 
 async function reseedMenu() {
-  if (!currentRoleId) { showToast(Select a role first.'); return; }
+  if (!currentRoleId) { showToast('Select a role first.'); return; }
   if (!confirm('This will reset all menu permissions for this role to defaults. Continue?')) return;
   
   try {
@@ -179,10 +179,10 @@ async function reseedMenu() {
       throw new Error(err.error || 'Reseed failed');
     }
     
-    showToast(Menu reset to defaults!');
+    showToast('Menu reset to defaults!');
     loadMenuItems();
   } catch (err) {
-    showToast(Error: ' + err.message);
+    showToast('Error: ' + err.message);
   }
 }
 
@@ -257,11 +257,11 @@ async function savePermissions(permissions) {
       throw new Error(err.error || 'Save failed');
     }
 
-    showToast(Menu permissions saved!');
+    showToast('Menu permissions saved!');
     closeModal();
     loadMenuItems();
   } catch (err) {
-    showToast(Error: ' + err.message);
+    showToast('Error: ' + err.message);
   }
 }
 

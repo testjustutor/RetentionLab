@@ -11,7 +11,6 @@ class ParallelTaskManager:
     for post-transcription AI tasks.
 
     Current Parallel Tasks:
-    - intel
     - audit
     - summary
     - topics
