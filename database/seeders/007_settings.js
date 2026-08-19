@@ -31,6 +31,10 @@ const SETTINGS_BY_GROUP = {
     { setting_key: 'recording.audio_recording', setting_value: 'true' },
     { setting_key: 'recording.video_recording', setting_value: 'true' },
     { setting_key: 'recording.transcript_recording', setting_value: 'true' },
+    { setting_key: 'video_processing.enabled', setting_value: 'true' },
+    { setting_key: 'video_processing.convert_to_mp3', setting_value: 'true' },
+    { setting_key: 'video_processing.auto_process', setting_value: 'false' },
+    { setting_key: 'video_processing.show_mp3_check', setting_value: 'true' },
   ],
   access_control: [
     // Changed default to 'false': instructor accounts get elevated access

@@ -6,33 +6,35 @@ const { db, runAsync, getAsync } = require('../seedHelpers');
 
 const DEFAULT_NAV_BY_ROLE = {
   super_admin: {
-    home: { label: 'Dashboard', href: '/super_admin' },
-    events: { label: 'Events', href: '/super_admin/integrations/bot' },
+    home: { label: 'Dashboard', href: '/super_admin/dashboard/index' },
+    events: { label: 'Bot Config', href: '/super_admin/settings/bot-configuration' },
     archives: { label: 'Archives', href: '/super_admin/content/archives' },
     profile: { label: 'Profile', href: '/super_admin/people/profile' },
-    settings: { label: 'Settings', href: '/super_admin/settings/settings' }
+    settings: { label: 'Settings', href: '/super_admin/settings/sidebar-menu-management' }
   },
   admin: {
-    home: { label: 'Dashboard', href: '/admin/index' },
-    events: { label: 'Events', href: '/admin/calendar-events' },
-    archives: { label: 'Archives', href: '/admin/archives' },
+    home: { label: 'Dashboard', href: '/admin' },
+    events: { label: 'Calendar', href: '/admin/meetings/calendar' },
+    archives: { label: 'Content', href: '/admin/content/recordings' },
     profile: { label: 'Profile', href: '/admin/profile' },
-    settings: { label: 'Settings', href: '/admin/settings' }
+    settings: { label: 'Settings', href: '/admin/settings/organization' }
   },
   reviewer: {
     home: { label: 'Dashboard', href: '/reviewer/dashboard' },
     events: { label: 'Reviews', href: '/reviewer/reviews' },
     archives: { label: 'Sessions', href: '/reviewer/sessions' },
     profile: { label: 'Profile', href: '/reviewer/profile' },
-    settings: { label: 'Settings', href: '/reviewer/settings' }
+    settings: { label: 'Profile', href: '/reviewer/profile' }
   },
   instructor: {
-    home: { label: 'Dashboard', href: '/instructor/index' },
-    events: { label: 'Events', href: '/instructor/calendar-events' },
-    archives: { label: 'Archives', href: '/instructor/archives' },
+    home: { label: 'Dashboard', href: '/instructor' },
+    events: { label: 'Upcoming', href: '/meetings?tab=upcoming' },
+    archives: { label: 'Completed', href: '/meetings?tab=completed' },
     profile: { label: 'Profile', href: '/instructor/profile' },
-    settings: { label: 'Settings', href: '/instructor/settings' }
+    settings: { label: 'Profile', href: '/instructor/profile' }
   },
+  // NOTE: solo_instructor has no role_id entry in 017_menu_items.js.
+  // Left as-is; confirm this role is still active before relying on it.
   solo_instructor: {
     home: { label: 'Dashboard', href: '/instructor/index' },
     events: { label: 'Meetings', href: '/meetings' },
@@ -45,20 +47,17 @@ const DEFAULT_NAV_BY_ROLE = {
 const seedHeaderRoleConfigs = async () => {
     const { count } = await getAsync(`SELECT COUNT(*) as count FROM header_role_configs`);
     if (count > 0) return;
-
     const roles = await new Promise((resolve, reject) => {
         db.all(`SELECT id, role_name FROM roles`, [], (err, rows) => {
             if (err) return reject(err);
             resolve(rows || []);
         });
     });
-
     for (const role of roles) {
         const nav = DEFAULT_NAV_BY_ROLE[role.role_name] || DEFAULT_NAV_BY_ROLE.instructor;
         if (!DEFAULT_NAV_BY_ROLE[role.role_name]) {
             console.warn(`[Seed] headerRoleConfigSeeder: no nav config for role "${role.role_name}", falling back to instructor defaults.`);
         }
-
         await runAsync(
             `INSERT IGNORE INTO header_role_configs 
              (role_id, home_href, home_label, events_href, events_label, archives_href, archives_label, 

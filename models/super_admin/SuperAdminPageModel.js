@@ -18,7 +18,7 @@ class SuperAdminPageModel {
         'people': ['access-control', 'add-user', 'manage-rubrics', 'manage-users', 'profile', 'user-settings'],
         'reports': [],
         'roles': ['roles-access', 'rubric-management'],
-        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms'],
+        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms', 'video-processing'],
         'content': ['archives', 'assets']
       },
       single: ['index', 'dashboard']

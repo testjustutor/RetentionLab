@@ -1,3 +1,56 @@
+## Task: Add "named" video file support (2nd video type) to Video Processing page
+
+Flow: For a named video like `1012_Shivani_Arora_Regular_248879_General_Discussion_2026_08_17_08715cb3.mp4`:
+- 1012 = instructor user id
+- Shivani_Arora = instructor first/last name
+- Regular = meetings.external_meeting_id
+- 248879 = meeting_sessions.id
+- General_Discussion = meetings.title
+- 2026_08_17 = meetings.scheduled_start_time date
+- scheduled_end_time = start + 1 hour
+- Required: create instructor in users, dummy teams calendar integration, meeting row, meeting_session row.
+
+Key principles:
+- Reuse existing models (UsersModel / manual-seeder patterns, MeetingModel, MeetingSessionModel).
+- Reuse existing db helper & seedHelpers.
+- Add NEW controller function for this video type; existing logic unchanged for REC_/screen-recordings videos.
+
+- [x] Inspect users, meetings, meeting_sessions, calendar_connections/providers schema + manual seeder patterns (DONE).
+- [x] Add a parser for the named video filename (instructorId_first_last_externalMeetingId_sessionId_title_date_hash.mp4).
+- [x] Add controller function `seedNamedVideo` (or similar) that seeds instructor user + teams integration + meeting + session.
+- [x] Route the new endpoint for named video processing.
+- [x] Seeding is triggered inside the Convert flow (no separate "Seed DB" button) — named video seeding happens before video->audio conversion.
+- [x] Named-video MP3 naming: REC_<external_meeting_id>_Sess<sessionid>_<date>_<time>.mp3 (e.g. REC_Regular_Sess248879_2026_08_17_09-00.mp3).
+- [x] FIX: processAudio no longer shells out to `node test-engine.js` (which owns .test-engine.lock). It now calls `PythonBridge.runFullAudioPipeline(mp3Name)` directly, bypassing the lock file (reuses the exact pipeline test-engine.js uses).
+- [x] Verify: node --check, routes load, model loads, seed works idempotently (1 user/1 meeting/1 session/1 teams integration).
+
+
+## Task: Implement Video Processing page per requirements (reuse existing project functionality)
+
+Flow: Video Processing page - Super Admin Settings.
+
+Key requirements:
+- Read videos from storage/screen-recordings (80-150MB - don't buffer whole file into memory, only metadata via ffprobe/stat).
+- Convert video -> audio: SCREEN_x.mp4 -> REC_x.mp3 (NOTE: existing MP3s use REC_ prefix!).
+- Save MP3 under storage/recordings/.
+- Reuse the existing audio-processing pipeline from test-engine.js (via PythonBridge.runFullAudioPipeline).
+- Backend must validate MP3 exists before allowing convert/process (not just frontend).
+- Reuse existing database (video_processing table via db helper), no duplicate DB solution.
+- Protect against path traversal / arbitrary file paths. Server derives & validates the real recording/MP3 path.
+- Auth via requireAuth + requireSuperAdmin (already wired).
+
+- [x] Inspect existing Settings pages, test-engine.js, pythonBridge.js, db.js, meetingAssetController (reuse points identified).
+- [x] Inspect existing Settings pages, test-engine.js, pythonBridge.js, db.js, meetingAssetController (reuse points identified).
+- [x] FIX: toMp3Name must map SCREEN_ -> REC_ so existing REC_* MP3s are detected (currently only swaps .mp4->.mp3 keeping SCREEN_).
+- [x] FIX: Add strict input validation in model (reject path traversal, wrong extension, invalid chars) + derive validated paths server-side.
+- [x] processAudio: keep reusing `node test-engine.js "<REC_file.mp3>"` pipeline (already does) - confirm correct filename passed.
+- [x] convertToAudio: use REC_ output name + ffmpeg stream (no full-file buffering) - confirm.
+- [x] persist processing status to DB after convert/process success/failure - confirm & verify (video_processing table exists with rows).
+- [x] UI: enable/disable Convert/Process correctly using server-provided canConvert/canProcess; disable during in-flight op; refresh status after op.
+- [x] UI: human-readable file sizes (already MB), duration, loading state.
+- [x] Verify: node --check all JS; routes load; model loads; api returns data (5 videos, all mp3=true -> canConvert=false/canProcess=true).
+
+
 ## Task: Fix slow API - /api/super_admin/monitoring/audit
 
 Flow: API hangs -> check controller -> check data source path.
@@ -1494,3 +1547,18 @@ This matches the existing pattern in `routes/roles.js:29` which uses the same co
 - [x] Verified no other code references the old literal path
 - [x] Verified route ordering: `/:name` (3 segments) does not conflict with `/people/roles` list (2 segments)
 
+
+## Task: Redesign Video Processing page to match migrated Super Admin settings pages
+
+- [x] HTML: light theme body (bg-slate-100 text-slate-900 antialiased font-sans), sidebar-placeholder + header-placeholder, meta dashboard-role/header-page
+- [x] HTML: added 4 gradient stat cards (Total Videos cyan, Converted emerald, Pending amber, Processed violet) with mono uppercase labels + SVG icons
+- [x] HTML: cyan-teal gradient card for Screen Recordings table (card header + icon + Refresh button #refreshBtn, themed thead bg-cyan-200, divide-y rows)
+- [x] HTML: themed Convert to Audio modal (cyan) and Process Audio modal (emerald) with header bars, close buttons (data-close), white inputs, full-width action buttons
+- [x] HTML: toast notification div + script order matching migrated pages (/js/auth.js module, /js/load-components.js, /js/common-ui-super-admin.js, page JS)
+- [x] HTML: fixed div balance (38 open / 38 close)
+- [x] JS: renderTable populates 4 stat cards from API data
+- [x] JS: themed table rows (text-cyan-950/800), status badges (emerald/amber), text-[10px] font-semibold Convert/Process buttons
+- [x] JS: bind #refreshBtn to loadVideos() and [data-close] elements to closeModals()
+- [x] Verify: node --check passes on JS; div balance 38/38; all 17 element IDs consistent between HTML and JS; page returns 302 auth redirect (expected); model loads OK
+- [x] FIX2: runFullAudioPipeline must be called as (meetingId, sessionId, fileName) — the fileName is the 3rd positional arg. Previously called (fileName) only, leaving fileName=undefined -> engine looked for storage/recordings/undefined. Now resolves seeded meeting/session for named videos and passes mp3 name as 3rd arg.
+- [x] CONVERT (named videos): after conversion, sync meeting_sessions (audio_file_name=mp3, transcript_file_name=TRANS_*.txt) and meeting_assets (audio_path, transcript_path, video_path). Verified in live DB.

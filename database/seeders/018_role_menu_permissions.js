@@ -27,6 +27,7 @@ const seedRoleMenuPermissions = async () => {
         ['sa-platforms', 'sa-settings'],
         ['sa-user-defaults', 'sa-settings'],
         ['sa-table-controls', 'sa-settings'],
+        ['sa-video-processing', 'sa-settings'],
       ['sa-monitoring', null],
         ['sa-server-performance', 'sa-monitoring'],
         ['sa-audit-logs', 'sa-monitoring'],
@@ -107,9 +108,14 @@ const seedRoleMenuPermissions = async () => {
     ]
   };
 
-  // Get all roles
-  const roles = await allAsync('SELECT id, role_name FROM roles WHERE role_name IN (?, ?, ?, ?, ?)',
-    ['super_admin', 'admin', 'instructor', 'reviewer', 'solo_instructor']
+  // Get all roles that have a defined menu hierarchy.
+  // NOTE: solo_instructor is intentionally excluded here — it has no
+  // role_id-tagged entries in 017_menu_items.js, so there is nothing
+  // for this seeder to attach permissions to. If solo_instructor is
+  // still an active role, add its menu items to 017 first, then add
+  // a matching hierarchy block here.
+  const roles = await allAsync('SELECT id, role_name FROM roles WHERE role_name IN (?, ?, ?, ?)',
+    ['super_admin', 'admin', 'instructor', 'reviewer']
   );
 
   // Get menu_items id map filtered by role

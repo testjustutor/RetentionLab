@@ -2,126 +2,135 @@
  * root/database/seeders/009_header_menu_items.js
  * DEPRECATED - Menu items are now managed via menu_items table and role_menu_permissions
  * This seeder is kept for reference only and should not be used
+ * Updated to mirror the canonical structure/labels/routes in 017_menu_items.js
  */
 const { runAsync, getAsync } = require('../seedHelpers');
 const { db } = require('../db');
 
 const DEFAULT_MENU_BY_ROLE = {
   super_admin: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/dashboard/index', submenu: null },
+    { id: 'sa-dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/dashboard/index', submenu: null },
 
-    { id: 'people', label: 'People', icon: 'users', href: null, submenu: [
-      { id: 'add-user', label: 'Add User', href: '/super_admin/people/add-user' },
-      { id: 'manage-users', label: 'Manage Users', href: '/super_admin/people/manage-users' },
-      { id: 'profile', label: 'Profile', href: '/super_admin/people/profile' },
-      { id: 'user-settings', label: 'User Settings', href: '/super_admin/people/user-settings' }
+    { id: 'sa-people', label: 'People & Access', icon: 'users', href: null, submenu: [
+      { id: 'sa-add-user', label: 'Add User', href: '/super_admin/people/add-user' },
+      { id: 'sa-manage-users', label: 'Manage Users', href: '/super_admin/people/manage-users' },
+      { id: 'sa-access-control', label: 'Access Control', href: '/super_admin/people/access-control' },
+      { id: 'sa-manage-rubrics', label: 'Manage Rubrics', href: '/super_admin/people/manage-rubrics' }
     ]},
 
-    { id: 'roles', label: 'Roles & Rubrics', icon: 'clipboard', href: null, submenu: [
-      { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles/roles-access' },
-      { id: 'rubric-management', label: 'Rubric Management', href: '/super_admin/roles/rubric-management' }
+    { id: 'sa-content', label: 'Content', icon: 'folder', href: null, submenu: [
+      { id: 'sa-archives', label: 'Archives', href: '/super_admin/content/archives' },
+      { id: 'sa-media-assets', label: 'Media Assets', href: '/super_admin/content/assets' }
     ]},
 
-    { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-      { id: 'archives', label: 'Archives', href: '/super_admin/content/archives' },
-      { id: 'assets', label: 'Assets', href: '/super_admin/content/assets' },
-      { id: 'audit', label: 'Audit Log', href: '/super_admin/monitoring/audit' }
+    { id: 'sa-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
+      { id: 'sa-bot-config', label: 'Bot Configuration', href: '/super_admin/settings/bot-configuration' },
+      { id: 'sa-ai-providers', label: 'AI Providers', href: '/super_admin/settings/ai-providers' },
+      { id: 'sa-platforms', label: 'Platform Integrations', href: '/super_admin/settings/platforms' },
+      { id: 'sa-user-defaults', label: 'User Defaults', href: '/super_admin/settings/user-defaults' },
+      { id: 'sa-table-controls', label: 'Table Controls', href: '/super_admin/settings/table-controls' },
+      { id: 'sa-video-processing', label: 'Video Processing', icon: 'video', href: '/super_admin/settings/video-processing' }
     ]},
 
-    { id: 'configuration', label: 'Configuration', icon: 'settings', href: null, submenu: [
-      { id: 'bot-config', label: 'Bot Configuration', href: '/super_admin/settings/bot-configuration' },
-      { id: 'ai-providers', label: 'AI Providers', href: '/super_admin/settings/ai-providers' },
-      { id: 'platforms', label: 'Platforms', href: '/super_admin/settings/platforms' }
+    { id: 'sa-monitoring', label: 'Monitoring', icon: 'activity', href: null, submenu: [
+      { id: 'sa-server-performance', label: 'Server Performance', href: '/super_admin/monitoring/server' },
+      { id: 'sa-audit-logs', label: 'Audit Logs', href: '/super_admin/monitoring/audit' }
     ]},
 
-    { id: 'monitoring', label: 'Monitoring', icon: 'activity', href: null, submenu: [
-      { id: 'server-performance', label: 'Server Performance', href: '/super_admin/monitoring/server' }
-    ]},
-
-    { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
-      { id: 'sidebar-menu-management', label: 'Manage Menu', href: '/super_admin/settings/sidebar-menu-management' },
-      { id: 'header-management', label: 'Header Management', href: '/super_admin/settings/header-management' }
-      , { id: 'table-controls', label: 'Table Controls', href: '/super_admin/settings/table-controls' }
-    ]}
+    { id: 'sa-menu-management', label: 'Manage Menu', icon: 'menu', href: '/super_admin/settings/sidebar-menu-management', submenu: null },
+    { id: 'sa-profile', label: 'Profile', icon: 'user', href: '/super_admin/people/profile', submenu: null },
+    { id: 'sa-logout', label: 'Logout', icon: 'log-out', href: '/logout', submenu: null }
   ],
   admin: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/admin', submenu: null },
-    { id: 'people', label: 'People', icon: 'users', href: null, submenu: [
-      { id: 'users', label: 'Users', href: '/admin/people/users' },
-      { id: 'departments', label: 'Departments', href: '/admin/people/departments' },
-      { id: 'roles', label: 'Roles', href: '/admin/people/roles' }
+    { id: 'admin-dashboard', label: 'Dashboard', icon: 'grid', href: '/admin', submenu: null },
+
+    { id: 'admin-people', label: 'People', icon: 'users', href: null, submenu: [
+      { id: 'admin-users', label: 'Users', href: '/admin/people/users' },
+      { id: 'admin-departments', label: 'Departments', href: '/admin/people/departments' },
+      { id: 'admin-roles', label: 'Roles', href: '/admin/people/roles' }
     ]},
-    { id: 'meetings', label: 'Meetings', icon: 'calendar', href: null, submenu: [
-      { id: 'calendar', label: 'Calendar', href: '/admin/meetings/calendar' },
-      { id: 'schedule', label: 'Schedule', href: '/admin/meetings/schedule' },
-      { id: 'live', label: 'Live Sessions', href: '/admin/meetings/live' },
-      { id: 'completed', label: 'Completed Sessions', href: '/admin/meetings/completed' }
+
+    { id: 'admin-meetings', label: 'Meetings', icon: 'calendar', href: null, submenu: [
+      { id: 'admin-calendar', label: 'Calendar', href: '/admin/meetings/calendar' },
+      { id: 'admin-schedule', label: 'Schedule', href: '/admin/meetings/schedule' },
+      { id: 'admin-live', label: 'Live Meetings', href: '/admin/meetings/live' },
+      { id: 'admin-completed', label: 'Completed', href: '/admin/meetings/completed' }
     ]},
-    { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-      { id: 'recordings', label: 'Recordings', href: '/admin/content/recordings' },
-      { id: 'transcripts', label: 'Transcripts', href: '/admin/content/transcripts' },
-      { id: 'summaries', label: 'Summaries', href: '/admin/content/summaries' },
-      { id: 'assets', label: 'Assets', href: '/admin/content/assets' }
+
+    { id: 'admin-content', label: 'Content', icon: 'folder', href: null, submenu: [
+      { id: 'admin-recordings', label: 'Recordings', href: '/admin/content/recordings' },
+      { id: 'admin-videos', label: 'Videos', href: '/admin/content/videos' },
+      { id: 'admin-transcripts', label: 'Transcripts', href: '/admin/content/transcripts' },
+      { id: 'admin-summaries', label: 'Summaries', href: '/admin/content/summaries' }
     ]},
-    { id: 'evaluation', label: 'Evaluation', icon: 'star', href: null, submenu: [
-      { id: 'rubrics', label: 'Rubrics', href: '/admin/evaluation/rubrics' },
-      { id: 'reviews', label: 'Reviews', href: '/admin/evaluation/reviews' },
-      { id: 'scores', label: 'Session Scores', href: '/admin/evaluation/scores' },
-      { id: 'performance', label: 'Performance', href: '/admin/evaluation/performance' }
+
+    { id: 'admin-evaluation', label: 'Evaluation', icon: 'check-circle', href: null, submenu: [
+      { id: 'admin-rubrics', label: 'Rubrics', href: '/admin/evaluation/rubrics' },
+      { id: 'admin-reviews', label: 'Reviews', href: '/admin/evaluation/reviews' },
+      { id: 'admin-scores', label: 'Scores', href: '/admin/evaluation/scores' },
+      { id: 'admin-performance', label: 'Performance', href: '/admin/evaluation/performance' }
     ]},
-    { id: 'insights', label: 'Insights', icon: 'zap', href: null, submenu: [
-      { id: 'engagement', label: 'Engagement', href: '/admin/insights/engagement' },
-      { id: 'actions', label: 'Action Items', href: '/admin/insights/actions' },
-      { id: 'decisions', label: 'Decisions', href: '/admin/insights/decisions' },
-      { id: 'risks', label: 'Risks', href: '/admin/insights/risks' },
-      { id: 'analytics', label: 'Analytics', href: '/admin/insights/analytics' }
+
+    { id: 'admin-insights', label: 'Insights', icon: 'lightbulb', href: null, submenu: [
+      { id: 'admin-engagement', label: 'Engagement', href: '/admin/insights/engagement' },
+      { id: 'admin-actions', label: 'Actions', href: '/admin/insights/actions' },
+      { id: 'admin-decisions', label: 'Decisions', href: '/admin/insights/decisions' },
+      { id: 'admin-risks', label: 'Risks', href: '/admin/insights/risks' },
+      { id: 'admin-analytics', label: 'Analytics', href: '/admin/insights/analytics' }
     ]},
-    { id: 'reports', label: 'Reports', icon: 'bar-chart', href: null, submenu: [
-      { id: 'meeting-reports', label: 'Meeting Reports', href: '/admin/reports/meetings' },
-      { id: 'evaluation-reports', label: 'Evaluation Reports', href: '/admin/reports/evaluations' },
-      { id: 'team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
-      { id: 'audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
+
+    { id: 'admin-reports', label: 'Reports', icon: 'bar-chart', href: null, submenu: [
+      { id: 'admin-meeting-reports', label: 'Meeting Reports', href: '/admin/reports/meetings' },
+      { id: 'admin-evaluation-reports', label: 'Evaluation Reports', href: '/admin/reports/evaluations' },
+      { id: 'admin-team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
+      { id: 'admin-audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
     ]},
-    { id: 'session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
-      { id: 'sq-hub', label: 'Report Hub', href: '/admin/session-quality/index' },
-      { id: 'sq-rubric', label: 'Rubric Evaluation', href: '/admin/session-quality/rubric' },
-      { id: 'sq-analysis', label: 'Session Analysis', href: '/admin/session-quality/analysis' },
-      { id: 'sq-impact', label: 'Learning Impact', href: '/admin/session-quality/impact' },
-      { id: 'sq-parent-summary', label: 'Parent Summary', href: '/admin/session-quality/parent-summary' },
-      { id: 'sq-coaching', label: 'Coaching Feedback', href: '/admin/session-quality/coaching' },
-      { id: 'sq-better-alt', label: 'Better Alternatives', href: '/admin/session-quality/better-alternatives' },
-      { id: 'sq-next-plan', label: 'Next Session Plan', href: '/admin/session-quality/next-plan' },
-      { id: 'sq-flags', label: 'Quality Flags', href: '/admin/session-quality/flags' },
-      { id: 'sq-final-eval', label: 'Final Evaluation', href: '/admin/session-quality/final-eval' }
+
+    { id: 'admin-session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
+      { id: 'admin-sq-hub', label: 'SQ Hub', href: '/admin/session-quality/index' },
+      { id: 'admin-sq-rubric', label: 'SQ Rubric', href: '/admin/session-quality/rubric' },
+      { id: 'admin-sq-analysis', label: 'SQ Analysis', href: '/admin/session-quality/analysis' },
+      { id: 'admin-sq-impact', label: 'SQ Impact', href: '/admin/session-quality/impact' },
+      { id: 'admin-sq-parent-summary', label: 'SQ Parent Summary', href: '/admin/session-quality/parent-summary' },
+      { id: 'admin-sq-coaching', label: 'SQ Coaching', href: '/admin/session-quality/coaching' },
+      { id: 'admin-sq-better-alt', label: 'SQ Better Alternatives', href: '/admin/session-quality/better-alternatives' },
+      { id: 'admin-sq-next-plan', label: 'SQ Next Plan', href: '/admin/session-quality/next-plan' },
+      { id: 'admin-sq-flags', label: 'SQ Flags', href: '/admin/session-quality/flags' },
+      { id: 'admin-sq-final-eval', label: 'SQ Final Evaluation', href: '/admin/session-quality/final-eval' }
     ]},
-    { id: 'archives', label: 'Archives', icon: 'archive', href: '/admin/archives', submenu: null },
-    { id: 'settings', label: 'Settings', icon: 'settings', href: null, submenu: [
-      { id: 'organization', label: 'Organization', href: '/admin/settings/organization' },
-      { id: 'notifications', label: 'Notifications', href: '/admin/settings/notifications' },
-      { id: 'meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
-      { id: 'integrations', label: 'Integrations', href: '/admin/settings/integrations' }
+
+    { id: 'admin-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
+      { id: 'admin-organization', label: 'Organization', href: '/admin/settings/organization' },
+      { id: 'admin-notifications', label: 'Notifications', href: '/admin/settings/notifications' },
+      { id: 'admin-meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
+      { id: 'admin-integrations', label: 'Integrations', href: '/admin/settings/integrations' }
     ]},
-    { id: 'profile', label: 'Profile', icon: 'user', href: '/admin/profile', submenu: null },
-    { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
+
+    { id: 'admin-profile', label: 'Profile', icon: 'user', href: '/admin/profile', submenu: null },
+    { id: 'admin-logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   reviewer: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
-    { id: 'sessions', label: 'Sessions', icon: 'calendar', href: '/reviewer/sessions', color: 'blue', section: 'main', submenu: null },
-    { id: 'reviews', label: 'Reviews', icon: 'check-circle', href: '/reviewer/reviews', color: 'emerald', section: 'main', submenu: null },
-    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/reviewer/evaluations', color: 'amber', section: 'main', submenu: null },
-    { id: 'score', label: 'Score', icon: 'bar-chart', href: '/reviewer/score', color: 'indigo', section: 'main', submenu: null },
-    { id: 'analytics', label: 'Analytics', icon: 'activity', href: '/reviewer/analytics', color: 'cyan', section: 'main', submenu: null },
-    { id: 'profile', label: 'My Profile', icon: 'user', href: '/reviewer/profile', color: 'slate', section: 'account', submenu: null },
+    { id: 'reviewer-dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'reviewer-sessions', label: 'Sessions', icon: 'calendar', href: '/reviewer/sessions', color: 'blue', section: 'main', submenu: null },
+    { id: 'reviewer-evaluations', label: 'Evaluations', icon: 'check-circle', href: '/reviewer/evaluations', color: 'amber', section: 'main', submenu: null },
+    { id: 'reviewer-reviews', label: 'Reviews', icon: 'star', href: '/reviewer/reviews', color: 'emerald', section: 'main', submenu: null },
+    { id: 'reviewer-score', label: 'Score', icon: 'bar-chart', href: '/reviewer/score', color: 'indigo', section: 'main', submenu: null },
+    { id: 'reviewer-analytics', label: 'Analytics', icon: 'activity', href: '/reviewer/analytics', color: 'cyan', section: 'main', submenu: null },
+    { id: 'reviewer-profile', label: 'Profile', icon: 'user', href: '/reviewer/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   instructor: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/index', color: 'violet', section: 'main', submenu: null },
-    { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/instructor/meetings', color: 'blue', section: 'main', submenu: null },
-    { id: 'evaluations', label: 'Evaluations', icon: 'star', href: '/instructor/evaluations', color: 'emerald', section: 'main', submenu: null },
-    { id: 'reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports', color: 'indigo', section: 'main', submenu: null },
-    { id: 'profile', label: 'My Profile', icon: 'user', href: '/instructor/profile', color: 'slate', section: 'account', submenu: null },
+    { id: 'instructor-dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor', color: 'violet', section: 'main', submenu: null },
+    { id: 'upcoming-meetings', label: 'Upcoming Meetings', icon: 'calendar', href: '/meetings?tab=upcoming', color: 'blue', section: 'main', submenu: null },
+    { id: 'completed-meetings', label: 'Completed Meetings', icon: 'check', href: '/meetings?tab=completed', color: 'blue', section: 'main', submenu: null },
+    { id: 'evaluations', label: 'Evaluations', icon: 'check-circle', href: '/evaluations', color: 'emerald', section: 'main', submenu: null },
+    { id: 'action-items', label: 'Action Items', icon: 'list', href: '/insights/action-items', color: 'cyan', section: 'main', submenu: null },
+    { id: 'instructor-reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports', color: 'indigo', section: 'main', submenu: null },
+    { id: 'instructor-profile', label: 'Profile', icon: 'user', href: '/instructor/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
+  // NOTE: solo_instructor has no role_id in 017_menu_items.js and is left as-is.
+  // Confirm whether this role still exists before relying on this block.
   solo_instructor: [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/', color: 'violet', section: 'main', submenu: null },
     { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/meetings', color: 'emerald', section: 'meetings', submenu: [

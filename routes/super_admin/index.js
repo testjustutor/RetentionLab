@@ -36,6 +36,7 @@ const botConfig = require('./settings/bot-configuration');
 const platformsConfig = require('./settings/platforms');
 const aiproviders = require('./settings/ai-providers');
 const userdefaults = require('./settings/user-defaults');
+const videoprocessing = require('./settings/video-processing');
 const tablecontrols = require('./settings/table-controls');
 const monitoringserver = require('./monitoring/server');
 const monitoringaudit = require('./monitoring/audit');
@@ -144,6 +145,10 @@ router.use('/settings/ai-providers', requireAuth, requireSuperAdmin, aiproviders
 // ── Settings (user-defaults page) - User Defaults (get + save) ────────────────
 // POST /system/filter, POST /system/bulk
 router.use('/settings/user-defaults', requireAuth, requireSuperAdmin, userdefaults);
+
+// ── Settings (video-processing page) - Video to audio processing ─────────────
+// GET /, POST /process, GET /history
+router.use('/settings/video-processing', requireAuth, requireSuperAdmin, videoprocessing);
 
 // ── Settings (table-controls page) - Table Controls (list + update) ───────────
 // GET /, GET /:tableId, PUT/POST /:tableId
