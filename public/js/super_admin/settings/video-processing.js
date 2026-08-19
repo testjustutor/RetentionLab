@@ -109,7 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Open convert modal
   function openConvertModal(fileName) {
     const video = videosCache[fileName];
-    convertVideoFile.value = fileName;
+    // Convert works on the .mp4 video file link.
+    convertVideoFile.value = (video && video.videoPath) || fileName;
     convertMp3Status.textContent = (video && video.mp3Exists) ? 'MP3 already exists — convert disabled' : 'MP3 not found — convert available';
     convertBtn.textContent = 'Convert to MP3';
     convertBtn.disabled = !!(video && video.mp3Exists);
@@ -122,7 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Open process modal
   function openProcessModal(fileName) {
     const video = videosCache[fileName];
-    processVideoFile.value = fileName;
+    // Process works on the .mp3 audio file link.
+    processVideoFile.value = (video && video.audioPath) || fileName;
     processMp3Status.textContent = (video && video.mp3Exists) ? 'MP3 exists — processing available' : 'MP3 required before processing';
     processBtn.textContent = 'Process Audio';
     processBtn.disabled = !(video && video.mp3Exists);
@@ -138,27 +140,17 @@ document.addEventListener('DOMContentLoaded', () => {
     convertBtn.disabled = true;                   // disable while in-flight
     convertBtn.textContent = 'Converting...';
     try {
-      // For named videos, seed the DB (instructor + teams integration + meeting + session)
-      // as part of the conversion process, before converting video->audio.
-      if (isNamedVideo(fileName)) {
-        const seedResp = await fetch('/api/super_admin/settings/video-processing/seed-named-video', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName })
-        });
-        const seedResult = await seedResp.json();
-        if (!seedResult.success) {
-          showToast('Seeding failed: ' + (seedResult.error || 'unknown error'), 'error');
-          return;
-        }
-      }
+      // The backend model performs all DB work (users, calendar_connections,
+      // meetings, meeting_sessions, meeting_assets) as part of the conversion.
+      // Send the .mp4 video file link.
+      const video = videosCache[fileName];
+      const videoPath = (video && video.videoPath) || fileName;
 
       const response = await fetch('/api/super_admin/settings/video-processing/convert', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName })
+        body: JSON.stringify({ videoPath })
       });
       const result = await response.json();
       if (result.success) {
@@ -187,11 +179,21 @@ document.addEventListener('DOMContentLoaded', () => {
     processBtn.disabled = true;                   // disable while in-flight
     processBtn.textContent = 'Processing...';
     try {
+      // Send the .mp3 audio file link + meeting_id + session_id so the backend
+      // can pass them straight to the Python bridge (runFullAudioPipeline).
+      const video = videosCache[fileName];
+      // Prefer the video record's audioPath (the .mp3 link); otherwise derive the
+      // mp3 path from the .mp4 file name so we never send the video file itself.
+      const audioPath = (video && video.audioPath)
+        || '/storage/recordings/' + fileName.replace(/^SCREEN_/i, 'REC_').replace(/\.mp4$/i, '.mp3');
+      const meetingId = (video && video.meetingId) || null;
+      const sessionId = (video && video.sessionId) || null;
+
       const response = await fetch('/api/super_admin/settings/video-processing/process', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName })
+        body: JSON.stringify({ audioPath, meetingId, sessionId })
       });
       const result = await response.json();
       if (result.success) {

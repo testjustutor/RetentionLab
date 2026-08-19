@@ -1,6 +1,7 @@
 # root/services/engine/ai_audit_service/audit_worker.py
 
 import json
+import os
 import re
 import sys
 import time
@@ -172,7 +173,7 @@ class AiAuditService:
             for cat in raw_rubric["categories"]
         ]
 
-    def process_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None):
+    def process_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None, prompt_output_path=None):
         """
         Process audit: load rubric schema, send to AI for scoring,
         store results per-indicator in the database, and return the full audit result.
@@ -207,6 +208,25 @@ class AiAuditService:
 
         prompt = f"Rubric Target Rules:\n{json.dumps(raw_rubric, indent=2, default=_json_default)}\n\nTranscript Target Data:\n{transcript_text}"
         print(f"[AUDIT MICROSERVICE] Status: Sending payload data to '{self.ai_api.provider.upper()}' engine...", flush=True)
+
+        # Persist the ACTUAL prompt (system instruction + full rubric + transcript)
+        # so it can be reviewed in storage/cache_llm_prompts/PROMPT_AUDIT_<id>.json.
+        if prompt_output_path:
+            try:
+                os.makedirs(os.path.dirname(prompt_output_path) or ".", exist_ok=True)
+                with open(prompt_output_path, "w", encoding="utf-8") as pf:
+                    json.dump({
+                        "task": "audit",
+                        "provider": self.ai_api.provider,
+                        "meeting_id": meeting_id,
+                        "session_id": session_id,
+                        "system_instruction": system_instruction,
+                        "prompt": prompt,
+                        "talk_ratio": talk_ratio or {}
+                    }, pf, indent=2, ensure_ascii=False, default=_json_default)
+                print(f"[AUDIT MICROSERVICE] Status: Prompt saved to {prompt_output_path}", flush=True)
+            except Exception as prompt_write_err:
+                print(f"[AUDIT MICROSERVICE] WARNING: Could not save prompt file: {prompt_write_err}", flush=True)
 
         for progress_pct in range(10, 91, 20):
             print(f"[AUDIT MICROSERVICE] Progress: AI Evaluation {progress_pct}% pending validation...", flush=True)

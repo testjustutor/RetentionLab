@@ -22,15 +22,15 @@ date_format = '%Y-%m-%d %H:%M:%S'  # Kept the date to match your log type exampl
 class LogTypeInjectFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, 'type'):
-            # Automatically tag third-party library calls (Groq, OpenAI, httpx)
-            if any(pkg in record.name for pkg in ['openai', 'groq', 'httpx', 'httpcore']):
-                record.type = "GROQ_API"
+            # Automatically tag third-party library calls (Gemini, OpenAI, httpx)
+            if any(pkg in record.name for pkg in ['openai', 'Gemini', 'httpx', 'httpcore']):
+                record.type = "GEMINI_API"
             else:
                 record.type = "ENGINE"
         return True
 
 # 2. Setup the Logger instance
-logger = logging.getLogger() # Configures the Root logger so it intercepts Groq/OpenAI too
+logger = logging.getLogger() # Configures the Root logger so it intercepts Gemini/OpenAI too
 logger.setLevel(logging.INFO)
 
 # Clear existing handlers to prevent duplication errors

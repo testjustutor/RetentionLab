@@ -32,7 +32,11 @@ def run_audit_task(context):
             context.labeled_transcript,
             context.talk_ratio,
             meeting_id=context.meeting_id,
-            session_id=context.session_id
+            session_id=context.session_id,
+            prompt_output_path=os.path.join(
+                context.storage_paths["cache_llm_prompts"],
+                f"PROMPT_AUDIT_{context.base_id}.json"
+            )
         )
 
         log_with_type("info", "Engine(task > audit > audit_task) : Evaluation completed", "TASK")
@@ -41,25 +45,7 @@ def run_audit_task(context):
         # persist_results task can store rubric answers + scores + metrics.
         result = _normalize_audit_result(result)
 
-        JsonStore.save(
-            os.path.join(
-                context.storage_paths[
-                    "cache_llm_prompts"
-                ],
-                f"PROMPT_AUDIT_{context.base_id}.json"
-            ),
-            {
-                "task": "audit",
-                "provider": "local-fallback",
-                "transcript_characters": len(
-                    context.labeled_transcript or ""
-                ),
-                "talk_ratio": context.talk_ratio or {},
-                "prompt_template": "Evaluate transcript quality using rubric-style domain scoring."
-            }
-        )
-
-        log_with_type("info", "Engine(task > audit > audit_task) : Prompt cached", "TASK")
+        log_with_type("info", "Engine(task > audit > audit_task) : Real AI prompt cached by AuditService (system_instruction + rubric + transcript)", "TASK")
 
         output_path = os.path.join(
 

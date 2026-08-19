@@ -21,12 +21,13 @@ const controller = {
 
   async convertAudio(req, res) {
     try {
-      const fileName = extractFileName(req.body, req.query);
-      if (!fileName) {
-        return res.status(400).json({ success: false, error: 'fileName is required' });
+      // Convert sends the .mp4 video file link (videoPath); fall back to fileName.
+      const videoPath = req.body?.videoPath || req.body?.filePath || req.body?.fileName;
+      if (!videoPath) {
+        return res.status(400).json({ success: false, error: 'videoPath is required' });
       }
 
-      const result = await VideoProcessingModel.convertToAudio(fileName);
+      const result = await VideoProcessingModel.convertToAudio(videoPath);
       if (!result.success && /unsafe|Invalid/i.test(result.error)) {
         return res.status(400).json({ success: false, error: result.error });
       }
@@ -39,12 +40,16 @@ const controller = {
 
   async processAudio(req, res) {
     try {
-      const fileName = extractFileName(req.body, req.query);
-      if (!fileName) {
-        return res.status(400).json({ success: false, error: 'fileName is required' });
+      // Process sends the .mp3 audio file link (audioPath) plus the meeting
+      // id + session id so they can be passed straight to the Python bridge.
+      const audioPath = req.body?.audioPath || req.body?.filePath || req.body?.fileName;
+      const meetingId = req.body?.meetingId || null;
+      const sessionId = req.body?.sessionId || null;
+      if (!audioPath) {
+        return res.status(400).json({ success: false, error: 'audioPath is required' });
       }
 
-      const result = await VideoProcessingModel.processAudio(fileName);
+      const result = await VideoProcessingModel.processAudio(audioPath, meetingId, sessionId);
       if (!result.success && /unsafe|Invalid/i.test(result.error)) {
         return res.status(400).json({ success: false, error: result.error });
       }
@@ -63,31 +68,8 @@ const controller = {
       console.error('[VideoProcessingController] getProcessingHistory error:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
-  },
-
-  /**
-   * Handle the "named" video type:
-   *   <instructorId>_<First>_<Last>_<externalMeetingId>_<sessionId>_<Title>_<YYYY_MM_DD>_<hash>.mp4
-   * Seeds instructor user + dummy teams integration + meeting + meeting_session rows.
-   */
-  async seedNamedVideo(req, res) {
-    const fileName = extractFileName(req.body, req.query);
-    if (!fileName) {
-      return res.status(400).json({ success: false, error: 'fileName is required' });
-    }
-
-    // The model validates/parses the filename and derives all DB rows server-side.
-    try {
-      const result = await VideoProcessingModel.seedNamedVideo(fileName);
-      if (!result.success) {
-        return res.status(400).json({ success: false, error: result.error });
-      }
-      return res.json(result);
-    } catch (err) {
-      console.error('[VideoProcessingController] seedNamedVideo error:', err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
   }
+  
 };
 
 module.exports = controller;

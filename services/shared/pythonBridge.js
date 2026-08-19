@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { logger } = require('../../utils/logger');
 const MettingAssetController = require('../../controllers/meetings/assets/meetingAssetController');
+const MeetingAssetModel = require('../../models/meetings/assets/meetingAssetModel');
 
 class PythonBridge {
   /**
@@ -114,6 +115,30 @@ class PythonBridge {
   }
 
   /**
+   * Resolve meeting_id + session_id for the asset DB-sync.
+   * Prefers the values passed by the caller; otherwise derives them from the
+   * engine payload's meeting_id (e.g. "ebn-cmyx-wwa_Sess1_2026-07-27_14-57"):
+   *   sessionId = the Sess<n> number (meeting_sessions.id)
+   *   meetingId = meetings.id found via the embedded external meeting id.
+   */
+  static async resolveMeetingContext(meetingIdInput, sessionIdInput, engineMeetingId) {
+    if (meetingIdInput && sessionIdInput) {
+      return { meetingId: meetingIdInput, sessionId: sessionIdInput };
+    }
+    if (!engineMeetingId) return null;
+
+    const m = /^([^_]+)_Sess(\d+)_/.exec(String(engineMeetingId));
+    if (!m) return null;
+    const externalMeetingId = m[1];
+    const sessionId = Number(m[2]);
+    if (!sessionId) return null;
+
+    const meeting = await MeetingAssetModel.getMeetingByExternalId(externalMeetingId).catch(() => null);
+    if (!meeting) return null;
+    return { meetingId: meeting.id, sessionId };
+  }
+
+  /**
    * Fully coordinates single-pass asset processing, running everything from
    * track extraction to transcript parsing and structural audits in one smooth process.
    * @param {string} fileName - Absolute base filename target.
@@ -148,30 +173,38 @@ class PythonBridge {
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Python Bridge] Execution data package parsed successfully.`);
 
+      // Resolve meetingId/sessionId from the engine payload when the caller did
+      // not supply them (e.g. socraticbot test runs), so the asset DB-sync below
+      // is never skipped for a parseable meeting id.
+      const resolved = await this.resolveMeetingContext(meetingId, sessionId, executionMatrix.meeting_id);
+      const syncMeetingId = resolved ? resolved.meetingId : meetingId;
+      const syncSessionId = resolved ? resolved.sessionId : sessionId;
+
       // 4. Handle sequential Database initialization tracking matching your model interface requirements.
-      //    Screen recordings (REC_*.mp3) have no seeded meeting/session, so meetingId/sessionId may be
-      //    null. The DB asset-sync is best-effort only — skip it gracefully when ids are absent.
-      if (meetingId && sessionId) {
+      //    Screen recordings (REC_*.mp3) may not have seeded meeting/session, so this is best-effort
+      //    and skips gracefully when ids still cannot be resolved.
+      if (syncMeetingId && syncSessionId) {
         logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
-        await MettingAssetController.updateAssets(meetingId, sessionId, { audio_path: executionMatrix.audio_path });
+        await MettingAssetController.updateAssets(syncMeetingId, syncSessionId, { audio_path: executionMatrix.audio_path });
 
         logger.info(`[Python Bridge Database Syncing] Flushing final transcript and audit matrix indicators...`);
-        await MettingAssetController.updateAssets(meetingId, sessionId, {
+        await MettingAssetController.updateAssets(syncMeetingId, syncSessionId, {
           transcript_path: executionMatrix.transcript_path || null,
           summary_path: executionMatrix.summary_path || null,
           oqi_score: executionMatrix.oqi_score || 0,
           status: 'Completed'
         });
 
-        logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${meetingId}.`);
+        logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${syncMeetingId}.`);
       } else {
-        logger.warn(`[Python Bridge] Skipping asset DB-sync: missing meetingId/sessionId for "${meetingId}" / "${sessionId}".`);
+        logger.warn(`[Python Bridge] Skipping asset DB-sync: missing meetingId/sessionId for "${syncMeetingId}" / "${syncSessionId}".`);
       }
 
       // Match data resolution format expected back in test-engine.js
       return {
         success: true,
-        meetingId,
+        meetingId: syncMeetingId,
+        sessionId: syncSessionId,
         wav_audio_path: executionMatrix.audio_path,
         stage2Result: {
           transcript_path: executionMatrix.transcript_path,

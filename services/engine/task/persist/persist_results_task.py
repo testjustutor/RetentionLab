@@ -21,6 +21,8 @@ import json
 
 from database.python_db import execute
 
+from services.engine.ai_audit_service.rubric_loader import RubricLoader
+
 
 def run_persist_results_task(context):
     """Persist structured pipeline results to MySQL."""
@@ -67,7 +69,8 @@ def _persist_summary(context, meeting_id, session_id, summary_data):
 
 
 def _persist_audit(context, meeting_id, session_id, audit_results):
-    """Persist rubric answers + scores + metrics into MySQL."""
+    """Persist EVERY rubric category + indicator (with weight/value + AI values)
+    into ai_audit_results, plus the session_rubric_summary aggregate row."""
     if session_id is None:
         log_with_type("info", "Engine(task > persist) : session_id is None, skipping audit persistence", "TASK")
         return
@@ -90,40 +93,121 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
         (session_id, percentage, gate_status, _overall_rating(percentage), "Medium")
     )
 
-    # ai_audit_results - per-indicator rubric rows (meeting_id/session_id based)
-    rubric = audit_results.get("rubric", [])
-    oqi = audit_results.get("overall_score") or audit_results.get("oqi_score") or 0
-    for item in rubric:
-        try:
-            execute(
-                """INSERT INTO ai_audit_results
-                   (meeting_id, session_id, category_id, indicator_id,
-                    ai_score, ai_max_score, ai_raw_response, oqi_score,
-                    evidence_quote, talk_ratio)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE
-                    ai_score = VALUES(ai_score),
-                    ai_max_score = VALUES(ai_max_score),
-                    ai_raw_response = VALUES(ai_raw_response),
-                    oqi_score = VALUES(oqi_score),
-                    evidence_quote = VALUES(evidence_quote),
-                    talk_ratio = VALUES(talk_ratio)""",
-                (
-                    meeting_id, session_id,
-                    item.get("category_id") or item.get("rubric_id", ""),
-                    item.get("indicator_id") or item.get("rubric_id", ""),
-                    item.get("score", 0),
-                    item.get("max_score", 2),
-                    json.dumps({"answer": item.get("answer", "")}),
-                    oqi,
-                    item.get("evidence", ""),
-                    None
-                )
-            )
-        except Exception as item_err:
-            log_with_type("warning", f"Engine(task > persist) : Failed to persist rubric item: {item_err}", "TASK")
+    # Load the FULL rubric (categories + indicators with weight/value) from the DB.
+    try:
+        raw_rubric = RubricLoader().load_rubric()
+    except Exception as e:
+        log_with_type("warning", f"Engine(task > persist) : Could not load rubric schema: {e}", "TASK")
+        raw_rubric = None
 
-    log_with_type("info", f"Engine(task > persist) : Audit results persisted for meeting={meeting_id}", "TASK")
+    categories = (raw_rubric or {}).get("categories", []) or []
+    indicators = (raw_rubric or {}).get("indicators", []) or []
+    if not categories or not indicators:
+        log_with_type("warning", "Engine(task > persist) : Rubric schema empty — no per-indicator audit rows written.", "TASK")
+        return
+
+    # Build a lookup of AI per-indicator scores (by indicator_id or indicator name).
+    score_by_indicator = {}
+    for item in (audit_results.get("rubric") or []):
+        if not isinstance(item, dict):
+            continue
+        key = item.get("rubric_id") or item.get("question")
+        if key:
+            score_by_indicator[key] = {
+                "score": item.get("score", 0),
+                "max_score": item.get("max_score", 0),
+                "evidence": item.get("evidence", "")
+            }
+    for cat_name, cat_data in (audit_results.get("category_scores") or {}).items():
+        if not isinstance(cat_data, dict):
+            continue
+        for ind_name, ind_data in (cat_data.get("indicators") or {}).items():
+            if not isinstance(ind_data, dict):
+                continue
+            score_by_indicator[ind_name] = {
+                "score": ind_data.get("score", 0),
+                "max_score": ind_data.get("max_score", 0),
+                "evidence": ind_data.get("evidence", "")
+            }
+
+    # Clear previous rows for this meeting + session, then insert one row per indicator.
+    execute("DELETE FROM ai_audit_results WHERE meeting_id = %s AND session_id = %s", (meeting_id, session_id))
+
+    oqi = audit_results.get("overall_score") or audit_results.get("oqi_score") or 0
+    evidence_quote = audit_results.get("evidence_quote", "")
+    talk_ratio_json = json.dumps(audit_results.get("talk_ratio") or {})
+
+    insert_count = 0
+    for cat in categories:
+        category_id = cat.get("category_id")
+        category_weight = cat.get("weight", 0)
+        cat_name = cat.get("name")
+        for ind in indicators:
+            if ind.get("category_id") != category_id:
+                continue
+            indicator_id = ind.get("indicator_id")
+            max_value = ind.get("value") or 1
+
+            ai_score = 0
+            ai_max = float(max_value)
+            evidence = ""
+
+            hit = score_by_indicator.get(indicator_id) or score_by_indicator.get(ind.get("name"))
+            if hit:
+                ai_score = float(hit.get("score") or 0)
+                if hit.get("max_score"):
+                    ai_max = float(hit["max_score"])
+                evidence = hit.get("evidence") or ""
+
+            try:
+                execute(
+                    """INSERT INTO ai_audit_results
+                       (meeting_id, session_id, category_id, indicator_id,
+                        category_name, category_weight, indicator_name, indicator_value, is_gate,
+                        ai_score, ai_max_score, ai_evidence, ai_raw_response, oqi_score,
+                        evidence_quote, talk_ratio)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       ON DUPLICATE KEY UPDATE
+                        category_name = VALUES(category_name),
+                        category_weight = VALUES(category_weight),
+                        indicator_name = VALUES(indicator_name),
+                        indicator_value = VALUES(indicator_value),
+                        is_gate = VALUES(is_gate),
+                        ai_score = VALUES(ai_score),
+                        ai_max_score = VALUES(ai_max_score),
+                        ai_evidence = VALUES(ai_evidence),
+                        ai_raw_response = VALUES(ai_raw_response),
+                        oqi_score = VALUES(oqi_score),
+                        evidence_quote = VALUES(evidence_quote),
+                        talk_ratio = VALUES(talk_ratio)""",
+                    (
+                        meeting_id, session_id, category_id, indicator_id,
+                        cat_name, float(category_weight or 0), ind.get("name"),
+                        int(max_value), 1 if ind.get("is_gate") else 0,
+                        ai_score, ai_max, evidence,
+                        json.dumps({
+                            "category_id": category_id,
+                            "category_name": cat_name,
+                            "category_weight": float(category_weight or 0),
+                            "indicator_id": indicator_id,
+                            "indicator_name": ind.get("name"),
+                            "indicator_value": int(max_value),
+                            "is_gate": bool(ind.get("is_gate")),
+                            "answer": evidence
+                        }),
+                        oqi,
+                        evidence_quote, talk_ratio_json
+                    )
+                )
+                insert_count += 1
+            except Exception as ind_err:
+                log_with_type("warning", f"Engine(task > persist) : Failed to persist indicator {indicator_id}: {ind_err}", "TASK")
+
+    log_with_type(
+        "info",
+        f"Engine(task > persist) : Persisted {insert_count} rubric indicator rows into ai_audit_results for meeting={meeting_id} session={session_id}",
+        "TASK"
+    )
 
 
 def _overall_rating(percentage):

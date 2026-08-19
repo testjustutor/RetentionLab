@@ -98,6 +98,19 @@ class MeetingAssetModel {
       });
     });
   }
+/**
+   * Look up a meeting's internal id by its external_meeting_id.
+   * Used by the Python Bridge to resolve meetingId for the asset DB-sync.
+   */
+  static getMeetingByExternalId(externalMeetingId) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, external_meeting_id FROM meetings WHERE external_meeting_id = ? ORDER BY id DESC LIMIT 1',
+        [externalMeetingId],
+        (err, row) => (err ? reject(err) : resolve(row || null))
+      );
+    });
+  }
 }
 
 module.exports = MeetingAssetModel;

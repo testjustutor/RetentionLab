@@ -124,6 +124,84 @@ class VideoProcessingModel {
     return fs.existsSync(mp3Path);
   }
 
+  /**
+   * Normalize a convert input (storage link, absolute path, or bare filename)
+   * to a plain, safe .mp4 basename. Returns null on invalid/dangerous input.
+   */
+  static normalizeVideoName(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const base = path.basename(String(raw));
+    if (!/^[A-Za-z0-9_.-]+\.mp4$/i.test(base)) return null;
+    return base;
+  }
+
+  /**
+   * Normalize a process input (storage link, absolute path, or bare filename)
+   * to a plain, safe .mp3 basename. Returns null on invalid input.
+   */
+  static normalizeAudioName(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const base = path.basename(String(raw));
+    if (!/^[A-Za-z0-9_.-]+\.mp3$/i.test(base)) return null;
+    return base;
+  }
+
+  /** Public storage link for a video (.mp4) file. */
+  static videoLink(fileName) {
+    return '/storage/screen-recordings/' + path.basename(fileName);
+  }
+
+  /** Public storage link for an audio (.mp3) file. */
+  static audioLink(mp3Name) {
+    return '/storage/recordings/' + path.basename(mp3Name);
+  }
+
+  /** Look up a seeded meeting by its external_meeting_id. */
+  static getMeetingByExternalId(externalMeetingId) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, external_meeting_id FROM meetings WHERE external_meeting_id = ? ORDER BY id DESC LIMIT 1',
+        [externalMeetingId],
+        (err, row) => (err ? reject(err) : resolve(row || null))
+      );
+    });
+  }
+
+  /**
+   * Resolve meeting_id + session_id for a processed MP3 audio file.
+   * MP3 naming for named videos: REC_<externalMeetingId>_Sess<sessionId>_<date>_<time>.mp3
+   * sessionId = meeting_sessions.id · meetingId = meetings.id (from meeting_sessions.meeting_id)
+   */
+  static async resolveMp3Context(mp3Name) {
+    const m = /^REC_([^_]+)_Sess(\d+)_/.exec(path.basename(mp3Name));
+    if (!m) return null;
+    const externalMeetingId = m[1];
+    const sessionId = Number(m[2]);
+    if (!sessionId) return null;
+
+    const meeting = await this.getMeetingByExternalId(externalMeetingId);
+    if (!meeting) return null;
+    return { sessionId, meetingId: meeting.id };
+  }
+
+  /**
+   * Resolve meeting_id + session_id for a video file (named or SCREEN_*) so the
+   * Process step can send them straight to the Python bridge.
+   */
+  static async resolveVideoIds(fileName) {
+    const parsed = this.parseNamedVideoName(fileName);
+    if (parsed) {
+      const meeting = await this.getMeetingForNamedVideo(parsed);
+      return { meetingId: meeting ? meeting.id : null, sessionId: parsed.sessionId };
+    }
+    const m = /^SCREEN_([^_]+)_Sess(\d+)_/.exec(fileName);
+    if (m) {
+      const meeting = await this.getMeetingByExternalId(m[1]);
+      return { meetingId: meeting ? meeting.id : null, sessionId: Number(m[2]) };
+    }
+    return { meetingId: null, sessionId: null };
+  }
+
   static async getLatestStatus(fileName) {
     const rows = await new Promise((resolve, reject) => {
       db.all('SELECT status FROM video_processing WHERE file_name = ? ORDER BY created_at DESC LIMIT 1', [fileName], (err, rows) => {
@@ -145,6 +223,7 @@ class VideoProcessingModel {
       const mp3Asked = this.mp3Exists(fileName);
       const lastStatus = await this.getLatestStatus(fileName);
       const status = lastStatus || (mp3Asked ? 'Converted' : 'Pending');
+      const ids = await this.resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null }));
 
       videos.push({
         fileName,
@@ -153,7 +232,11 @@ class VideoProcessingModel {
         mp3Exists: mp3Asked,
         processingStatus: status,
         canConvert: !mp3Asked,
-        canProcess: mp3Asked
+        canProcess: mp3Asked,
+        videoPath: this.videoLink(fileName),
+        audioPath: mp3Asked ? this.audioLink(this.toMp3Name(fileName)) : null,
+        meetingId: ids.meetingId,
+        sessionId: ids.sessionId
       });
     }
 
@@ -161,7 +244,7 @@ class VideoProcessingModel {
   }
 
   static async convertToAudio(rawName) {
-    const fileName = this.sanitizeVideoName(rawName);
+    const fileName = this.normalizeVideoName(rawName);
     if (!fileName) {
       return { success: false, error: 'Invalid or unsafe video filename.' };
     }
@@ -170,6 +253,17 @@ class VideoProcessingModel {
     const sourcePath = path.join(RECORDINGS_DIR, fileName);
     const targetName = this.toMp3Name(fileName);
     const targetPath = path.join(CONVERTED_DIR, targetName);
+
+    // Full DB work on convert: seed users + calendar_connections + meetings +
+    // meeting_sessions (and meeting_assets below) for EVERY video, so all six
+    // tracked tables get rows. Best-effort — conversion still proceeds if the
+    // seed fails (e.g. unparseable filename).
+    let seedIds = null;
+    try {
+      seedIds = await this.seedConvertVideo(fileName);
+    } catch (seedErr) {
+      console.error('[VideoProcessingModel] convert seed error:', seedErr.message || seedErr);
+    }
 
     if (!fs.existsSync(sourcePath)) {
       return { success: false, error: 'Video file not found in storage/screen-recordings.' };
@@ -181,9 +275,13 @@ class VideoProcessingModel {
 
     if (fs.existsSync(targetPath)) {
       await this.saveProcessingRecord(fileName, 'converted', targetPath);
-      // For named videos, sync meeting_sessions + meeting_assets with the produced paths.
-      await this.syncNamedVideoAssets(targetName, fileName).catch(() => {});
-      return { success: true, alreadyExists: true, mp3Path: targetPath };
+      if (seedIds && seedIds.meetingId && seedIds.sessionId) {
+        await this.syncMeetingAssets(seedIds.meetingId, seedIds.sessionId, targetName, fileName).catch(() => {});
+      }
+      return {
+        success: true, alreadyExists: true, mp3Path: targetPath,
+        videoPath: this.videoLink(fileName), audioPath: this.audioLink(targetName)
+      };
     }
 
     await this.saveProcessingRecord(fileName, 'converting', targetPath);
@@ -197,9 +295,13 @@ class VideoProcessingModel {
 
         if (fs.existsSync(targetPath)) {
           this.saveProcessingRecord(fileName, 'converted', targetPath).catch(() => {});
-          // For named videos, sync meeting_sessions + meeting_assets with the produced paths.
-          this.syncNamedVideoAssets(targetName, fileName).catch(() => {});
-          return resolve({ success: true, alreadyExists: false, mp3Path: targetPath });
+          if (seedIds && seedIds.meetingId && seedIds.sessionId) {
+            this.syncMeetingAssets(seedIds.meetingId, seedIds.sessionId, targetName, fileName).catch(() => {});
+          }
+          return resolve({
+            success: true, alreadyExists: false, mp3Path: targetPath,
+            videoPath: this.videoLink(fileName), audioPath: this.audioLink(targetName)
+          });
         }
 
         this.saveProcessingRecord(fileName, 'failed', null).catch(() => {});
@@ -208,52 +310,64 @@ class VideoProcessingModel {
     });
   }
 
-  static async processAudio(rawName) {
-    const fileName = this.sanitizeVideoName(rawName);
-    if (!fileName) {
-      return { success: false, error: 'Invalid or unsafe video filename.' };
+  static async processAudio(rawName, meetingIdInput, sessionIdInput) {
+    // Accept either the .mp3 audio name/link, or the source .mp4 video name
+    // (derive the produced mp3 from it) — so Process never 400s just because a
+    // client sent the video file name.
+    let videoName = null;
+    let mp3Name = this.normalizeAudioName(rawName);
+    if (!mp3Name) {
+      videoName = this.normalizeVideoName(rawName);
+      if (videoName) {
+        mp3Name = this.toMp3Name(videoName);
+      }
+    }
+    if (!mp3Name) {
+      return { success: false, error: 'Invalid or unsafe audio filename.' };
     }
 
     await this.ensureTable();
-    const mp3Name = this.toMp3Name(fileName);
     const mp3Path = path.join(CONVERTED_DIR, mp3Name);
 
     if (!fs.existsSync(mp3Path)) {
       return { success: false, error: 'MP3 file is missing. Convert the video to audio before processing.' };
     }
 
-    await this.saveProcessingRecord(fileName, 'processing', mp3Path);
+    await this.saveProcessingRecord(mp3Name, 'processing', mp3Path);
 
-    // Directly invoke the existing pipeline used by test-engine.js (PythonBridge),
-    // passing ONLY the mp3 file name. runFullAudioPipeline signature is
-    // (meetingId, sessionId, fileName) — the fileName MUST be the 3rd argument,
-    // otherwise the engine reads `undefined` and cannot find the recording.
+    // Invoke the existing pipeline used by test-engine.js (PythonBridge).
+    // runFullAudioPipeline signature is (meetingId, sessionId, fileName) — the
+    // fileName MUST be the mp3 base name (3rd argument) for the engine to find
+    // the recording in storage/recordings.
     try {
-      let meetingId = null;
-      let sessionId = null;
-
-      // For named videos, resolve the seeded meeting/session so the pipeline's
-      // asset DB-sync step can run (best-effort; non-fatal if not found).
-      const parsed = this.parseNamedVideoName(fileName);
-      if (parsed) {
-        const meeting = await this.getMeetingForNamedVideo(parsed);
-        if (meeting) {
-          meetingId = meeting.id;
-          sessionId = parsed.sessionId;
+      // Use the meetingId/sessionId sent from the front-end (Process click),
+      // falling back to DB resolution when they are not provided.
+      let meetingId = meetingIdInput || null;
+      let sessionId = sessionIdInput || null;
+      if (!meetingId || !sessionId) {
+        const ctx = videoName
+          ? await this.resolveVideoIds(videoName).catch(() => ({ meetingId: null, sessionId: null }))
+          : await this.resolveMp3Context(mp3Name).catch(() => null);
+        if (ctx) {
+          meetingId = ctx.meetingId;
+          sessionId = ctx.sessionId;
         }
       }
 
       const result = await PythonBridge.runFullAudioPipeline(meetingId, sessionId, mp3Name);
       // Treat a thrown error or a falsy/errored result as a failure.
       if (result && result.success === false) {
-        this.saveProcessingRecord(fileName, 'failed', mp3Path).catch(() => {});
+        this.saveProcessingRecord(mp3Name, 'failed', mp3Path).catch(() => {});
         return { success: false, error: result.error || 'Audio processing returned an error.' };
       }
-      await this.saveProcessingRecord(fileName, 'processed', mp3Path);
-      return { success: true, alreadyExists: true, mp3Path };
+      await this.saveProcessingRecord(mp3Name, 'processed', mp3Path);
+      return {
+        success: true, alreadyExists: true, mp3Path,
+        audioPath: this.audioLink(mp3Name)
+      };
     } catch (err) {
       console.error('[VideoProcessingModel] processAudio pipeline error:', err.message || err);
-      await this.saveProcessingRecord(fileName, 'failed', mp3Path).catch(() => {});
+      await this.saveProcessingRecord(mp3Name, 'failed', mp3Path).catch(() => {});
       return { success: false, error: 'Audio processing failed: ' + (err.message || 'unknown error') };
     }
   }
@@ -449,6 +563,127 @@ class VideoProcessingModel {
     }
   }
 
+  /** Reuse (or create) a default system instructor + its teams connection. */
+  static async ensureDefaultInstructor() {
+    const email = 'system.convert@example.com';
+
+    let user = await new Promise((resolve, reject) => {
+      db.get('SELECT id, role_id, email FROM users WHERE email = ? LIMIT 1', [email], (err, row) => err ? reject(err) : resolve(row || null));
+    });
+
+    if (!user) {
+      const roleId = await new Promise((resolve, reject) => {
+        db.get("SELECT id FROM roles WHERE role_name = 'instructor' LIMIT 1", (err, row) => err ? reject(err) : resolve(row ? row.id : null));
+      });
+      if (!roleId) return null;
+
+      const newId = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO users (user_uuid, role_id, first_name, last_name, email, password_hash, phone, status, is_active, email_verified, created_at, updated_at)
+           VALUES (?, ?, 'System', 'Converter', ?, ?, NULL, 'active', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [require('crypto').randomUUID(), roleId, email, this.hashPassword('password123')],
+          function (err) { err ? reject(err) : resolve(this.lastID); }
+        );
+      });
+      user = { id: newId, role_id: roleId, email };
+    }
+
+    // Dummy teams calendar connection for the default instructor.
+    const teamsProvider = await new Promise((resolve, reject) => {
+      db.get("SELECT id FROM calendar_providers WHERE name = 'teams' LIMIT 1", (err, row) => err ? reject(err) : resolve(row || null));
+    });
+    if (teamsProvider) {
+      const existing = await new Promise((resolve, reject) => {
+        db.get('SELECT id FROM calendar_connections WHERE user_id = ? AND provider_id = ? LIMIT 1', [user.id, teamsProvider.id], (err, row) => err ? reject(err) : resolve(row || null));
+      });
+      if (!existing) {
+        await new Promise((resolve, reject) => {
+          db.run(
+            `INSERT INTO calendar_connections (user_id, provider_id, access_token, refresh_token, token_expires_at, connection_status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 DAY), 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [user.id, teamsProvider.id,
+             'sys_acc_' + Math.random().toString(36).substring(2, 20),
+             'sys_ref_' + Math.random().toString(36).substring(2, 20)],
+            function (err) { err ? reject(err) : resolve(); }
+          );
+        });
+      }
+    }
+
+    return user;
+  }
+
+  /**
+   * Seed screen recordings (SCREEN_<meetingId>_Sess<n>_<YYYY-MM-DD>_<HH-MM>.mp4)
+   * into users + calendar_connections (via the default instructor) + meetings +
+   * meeting_sessions so convert writes every tracked table.
+   */
+  static async seedScreenVideo(fileName) {
+    const m = /^SCREEN_([^_]+)_Sess(\d+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})\.mp4$/i.exec(fileName);
+    if (!m) return { meetingId: null, sessionId: null };
+
+    const externalMeetingId = m[1];
+    const start = `${m[3]}-${m[4]}-${m[5]} ${m[6]}:${m[7]}:00`;
+    const endDate = new Date(`${m[3]}-${m[4]}-${m[5]}T${m[6]}:${m[7]}:00`);
+    endDate.setHours(endDate.getHours() + 1);
+    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')} ${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}:00`;
+    const title = 'Screen Recording ' + externalMeetingId;
+
+    const user = await this.ensureDefaultInstructor();
+    if (!user) return { meetingId: null, sessionId: null };
+
+    // Meeting (upsert by external id + creator).
+    let meeting = await new Promise((resolve, reject) => {
+      db.get('SELECT id FROM meetings WHERE external_meeting_id = ? AND created_by = ? LIMIT 1', [externalMeetingId, user.id], (err, row) => err ? reject(err) : resolve(row || null));
+    });
+    if (!meeting) {
+      const id = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO meetings (external_meeting_id, title, description, scheduled_start_time, scheduled_end_time, platform, calendar_account, meeting_link, passcode, event_id, timezone, status, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'teams', ?, NULL, NULL, ?, 'UTC', 'sync', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [externalMeetingId, title, 'Screen recording imported from file', start, end, user.email, this.randomEventId(), user.id],
+          function (err) { err ? reject(err) : resolve(this.lastID); }
+        );
+      });
+      meeting = { id };
+    }
+
+    // Meeting session: use the Sess<n> number from the filename as the session
+    // id so it stays consistent with resolveMp3Context (Process step). Upsert by
+    // id to stay idempotent across repeated converts.
+    const sessionId = Number(m[2]);
+    await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO meeting_sessions (id, meeting_id, start_time, end_time, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON DUPLICATE KEY UPDATE
+            meeting_id = VALUES(meeting_id),
+            start_time = VALUES(start_time),
+            end_time = VALUES(end_time),
+            status = 'completed',
+            updated_at = CURRENT_TIMESTAMP`,
+        [sessionId, meeting.id, start, end],
+        function (err) { err ? reject(err) : resolve(); }
+      );
+    });
+
+    return { meetingId: meeting.id, sessionId };
+  }
+
+  /**
+   * Dispatch DB seeding for a convert input so ALL videos (named + screen)
+   * produce rows in users/custom_connections/meetings/meeting_sessions.
+   */
+  static async seedConvertVideo(fileName) {
+    const parsed = this.parseNamedVideoName(fileName);
+    if (parsed) {
+      const seeded = await this.seedNamedVideo(fileName);
+      if (!seeded.success) throw new Error(seeded.error || 'named-video seed failed');
+      return { meetingId: seeded.data.meetingId, sessionId: seeded.data.sessionId };
+    }
+    return this.seedScreenVideo(fileName);
+  }
+
   static instructorEmail(firstName, lastName, instructorId) {
     const f = (firstName || 'instructor').toLowerCase().replace(/[^a-z0-9]/g, '');
     const l = (lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -482,38 +717,48 @@ class VideoProcessingModel {
   /**
    * After converting a named video to audio, sync the produced asset paths into
    * meeting_sessions (audio_file_name + transcript_file_name) and meeting_assets
-   * (audio_path, transcript_path, video_path). Uses the transcript name derived
-   * from the mp3 name (REC_ -> TRANS_, .mp3 -> .txt).
+   * (audio_path, transcript_path, video_path). Delegates to syncMeetingAssets.
    */
   static async syncNamedVideoAssets(mp3Name, rawVideoName) {
     const parsed = this.parseNamedVideoName(rawVideoName);
     if (!parsed) return { synced: false, reason: 'not-a-named-video' };
 
-    // Derive the transcript filename: REC_... -> TRANS_..., .mp3 -> .txt
-    const transcriptName = mp3Name.replace(/^REC_/i, 'TRANS_').replace(/\.mp3$/i, '.txt');
-    // Video path stored in meeting_assets.
-    const videoPath = path.join(RECORDINGS_DIR, rawVideoName);
-
-    // Resolve the seeded meeting id + session id.
     const meeting = await this.getMeetingForNamedVideo(parsed);
     if (!meeting) return { synced: false, reason: 'meeting-not-found' };
-    const sessionId = parsed.sessionId;
-    const meetingId = meeting.id;
 
-    // 1. Update meeting_sessions.audio_file_name + transcript_file_name.
+    const result = await this.syncMeetingAssets(meeting.id, parsed.sessionId, mp3Name, rawVideoName);
+    return {
+      synced: result.synced,
+      sessionId: parsed.sessionId,
+      meetingId: meeting.id,
+      audioFileName: mp3Name,
+      transcriptFileName: mp3Name.replace(/^REC_/i, 'TRANS_').replace(/\.mp3$/i, '.txt'),
+      videoPath: path.join(RECORDINGS_DIR, rawVideoName)
+    };
+  }
+
+  /**
+   * Update meeting_sessions + meeting_assets for any resolved (meetingId,
+   * sessionId) pair. Used on every convert so meeting_assets always gets a row
+   * regardless of the source video filename type.
+   */
+  static async syncMeetingAssets(meetingId, sessionId, mp3Name, rawVideoName) {
+    if (meetingId == null || sessionId == null) return { synced: false, reason: 'missing ids' };
+
+    const transcriptName = mp3Name.replace(/^REC_/i, 'TRANS_').replace(/\.mp3$/i, '.txt');
+    const videoPath = path.join(RECORDINGS_DIR, rawVideoName);
+
+    // 1. meeting_sessions: record the produced audio + transcript file names.
     await new Promise((resolve, reject) => {
       const sql = `UPDATE meeting_sessions
                    SET audio_file_name = ?,
                        transcript_file_name = ?,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE id = ?`;
-      db.run(sql, [mp3Name, transcriptName, sessionId], function (err) {
-        if (err) return reject(err);
-        resolve({ changes: this.changes });
-      });
-    });
+      db.run(sql, [mp3Name, transcriptName, sessionId], function (err) { err ? reject(err) : resolve(); });
+    }).catch(() => {});
 
-    // 2. Upsert meeting_assets with audio_path, transcript_path, video_path.
+    // 2. meeting_assets: upsert the asset paths for this meeting/session.
     await new Promise((resolve, reject) => {
       const sql = `
         INSERT INTO meeting_assets (
@@ -526,20 +771,10 @@ class VideoProcessingModel {
             status = 'Conversion',
             processed_at = CURRENT_TIMESTAMP
       `;
-      db.run(sql, [String(meetingId), String(sessionId), mp3Name, transcriptName, videoPath], function (err) {
-        if (err) return reject(err);
-        resolve({ changes: this.changes });
-      });
-    });
+      db.run(sql, [String(meetingId), String(sessionId), mp3Name, transcriptName, videoPath], function (err) { err ? reject(err) : resolve(); });
+    }).catch(() => {});
 
-    return {
-      synced: true,
-      sessionId,
-      meetingId,
-      audioFileName: mp3Name,
-      transcriptFileName: transcriptName,
-      videoPath
-    };
+    return { synced: true, meetingId, sessionId };
   }
 
 

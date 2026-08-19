@@ -1,3 +1,79 @@
+## Task: Save the REAL AI audit prompt to storage/cache_llm_prompts/
+
+Requirement: the PROMPT_AUDIT_*.json file must contain the actual prompt sent to the AI (system_instruction + full rubric + transcript), not the static placeholder.
+
+- [x] audit_worker.process_audit: add prompt_output_path param; write system_instruction + prompt (+rubric/transcript via prompt string) to that file
+- [x] service.evaluate / run_audit: thread prompt_output_path through to process_audit
+- [x] audit_task: pass cache_llm_prompts path; remove the static placeholder PROMPT write
+- [x] Verify: py_compile; ran process_audit with prompt_output_path and confirmed file contains real prompt (system_instruction + full rubric + transcript)
+
+---
+## Task: Store AI rubric details as real columns in ai_audit_results (not just JSON)
+
+Requirement: don't read the rubric detail from the ai_raw_response JSON — add columns and write them directly.
+
+- [x] Migration 061: add category_name, category_weight, indicator_name, indicator_value, is_gate, ai_evidence columns to ai_audit_results
+- [x] Apply migration (run up) against live DB
+- [x] persist_results_task.py: write those columns directly in the INSERT
+- [x] Verify: py_compile + re-run persist writes columns; clean test rows
+
+---
+## Task: Persist EVERY rubric category+indicator (weight/value + AI score) into ai_audit_results
+
+- [x] Root cause: _persist_audit only wrote the AI's rubric[]/category_scores (empty in the ebn run) and stored NAMES in category_id/indicator_id columns.
+- [x] persist_results_task.py: import RubricLoader; rewrite _persist_audit to load the full rubric (rubric_categories + rubric_indicators), clear per-meeting/session rows, and insert one row per indicator with real category_id/indicator_id, ai_score (AI value or 0), ai_max_score=value, and ai_raw_response holding category_weight + indicator_value.
+- [x] Verified: py_compile OK; ran _persist_audit against live DB -> inserted 94 rows (== all rubric_indicators) with correct ids/weight/value; cleaned up test rows.
+
+---
+## Task: Python Bridge must resolve meetingId/sessionId from DB so asset DB-sync is not skipped
+
+- [x] Explain: the logged JSON payload is the engine's SUCCESS result (not an error); "error:" prefix is logger.error used for visibility.
+- [x] MeetingAssetModel: add getMeetingByExternalId
+- [x] pythonBridge: add resolveMeetingContext (input ids preferred; else parse engine meeting_id -> meetings.id + Sess<n>) and use resolved ids for updateAssets + return
+- [x] Verify: node --check; resolveMeetingContext('ebn-cmyx-wwa_Sess1_...') -> { meetingId: 4, sessionId: 1 }
+
+---
+## Task: Process must send audio file name + session_id + meeting_id directly to the Python bridge
+
+Requirement: On Process click, send the audio file (mp3) plus session_id + meeting_id so they pass straight to PythonBridge.runFullAudioPipeline(meetingId, sessionId, mp3Name).
+
+- [x] Model: add resolveVideoIds(fileName); getAllVideos exposes meetingId + sessionId
+- [x] Model: processAudio(rawName, meetingIdInput, sessionIdInput) uses provided ids (falls back to resolveMp3Context) and calls runFullAudioPipeline directly
+- [x] Controller: processAudio extracts audioPath + meetingId + sessionId and passes to model
+- [x] JS: processAudio sends { audioPath, meetingId, sessionId }
+- [x] Verify: node --check all; bridge stub confirms audioPath->mp3Name + meetingId + sessionId forwarded directly
+
+---
+## Task: Convert must store into all 6 tables (users, video_processing, calendar_connections, meetings, meeting_sessions, meeting_assets) for ANY video
+
+- [x] Verified named-video seed already populates users/calendar_connections/meetings/meeting_sessions (+meeting_assets+video_processing on convert)
+- [x] Add ensureDefaultInstructor (users + calendar_connections) reused for screen recordings
+- [x] Add seedScreenVideo (meetings + meeting_sessions) for SCREEN_* recordings; uses Sess<n> as session id for process consistency
+- [x] Add seedConvertVideo dispatcher (named -> seedNamedVideo, else -> screen)
+- [x] Add syncMeetingAssets(meetingId, sessionId, mp3Name, videoName); refactor syncNamedVideoAssets to delegate
+- [x] convertToAudio: always run seedConvertVideo + syncMeetingAssets (not parse-gated)
+- [x] Verify: node --check; all 6 tables populate for named + screen; screen seed <-> resolveMp3Context consistent
+
+---
+## Task: Migration file for video_processing table
+
+- [x] Created database/migrations/060_create_video_processing_table.js (CREATE TABLE IF NOT EXISTS; non-destructive). Columns match the live table: id, file_name(varchar255, idx), status(varchar50 default 'pending', idx), mp3_path(varchar500 null), created_at(default CURRENT_TIMESTAMP). Verified via SHOW COLUMNS; migration auto-discovered by reset-db directory scan.
+- [x] Note: my smoke test ran down() (drop) + up() (recreate) — the transient tracking table was rebuilt (empty); prior rows were dropped by the test.
+
+---
+## Task: Video-Processing — Convert sends MP4 link (full DB seed), Process sends MP3 link
+
+Requirement: On `/super_admin/settings/video-processing`, the Convert action must send the .mp4 video file link and the Process action must send the .mp3 audio file link (currently both send the video file). Convert must also do the full DB work on click: insert into users, calendar_connections, meetings, meeting_sessions, meeting_assets.
+
+- [x] Model: add normalizeVideoName/normalizeAudioName, videoLink/audioLink, getMeetingByExternalId, resolveMp3Context helpers
+- [x] Model getAllVideos: include videoPath (.mp4 link) and audioPath (.mp3 link)
+- [x] Model convertToAudio: normalize to mp4; do full DB seed (users/calendar/meetings/meeting_sessions) + sync meeting_assets on convert; return links
+- [x] Model processAudio: accept mp3 link/name; resolve meeting/session from REC_ mp3 name; run pipeline
+- [x] Controller: convert reads videoPath, process reads audioPath (fallback filePath/fileName)
+- [x] HTML/JS: Convert modal shows/sends MP4 link; Process modal shows/sends MP3 link; drop separate seed call from JS
+- [x] Verify: node --check on model/controller/JS; modules load; helpers + resolveMp3Context (meetings.id/session id) verified in live DB
+
+---
 ## Task: Make db.get()/db.all()/db.run()/db.prepare() match every model's calling convention (no model changes)
 
 Requirement: models across the app call `db.get`, `db.all`, `db.run`, `db.prepare` in several different ways (variadic prepare.run, array args, normal function callbacks reading `this.lastID`/`this.changes`, fire-and-forget run + finalize(cb)). Make database/db.js support all of them so no model edits are required.

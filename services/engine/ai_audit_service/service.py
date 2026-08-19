@@ -21,14 +21,15 @@ class AuditService:
     # ==========================================
     # EVALUATE
     # ==========================================
-    def evaluate(self, transcript, talk_ratio, meeting_id=None, session_id=None):
+    def evaluate(self, transcript, talk_ratio, meeting_id=None, session_id=None, prompt_output_path=None):
         if self.ai_worker:
             try:
                 ai_result = self.ai_worker.process_audit(
                     transcript,
                     meeting_id=meeting_id,
                     session_id=session_id,
-                    talk_ratio=talk_ratio
+                    talk_ratio=talk_ratio,
+                    prompt_output_path=prompt_output_path
                 )
                 if isinstance(ai_result, dict):
                     ai_result["talk_ratio"] = talk_ratio or {}
@@ -41,9 +42,8 @@ class AuditService:
     # ==========================================
     # RUN AUDIT (called by audit_bridge.py)
     # ==========================================
-    def run_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None):
-        """
-        Main entry point called by audit_bridge.py.
+    def run_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None, prompt_output_path=None):
+        """Main entry point called by audit_bridge.py.
         Runs AI audit against the transcript using the rubric,
         stores per-indicator results in the database, and returns the report.
         """
@@ -53,7 +53,8 @@ class AuditService:
                     transcript_text,
                     meeting_id=meeting_id,
                     session_id=session_id,
-                    talk_ratio=talk_ratio
+                    talk_ratio=talk_ratio,
+                    prompt_output_path=prompt_output_path
                 )
                 if isinstance(ai_result, dict):
                     return ai_result

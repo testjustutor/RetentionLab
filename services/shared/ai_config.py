@@ -47,7 +47,7 @@ def build_ai_config(ai_settings: dict):
 
     return {
         "provider": provider,
-        "cloudeModel": ai_settings.get("cloudeModel", "llama-3.1-8b-instant"),
+        "cloudeModel": ai_settings.get("cloudeModel", "claude-sonnet-5"),
         "cloudeApiKey": ai_settings.get("cloudeApiKey"),
         "openaiApiKey": ai_settings.get("openaiApiKey"),
         "ollamaUrl": ai_settings.get("ollamaUrl", "http://localhost:11434/v1"),
