@@ -39,8 +39,13 @@ const MENU_ITEMS = [
       { menu_key: 'sa-audit-logs', label: 'Audit Logs', icon: null, route_path: '/super_admin/monitoring/audit', parent_id: 'sa-monitoring', sort_order: 2, role_id: 1 }
     ]
   },
-  { menu_key: 'sa-menu-management', label: 'Manage Menu', icon: 'menu', route_path: '/super_admin/settings/sidebar-menu-management', parent_id: null, sort_order: 6, role_id: 1 },
-  { menu_key: 'sa-profile', label: 'Profile', icon: 'user', route_path: '/super_admin/people/profile', parent_id: null, sort_order: 7, role_id: 1 },
+  { menu_key: 'sa-reports', label: 'Reports', icon: 'bar-chart', route_path: null, parent_id: null, sort_order: 6, role_id: 1,
+    children: [
+      { menu_key: 'sa-meeting-ai-evaluation', label: 'Meeting AI Evaluation', icon: null, route_path: '/super_admin/reports/meeting-ai-evaluation-report', parent_id: 'sa-reports', sort_order: 1, role_id: 1 }
+    ]
+  },
+  { menu_key: 'sa-menu-management', label: 'Manage Menu', icon: 'menu', route_path: '/super_admin/settings/sidebar-menu-management', parent_id: null, sort_order: 7, role_id: 1 },
+  { menu_key: 'sa-profile', label: 'Profile', icon: 'user', route_path: '/super_admin/people/profile', parent_id: null, sort_order: 8, role_id: 1 },
   { menu_key: 'sa-logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 1 },
 
   // ========== Admin (role_id = 2) ==========

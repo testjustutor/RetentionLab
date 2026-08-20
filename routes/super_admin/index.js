@@ -42,6 +42,7 @@ const monitoringserver = require('./monitoring/server');
 const monitoringaudit = require('./monitoring/audit');
 const menumanagement = require('./sidebar-menu-management');
 const profile = require('./profile');
+const meetingAiEvaluation = require('./reports/meeting-ai-evaluation');
 
 // Thin adapter for controllers that resolve to a result object (no logic here).
 function handle(fn) {
@@ -169,5 +170,9 @@ router.use('/sidebar-menu-management', requireAuth, requireSuperAdmin, menumanag
 // ── Profile ───────────────────────────────────────────────────────────────────
 // GET /me, POST /change-password, PUT /:id
 router.use('/people/profile', requireAuth, requireSuperAdmin, profile);
+
+// ── Reports (Meeting AI Evaluation) ───────────────────────────────────────────
+// GET /instructors, GET /summary, GET /session/:sessionId
+router.use('/reports/meeting-ai-evaluation', requireAuth, requireSuperAdmin, meetingAiEvaluation);
 
 module.exports = router;

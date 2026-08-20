@@ -34,8 +34,12 @@ class PipelineContext:
         )
 
         # Backwards-compatibility aliases used by audit and other task handlers.
-        self.meeting_id = self.base_id
+        # NOTE: meeting_id is resolved to the REAL numeric meetings.id (via
+        # meeting_sessions) so ai_audit_results / meeting_assets store the FK id
+        # instead of the filename-derived base_id. base_id is still used for all
+        # file naming.
         self.session_id = self._resolve_session_id(filename_no_ext)
+        self.meeting_id = self._resolve_meeting_id(self.session_id) or self.base_id
 
         self.storage_paths = self._setup_directories()
 
@@ -172,6 +176,33 @@ class PipelineContext:
         match = re.search(r"_Sess(\d+)(?:_|$)", filename_no_ext)
         if match:
             return int(match.group(1))
+        return None
+
+    def _resolve_meeting_id(self, session_id):
+        """
+        Resolve the REAL numeric meetings.id for a session by looking up the
+        meeting_sessions table (which stores meeting_id -> meetings.id).
+
+        Returns:
+            meetings.id (int/str) if resolved, otherwise None (caller falls
+            back to base_id so file/DB writes never break).
+        """
+        if not session_id:
+            return None
+        try:
+            from database.python_db import fetch_one
+            row = fetch_one(
+                "SELECT meeting_id FROM meeting_sessions WHERE id = %s LIMIT 1",
+                (int(session_id),)
+            )
+            if row and row.get("meeting_id"):
+                return row["meeting_id"]
+        except Exception as e:
+            print(
+                f"[PIPELINE CONTEXT] WARNING: Could not resolve meeting_id for "
+                f"session={session_id}: {e}",
+                flush=True
+            )
         return None
 
     def _setup_directories(self):

@@ -32,8 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Status badge color based on processing state
   function statusLabelColor(video) {
-    if (video.processingStatus === 'processed') return 'bg-violet-100 text-violet-700';
-    if (video.mp3Exists) return 'bg-emerald-100 text-emerald-700';
+    if (video.processed) return 'bg-violet-100 text-violet-700';
+    if (video.mp3Exists) return 'bg-red-100 text-red-700';
     return 'bg-amber-100 text-amber-700';
   }
 
@@ -51,12 +51,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<button type="button" class="convert-btn px-2 py-1 text-[10px] rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold" data-file="' + video.fileName + '">Convert</button>';
   }
 
-  // Process button: enabled only when MP3 exists (server-provided canProcess).
+  // Process button: enabled only when the MP3 exists and the session is NOT yet
+  // processed (no ai_audit_results rows). When already processed it is disabled.
+  // When the MP3 exists but processing failed/not done, show "Re-process".
   function processButtonHtml(video, canProcess) {
     if (!canProcess) {
       return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Process</button>';
     }
-    return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">Process</button>';
+    // MP3 exists but not fully processed yet -> offer Re-process.
+    const label = video.mp3Exists && !video.processed ? 'Re-process' : 'Process';
+    return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">' + label + '</button>';
   }
 
   // Render the videos table
@@ -69,9 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statPending = document.getElementById('statPending');
     const statProcessed = document.getElementById('statProcessed');
     if (statTotal) statTotal.textContent = videos.length;
-    if (statConverted) statConverted.textContent = videos.filter(v => v.mp3Exists).length;
+    if (statConverted) statConverted.textContent = videos.filter(v => v.mp3Exists && !v.processed).length;
     if (statPending) statPending.textContent = videos.filter(v => !v.mp3Exists).length;
-    if (statProcessed) statProcessed.textContent = videos.filter(v => v.processingStatus === 'processed').length;
+    if (statProcessed) statProcessed.textContent = videos.filter(v => v.processed).length;
 
     if (!videos.length) {
       videosTableBody.innerHTML = '<tr><td colspan="5" class="py-3 px-2 text-center text-cyan-800 text-[10px]">No videos found in storage/screen-recordings</td></tr>';
@@ -83,9 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Use server-provided flags for enable/disable (authoritative).
       const canConvert = video.canConvert;
       const canProcess = video.canProcess;
-      const statusClass = video.mp3Exists ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
-      const statusLabel = video.processingStatus === 'processed' ? 'Processed'
-        : video.mp3Exists ? 'Converted' : 'Pending';
+      const statusLabel = video.processed ? 'Processed'
+        : video.mp3Exists ? 'Process failed'
+        : 'Pending';
       tr.innerHTML = '<td class="py-1.5 px-2 text-cyan-950 font-medium">' + video.fileName + '</td>'
         + '<td class="py-1.5 px-2 text-cyan-800">' + video.size + ' MB</td>'
         + '<td class="py-1.5 px-2 text-cyan-800">' + video.duration + '</td>'

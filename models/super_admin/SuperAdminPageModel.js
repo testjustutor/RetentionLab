@@ -16,7 +16,7 @@ class SuperAdminPageModel {
         'dashboard': ['index'],
         'monitoring': ['server', 'platforms', 'audit'],
         'people': ['access-control', 'add-user', 'manage-rubrics', 'manage-users', 'profile', 'user-settings'],
-        'reports': [],
+        'reports': ['meeting-ai-evaluation-report', 'meeting-ai-session-report'],
         'roles': ['roles-access', 'rubric-management'],
         'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms', 'video-processing'],
         'content': ['archives', 'assets']

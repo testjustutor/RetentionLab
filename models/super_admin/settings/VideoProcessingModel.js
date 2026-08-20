@@ -202,6 +202,26 @@ class VideoProcessingModel {
     return { meetingId: null, sessionId: null };
   }
 
+  /**
+   * Whether the given session has AI audit results stored in ai_audit_results.
+   * A video is considered fully "processed" only when its session has audit rows.
+   * @param {number|string} sessionId
+   * @returns {Promise<boolean>}
+   */
+  static hasAuditResults(sessionId) {
+    return new Promise((resolve, reject) => {
+      if (sessionId === null || sessionId === undefined || sessionId === '') {
+        return resolve(false);
+      }
+      db.get(
+        'SELECT COUNT(*) AS c FROM ai_audit_results WHERE session_id = ?',
+        [String(sessionId)],
+        (err, row) => (err ? reject(err) : resolve(Number(row?.c) > 0))
+      );
+    });
+  }
+
+
   static async getLatestStatus(fileName) {
     const rows = await new Promise((resolve, reject) => {
       db.all('SELECT status FROM video_processing WHERE file_name = ? ORDER BY created_at DESC LIMIT 1', [fileName], (err, rows) => {
@@ -222,8 +242,25 @@ class VideoProcessingModel {
       const meta = await this.getFileMeta(fileName);
       const mp3Asked = this.mp3Exists(fileName);
       const lastStatus = await this.getLatestStatus(fileName);
-      const status = lastStatus || (mp3Asked ? 'Converted' : 'Pending');
       const ids = await this.resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null }));
+
+      // A video is only fully "processed" when its session has AI audit results
+      // in ai_audit_results. If the MP3 exists but there are no audit rows yet,
+      // treat it as a failed/not-processed run so the user can Re-process.
+      const processed = mp3Asked && await this.hasAuditResults(ids.sessionId);
+      let status;
+      if (processed) {
+        status = 'processed';
+      } else if (mp3Asked) {
+        status = 'failed';
+      } else {
+        status = 'Pending';
+      }
+      // Prefer a more meaningful persisted status, but never override the
+      // authoritative audit-based "processed" flag.
+      if (!processed) {
+        status = lastStatus || status;
+      }
 
       videos.push({
         fileName,
@@ -231,8 +268,9 @@ class VideoProcessingModel {
         duration: meta.duration,
         mp3Exists: mp3Asked,
         processingStatus: status,
+        processed,
         canConvert: !mp3Asked,
-        canProcess: mp3Asked,
+        canProcess: mp3Asked && !processed,
         videoPath: this.videoLink(fileName),
         audioPath: mp3Asked ? this.audioLink(this.toMp3Name(fileName)) : null,
         meetingId: ids.meetingId,

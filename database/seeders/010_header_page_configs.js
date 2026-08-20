@@ -27,6 +27,7 @@ const DEFAULT_PAGES = {
   userDefaults:     { title: 'User Defaults',      description: 'Configure default settings applied to new user accounts.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
   rubricManagement: { title: 'Rubric Management',   description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
   manageRubrics:    { title: 'Manage Rubrics',      description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  permissionRubrics:{ title: 'Manage Rubrics',      description: 'Create, manage, and assign rubric categories and indicators.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
   sidebarMenuManagement: { title: 'Sidebar Menu Management', description: 'Create, edit, and delete sidebar menu items for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
   server:           { title: 'Server Performance', description: 'Monitor server CPU, memory, storage, and database metrics.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
   headerManagement: { title: 'Header Management', description: 'Manage header page configurations for all roles.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
@@ -92,6 +93,10 @@ const DEFAULT_PAGES = {
   reportsSessionQuality: { title: 'Session Quality Reports', description: 'Access session quality and impact reports.', roleTitle: 'Admin', showStats: false, buttons: [] },
   reportsTeams: { title: 'Team Reports', description: 'View team performance and analytics.', roleTitle: 'Admin', showStats: false, buttons: [] },
   instructorReports: { title: 'Reports', description: 'View reports on your sessions and performance.', roleTitle: 'Instructor', showStats: false, buttons: [] },
+
+  // Super Admin reports pages
+  reportsMeetingAiEvaluation: { title: 'Meeting AI Evaluation Report', description: 'AI-generated rubric audit results per meeting session', roleTitle: 'Super Admin', showStats: false, buttons: [] },
+  reportsMeetingAiSession: { title: 'Meeting AI Session Report', description: 'Full AI-generated audit detail for a single session', roleTitle: 'Super Admin', showStats: false, buttons: [] },
 
   // Settings pages
   settingsIntegrations: { title: 'Integrations', description: 'Manage third-party integrations and APIs.', roleTitle: 'Admin', showStats: false, buttons: [] },

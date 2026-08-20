@@ -127,7 +127,7 @@ class PyannoteDiarizer:
             import soundfile as sf
             # Read specific frame constraints directly out of file stream
             info = sf.info(audio_path)
-            sr = info.sample_rate
+            sr = info.samplerate
             start_frame = int(start * sr)
             end_frame = int(end * sr)
             

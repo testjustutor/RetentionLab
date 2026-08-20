@@ -31,6 +31,8 @@ const seedRoleMenuPermissions = async () => {
       ['sa-monitoring', null],
         ['sa-server-performance', 'sa-monitoring'],
         ['sa-audit-logs', 'sa-monitoring'],
+      ['sa-reports', null],
+        ['sa-meeting-ai-evaluation', 'sa-reports'],
       ['sa-menu-management', null],
       ['sa-profile', null],
       ['sa-logout', null],
