@@ -15,13 +15,18 @@ def load_settings_ai():
             "..", "..", "config", "settings.js"
         )
     )
+    # Run node from the PROJECT ROOT so settings.js's require('dotenv').config()
+    # picks up the root .env (not the config/ dir where the script lives).
+    project_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..")
+    )
 
     result = subprocess.run(
         ["node", "-e", f"console.log(JSON.stringify(require({json.dumps(settings_path)}).ai))"],
         capture_output=True,
         text=True,
         check=True,
-        cwd=os.path.dirname(settings_path),
+        cwd=project_root,
     )
 
     return json.loads(result.stdout)

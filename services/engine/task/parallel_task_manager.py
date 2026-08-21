@@ -13,7 +13,6 @@ class ParallelTaskManager:
     Current Parallel Tasks:
     - audit
     - summary
-    - topics
     """
 
     def __init__(self, max_workers=4):

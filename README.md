@@ -25,7 +25,18 @@ npm run dev              # Run with nodemon auto-reload
 npm run dashboard        # Start dashboard UI server (port 3001)
 npm run dev:dashboard    # Dashboard with auto-reload
 npm run db:init          # Initialize/reset database
+npm run structure:update # Refresh project_structure_only.txt
 ```
+
+### Refresh the project structure
+
+Run this from the project root in PowerShell whenever files or folders change:
+
+```powershell
+.\generate_structure.ps1
+```
+
+The command updates `project_structure_only.txt` and excludes generated folders such as `.git`, `.venv`, `.vscode`, `node_modules`, and Python cache directories.
 
 ## Features
 
@@ -48,6 +59,8 @@ utils/        → Logger, export
 storage/      → JSON/TXT exports
 logs/         → Debug logs
 ```
+
+For the complete application architecture, data flow, AI pipeline, development process, and AI coding guidelines, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Dashboard Features
 

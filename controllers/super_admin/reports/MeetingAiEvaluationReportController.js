@@ -89,14 +89,20 @@ const controller = {
       const results = await MeetingAiEvaluationReportModel.getSessionAuditResults(sessionId);
 
       // Compute aggregate stats for the session.
-      const oqiScores = results.map((r) => Number(r.oqi_score)).filter((v) => !Number.isNaN(v));
-      const avgPct = results.length
-        ? results.reduce((sum, r) => {
+      // A row with ai_score null is an EXCLUDED indicator (e.g. video-gated and
+      // not scorable from a transcript). Excluded rows must not contribute to the
+      // average nor count as gate failures — otherwise they'd be double-penalized.
+      const scored = results.filter(
+        (r) => r.ai_score !== null && r.ai_score !== undefined
+      );
+      const avgPct = scored.length
+        ? scored.reduce((sum, r) => {
             const denom = Number(r.ai_max_score) || 0;
             return sum + (denom > 0 ? ((Number(r.ai_score) || 0) / denom) * 100 : 0);
-          }, 0) / results.length
+          }, 0) / scored.length
         : 0;
       const gateFailed = results.filter((r) => Number(r.is_gate) === 1 &&
+        r.ai_score !== null && r.ai_score !== undefined &&
         (Number(r.ai_score) || 0) < (Number(r.ai_max_score) || 0)).length;
 
       return ok({
@@ -104,7 +110,7 @@ const controller = {
         results,
         stats: {
           indicatorCount: results.length,
-          avgScorePct: results.length ? Math.round(avgPct * 10) / 10 : 0,
+          avgScorePct: scored.length ? Math.round(avgPct * 10) / 10 : 0,
           oqiScore: results.length ? Math.round(results[0].oqi_score || 0) : 0,
           gateFailed,
           evidenceCount: results.filter((r) => r.ai_evidence || r.evidence_quote).length

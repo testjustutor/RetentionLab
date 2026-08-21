@@ -112,6 +112,11 @@ def _normalize_audit_result(result):
 
     result = dict(result)
 
+    # Surface the gate-failures list returned by the AI (indicator_ids that are
+    # gates and scored 0). Downstream persist uses this to flag gate status.
+    if not isinstance(result.get("gate_failures"), list):
+        result["gate_failures"] = []
+
     # Extract per-indicator data from the AI response (category_scores).
     rubric = []
     total = passed = failed = partial = 0
@@ -126,14 +131,30 @@ def _normalize_audit_result(result):
         for ind_name, ind_data in indicators.items():
             if not isinstance(ind_data, dict):
                 continue
-            total += 1
+            raw_score = ind_data.get("score")
             max_val = ind_data.get("max_score", 0)
-            score_val = ind_data.get("score", 0)
+
+            # score: null => not scorable (e.g. video-gated indicators with no
+            # video feed). MUST be excluded from aggregation, never treated as 0,
+            # otherwise it would be double-penalized here and downstream.
+            if raw_score is None:
+                rubric.append({
+                    "rubric_id": ind_data.get("rubric_id") or ind_name,
+                    "question": ind_data.get("question") or ind_name,
+                    "answer": ind_data.get("answer", ""),
+                    "score": None,
+                    "max_score": max_val,
+                    "evidence": ind_data.get("evidence", ""),
+                    "excluded": True
+                })
+                continue
+
+            total += 1
             max_score_total += max_val or 0
-            score_total += score_val or 0
-            if max_val and score_val >= max_val:
+            score_total += float(raw_score or 0)
+            if max_val and float(raw_score) >= max_val:
                 passed += 1
-            elif score_val and score_val > 0:
+            elif float(raw_score) and float(raw_score) > 0:
                 partial += 1
             else:
                 failed += 1
@@ -141,7 +162,7 @@ def _normalize_audit_result(result):
                 "rubric_id": ind_data.get("rubric_id") or ind_name,
                 "question": ind_data.get("question") or ind_name,
                 "answer": ind_data.get("answer", ""),
-                "score": score_val,
+                "score": raw_score,
                 "max_score": max_val,
                 "evidence": ind_data.get("evidence", "")
             })

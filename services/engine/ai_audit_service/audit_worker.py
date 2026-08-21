@@ -116,7 +116,7 @@ class AiAuditService:
 
     def _load_master_rubric_schema(self, cursor):
         """Load rubric from master rubric_categories and rubric_indicators tables."""
-        cursor.execute("SELECT category_id, name, weight FROM rubric_categories")
+        cursor.execute("SELECT id, category_code, name, weight FROM rubric_categories")
         categories = cursor.fetchall()
 
         schema = []
@@ -124,21 +124,26 @@ class AiAuditService:
             cat_dict = {
                 "category": cat["name"],
                 "weight": cat["weight"],
-                "category_id": cat["category_id"],
+                "category_id": cat["category_code"],  # code e.g. 'A'
+                "category_id_pk": cat["id"],          # numeric rubric_categories.id
                 "indicators": []
             }
             cursor.execute(
-                "SELECT indicator_id, name, type, is_gate, value FROM rubric_indicators WHERE category_id = %s",
-                (cat["category_id"],)
+                "SELECT id, indicator_code, subgroup_name, name, type, is_gate, value, benchmark, requires_video FROM rubric_indicators WHERE category_id = %s",
+                (cat["id"],)
             )
             indicators = cursor.fetchall()
             for ind in indicators:
                 cat_dict["indicators"].append({
-                    "indicator_id": ind["indicator_id"],
+                    "indicator_id": ind["indicator_code"],  # code e.g. 'A1.1'
+                    "indicator_id_pk": ind["id"],           # numeric rubric_indicators.id
+                    "subgroup_name": ind.get("subgroup_name"),
                     "name": ind["name"],
                     "type": ind["type"] or "AI",
                     "is_gate": bool(ind["is_gate"]),
-                    "value": ind["value"] or 1
+                    "value": ind["value"] or 1,
+                    "benchmark": ind.get("benchmark"),
+                    "requires_video": bool(ind.get("requires_video"))
                 })
             schema.append(cat_dict)
 
@@ -152,26 +157,95 @@ class AiAuditService:
         """
         ind_by_cat = {}
         for ind in raw_rubric["indicators"]:
-            ind_by_cat.setdefault(ind["category_id"], []).append(ind)
+            ind_by_cat.setdefault(ind["category_id"], []).append(ind)  # numeric FK
 
         return [
             {
                 "category": cat["name"],
                 "weight": cat["weight"],
-                "category_id": cat["category_id"],
+                "category_id": cat["category_code"],   # code e.g. 'A'
+                "category_id_pk": cat.get("id"),       # numeric rubric_categories.id
                 "indicators": [
                     {
-                        "indicator_id": ind["indicator_id"],
+                        "indicator_id": ind["indicator_code"],       # code e.g. 'A1.1'
+                        "indicator_id_pk": ind.get("id"),             # numeric rubric_indicators.id
+                        "subgroup_name": ind.get("subgroup_name"),
                         "name": ind["name"],
                         "type": ind.get("type") or "AI",
                         "is_gate": bool(ind.get("is_gate")),
-                        "value": ind.get("value") or 1
+                        "value": ind.get("value") or 1,
+                        "benchmark": ind.get("benchmark"),
+                        "requires_video": bool(ind.get("requires_video"))
                     }
-                    for ind in ind_by_cat.get(cat["category_id"], [])
+                    for ind in ind_by_cat.get(cat["id"], [])
                 ]
             }
             for cat in raw_rubric["categories"]
         ]
+
+    def _save_prompt_file(self, prompt_output_path, meeting_id, session_id,
+                          system_instruction, prompt, talk_ratio,
+                          raw_response=None, status="PENDING"):
+        """
+        Persist the EXACT request sent to the AI and the EXACT raw response
+        returned by the AI into a single structured JSON file under
+        storage/cache_llm_prompts/PROMPT_AUDIT_<id>.json.
+
+        - 'request' holds the exact payload that was sent to the AI
+          (system_instruction + user prompt, the OpenAI 'messages' array, and
+          a single 'replayable_prompt' string that can be copy-pasted directly
+          into a chat UI to reproduce the same response).
+        - 'response' holds the exact raw text the AI returned (status OK once
+          the call completed, PENDING while the call has not returned yet).
+        """
+        if not prompt_output_path:
+            return
+        try:
+            os.makedirs(os.path.dirname(prompt_output_path) or ".", exist_ok=True)
+            model = None
+            try:
+                model = self.ai_api.model
+            except Exception:
+                model = None
+
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompt},
+            ]
+
+            payload = {
+                "task": "audit",
+                "provider": self.ai_api.provider,
+                "model": model,
+                "meeting_id": meeting_id,
+                "session_id": session_id,
+                "request": {
+                    "system_instruction": system_instruction,
+                    "prompt": prompt,
+                    "messages": messages,
+                    # Exact combined prompt you can paste into a chat box to
+                    # reproduce the same AI response.
+                    "replayable_prompt": f"{system_instruction}\n\n{prompt}"
+                },
+                "response": {
+                    "status": status,
+                    "raw_response": raw_response
+                },
+                "talk_ratio": talk_ratio or {}
+            }
+
+            with open(prompt_output_path, "w", encoding="utf-8") as pf:
+                json.dump(payload, pf, indent=2, ensure_ascii=False, default=_json_default)
+
+            print(
+                f"[AUDIT MICROSERVICE] Status: Prompt + AI response saved to {prompt_output_path}",
+                flush=True
+            )
+        except Exception as prompt_write_err:
+            print(
+                f"[AUDIT MICROSERVICE] WARNING: Could not save prompt file: {prompt_write_err}",
+                flush=True
+            )
 
     def process_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None, prompt_output_path=None):
         """
@@ -187,21 +261,30 @@ class AiAuditService:
 
         system_instruction = (
             "You are an isolated QA evaluation microservice. Score the transcript text against the provided rubric parameters.\n\n"
-            "For each category and its indicators, you MUST return per-indicator scores.\n"
-            "Each indicator has a 'value' field (max score). Score each indicator from 0 to its value.\n"
-            "Calculate category scores as weighted averages.\n"
-            "Calculate an overall weighted OQI score from 0 to 100.\n\n"
-            "You must return ONLY a raw JSON string matching this structure exactly. No conversational text, no markdown wrappers:\n"
+            "INPUT MODE: This evaluation is being run on AUDIO/TRANSCRIPT ONLY. No video feed is available.\n\n"
+            "RULES:\n"
+            "1. For each category and its indicators, you MUST return a per-indicator result.\n"
+            '2. Each indicator has a "benchmark" describing what a passing session looks like — use it as your scoring standard instead of inferring from the name alone.\n'
+            '3. Each indicator has a "requires_video" flag.\n'
+            '   - If requires_video is true: you CANNOT score this indicator from a transcript alone. Set "score" to null, "max_score" to the indicator\'s value, and set "evidence" to "Not scorable from transcript — requires video." Do NOT guess or assume a score for these indicators under any circumstance.\n'
+            '   - If requires_video is false: score normally from 0 to its value, using the benchmark as your standard, and cite the specific line(s) of transcript that justify the score.\n'
+            '4. Calculate each category\'s score as a weighted average using ONLY the indicators that were actually scored (score is not null) within that category. Indicators with a null score must be excluded from both the numerator and denominator of the category average — do not treat them as 0.\n'
+            "5. Calculate the overall weighted OQI score (0–100) from the category scores and their weights, using the same exclusion rule if an entire category has no scorable indicators.\n"
+            '6. Note any indicator marked "gate": true and scored 0 in a separate "gate_failures" array in your response, listing the indicator_id.\n'
+            "7. You must return ONLY a raw JSON string matching this structure exactly. No conversational text, no markdown wrappers, no code fences:\n"
             "{\n"
             '  "category_scores": {\n'
             '    "Category Name": {\n'
             '      "score": 85.0,\n'
+            '      "scored_indicator_count": 10,\n'
+            '      "excluded_indicator_count": 2,\n'
             '      "indicators": {\n'
-            '        "Indicator Name": { "score": 2, "max_score": 2, "evidence": "brief reason" }\n'
+            '        "Indicator Name": { "score": 2, "max_score": 2, "evidence": "brief reason citing the transcript, or note" }\n'
             "      }\n"
             "    }\n"
             "  },\n"
             '  "oqi_score": 85.0,\n'
+            '  "gate_failures": ["A3.1"],\n'
             '  "evidence_quote": "Exact string excerpt from text proving evaluation matrix"\n'
             "}"
         )
@@ -209,30 +292,40 @@ class AiAuditService:
         prompt = f"Rubric Target Rules:\n{json.dumps(raw_rubric, indent=2, default=_json_default)}\n\nTranscript Target Data:\n{transcript_text}"
         print(f"[AUDIT MICROSERVICE] Status: Sending payload data to '{self.ai_api.provider.upper()}' engine...", flush=True)
 
-        # Persist the ACTUAL prompt (system instruction + full rubric + transcript)
-        # so it can be reviewed in storage/cache_llm_prompts/PROMPT_AUDIT_<id>.json.
-        if prompt_output_path:
-            try:
-                os.makedirs(os.path.dirname(prompt_output_path) or ".", exist_ok=True)
-                with open(prompt_output_path, "w", encoding="utf-8") as pf:
-                    json.dump({
-                        "task": "audit",
-                        "provider": self.ai_api.provider,
-                        "meeting_id": meeting_id,
-                        "session_id": session_id,
-                        "system_instruction": system_instruction,
-                        "prompt": prompt,
-                        "talk_ratio": talk_ratio or {}
-                    }, pf, indent=2, ensure_ascii=False, default=_json_default)
-                print(f"[AUDIT MICROSERVICE] Status: Prompt saved to {prompt_output_path}", flush=True)
-            except Exception as prompt_write_err:
-                print(f"[AUDIT MICROSERVICE] WARNING: Could not save prompt file: {prompt_write_err}", flush=True)
+        # Persist the EXACT request sent to AI (system_instruction + full rubric
+        # + transcript) to storage/cache_llm_prompts/PROMPT_AUDIT_<id>.json.
+        # Written before the call so the prompt is preserved even if AI fails;
+        # the exact AI response is appended after ask_ai returns below.
+        self._save_prompt_file(
+            prompt_output_path,
+            meeting_id,
+            session_id,
+            system_instruction,
+            prompt,
+            talk_ratio,
+            raw_response=None,
+            status="PENDING",
+        )
 
         for progress_pct in range(10, 91, 20):
             print(f"[AUDIT MICROSERVICE] Progress: AI Evaluation {progress_pct}% pending validation...", flush=True)
             time.sleep(0.2)
 
         raw_response = self.ai_api.ask_ai(prompt=prompt, system_instruction=system_instruction)
+
+        # Persist the EXACT raw AI response into the same prompt file so the
+        # stored file always mirrors what the AI actually returned (and matches
+        # the recorded request, so it can be replayed).
+        self._save_prompt_file(
+            prompt_output_path,
+            meeting_id,
+            session_id,
+            system_instruction,
+            prompt,
+            talk_ratio,
+            raw_response=raw_response,
+            status="OK",
+        )
 
         try:
             clean_json = re.sub(r'^```(?:json)?\s*|```\s*$', '', raw_response.strip(), flags=re.IGNORECASE)
@@ -295,12 +388,13 @@ class AiAuditService:
             category_scores = ai_result.get("category_scores", {})
             domain_scores = ai_result.get("domain_scores", {})
 
-            # Build lookup: category_name -> { category_id, weight, indicators }
+            # Build lookup: category_name -> { category_id (numeric), weight, indicators }
             rubric_lookup = {}
             for cat in rubric_schema:
                 cat_name = cat["category"]
                 rubric_lookup[cat_name] = {
-                    "category_id": cat.get("category_id", ""),
+                    "category_id": cat.get("category_id", ""),   # code e.g. 'A'
+                    "category_id_pk": cat.get("category_id_pk"), # numeric rubric_categories.id
                     "weight": cat.get("weight", 0),
                     "indicators": {}
                 }
@@ -308,13 +402,15 @@ class AiAuditService:
                     ind_name = ind["name"] if isinstance(ind, dict) else ind
                     if isinstance(ind, dict):
                         rubric_lookup[cat_name]["indicators"][ind_name] = {
-                            "indicator_id": ind.get("indicator_id", ""),
+                            "indicator_id": ind.get("indicator_id", ""),       # code e.g. 'A1.1'
+                            "indicator_id_pk": ind.get("indicator_id_pk"),     # numeric rubric_indicators.id
                             "type": ind.get("type", "AI"),
                             "value": ind.get("value", 1)
                         }
                     else:
                         rubric_lookup[cat_name]["indicators"][ind_name] = {
                             "indicator_id": "",
+                            "indicator_id_pk": None,
                             "type": "AI",
                             "value": 1
                         }
@@ -330,38 +426,42 @@ class AiAuditService:
             # Primary path: new category_scores format from AI
             if category_scores:
                 for cat_name, cat_data in category_scores.items():
-                    # Resolve category_id from rubric lookup
+                    # Resolve category numeric id from rubric lookup
                     category_id = ""
                     if cat_name in rubric_lookup:
-                        category_id = rubric_lookup[cat_name]["category_id"]
+                        category_id = rubric_lookup[cat_name].get("category_id_pk") or rubric_lookup[cat_name]["category_id"]
                     else:
                         for rubric_cat_name, rubric_cat in rubric_lookup.items():
                             if rubric_cat_name.lower() in cat_name.lower() or cat_name.lower() in rubric_cat_name.lower():
-                                category_id = rubric_cat["category_id"]
+                                category_id = rubric_cat.get("category_id_pk") or rubric_cat["category_id"]
                                 break
 
                     indicators_data = cat_data.get("indicators", {}) if isinstance(cat_data, dict) else {}
 
                     for ind_name, ind_data in indicators_data.items():
-                        ai_score = 0
+                        ai_score = None
                         ai_max = 2
                         indicator_id = ""
 
                         if isinstance(ind_data, dict):
-                            raw_score = ind_data.get("score") or ind_data.get("value") or 0
-                            raw_max = ind_data.get("max_score") or ind_data.get("value") or 2
+                            raw_score = ind_data.get("score")
+                            raw_max = ind_data.get("max_score") or ind_data.get("value")
                             try:
-                                ai_score = float(raw_score)
-                                ai_max = float(raw_max)
+                                # score: null means "excluded from aggregation" (e.g. a
+                                # video-gated indicator not scorable from a transcript).
+                                # Store NULL, never coerced to 0, so it isn't penalized.
+                                ai_score = None if raw_score is None else float(raw_score)
+                                ai_max = float(raw_max) if raw_max is not None else 2.0
                             except (TypeError, ValueError):
-                                ai_score = 0.0
+                                ai_score = None if raw_score is None else 0.0
                                 ai_max = 2.0
                         elif isinstance(ind_data, (int, float)):
                             ai_score = float(ind_data)
 
                         for rubric_cat in rubric_lookup.values():
                             if ind_name in rubric_cat["indicators"]:
-                                indicator_id = rubric_cat["indicators"][ind_name]["indicator_id"]
+                                ind_ref = rubric_cat["indicators"][ind_name]
+                                indicator_id = ind_ref.get("indicator_id_pk") or ind_ref["indicator_id"]
                                 break
 
                         print(f"[AUDIT DEBUG] ind_name={ind_name} | ind_data={ind_data} | ai_score={ai_score} | ai_max={ai_max}", flush=True)

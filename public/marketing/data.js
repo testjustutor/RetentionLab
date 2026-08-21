@@ -23,13 +23,12 @@ const SERVICES = [
   {
     id: "meeting-intelligence",
     title: "AI Meeting Intelligence",
-    description: "Automated meeting summaries, action items, and topic clustering powered by advanced AI.",
-    longDescription: "RetentionLab's AI engine processes meeting recordings and live captions to generate comprehensive summaries, extract action items, identify topic clusters, and provide OQI (Overall Quality Index) scores. Never miss a critical detail from any meeting.",
+    description: "Automated meeting summaries and action items powered by advanced AI.",
+    longDescription: "RetentionLab's AI engine processes meeting recordings and live captions to generate comprehensive summaries, extract action items, and provide OQI (Overall Quality Index) scores. Never miss a critical detail from any meeting.",
     icon: "brain-circuit",
     benefits: [
       "AI-generated meeting summaries with key insights",
       "Automatic action item extraction and tracking",
-      "Topic clustering for meeting pattern analysis",
       "OQI scoring for meeting quality assessment"
     ],
     priceRange: "Included in Pro plan",

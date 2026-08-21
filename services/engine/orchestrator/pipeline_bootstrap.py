@@ -33,8 +33,6 @@ class PipelineBootstrap:
 
         "cache_diarization",
 
-        "cache_topic_trackers",
-
         "cache_audits",
 
         "cache_captions_raw",

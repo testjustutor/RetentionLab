@@ -11,13 +11,14 @@ class RubricSummaryModel {
   static upsert(summary) {
     return new Promise((resolve, reject) => {
       const sql = `INSERT INTO session_rubric_summary 
-        (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level, created_at, updated_at) 
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+        (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level, red_flag, created_at, updated_at) 
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
         ON DUPLICATE KEY UPDATE 
         weighted_score_pct=VALUES(weighted_score_pct), 
         gate_status=VALUES(gate_status), 
         overall_rating=VALUES(overall_rating), 
         confidence_level=VALUES(confidence_level), 
+        red_flag=VALUES(red_flag), 
         updated_at=CURRENT_TIMESTAMP`;
       
       const params = [
@@ -25,7 +26,8 @@ class RubricSummaryModel {
         summary.weighted_score_pct || 0.00,
         summary.gate_status || 'all_passed',
         summary.overall_rating || 'Developing',
-        summary.confidence_level || 'Medium — transcript-based; video/audio not available'
+        summary.confidence_level || 'Medium — transcript-based; video/audio not available',
+        summary.red_flag ? 1 : 0
       ];
       
       db.run(sql, params, function(err) {
@@ -111,20 +113,22 @@ class RubricSummaryModel {
       
       summaries.forEach((summary) => {
         const sql = `INSERT INTO session_rubric_summary 
-          (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level) 
-          VALUES (?, ?, ?, ?, ?)
+          (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level, red_flag) 
+          VALUES (?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE 
           weighted_score_pct=VALUES(weighted_score_pct), 
           gate_status=VALUES(gate_status), 
           overall_rating=VALUES(overall_rating), 
-          confidence_level=VALUES(confidence_level)`;
+          confidence_level=VALUES(confidence_level), 
+          red_flag=VALUES(red_flag)`;
         
         const params = [
           summary.session_id,
           summary.weighted_score_pct || 0.00,
           summary.gate_status || 'all_passed',
           summary.overall_rating || 'Developing',
-          summary.confidence_level || 'Medium — transcript-based; video/audio not available'
+          summary.confidence_level || 'Medium — transcript-based; video/audio not available',
+          summary.red_flag ? 1 : 0
         ];
         
         db.run(sql, params, function(err) {

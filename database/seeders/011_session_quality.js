@@ -301,7 +301,7 @@ const seedSessionQuality = async () => {
 async function seedRubricEvaluations(sessionId) {
   // Get all rubric indicators
   const indicators = await new Promise((resolve, reject) => {
-    db.all('SELECT indicator_id, is_gate FROM rubric_indicators ORDER BY indicator_id', [], (err, rows) => {
+    db.all('SELECT indicator_code, is_gate FROM rubric_indicators ORDER BY indicator_code', [], (err, rows) => {
       if (err) return reject(err);
       resolve(rows || []);
     });
@@ -319,15 +319,15 @@ async function seedRubricEvaluations(sessionId) {
 
   for (const ind of indicators) {
     let rating, confidence;
-    if (notMetSet.has(ind.indicator_id)) {
+    if (notMetSet.has(ind.indicator_code)) {
       rating = 'Not met';
       confidence = 'High';
-    } else if (partialSet.has(ind.indicator_id)) {
+    } else if (partialSet.has(ind.indicator_code)) {
       rating = 'Partial';
       confidence = 'Medium';
     } else {
       rating = 'Met';
-      confidence = highConfSet.has(ind.indicator_id) ? 'High' : 'Medium';
+      confidence = highConfSet.has(ind.indicator_code) ? 'High' : 'Medium';
     }
 
     await run(`
@@ -339,10 +339,10 @@ async function seedRubricEvaluations(sessionId) {
         comment=VALUES(comment), confidence=VALUES(confidence)
     `, [
       sessionId,
-      ind.indicator_id,
+      ind.indicator_code,
       rating,
-      generateEvidence(ind.indicator_id, rating),
-      generateComment(ind.indicator_id, rating),
+      generateEvidence(ind.indicator_code, rating),
+      generateComment(ind.indicator_code, rating),
       confidence
     ]);
   }
@@ -375,8 +375,8 @@ async function computeSummary(sessionId) {
       SELECT sre.indicator_id, sre.rating, ri.category_id, rc.weight as category_weight,
              ri.value as indicator_weight, ri.is_gate
       FROM session_rubric_evaluations sre
-      JOIN rubric_indicators ri ON sre.indicator_id = ri.indicator_id
-      JOIN rubric_categories rc ON ri.category_id = rc.category_id
+      JOIN rubric_indicators ri ON sre.indicator_id = ri.indicator_code
+      JOIN rubric_categories rc ON ri.category_id = rc.id
       WHERE sre.session_id = ?
     `, [sessionId], (err, rows) => {
       if (err) return reject(err);

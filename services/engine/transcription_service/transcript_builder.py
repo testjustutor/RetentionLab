@@ -162,3 +162,71 @@ class TranscriptBuilder:
                 talk_ratio
             )
         }
+
+    # ==========================================
+    # BUILD PLAIN TRANSCRIPT (no speaker labels / diarization)
+    # ==========================================
+
+    def build_plain_text(
+        self,
+        whisper_result
+    ):
+        """Build a plain transcript from Whisper segments (no speaker labels)."""
+
+        segments = whisper_result.get(
+            "segments",
+            []
+        )
+
+        lines = []
+        for segment in segments:
+            text = segment.get("text", "").strip()
+            if text:
+                lines.append(text)
+
+        transcript = "\n".join(lines)
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Plain transcript generated lines={len(lines)}", "TRANSCRIPTION")
+
+        transcript_path = os.path.join(
+            self.context.storage_paths["cache_audio_transcripts"],
+            f"AUDIO_TRANS_{self.context.base_id}.txt"
+        )
+
+        FileStore.save_text(transcript_path, transcript)
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Plain transcript saved path={transcript_path}", "TRANSCRIPTION")
+
+        return {
+            "transcript_path": transcript_path,
+            "transcript": transcript
+        }
+
+    # ==========================================
+    # STATIC HELPERS
+    # ==========================================
+
+    @staticmethod
+    def compute_talk_ratio(diarization):
+        """Compute per-speaker talk-time percentage from labeled diarization segments."""
+
+        speaker_stats = {}
+        for item in diarization:
+            if not isinstance(item, dict):
+                continue
+            start = float(item.get("start", 0))
+            end = float(item.get("end", start))
+            duration = max(end - start, 0)
+            speaker = item.get("speaker", "Speaker 1")
+            speaker_stats[speaker] = speaker_stats.get(speaker, 0) + duration
+
+        total = sum(speaker_stats.values())
+        talk_ratio = {}
+
+        if total > 0:
+            for speaker, value in speaker_stats.items():
+                talk_ratio[speaker] = round((value / total) * 100, 2)
+
+        log_with_type("info", f"Engine(transcription_service > transcript_builder) : Talk ratio computed speakers={len(talk_ratio)}", "TRANSCRIPTION")
+
+        return talk_ratio

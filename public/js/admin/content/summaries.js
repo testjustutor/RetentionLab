@@ -101,7 +101,6 @@ function applySearchFilter() {
           var ab = [];
           if (row.summary_url) ab.push('<a href="' + row.summary_url + '" target="_blank" class="text-violet-600 hover:text-violet-700">Summary</a>');
           if (row.action_items_url) ab.push('<a href="' + row.action_items_url + '" target="_blank" class="text-amber-800 hover:text-amber-700">Actions</a>');
-          if (row.topic_clusters_url) ab.push('<a href="' + row.topic_clusters_url + '" target="_blank" class="text-emerald-600 hover:text-emerald-700">Topics</a>');
           return ab.length ? '<div class="flex gap-1.5">' + ab.join('<span class="text-slate-300">|</span>') + '</div>' : '<span class="text-[10px] text-slate-600">--</span>';
         }},
         { label: 'Status', key: 'status', render: function(value) {

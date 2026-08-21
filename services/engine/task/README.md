@@ -78,18 +78,6 @@ Produces:
 
 ---
 
-## topics/
-
-Responsible for:
-- chronological clustering
-- conversation segmentation
-- thematic grouping
-
-Produces:
-- topic clusters
-
----
-
 ## persist/
 
 Responsible for:
@@ -110,10 +98,9 @@ Sequential:
 Parallel:
 3. audit
 4. summary
-5. topics
 
 Sequential:
-6. persist_results
+5. persist_results
 
 ---
 

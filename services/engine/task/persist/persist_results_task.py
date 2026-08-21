@@ -2,7 +2,7 @@
 """
 Persist results task.
 
-Runs AFTER summary, audit and topics have completed and persists the
+Runs AFTER summary and audit have completed and persists the
 structured results (summary text + rubric answers + scores + metrics)
 into MySQL via database/python_db.py.
 
@@ -10,7 +10,7 @@ Pipeline contract:
 
     media
       -> transcription
-         -> [summary + audit + topics]   (parallel)
+         -> [summary + audit]   (parallel)
          -> persist_results              (this task)
          -> complete
 """
@@ -81,6 +81,9 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
     gate_status = "all_passed"
     if audit_results.get("metrics", {}).get("failed", 0) > 0:
         gate_status = "gate_failed"
+    if audit_results.get("gate_failures"):
+        # AI explicitly flagged gate indicators that scored 0.
+        gate_status = "gate_failed"
 
     execute(
         """INSERT INTO session_rubric_summary (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level)
@@ -114,7 +117,8 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
         key = item.get("rubric_id") or item.get("question")
         if key:
             score_by_indicator[key] = {
-                "score": item.get("score", 0),
+                # Preserve null score (excluded indicator) — do not coerce to 0.
+                "score": item.get("score"),
                 "max_score": item.get("max_score", 0),
                 "evidence": item.get("evidence", "")
             }
@@ -125,7 +129,7 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
             if not isinstance(ind_data, dict):
                 continue
             score_by_indicator[ind_name] = {
-                "score": ind_data.get("score", 0),
+                "score": ind_data.get("score"),
                 "max_score": ind_data.get("max_score", 0),
                 "evidence": ind_data.get("evidence", "")
             }
@@ -139,22 +143,30 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
 
     insert_count = 0
     for cat in categories:
-        category_id = cat.get("category_id")
+        category_code = cat.get("category_code")  # e.g. 'A'
+        category_id = cat.get("id")  # numeric rubric_categories.id
         category_weight = cat.get("weight", 0)
         cat_name = cat.get("name")
         for ind in indicators:
-            if ind.get("category_id") != category_id:
+            if ind.get("category_id") != category_id:  # numeric FK == cat id
                 continue
-            indicator_id = ind.get("indicator_id")
+            indicator_code = ind.get("indicator_code")  # e.g. 'A1.1'
+            indicator_id = ind.get("id")  # numeric rubric_indicators.id
             max_value = ind.get("value") or 1
 
-            ai_score = 0
+            ai_score = None
             ai_max = float(max_value)
             evidence = ""
 
-            hit = score_by_indicator.get(indicator_id) or score_by_indicator.get(ind.get("name"))
-            if hit:
+            hit = score_by_indicator.get(indicator_code) or score_by_indicator.get(ind.get("name"))
+            if hit and hit.get("score") is not None:
                 ai_score = float(hit.get("score") or 0)
+                if hit.get("max_score"):
+                    ai_max = float(hit["max_score"])
+                evidence = hit.get("evidence") or ""
+            elif hit:
+                # score is null (e.g. video-gated / not scorable): store NULL so it
+                # is excluded from aggregation rather than penalized as a zero.
                 if hit.get("max_score"):
                     ai_max = float(hit["max_score"])
                 evidence = hit.get("evidence") or ""
@@ -186,6 +198,8 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
                         int(max_value), 1 if ind.get("is_gate") else 0,
                         ai_score, ai_max, evidence,
                         json.dumps({
+                            "rubric_category_id": category_code,
+                            "rubric_indicator_id": indicator_code,
                             "category_id": category_id,
                             "category_name": cat_name,
                             "category_weight": float(category_weight or 0),

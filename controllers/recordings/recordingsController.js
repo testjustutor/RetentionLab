@@ -21,8 +21,7 @@ const ASSET_KEYS = [
   { key: 'sentiment_analysis_path', label: 'Sentiment', type: 'JSON', color: 'green' },
   { key: 'action_items_path', label: 'Action Items', type: 'JSON', color: 'lime' },
   { key: 'user_silence_duration_path', label: 'Silence Track', type: 'JSON', color: 'orange' },
-  { key: 'questions_asked_count_path', label: 'Questions', type: 'JSON', color: 'teal' },
-  { key: 'topic_clusters_path', label: 'Topic Clusters', type: 'JSON', color: 'cyan' }
+  { key: 'questions_asked_count_path', label: 'Questions', type: 'JSON', color: 'teal' }
 ];
 
 function toUrl(p) {

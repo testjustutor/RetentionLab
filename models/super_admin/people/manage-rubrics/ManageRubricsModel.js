@@ -14,11 +14,10 @@ class ManageRubricsModel {
 
   static createCategory(data) {
     return MasterRubricModel.createCategory({
-      category_id: data.category_id || 'CAT_' + Date.now(),
+      category_code: data.category_code || data.category_id || 'CAT_' + Date.now(),
       name: data.name,
       weight: parseFloat(data.weight) || 0,
-      status: data.status || 'active',
-      company_id: 0
+      status: data.status || 'active'
     });
   }
 
@@ -42,14 +41,16 @@ class ManageRubricsModel {
 
   static createIndicator(data) {
     return MasterRubricModel.createIndicator({
-      indicator_id: data.indicator_id || 'IND_' + Date.now(),
+      indicator_code: data.indicator_code || data.indicator_id || 'IND_' + Date.now(),
       category_id: data.category_id,
       name: data.name,
       type: data.type || 'HUMAN',
       is_gate: data.is_gate ? 1 : 0,
       value: parseFloat(data.value) || 1,
       status: data.status || 'active',
-      company_id: 0
+      subgroup_name: data.subgroup_name,
+      benchmark: data.benchmark,
+      requires_video: data.requires_video ? 1 : 0
     });
   }
 

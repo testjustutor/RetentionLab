@@ -2,6 +2,8 @@
 
 from utils.logger_util import log_with_type
 
+import os
+
 from services.engine.transcription_service.whisper_loader import (
     WhisperLoader
 )
@@ -41,6 +43,7 @@ class TranscriptionService:
         self,
         audio_path
     ):
+        """Whisper speech-to-text only — returns plain transcript (no speaker labels)."""
         log_with_type("info", f"Engine(transcription_service > service) : Transcription started audio_path={audio_path}", "SERVICE")
 
         loader = WhisperLoader(
@@ -66,6 +69,47 @@ class TranscriptionService:
 
         log_with_type("info", "Engine(transcription_service > service) : Whisper execution completed", "SERVICE")
 
+        builder = TranscriptBuilder(
+            self.context
+        )
+
+        result = builder.build_plain_text(
+            whisper_result
+        )
+
+        result["whisper_result"] = whisper_result
+
+        log_with_type("info", "Engine(transcription_service > service) : Transcription pipeline finished (plain text)", "SERVICE")
+
+        return result
+
+    # ==========================================
+    # DIARIZATION PIPELINE
+    # ==========================================
+
+    def diarize(
+        self,
+        audio_path,
+        whisper_result=None
+    ):
+        """pyannote speaker diarization + talk_ratio computation.
+        
+        If whisper_result is not provided, loads it from the cached
+        WHISPER_{base_id}.json file via context.whisper_path.
+        """
+        log_with_type("info", f"Engine(transcription_service > service) : Diarization started audio_path={audio_path}", "SERVICE")
+
+        if whisper_result is None:
+            whisper_path = getattr(self.context, "whisper_path", None)
+            if whisper_path and os.path.exists(whisper_path):
+                import json
+                with open(whisper_path, "r", encoding="utf-8") as f:
+                    whisper_result = json.load(f)
+                log_with_type("info", "Engine(transcription_service > service) : Whisper result loaded from cache for diarization", "SERVICE")
+            else:
+                whisper_result = {"segments": []}
+                log_with_type("warning", "Engine(transcription_service > service) : No whisper result available for diarization", "SERVICE")
+
         diarizer = DiarizationEngine(
             self.context
         )
@@ -79,23 +123,14 @@ class TranscriptionService:
 
         log_with_type("info", "Engine(transcription_service > service) : Diarization completed", "SERVICE")
 
-        builder = TranscriptBuilder(
-            self.context
-        )
-
-        log_with_type("info", "Engine(transcription_service > service) : TranscriptBuilder initialized", "SERVICE")
-
-        result = builder.build(
-            whisper_result,
+        talk_ratio = TranscriptBuilder.compute_talk_ratio(
             diarization
         )
 
-        log_with_type("info", "Engine(transcription_service > service) : Transcript built", "SERVICE")
+        log_with_type("info", "Engine(transcription_service > service) : Talk ratio computed", "SERVICE")
 
-        result[
-            "whisper_result"
-        ] = whisper_result
-
-        log_with_type("info", "Engine(transcription_service > service) : Transcription pipeline finished", "SERVICE")
-
-        return result
+        return {
+            "whisper_result": whisper_result,
+            "diarization": diarization,
+            "talk_ratio": talk_ratio
+        }

@@ -32,9 +32,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Status badge color based on processing state
   function statusLabelColor(video) {
-    if (video.processed) return 'bg-violet-100 text-violet-700';
-    if (video.mp3Exists) return 'bg-red-100 text-red-700';
+    const s = video.processingStatus || ('pending');
+    if (s === 'processed') return 'bg-violet-100 text-violet-700';
+    if (s === 'processing') return 'bg-blue-100 text-blue-700';
+    if (s === 'failed') return 'bg-red-100 text-red-700';
+    if (s === 'converted') return 'bg-emerald-100 text-emerald-700';
     return 'bg-amber-100 text-amber-700';
+  }
+
+  // Human-readable status label for the badge
+  function statusLabel(video) {
+    const s = video.processingStatus || ('pending');
+    switch (s) {
+      case 'processed': return 'Processed';
+      case 'processing': return 'Processing';
+      case 'failed': return 'Process failed';
+      case 'converted': return 'Converted';
+      default: return 'Pending';
+    }
   }
 
   // Detect the "named" video type:
@@ -43,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return /^\d{1,10}_[A-Za-z]+_[A-Za-z]+_[A-Za-z0-9]+_\d+_.+\d{4}_\d{2}_\d{2}_[A-Za-z0-9]+\.mp4$/i.test(fileName);
   }
 
-  // Convert button: enabled when no MP3 yet (server-provided canConvert).
+  // Convert button: enabled only when no MP3 yet (server-provided canConvert).
   function convertButtonHtml(video, canConvert) {
     if (!canConvert) {
       return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Convert</button>';
@@ -51,15 +66,21 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<button type="button" class="convert-btn px-2 py-1 text-[10px] rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold" data-file="' + video.fileName + '">Convert</button>';
   }
 
-  // Process button: enabled only when the MP3 exists and the session is NOT yet
-  // processed (no ai_audit_results rows). When already processed it is disabled.
-  // When the MP3 exists but processing failed/not done, show "Re-process".
+  // Process button state machine:
+  //   converted -> enabled "Process"
+  //   failed    -> enabled "Re-process"
+  //   processing -> disabled "Processing"
+  //   processed  -> disabled "Process"
+  //   pending    -> disabled "Process"
   function processButtonHtml(video, canProcess) {
+    const s = video.processingStatus || ('pending');
+    if (s === 'processing') {
+      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-blue-200 text-blue-500 cursor-wait" disabled>Processing</button>';
+    }
     if (!canProcess) {
       return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Process</button>';
     }
-    // MP3 exists but not fully processed yet -> offer Re-process.
-    const label = video.mp3Exists && !video.processed ? 'Re-process' : 'Process';
+    const label = s === 'failed' ? 'Re-process' : 'Process';
     return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">' + label + '</button>';
   }
 
@@ -73,9 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statPending = document.getElementById('statPending');
     const statProcessed = document.getElementById('statProcessed');
     if (statTotal) statTotal.textContent = videos.length;
-    if (statConverted) statConverted.textContent = videos.filter(v => v.mp3Exists && !v.processed).length;
-    if (statPending) statPending.textContent = videos.filter(v => !v.mp3Exists).length;
-    if (statProcessed) statProcessed.textContent = videos.filter(v => v.processed).length;
+    if (statConverted) statConverted.textContent = videos.filter(v => v.processingStatus === 'converted').length;
+    if (statPending) statPending.textContent = videos.filter(v => v.processingStatus === 'pending').length;
+    if (statProcessed) statProcessed.textContent = videos.filter(v => v.processingStatus === 'processed').length;
 
     if (!videos.length) {
       videosTableBody.innerHTML = '<tr><td colspan="5" class="py-3 px-2 text-center text-cyan-800 text-[10px]">No videos found in storage/screen-recordings</td></tr>';
@@ -87,13 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // Use server-provided flags for enable/disable (authoritative).
       const canConvert = video.canConvert;
       const canProcess = video.canProcess;
-      const statusLabel = video.processed ? 'Processed'
-        : video.mp3Exists ? 'Process failed'
-        : 'Pending';
+      const statusLabel_ = statusLabel(video);
       tr.innerHTML = '<td class="py-1.5 px-2 text-cyan-950 font-medium">' + video.fileName + '</td>'
         + '<td class="py-1.5 px-2 text-cyan-800">' + video.size + ' MB</td>'
         + '<td class="py-1.5 px-2 text-cyan-800">' + video.duration + '</td>'
-        + '<td class="py-1.5 px-2"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ' + statusLabelColor(video) + '">' + statusLabel + '</span></td>'
+        + '<td class="py-1.5 px-2"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ' + statusLabelColor(video) + '">' + statusLabel_ + '</span></td>'
         + '<td class="py-1.5 px-2 space-x-1.5">'
         + convertButtonHtml(video, canConvert)
         + processButtonHtml(video, canProcess)

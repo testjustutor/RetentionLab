@@ -67,7 +67,6 @@ class ReviewerSessionsModel {
                ma.sentiment_analysis_path,
                ma.talk_ratio_json_path,
                ma.questions_asked_count_path,
-               ma.topic_clusters_path,
                ma.oqi_score,
                ma.evidence_quote,
                (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as score_count,

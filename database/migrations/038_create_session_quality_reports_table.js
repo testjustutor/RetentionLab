@@ -15,7 +15,8 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS session_quality_reports (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
+    meeting_id int(11) NOT NULL,
+    session_id int(11) NOT NULL,
     overall_score INT,
     max_possible_score INT,
     percentage_score DECIMAL(5,2),

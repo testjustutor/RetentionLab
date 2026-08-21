@@ -33,7 +33,7 @@ class TranscriptionService:
         # STEP 5: Format the final transcript payload string
         labeled_transcript = Formatter.build_labeled_string(processed_script, instructor_id)
 
-        # Re-create a standard list of segment tuples/dicts to safely satisfy Step 5 TopicService downstream
+        # Re-create a standard list of segment tuples/dicts for downstream compatibility
         diarization_data_compat = [
             {"start": s["start"], "end": s["end"], "speaker": s["speaker"]} 
             for s in processed_script

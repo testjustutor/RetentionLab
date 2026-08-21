@@ -26,6 +26,21 @@ class AiApiService:
         else:
             return OpenAI(api_key=self.config.get("openaiApiKey"))
 
+    @property
+    def model(self):
+        """
+        Resolve the model name actually used for the active provider.
+        Useful for recording the exact request/response metadata.
+        """
+        if self.provider == "gemini":
+            return self.config.get("geminiModel")
+        model_map = {
+            "cloude": self.config.get("cloudeModel", "llama-3.1-8b-instant"),
+            "openai": self.config.get("openaiModel"),
+            "ollama": self.config.get("ollamaModel")
+        }
+        return model_map.get(self.provider, "gpt-4o-mini")
+
     def ask_ai(self, prompt, system_instruction="You are a helpful assistant."):
         try:
             if self.provider == "gemini":

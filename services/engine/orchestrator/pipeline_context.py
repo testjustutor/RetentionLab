@@ -71,11 +71,6 @@ class PipelineContext:
             False
         )
 
-        self.enable_topics = self.str_to_bool(
-            features.get("topic_clustering"),
-            False
-        )
-
         self.enable_persist_results = self.str_to_bool(
             features.get("persist_results"),
             True
@@ -98,7 +93,6 @@ class PipelineContext:
         # Structured outputs produced by the AI tasks and consumed by
         # the persist_results task.
         self.summary_data = {}
-        self.topics_data = None
 
         # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
@@ -116,7 +110,6 @@ class PipelineContext:
             "transcription": "pending",
             "audit": "pending",
             "summary": "pending",
-            "topics": "pending",
             "persist_results": "pending"
         }
 
@@ -180,23 +173,54 @@ class PipelineContext:
 
     def _resolve_meeting_id(self, session_id):
         """
-        Resolve the REAL numeric meetings.id for a session by looking up the
-        meeting_sessions table (which stores meeting_id -> meetings.id).
+        Resolve the REAL numeric meetings.id for a session — and if needed,
+        ensure the meeting/session rows exist — so ai_audit_results.meeting_id
+        is ALWAYS an integer (meetings.id) and never the filename string.
+
+        Resolution order:
+          1. meeting_sessions.meeting_id for the given session_id (fast path).
+          2. meetings.external_meeting_id parsed from the filename; if found,
+             ensure a meeting_sessions row (id=session_id) links to it.
+          3. If no meeting exists yet, create a meetings row (keyed by
+             external_meeting_id) + a meeting_sessions row, then return the new
+             integer meetings.id.
 
         Returns:
-            meetings.id (int/str) if resolved, otherwise None (caller falls
-            back to base_id so file/DB writes never break).
+            meetings.id (int) if resolvable/created, otherwise None (the caller
+            falls back to base_id so file writes never break).
         """
         if not session_id:
             return None
         try:
-            from database.python_db import fetch_one
+            from database.python_db import fetch_one, execute, insert
+
+            # 1) Fast path: existing session row already maps to meetings.id
             row = fetch_one(
                 "SELECT meeting_id FROM meeting_sessions WHERE id = %s LIMIT 1",
                 (int(session_id),)
             )
             if row and row.get("meeting_id"):
                 return row["meeting_id"]
+
+            # 2) Resolve (or create) the meeting via the embedded external id,
+            #    then ensure the meeting_sessions row links it to this session.
+            external_id = self._resolve_external_meeting_id()
+            if external_id:
+                meeting = fetch_one(
+                    "SELECT id FROM meetings WHERE external_meeting_id = %s LIMIT 1",
+                    (external_id,)
+                )
+                if meeting and meeting.get("id"):
+                    meeting_id = meeting["id"]
+                else:
+                    meeting_id = insert(
+                        "INSERT INTO meetings (external_meeting_id, title, status, created_at, updated_at) "
+                        "VALUES (%s, %s, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                        (external_id, external_id)
+                    )
+                if meeting_id:
+                    self._ensure_session_row(int(session_id), meeting_id)
+                    return meeting_id
         except Exception as e:
             print(
                 f"[PIPELINE CONTEXT] WARNING: Could not resolve meeting_id for "
@@ -204,6 +228,23 @@ class PipelineContext:
                 flush=True
             )
         return None
+
+    def _resolve_external_meeting_id(self):
+        """Extract the leading external meeting id from the filename base_id,
+        e.g. '82014705313_Sess159_2026-08-12_19-57' -> '82014705313'."""
+        m = re.match(r"^([^_]+)_Sess", str(self.base_id))
+        return m.group(1) if m else None
+
+    def _ensure_session_row(self, session_id, meeting_id):
+        """Upsert a meeting_sessions row linking session_id -> meetings.id so
+        downstream resolution (ai_audit_results + Node bridge) sees the mapping."""
+        from database.python_db import execute
+        execute(
+            "INSERT INTO meeting_sessions (id, meeting_id, start_time, status) "
+            "VALUES (%s, %s, CURRENT_TIMESTAMP, 'completed') "
+            "ON DUPLICATE KEY UPDATE meeting_id = VALUES(meeting_id)",
+            (session_id, meeting_id)
+        )
 
     def _setup_directories(self):
         storage_base = os.path.join(
@@ -269,11 +310,6 @@ class PipelineContext:
             # ==========================================
             # AI / NLP CACHE
             # ==========================================
-
-            "cache_topic_trackers": os.path.join(
-                storage_base,
-                "cache_topic_trackers"
-            ),
 
             "cache_llm_prompts": os.path.join(
                 storage_base,

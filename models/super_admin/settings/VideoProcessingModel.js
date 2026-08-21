@@ -244,22 +244,34 @@ class VideoProcessingModel {
       const lastStatus = await this.getLatestStatus(fileName);
       const ids = await this.resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null }));
 
-      // A video is only fully "processed" when its session has AI audit results
-      // in ai_audit_results. If the MP3 exists but there are no audit rows yet,
-      // treat it as a failed/not-processed run so the user can Re-process.
+      // Authoritative "processed" only when the session actually has AI audit
+      // results in ai_audit_results. Everything else is derived from the
+      // video_processing record + mp3 presence as a clean state machine:
+      //   Pending -> Converted -> Processing -> Processed | Process failed
       const processed = mp3Asked && await this.hasAuditResults(ids.sessionId);
+
       let status;
+      let canConvert = false;
+      let canProcess = false;
+
       if (processed) {
+        // Fully processed (audit results present): Process button disabled.
         status = 'processed';
-      } else if (mp3Asked) {
+      } else if (!mp3Asked) {
+        // No audio yet: Convert enabled, Process disabled.
+        status = 'pending';
+        canConvert = true;
+      } else if (lastStatus === 'processing') {
+        // Processing is in flight.
+        status = 'processing';
+      } else if (lastStatus === 'failed') {
+        // Processing failed / broke in between: allow Re-process.
         status = 'failed';
+        canProcess = true;
       } else {
-        status = 'Pending';
-      }
-      // Prefer a more meaningful persisted status, but never override the
-      // authoritative audit-based "processed" flag.
-      if (!processed) {
-        status = lastStatus || status;
+        // MP3 exists, not yet processed and not failed -> Converted, Process enabled.
+        status = 'converted';
+        canProcess = true;
       }
 
       videos.push({
@@ -269,8 +281,8 @@ class VideoProcessingModel {
         mp3Exists: mp3Asked,
         processingStatus: status,
         processed,
-        canConvert: !mp3Asked,
-        canProcess: mp3Asked && !processed,
+        canConvert,
+        canProcess,
         videoPath: this.videoLink(fileName),
         audioPath: mp3Asked ? this.audioLink(this.toMp3Name(fileName)) : null,
         meetingId: ids.meetingId,

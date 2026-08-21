@@ -16,7 +16,6 @@ class CacheCleanupTask:
     Safe for:
     - Whisper cache
     - diarization cache
-    - topic trackers
     """
 
     CACHE_DIRECTORIES = [
@@ -24,8 +23,6 @@ class CacheCleanupTask:
         "cache_whisper",
 
         "cache_diarization",
-
-        "cache_topic_trackers",
 
         "cache_voice_activity",
 

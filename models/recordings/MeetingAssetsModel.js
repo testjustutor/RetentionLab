@@ -77,9 +77,9 @@ class MeetingAssetsModel {
             wav_audio_path, whisper_path, captions_raw_path, diarization_path, 
             embeddings_path, llm_prompts_path, action_items_path, 
             sentiment_analysis_path, talk_ratio_json_path, user_silence_duration_path, 
-            questions_asked_count_path, topic_clusters_path, summary_path, 
+            questions_asked_count_path, summary_path, 
             oqi_score, evidence_quote, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             audio_path = VALUES(audio_path),
             transcript_path = VALUES(transcript_path),
@@ -95,7 +95,6 @@ class MeetingAssetsModel {
             talk_ratio_json_path = VALUES(talk_ratio_json_path),
             user_silence_duration_path = VALUES(user_silence_duration_path),
             questions_asked_count_path = VALUES(questions_asked_count_path),
-            topic_clusters_path = VALUES(topic_clusters_path),
             summary_path = VALUES(summary_path),
             oqi_score = VALUES(oqi_score),
             evidence_quote = VALUES(evidence_quote),
@@ -119,7 +118,6 @@ class MeetingAssetsModel {
         data.talk_ratio_json_path || null,
         data.user_silence_duration_path || null,
         data.questions_asked_count_path || null,
-        data.topic_clusters_path || null,
         data.summary_path || null,
         data.oqi_score || null,
         data.evidence_quote || null,
@@ -149,7 +147,7 @@ class MeetingAssetsModel {
         'whisper_path', 'captions_raw_path', 'diarization_path', 'embeddings_path',
         'llm_prompts_path', 'action_items_path', 'sentiment_analysis_path',
         'talk_ratio_json_path', 'user_silence_duration_path', 'questions_asked_count_path',
-        'topic_clusters_path', 'summary_path', 'oqi_score', 'evidence_quote', 'status'
+        'summary_path', 'oqi_score', 'evidence_quote', 'status'
       ];
 
       const keys = Object.keys(data).filter(key => validColumns.includes(key));

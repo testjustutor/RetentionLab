@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS session_rubric_summary (
     gate_status ENUM('all_passed', 'gate_failed') DEFAULT 'all_passed',
     overall_rating VARCHAR(50) DEFAULT 'Developing',
     confidence_level VARCHAR(255) DEFAULT 'Medium',
+    red_flag TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_srs_session (session_id)

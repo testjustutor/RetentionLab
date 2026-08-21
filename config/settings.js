@@ -177,7 +177,6 @@ module.exports = {
     transcription: true,
     ai_audit: true,
     summary_generation: true,
-    topic_clustering: true,
     persist_results: true
   },
 

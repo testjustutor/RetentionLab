@@ -111,6 +111,24 @@ class MeetingAssetModel {
       );
     });
   }
+
+  /**
+   * Look up a meeting's internal id (meetings.id) from a session id.
+   * meeting_sessions.meeting_id references meetings.id (the internal ID), so this
+   * is the authoritative source for resolving meetingId from a known sessionId —
+   * the meeting id is read from the DB, never fabricated by engine/bridge code.
+   * @param {number} sessionId - meeting_sessions.id
+   * @returns {Promise<{meeting_id: number}|null>}
+   */
+  static getMeetingIdBySessionId(sessionId) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT meeting_id FROM meeting_sessions WHERE id = ? LIMIT 1',
+        [sessionId],
+        (err, row) => (err ? reject(err) : resolve(row || null))
+      );
+    });
+  }
 }
 
 module.exports = MeetingAssetModel;

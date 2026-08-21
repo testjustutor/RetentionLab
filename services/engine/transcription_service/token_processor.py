@@ -38,7 +38,7 @@ class TokenProcessor:
                 "speaker": seg.get("speaker", "UNKNOWN_SPEAKER")
             })
             
-        # Cache raw diarization arrays for your downstream topic clustering engine (TopicService)
+        # Cache raw diarization arrays for downstream services
         try:
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
             base_id = os.path.basename(audio_path).replace("WAV_", "").replace(".wav", "").replace("REC_", "").replace(".mp3", "")

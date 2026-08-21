@@ -83,12 +83,12 @@ async function getFullRubric() {
   return new Promise((resolve, reject) => {
     const sql = `
       SELECT
-        rc.category_id, rc.name AS category_name, rc.weight AS category_weight,
-        ri.indicator_id, ri.name AS indicator_name, ri.type, ri.is_gate,
+        rc.id AS category_id, rc.name AS category_name, rc.weight AS category_weight,
+        ri.indicator_code AS indicator_id, ri.name AS indicator_name, ri.type, ri.is_gate,
         ri.value AS indicator_weight, ri.benchmark, ri.requires_video
       FROM rubric_categories rc
-      JOIN rubric_indicators ri ON ri.category_id = rc.category_id
-      ORDER BY rc.category_id, ri.indicator_id
+      JOIN rubric_indicators ri ON ri.category_id = rc.id
+      ORDER BY rc.id, ri.indicator_code
     `;
     db.all(sql, [], (err, rows) => {
       if (err) return reject(err);

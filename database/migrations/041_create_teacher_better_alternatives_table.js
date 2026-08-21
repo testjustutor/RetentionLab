@@ -15,7 +15,8 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS teacher_better_alternatives (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
+    meeting_id int(11) NOT NULL,
+    session_id int(11) NOT NULL,
     transcript_situation TEXT,
     current_approach TEXT,
     better_alternative TEXT,

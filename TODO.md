@@ -1,3 +1,75 @@
+---
+## Task: Remove diarization completely from the automatic pipeline (manual/on-demand only)
+
+Requirement: diarization must NOT run in media -> transcription -> [audit, summary] -> persist_results at all. It becomes a standalone manual script.
+
+- [x] task_registry.py: remove run_diarization_task + run_persist_diarization_task handlers and their registry entries
+- [x] dependency_graph.py: update docstring to show only media -> transcription -> [audit, summary] -> persist_results
+- [x] pipeline_context.py: remove enable_diarization + enable_persist_diarization flags and their task_status entries
+- [x] config/settings.js: remove diarization + persist_diarization pipeline_features flags
+- [x] Delete task/transcription/diarization_task.py + persist/persist_diarization_task.py; drop their exports from __init__.py files
+- [x] Delete orphaned legacy task/transcription_task.py (combined Whisper+diarization superseded)
+- [x] execution_manager.py: remove DETACHED_TASKS / detached-task machinery (no longer needed)
+- [x] Create services/engine/manual/run_diarization.py (CLI argparse; loads cached whisper transcript; runs PyannoteDiarizer+DiarizationEngine; computes talk_ratio; saves DIAR/RATIO/captions json; persists to session_diarization via direct execute)
+- [x] Create services/engine/manual/__init__.py
+- [x] Migration 062 comment update (persist via manual script, not pipeline task)
+- [x] ARCHITECTURE.md Section 9: update diagram + add manual/on-demand subsection
+- [x] ARCHITECTURE.md: update remaining automatic-pipeline diarization references (lines 13, 128, 210) + add manual script to canonical reference files
+- [ ] Validate: import_ok; graph contains no diarization (functional run)
+
+---
+## Task: Separate speaker diarization into its own parallel task
+---
+## Task: Remove `topic_clustering` feature from the project entirely
+
+Requirement: topic_clustering is no longer needed. Remove the topics task, topic_service, all registrations/deps, config flag, context fields, storage/cache references, and result-builder field.
+
+- [x] Delete services/engine/task/topics/ (topics_task.py, __init__.py)
+- [x] Delete services/engine/topic_service/ (service.py, topic_worker.py, __init__.py)
+- [x] task_registry.py: remove run_topics_task handler + "topics" registry entry + "topics" from persist_results deps
+- [x] pipeline_context.py: remove enable_topics + topics_data + task_status "topics" + cache_topic_trackers storage path
+- [x] pipeline_bootstrap.py: remove cache_topic_trackers from REQUIRED_DIRECTORIES
+- [x] cache_cleanup_task.py: remove cache_topic_trackers
+- [x] cache_health_monitor.py: remove cache_topic_trackers
+- [x] config/settings.js: remove topic_clustering flag
+- [x] task_result_builder.py: remove topics_generated field
+- [x] assets.html: remove cache_topic_trackers sidebar button
+- [x] user-settings.js: remove topicClusteringEnabled entry
+- [x] ARCHITECTURE.md: remove topic_service/topics/topic tracking references
+- [x] task/README.md: remove topics/ doc section
+- [x] recordingsController.js: remove topic_clusters_path label entry
+- [x] reviewerSessionsController.js: remove topic_clusters_path select + topic_clusters_url output
+- [x] ReviewerSessionsModel.js: remove topic_clusters_path from SELECT
+- [x] MeetingAssetsModel.js: remove topic_clusters_path from INSERT/UPDATE/params/validColumns
+- [x] admin/content/summaries.js: remove topic_clusters_url Topics link
+- [x] marketing/data.js + index.html: remove topic clustering copy
+- [x] meeting_intelligence_builder.py: remove "topics" key/param (unused builder)
+- [x] Deleted dead topic_prompts.py (TOPIC_PROMPT) + transcription_service/topic_tracker.py (TopicTracker)
+- [x] dependency_graph.py/execution_manager.py/task_registry.py: remove "topics" from pipeline comments/docstrings
+- [x] persist_diarization_task.py + persist_results_task.py: update pipeline docstrings without topics
+- [x] diarization_task.py + parallel_task_manager.py + cache_cleanup_task.py + task/README.md: remove topic refs
+- [x] Verify: py_compile all + node --check; graph builds/persist deps without topics
+
+---
+## Task: Split "transcription" into separate Whisper + Diarization pipeline tasks
+
+Requirement: Diarization (pyannote) takes 20-25+ min and is NOT needed by audit. Split so audit/persist can finish without waiting for diarization.
+
+- [x] transcript_builder.py: add `build_plain_text()` + static `compute_talk_ratio()`
+- [x] transcription_service/service.py: split `transcribe()` into separate `transcribe()` (Whisper+plain) and `diarize()` (pyannote+talk_ratio)
+- [x] transcription_task.py: refactor to Whisper only (remove diarization/talk_ratio/diar_path/captions_raw)
+- [x] Create diarization_task.py: pyannote labeling + talk_ratio + file saves (DIAR_, RATIO_, captions_raw)
+- [x] __init__.py: export run_diarization_task
+- [x] pipeline_context.py: add enable_diarization / enable_persist_diarization flags + task_status entries
+- [x] task_registry.py: add diarization (deps:[transcription], parallel) + persist_diarization (deps:[diarization]) handlers
+- [x] config/settings.js: add diarization + persist_diarization to pipeline_features
+- [x] Create persist_diarization_task.py: write talk_ratio/speaker segments to DB independently
+- [x] Migration 062: create session_diarization table (talk_ratio JSON, speaker_segments JSON)
+- [x] execution_manager.py: refactor parallel execution for non-blocking diarization branch
+- [x] execution_manager.py: fix detached-task re-submission — track _detached_running so diarization/persist_diarization run exactly once
+- [x] Verified: `import services.engine.engine_main` -> import_ok; functional run shows completion order [media, transcription, audit, summary, persist_results, diarization, persist_diarization] — persist_results finishes BEFORE diarization, each task exactly once
+
+
 ## Task: Super Admin — Meeting AI Evaluation Report (per meeting/session from ai_audit_results)
 
 Requirement: build list page (filters: from/to date + instructor) showing all meeting sessions with an AI report link; clicking it opens a detail page for that session_id showing full AI audit data from ai_audit_results.
@@ -20,6 +92,7 @@ Requirement: build list page (filters: from/to date + instructor) showing all me
 - [x] Verified large-file (70-100MB / 55-min, 101.1MB WAV) chunking now works: previously each chunk's torchaudio fallback did torchaudio.load(audio_path) loading the ENTIRE multi-GB WAV into memory -> OOM. With the soundfile samplerate fix all 61 chunks (sample rate 16kHz) extract correctly with no fallback and no memory blowup. Cleaned up orphaned _diar_chunks.
 - [x] Direct MP3 test: diarizer ran on storage/recordings/REC_Regular_Sess248879_2026_08_17_09-00.mp3 (75.8MB, 3312s=55min) - soundfile opens it (44100Hz, 2ch), all 61 chunks extract correctly (60/60/12.1s), no torchaudio fallback, no OOM.
 - [x] Video Processing page: Process button now disabled + status "Processed" once ai_audit_results has rows for that session (verified via VideoProcessingModel.hasAuditResults). If MP3 exists but no audit rows -> status "Process failed" + "Re-process" button enabled. getAllVideos now returns processed flag + canProcess = mp3Exists && !processed; frontend uses processed flag for status/button/stats.
+- [x] Video Processing state machine (reworked): Pending (no mp3 -> Convert enabled, Process disabled) -> Converted (mp3, not processed/failed -> Convert disabled, Process enabled "Process") -> Processing (record 'processing' -> "Processing" badge + disabled button) -> Processed (audit results -> "Processed", Process disabled) | Process failed ('failed' record -> "Process failed" + "Re-process" enabled). Verified live getAllVideos shows correct states per file.
 
 ---
 ## Task: Save the REAL AI audit prompt to storage/cache_llm_prompts/
@@ -36,7 +109,7 @@ Requirement: the PROMPT_AUDIT_*.json file must contain the actual prompt sent to
 
 Requirement: don't read the rubric detail from the ai_raw_response JSON — add columns and write them directly.
 
-- [x] Migration 061: add category_name, category_weight, indicator_name, indicator_value, is_gate, ai_evidence columns to ai_audit_results
+- [x] Migration 061 (now folded into base migration 055, file removed): add category_name, category_weight, indicator_name, indicator_value, is_gate, ai_evidence columns to ai_audit_results
 - [x] Apply migration (run up) against live DB
 - [x] persist_results_task.py: write those columns directly in the INSERT
 - [x] Verify: py_compile + re-run persist writes columns; clean test rows
@@ -1718,3 +1791,157 @@ This matches the existing pattern in `routes/roles.js:29` which uses the same co
 - [x] Verify: node --check passes on JS; div balance 38/38; all 17 element IDs consistent between HTML and JS; page returns 302 auth redirect (expected); model loads OK
 - [x] FIX2: runFullAudioPipeline must be called as (meetingId, sessionId, fileName) — the fileName is the 3rd positional arg. Previously called (fileName) only, leaving fileName=undefined -> engine looked for storage/recordings/undefined. Now resolves seeded meeting/session for named videos and passes mp3 name as 3rd arg.
 - [x] CONVERT (named videos): after conversion, sync meeting_sessions (audio_file_name=mp3, transcript_file_name=TRANS_*.txt) and meeting_assets (audio_path, transcript_path, video_path). Verified in live DB.
+---
+## Task: Store BOTH the exact AI request AND exact AI response in cache_llm_prompts/
+
+Requirement: PROMPT_AUDIT_*.json must contain exactly what was sent to the AI (system_instruction + prompt + replayable combined prompt) AND the exact raw AI response, so the file can be used to copy-paste the prompt into a direct AI chat and reproduce the same response.
+
+- [x] api_worker.py: add `model` property (resolves the active provider's model) so the response file records which model produced the response
+- [x] audit_worker.py: `_save_prompt_file` helper writes `request` (system_instruction / prompt / OpenAI messages[] / replayable_prompt) + `response` {status, raw_response} + model + provider; called before ask_ai (status PENDING) and again right after ask_ai returns (status OK, with the exact raw_response)
+- [x] Verified: py_compile clean on both files; isolated functional test confirmed the file stores PENDING then OK, raw_response matches the AI output, replayable_prompt = system + "\n\n" + user, and messages/model are correct
+---
+## Task: Resolve missing meetingId from meeting_sessions (bridge must not fabricate meeting id)
+
+Requirement: When the Python engine returns a meeting_id string (filename-derived base id) that cannot be used as a numeric meetings.id — e.g. `82014705313_Sess159_...` — the Node bridge (`pythonBridge.resolveMeetingContext`) must resolve the real meeting id by reading `meeting_sessions.meeting_id` using the known `session_id` (meeting_sessions.id). Never create/fabricate a meeting id in engine/bridge code; always read it from the DB via the session.
+
+- [x] meetingAssetModel.js: add `getMeetingIdBySessionId(sessionId)` -> SELECT meeting_id FROM meeting_sessions WHERE id = ? (meeting_sessions.meeting_id references meetings.id)
+- [x] pythonBridge.js: rewrite `resolveMeetingContext` — prefer caller-supplied ids; else resolve sessionId from caller or parse Sess<n> from engine meeting_id; then read meetingId from meeting_sessions.meeting_id via the session id (removed the external_meeting_id parse-and-lookup path)
+- [x] Verified: node --check clean on both files; stubbed functional test confirmed (null,159)->{meetingId:4,sessionId:159}, parse-from-engine Sess159/7 resolution, caller-ids-win, and unknown-session->null (graceful, never fabricated)
+---
+## Task: Guarantee ai_audit_results.meeting_id is an integer (never the filename string)
+
+Recurring issue: after `db:reset` (or any missing data), meetings/meeting_sessions were empty, so the pipeline fell back to the filename-derived base_id and stored strings like "82014705313_Sess159_2026-08-12_19-57" in ai_audit_results.meeting_id; the Node bridge also logged "missing meetingId/sessionId for null/159".
+
+Root cause: `_resolve_meeting_id` only works if a `meeting_sessions` row already exists for the session — after a reset that row is gone.
+
+- [x] pipeline_context.py `_resolve_meeting_id`: now ALWAYS produces a real integer meetings.id —
+  1) fast-path existing session row,
+  2) resolve/ensure meeting by external_meeting_id parsed from filename, then upsert meeting_sessions row (id=session_id -> meetings.id),
+  3) if no meeting exists, create meetings row (keyed by external_meeting_id) + meeting_sessions row, return new integer id.
+  Added helpers `_resolve_external_meeting_id` + `_ensure_session_row`.
+- [x] Verified live: on empty DB, `_resolve_meeting_id(159)` for base_id "82014705313_Sess159_2026-08-12_19-57" created meeting(id=1, external='82014705313') + session 159(meeting_id=1) and returned integer 1. Since the session row now exists, the Node bridge resolveMeetingContext(null,159,...) will also find meetingId and stop skipping DB-sync.
+- [x] Cleaned up test rows; both meetings and meeting_sessions back to 0. py_compile clean on pipeline_context.py.
+
+---
+## Task: Upgrade AI audit rubric prompt + null-safe scoring for audio-only evaluation
+
+---
+## Task: Fix ai_audit_results.category_id / indicator_id showing 0
+
+Issue: persist_results_task stored the string category code ('A') / indicator code ('A1.1') in ai_audit_results.category_id/indicator_id, but those columns are used to join rubric_categories.id / rubric_indicators.id (numeric) — the report queries rc.id = aar.category_id. Because the code string was written into a VARCHAR column that later showed as '0', the report couldn't resolve names/weights.
+
+Fix: store the NUMERIC rubric ids in ai_audit_results.
+- [x] rubric_loader.py: also SELECT + expose numeric `id` for rubric_categories and rubric_indicators
+- [x] persist_results_task._persist_audit: store category_id = rubric_categories.id (numeric), indicator_id = rubric_indicators.id (numeric); keep codes in ai_raw_response JSON (rubric_category_id / rubric_indicator_id) for reference; match indicators to categories by code internally
+- [x] audit_worker._build_rubric_schema_from_loader + _store_audit_results: carry numeric `category_id_pk`/`indicator_id_pk` and store numeric ids
+- [x] tutor_eval_worker._persist: store numeric rubric ids in ai_audit_results (session_rubric_evaluations still uses the code for its indicator_id unique key)
+- [x] Verified live on session 159: rebuilt 94 rows via _persist_audit; category_id ∈ {1..8}, indicator_id ∈ {1..94} (matching rubric_categories.id / rubric_indicators.id), no '0' rows remain; py_compile clean on all four files
+
+Requirement: evaluation is AUDIO/TRANSCRIPT ONLY (no video feed). The prompt sent to the AI must:
+
+---
+## Task: Move rubric_indicators ALTER columns from seeder into a migration
+
+Requirement: the rubric seeder (006_rubric.js) was imperatively ALTERing rubric_indicators to add benchmark + requires_video at seed time. Move that into the versioned migration set.
+
+- [x] Created database/migrations/063_add_benchmark_requires_video_to_rubric_indicators.js (idempotent, INFORMATION_SCHEMA existence check) adding rubric_indicators.benchmark (TEXT) + requires_video (TINYINT(1) DEFAULT 0)
+- [x] Removed both ALTER TABLE blocks from database/seeders/006_rubric.js (kept logger/runAsync usage which remain used elsewhere)
+- [x] Node --check clean on seeder + migration; ran migration up() live -> both columns already exist, skips gracefully (MIGRATION_OK)
+- [x] Note: base migration 010_create_rubric_indicators_table.js already defines both columns in CREATE TABLE, so fresh resets get them from there; 063 is the safe legacy/idempotent path
+
+---
+## Task: Move session_rubric_evaluations / session_rubric_summary CREATE TABLE out of rubric seeder
+
+Requirement: the rubric seeder (006_rubric.js) was imperatively creating session_rubric_evaluations + session_rubric_summary tables. These are already owned by migrations 056 + 057, so the seeder DDL is redundant/stale (057 even includes red_flag the seeder lacks).
+
+---
+## Task: Adapt to renamed rubric schema (category_code / indicator_code, int FK)
+
+The user changed the master rubric tables:
+- rubric_categories: `category_id` -> `category_code` (code lives in category_code; PK is id)
+- rubric_indicators: `indicator_id` -> `indicator_code`; `category_id` is now an INT FK to rubric_categories.id
+
+Migrations 007/010 + seeder 006 were already updated by the user. Updated the code reading/writing these tables:
+- [x] rubric_loader.py: query rubric_categories (id, category_code, name, weight) + rubric_indicators (JOIN rubric_categories to resolve category_code); expose id, indicator_code, category_id (numeric FK), category_code, name, type, value, is_gate, benchmark, requires_video
+- [x] audit_worker.py _load_master_rubric_schema + _build_rubric_schema_from_loader: use category_code/indicator_code as codes, id as numeric pk; group indicators by numeric category FK
+- [x] persist_results_task._persist_audit: match indicators to categories by numeric FK (ind.category_id == cat.id); codes from category_code / indicator_code
+- [x] tutor_eval_worker._compute_percentages + _persist: key categories by numeric id, group by numeric FK; store numeric rubric ids; session_rubric_evaluations.indicator_id stores the indicator_code
+- [x] sessionQualityGenerator.js getFullRubric query: use rc.id / ri.indicator_code and join on ri.category_id = rc.id
+- [x] Verified live on session 159: RubricLoader loads 8 cats / 94 inds with codes + numeric ids; _persist_audit writes 94 ai_audit_results rows with category_id 1..8 and indicator_id 1..94 (matching the new numeric keys); py_compile + node --check clean
+
+NOTE: the master rubric super-admin CRUD + dev seeders are now ALSO updated to the final schema:
+- [x] models/rubrics/MasterRubricModel.js + models/super_admin/rubrics/MasterRubricModel.js rewritten: category_code/indicator_code, numeric FK (ri.category_id -> rc.id), subgroup_name + benchmark + requires_video on create/update; drop company_id; resolve ids/codes via helper lookups (no hardcoded ids). Verified: getCategories/getIndicators/getFullMasterRubric work live (8 cats, 94 inds, indicator->category_name resolves).
+- [x] models/super_admin/people/manage-rubrics/ManageRubricsModel.js wrapper: use category_code/indicator_code (+ subgroup_name/benchmark/requires_video), drop company_id
+- [x] database/seeders/011_session_quality.js: use indicator_code; fix computeSummary joins (sre.indicator_id = ri.indicator_code, ri.category_id = rc.id)
+- [x] database/manual-seeder/13_seed_meeting_session_scores.js: use indicator_code
+- [x] db entries 006/07/06 already use the new schema. admin_rubric_* tables (RubricAdminModel/RubricModel/RubricEvaluationModel) are a SEPARATE untouched admin-scoped set and correctly still use their own category_id/indicator_id columns.
+
+
+
+## Task: Thread subgroup_name into the AI (Python) rubric prompt + output
+
+Requirement: rubric_indicators now has subgroup_name (populated for all 94 indicators). It should be included in the rubric payload sent to the AI so evaluations are aware of the subgroup grouping, and surfaced in computed outputs.
+
+- [x] rubric_loader.py: SELECT ri.subgroup_name + expose it on each indicator (alongside indicator_code, category_id numeric FK, category_code)
+- [x] audit_worker.py _load_master_rubric_schema + _build_rubric_schema_from_loader: carry subgroup_name through the schema used for the AI prompt
+- [x] tutor_eval_worker.py _compute_percentages: include subgroup_name in the per-indicator computed breakdown
+- [x] Verified live: RubricLoader reads subgroup_name (A1.1 -> 'Lesson Structure & Flow', catFK=1, catCode=A); the AI prompt payload now contains subgroup_name + indicator_code + category_code; py_compile clean on all four files
+
+Final rubric schema confirmed in the AI (Python) flow:
+- rubric_categories: id (PK, int), category_code (UNI), name, weight, status
+- rubric_indicators: id (PK, int), category_id (int FK -> rubric_categories.id), indicator_code (UNI), subgroup_name, name, type, is_gate, value, benchmark, requires_video, status
+- ai_audit_results stores numeric category_id / indicator_id (matching rubric_categories.id / rubric_indicators.id), category_name/weight, indicator_name/value, is_gate, ai_score/max, ai_evidence, rating/reason/benchmark columns, ai_raw_response (null for tutor-eval), oqi_score, evidence_quote, talk_ratio
+
+- [x] Removed both CREATE TABLE IF NOT EXISTS blocks from database/seeders/006_rubric.js; seeder now only inserts rubric categories + indicators
+- [x] Node --check clean; ran seeder -> "Rubric seeded successfully" (SEED_RUN_OK); confirmed 8 categories + 94 indicators inserted without any DDL
+- [x] Confirmed both tables exist in live DB from migrations 056/057
+
+
+- instruct that requires_video indicators get score:null (not guessed/scored),
+- include benchmark + requires_video + is_gate per indicator in the rubric payload,
+- exclude null-scores from category/OQI aggregation (never treat them as 0),
+- return gate_failures (gate indicators scored 0) in the JSON contract.
+
+- [x] rubric_loader.py: SELECT now includes benchmark + requires_video per indicator (verified columns exist in DB)
+- [x] audit_worker.py _build_rubric_schema_from_loader + _load_master_rubric_schema: pass through benchmark + requires_video + is_gate into the schema that drives the prompt + storage
+- [x] audit_worker.py process_audit: new system_instruction (INPUT MODE, requires_video null-score rule, benchmark standard, gate_failures array, scored/excluded counts in JSON contract)
+- [x] audit_worker.py _store_audit_results: score null now stored as NULL (not coerced to 0) so video-gated indicators aren't penalized
+- [x] audit_task.py _normalize_audit_result: null-scores excluded from total/score_total/max_score_total and not counted as failed; excluded rubric entries flagged; gate_failures surfaced
+- [x] persist_results_task.py _persist_audit: gate_status=gate_failed when AI returns gate_failures; score_by_indicator preserves null; persisted ai_score stays NULL for excluded indicators
+- [x] Verified: py_compile clean on all four modified files; functional tests confirm schema carries benchmark/requires_video, null-scores excluded from aggregation (metrics failed=0, percentage/sum correct), gate_failures surfaced, persist stores NULL not 0
+- [x] Downstream report: MeetingAiEvaluationReportController getSessionReport now averages only non-null ai_score rows and excludes NULL-scored gates from gateFailed count; meeting-ai-session-report.js renders excluded rows as "N/A" (does not crash on null). Summary list page already uses SQL AVG which ignores NULLs.
+- [x] rubric_loader.py: normalize each indicator to clean booleans (is_gate / requires_video) in the returned payload (MySQL returns 0/1 ints; the AI instruction tests "requires_video" as a flag). Verified the live AI payload now contains "requires_video": true entries.
+---
+## Task: AI-driven Tutor Session Evaluation (Met/Not Met/Not Applicable) with prompt+response caching
+
+Requirement: No new frontend page. Build an engine-side AI generator that evaluates a tutor session using the three-option rubric (Met / Not Met / Not Applicable), computes category + overall percentages in code, persists results to DB, and — recurring hard requirement — stores the EXACT prompt sent to the AI and the EXACT raw AI response in storage/cache_llm_prompts/.
+
+Calculations (code, not LLM, per project design decision):
+- category_percentage = (count Met) / (total indicators in category − count Not Applicable) × 100
+- overall percentage = combine category percentages (weighted by category weight when present, else simple average)
+- red_flag surfaced as a locked boolean in the summary row
+
+- [x] Create services/engine/ai_evaluation_service/ (__init__.py + tutor_eval_worker.py): load rubric via RubricLoader, build Met/Not Met/Not Applicable prompt, cache exact prompt+response to storage/cache_llm_prompts/EVAL_<base>.json, parse ratings, compute percentages, persist session_rubric_evaluations + session_rubric_summary + session_final_evaluation
+- [x] Migration 063 (now folded into base migration 057 + reset-db.js, file removed): add red_flag TINYINT(1) DEFAULT 0 to session_rubric_summary
+- [x] RubricSummaryModel.upsert + bulkUpsert: accept + persist red_flag
+- [x] Create services/engine/manual/run_tutor_evaluation.py (CLI mirroring run_diarization.py) to invoke the generator per session
+- [x] Fix services/shared/ai_config.py load_settings_ai: run node from PROJECT ROOT so settings.js's dotenv.config() loads the root .env (was cwd=config/ and missed the keys). Now audit/summary/CLI AI config all resolve correctly.
+- [x] Verify: py_compile all Python; node --check RubricSummaryModel; stubbed functional test (weighted multi-category math A=50/B=100 -> overall=70, red_flag persisted, exact prompt+response file, DB rows written+cleaned); then REAL Gemini CLI run on session 1 -> overall 93.71%, 94 session_rubric_evaluations rows, session_rubric_summary(weighted_score_pct=93.71, gate_status=all_passed, red_flag=0), session_final_evaluation written, and EVAL_sess1.json confirmed to hold exact request + exact raw response (37KB) + computed categories
+---
+## Task: Persist tutor evaluation results into ai_audit_results as well
+
+Requirement: the AI Tutor Session Evaluation must ALSO store its per-indicator results in `ai_audit_results` (not only session_rubric_evaluations/summary/final_evaluation), reusing the existing null-safe scoring convention (Not Applicable -> ai_score NULL, excluded from aggregation).
+
+- [x] tutor_eval_worker._persist: delete-then-insert per-indicator rows into ai_audit_results (meeting_id, session_id, category_id, indicator_id, category_name, category_weight, indicator_name, indicator_value, is_gate, ai_score, ai_max_score, ai_evidence, oqi_score=overall%, evidence_quote, talk_ratio) — Met->full value, Not Met->0, N/A->NULL
+- [x] Verified live real-Gemini run on session 1: ai_audit_results now has 94 rows; N/A indicators have ai_score NULL (excluded), oqi_score=99; avg pct matches overall
+
+## Sub-task: store rating/reason/benchmark in dedicated columns (NOT JSON)
+
+Requirement: don't put the per-indicator rating/reason/benchmark into the ai_raw_response JSON column — add real columns instead.
+
+- [x] Migration removal/consolidation: added rating VARCHAR(20), reason TEXT, benchmark TEXT to ai_audit_results (base migration 055) + red_flag to session_rubric_summary (base migration 057) + categories in 055; updated reset-db.js critical-table SQL to include red_flag; DELETED migration files 061, 063, 064 as requested
+- [x] tutor_eval_worker._persist: write rating, reason, benchmark into those columns and set ai_raw_response = NULL for tutor-eval rows
+- [x] Verified live real-Gemini run on session 1: rating ('Met'/'Not met'/'N/A'), reason (reviewer note) and benchmark are populated as columns; ai_raw_response IS NULL
+- [x] Ran `npm run db:reset` successfully — tables dropped/recreated/seeded; confirmed ai_audit_results still has category_name/category_weight/indicator_name/indicator_value/is_gate/ai_evidence/rating/reason/benchmark and session_rubric_summary still has red_flag after the reset
+
+

@@ -37,7 +37,6 @@ const USER_SETTINGS_MAP = {
   sentimentAnalysisEnabled: { key: 'sentiment_analysis_enabled', type: 'string' },
   hallucinationCheckEnabled: { key: 'hallucination_check_enabled', type: 'string' },
   speakerDiarizationEnabled: { key: 'speaker_diarization_enabled', type: 'string' },
-  topicClusteringEnabled: { key: 'topic_clustering_enabled', type: 'string' },
   aiProvider: { key: 'ai_provider', type: 'string' },
   
   // Recording & Media

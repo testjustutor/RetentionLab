@@ -49,13 +49,5 @@ class TaskResultBuilder:
 
             "task_status": context.task_status,
 
-            "execution_metadata": context.execution_metadata,
-
-            # ==========================================
-            # OPTIONAL OUTPUTS
-            # ==========================================
-
-            "topics_generated": (
-                context.topics_data is not None
-            )
+            "execution_metadata": context.execution_metadata
         }

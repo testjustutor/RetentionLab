@@ -52,7 +52,6 @@ class ExecutionManager:
 
         while True:
 
-
             ready_tasks = (
                 self.graph.get_ready_tasks(
                     self.completed_tasks
@@ -66,7 +65,7 @@ class ExecutionManager:
             # ==========================================
 
             if not ready_tasks:
-                
+
                 log_with_type("info", "Engine(orchestrator > execution_manager) : No ready tasks, exiting loop", "EXECUTION")
 
                 break
@@ -74,7 +73,7 @@ class ExecutionManager:
             # ==========================================
             # SPLIT EXECUTION TYPES
             # ==========================================
-    
+
             sequential_tasks, parallel_tasks = (
                 self.graph.split_parallel_tasks(
                     ready_tasks
@@ -111,6 +110,7 @@ class ExecutionManager:
                 )
 
                 log_with_type("info", "Engine(orchestrator > execution_manager) : PARALLEL DONE", "TASK")
+
     # ==========================================
     # SINGLE TASK EXECUTION
     # ==========================================
@@ -168,7 +168,7 @@ class ExecutionManager:
     ):
 
         log_with_type("info", f"Engine(orchestrator > execution_manager) : PARALLEL EXECUTION START -> {len(tasks)} tasks", "TASK")
-        
+
         futures = {}
 
         with ThreadPoolExecutor(
@@ -177,13 +177,12 @@ class ExecutionManager:
 
         ) as executor:
 
-
             for task in tasks:
 
                 task_name = task[
                     "task_name"
                 ]
-                
+
                 handler = task[
                     "handler"
                 ]
@@ -197,7 +196,7 @@ class ExecutionManager:
                     task_name,
                     handler
                 )
-    
+
                 futures[
                     future
                 ] = task_name
@@ -205,14 +204,13 @@ class ExecutionManager:
                 log_with_type("info", f"Engine(orchestrator > execution_manager) : Parallel task submitted={task_name}", "EXECUTION")
 
             # ==========================================
-            # WAIT FOR ALL
+            # WAIT FOR ALL TASKS
             # ==========================================
 
             for future in as_completed(
                 futures
             ):
-    
-    
+
                 task_name = futures[
                     future
                 ]

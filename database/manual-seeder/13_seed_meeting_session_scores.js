@@ -16,7 +16,7 @@ const seedMeetingSessionScores = async () => {
         if (sessions.length === 0) { console.log('[Manual Seeder] ℹ No sessions found.'); return; }
 
         // Get valid indicator IDs from rubric_indicators table
-        const indicators = await allAsync(`SELECT indicator_id FROM rubric_indicators WHERE status = 'active' LIMIT 20`, []);
+        const indicators = await allAsync(`SELECT indicator_code FROM rubric_indicators WHERE status = 'active' LIMIT 20`, []);
         if (indicators.length === 0) { console.log('[Manual Seeder] ℹ No rubric indicators found. Run rubric seeder first.'); return; }
 
         let count = 0;
@@ -25,12 +25,12 @@ const seedMeetingSessionScores = async () => {
             const numIndicators = Math.floor(Math.random() * 5) + 3; // 3-7 indicators per session
             for (let i = 0; i < numIndicators; i++) {
                 const indicator = indicators[Math.floor(Math.random() * indicators.length)];
-                const existing = await getAsync(`SELECT id FROM meeting_session_scores WHERE meeting_id = ? AND session_id = ? AND indicator_id = ? LIMIT 1`, [session.meeting_id, session.id, indicator.indicator_id]);
+                const existing = await getAsync(`SELECT id FROM meeting_session_scores WHERE meeting_id = ? AND session_id = ? AND indicator_id = ? LIMIT 1`, [session.meeting_id, session.id, indicator.indicator_code]);
                 if (existing) continue;
                 await runAsync(
                     `INSERT INTO meeting_session_scores (meeting_id, session_id, indicator_id, score, score_type, comment, reviewer_id, created_at)
                      VALUES (?, ?, ?, ?, 'AI', 'Auto-generated', ?, CURRENT_TIMESTAMP)`,
-                    [session.meeting_id, session.id, indicator.indicator_id, (Math.random() * 5 + 5).toFixed(1), adminUser.id]
+                    [session.meeting_id, session.id, indicator.indicator_code, (Math.random() * 5 + 5).toFixed(1), adminUser.id]
                 );
                 count++;
             }

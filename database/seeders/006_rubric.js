@@ -136,91 +136,105 @@ const rubricData = {
     }
 };
 
+// Maps each subgroup code (derived from indicator_code prefix, e.g. "A1") to a readable label.
+// Used purely for report display grouping — not a separate table.
+const subgroupNames = {
+    "A1": "Lesson Structure & Flow",
+    "A2": "Teaching Strategy & Method",
+    "A3": "Explanation Clarity",
+    "A4": "Differentiation & Scaffolding",
+
+    "B1": "Curriculum Alignment",
+    "B2": "Content Accuracy",
+    "B3": "Depth & Focus",
+    "B4": "Materials & Tasks",
+
+    "C1": "Active Engagement",
+    "C2": "Attention Monitoring",
+    "C3": "Emotional Support",
+    "C4": "Responsiveness to Input",
+
+    "D1": "Formative Assessment",
+    "D2": "Feedback Quality",
+    "D3": "Error Correction",
+    "D4": "Progress Tracking",
+
+    "E1": "Pacing",
+    "E2": "Session Control",
+    "E3": "Transitions",
+    "E4": "Time Efficiency",
+
+    "F1": "Clarity of Speech",
+    "F2": "Language Level",
+    "F3": "Questioning Technique",
+    "F4": "Active Listening",
+
+    "G1": "Professional Demeanor",
+    "G2": "Platform Compliance",
+    "G3": "Safety & Conduct",
+
+    "H1": "Objective Achievement",
+    "H2": "Skill Demonstration",
+    "H3": "Closure & Next Steps"
+};
+
 const seedRubric = async () => {
-    const { runAsync } = require('../seedHelpers');
-    
+    const { runAsync, getAsync } = require('../seedHelpers');
+
     logger.info("[Seeder] Starting Rubric Seed process...");
 
     try {
-        // Add benchmark and requires_video columns to rubric_indicators if they don't exist
-        try {
-            await runAsync(`
-                ALTER TABLE rubric_indicators
-                ADD COLUMN benchmark TEXT NULL AFTER value
-            `);
-            logger.info("[Seeder] Added benchmark column to rubric_indicators");
-        } catch (err) {
-            if (err.code === 'ER_DUP_FIELDNAME') {
-                logger.info("[Seeder] benchmark column already exists in rubric_indicators");
-            } else {
-                throw err;
-            }
-        }
-
-        try {
-            await runAsync(`
-                ALTER TABLE rubric_indicators
-                ADD COLUMN requires_video TINYINT(1) DEFAULT 0 AFTER benchmark
-            `);
-            logger.info("[Seeder] Added requires_video column to rubric_indicators");
-        } catch (err) {
-            if (err.code === 'ER_DUP_FIELDNAME') {
-                logger.info("[Seeder] requires_video column already exists in rubric_indicators");
-            } else {
-                throw err;
-            }
-        }
-
-        // Create session_rubric_evaluations table if it doesn't exist
-        await runAsync(`
-            CREATE TABLE IF NOT EXISTS session_rubric_evaluations (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id INT NOT NULL,
-                indicator_id VARCHAR(255) NOT NULL,
-                rating ENUM('Met', 'Partial', 'Not met', 'N/A') NOT NULL DEFAULT 'N/A',
-                evidence_text TEXT,
-                comment TEXT,
-                evaluated_by ENUM('AI', 'HUMAN') NOT NULL DEFAULT 'AI',
-                confidence ENUM('High', 'Medium', 'Low') NOT NULL DEFAULT 'Medium',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_session (session_id),
-                INDEX idx_indicator (indicator_id),
-                UNIQUE KEY unique_session_indicator (session_id, indicator_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-        logger.info("[Seeder] Created session_rubric_evaluations table");
-
-        // Create session_rubric_summary table if it doesn't exist
-        await runAsync(`
-            CREATE TABLE IF NOT EXISTS session_rubric_summary (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id INT NOT NULL UNIQUE,
-                weighted_score_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-                gate_status ENUM('all_passed', 'gate_failed') NOT NULL DEFAULT 'all_passed',
-                overall_rating VARCHAR(50) NOT NULL DEFAULT 'Developing',
-                confidence_level VARCHAR(255) NOT NULL DEFAULT 'Medium — transcript-based; video/audio not available',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_session_summary (session_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-        logger.info("[Seeder] Created session_rubric_summary table");
-
         // Insert categories
         for (const [catId, category] of Object.entries(rubricData)) {
             await runAsync(`
-                INSERT IGNORE INTO rubric_categories (category_id, name, weight) 
+                INSERT IGNORE INTO rubric_categories (category_code, name, weight) 
                 VALUES (?, ?, ?)
             `, [catId, category.name, category.weight]);
 
-            // Insert indicators for this category
+            // Get the actual DB primary key
+            const categoryRow = await getAsync(`
+                SELECT id
+                FROM rubric_categories
+                WHERE category_code = ?
+                LIMIT 1
+            `, [catId]);
+
+            if (!categoryRow) {
+                throw new Error(`Category not found after insert: ${catId}`);
+            }
+
+            const rubricCategoryId = categoryRow.id;
+
+            // Insert indicators using actual rubric_categories.id
             for (const [indId, ind] of Object.entries(category.indicators)) {
+                const subgroupCode = indId.split('.')[0];          // e.g. "A2.3" -> "A2"
+                const subgroupName = subgroupNames[subgroupCode] || null;
+
                 await runAsync(`
                     INSERT IGNORE INTO rubric_indicators 
-                    (indicator_id, category_id, name, type, is_gate, value, benchmark, requires_video) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `, [indId, catId, ind.name, ind.type, ind.gate ? 1 : 0, ind.value || 1, ind.benchmark || null, ind.requires_video ? 1 : 0]);
+                    (
+                        category_id,
+                        indicator_code,
+                        subgroup_name,
+                        name,
+                        type,
+                        is_gate,
+                        value,
+                        benchmark,
+                        requires_video
+                    ) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    rubricCategoryId,
+                    indId,
+                    subgroupName,
+                    ind.name,
+                    ind.type,
+                    ind.gate ? 1 : 0,
+                    ind.value || 1,
+                    ind.benchmark || null,
+                    ind.requires_video ? 1 : 0
+                ]);
             }
         }
 

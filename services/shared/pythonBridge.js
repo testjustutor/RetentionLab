@@ -116,26 +116,33 @@ class PythonBridge {
 
   /**
    * Resolve meeting_id + session_id for the asset DB-sync.
-   * Prefers the values passed by the caller; otherwise derives them from the
-   * engine payload's meeting_id (e.g. "ebn-cmyx-wwa_Sess1_2026-07-27_14-57"):
-   *   sessionId = the Sess<n> number (meeting_sessions.id)
-   *   meetingId = meetings.id found via the embedded external meeting id.
+   * Prefers the values passed by the caller; otherwise derives the session id
+   * from the engine payload's meeting_id (e.g. "82014705313_Sess159_...") and
+   * reads the meeting id FROM the database via meeting_sessions.meeting_id
+   * (authoritative meetings.id), keyed by the session id. The meeting id is
+   * never fabricated — it always comes from meeting_sessions.
    */
   static async resolveMeetingContext(meetingIdInput, sessionIdInput, engineMeetingId) {
     if (meetingIdInput && sessionIdInput) {
       return { meetingId: meetingIdInput, sessionId: sessionIdInput };
     }
-    if (!engineMeetingId) return null;
 
-    const m = /^([^_]+)_Sess(\d+)_/.exec(String(engineMeetingId));
-    if (!m) return null;
-    const externalMeetingId = m[1];
-    const sessionId = Number(m[2]);
+    // Determine session id: prefer the caller-supplied sessionId; otherwise
+    // parse the Sess<n> portion embedded in the engine's meeting_id string.
+    let sessionId = sessionIdInput;
+    if (!sessionId && engineMeetingId) {
+      const m = /^[^_]+_Sess(\d+)_/.exec(String(engineMeetingId));
+      sessionId = m ? Number(m[1]) : null;
+    }
     if (!sessionId) return null;
 
-    const meeting = await MeetingAssetModel.getMeetingByExternalId(externalMeetingId).catch(() => null);
-    if (!meeting) return null;
-    return { meetingId: meeting.id, sessionId };
+    // meeting_sessions.meeting_id references meetings.id (the internal ID).
+    // This is the authoritative source — no meeting id is created here.
+    const row = await MeetingAssetModel.getMeetingIdBySessionId(sessionId).catch(() => null);
+    if (row && row.meeting_id) {
+      return { meetingId: row.meeting_id, sessionId };
+    }
+    return null;
   }
 
   /**

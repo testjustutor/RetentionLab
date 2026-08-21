@@ -96,10 +96,15 @@ function renderTable(session, results) {
 
   let html = '';
   results.forEach((r) => {
-    const score = Number(r.ai_score) || 0;
+    // Excluded indicator (e.g. video-gated, not scorable from transcript) has a
+    // null ai_score. Render as "N/A" instead of coercing to 0 / crashing.
+    const isExcluded = r.ai_score === null || r.ai_score === undefined;
+    const score = isExcluded ? null : Number(r.ai_score) || 0;
     const max = Number(r.ai_max_score) || 0;
-    const pct = max > 0 ? Math.round((score / max) * 100) : 0;
-    const pctColor = pct >= 70 ? 'text-emerald-700' : pct >= 50 ? 'text-amber-700' : 'text-red-700';
+    const pct = !isExcluded && max > 0 ? Math.round((score / max) * 100) : null;
+    const pctColor = pct === null ? 'text-slate-500' : pct >= 70 ? 'text-emerald-700' : pct >= 50 ? 'text-amber-700' : 'text-red-700';
+    const scoreText = isExcluded ? 'N/A' : score.toFixed(2);
+    const pctText = pct === null ? 'N/A' : `${pct}%`;
 
     const raw = r.ai_raw_response;
     let rawText = '';
@@ -114,9 +119,9 @@ function renderTable(session, results) {
       <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escHtml(r.category_name || r.category_id || 'Other')}</td>
       <td class="py-2 px-2 text-[11px] text-blue-900">${escHtml(r.indicator_name || r.indicator_id || '-')}</td>
       <td class="py-2 px-2 text-[11px] text-blue-800 text-right">${escHtml(r.category_weight != null ? r.category_weight : '-')}</td>
-      <td class="py-2 px-2 text-[11px] font-bold text-blue-950 text-right">${score.toFixed(2)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-blue-950 text-right">${scoreText}</td>
       <td class="py-2 px-2 text-[11px] text-blue-800 text-right">${max}</td>
-      <td class="py-2 px-2 text-[11px] font-bold text-right ${pctColor}">${pct}%</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-right ${pctColor}">${pctText}</td>
       <td class="py-2 px-2 text-[11px] text-slate-800 max-w-xs">${rawText || escHtml(r.ai_evidence || '-')}</td>
       <td class="py-2 px-2 text-[11px] italic text-slate-600 max-w-xs">${escHtml(r.evidence_quote || '-')}</td>
       <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">${formatDateTime(r.scored_at)}</td>

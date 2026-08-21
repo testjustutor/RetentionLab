@@ -28,12 +28,6 @@ def run_summary_task(context):
     return handler(context)
 
 
-def run_topics_task(context):
-    log_with_type("info", "Engine(orchestrator > task_registry) : run_topics_task dispatched", "TASK")
-    from services.engine.task.topics.topics_task import run_topics_task as handler
-    return handler(context)
-
-
 def run_persist_results_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_persist_results_task dispatched", "TASK")
     from services.engine.task.persist.persist_results_task import run_persist_results_task as handler
@@ -105,25 +99,8 @@ TASK_REGISTRY = {
     },
 
     # ==========================================
-    # TOPICS
-    # ==========================================
-
-    "topics": {
-        "handler": (
-            run_topics_task
-        ),
-        "dependencies": [
-            "transcription"
-        ],
-        "parallel": True,
-        "feature_flag": (
-            "enable_topics"
-        )
-    },
-
-    # ==========================================
     # PERSIST RESULTS
-    # Runs after summary/audit/topics have all
+    # Runs after summary/audit have all
     # produced their outputs. Persists structured
     # results (summary + rubric + metrics) to MySQL.
     # ==========================================
@@ -134,8 +111,7 @@ TASK_REGISTRY = {
         ),
         "dependencies": [
             "summary",
-            "audit",
-            "topics"
+            "audit"
         ],
         "parallel": False,
         "feature_flag": (

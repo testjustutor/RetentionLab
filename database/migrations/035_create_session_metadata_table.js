@@ -15,7 +15,8 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS session_metadata (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
+    meeting_id int(11) NOT NULL,
+    session_id int(11) NOT NULL,
     student_name VARCHAR(255),
     teacher_user_id INT,
     subject VARCHAR(255),

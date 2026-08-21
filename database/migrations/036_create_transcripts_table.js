@@ -15,8 +15,8 @@ const up = async () => {
   await runAsync(`
 CREATE TABLE IF NOT EXISTS transcripts (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id VARCHAR(255),
-    session_id VARCHAR(255),
+    meeting_id int(11) NOT NULL,
+    session_id int(11) NOT NULL,
     transcript_text LONGTEXT,
     analysis_json JSON,
     language VARCHAR(50) DEFAULT 'en',

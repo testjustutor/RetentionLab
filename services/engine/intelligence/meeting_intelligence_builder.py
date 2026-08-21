@@ -9,15 +9,12 @@ class MeetingIntelligenceBuilder:
     @staticmethod
     def build(
         transcript,
-        sentiment,
-        topics
+        sentiment
     ):
 
         return {
 
             "transcript": transcript,
 
-            "sentiment": sentiment,
-
-            "topics": topics
+            "sentiment": sentiment
         }
