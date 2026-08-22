@@ -171,14 +171,21 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
                     ai_max = float(hit["max_score"])
                 evidence = hit.get("evidence") or ""
 
+            # Derive the Met/Not Met rating + reason/benchmark so the columns are
+            # never empty even when the AI omits them. benchmark comes from the
+            # rubric itself; reason is the AI's per-indicator evidence.
+            rating = _derive_rating(ai_score, ai_max)
+            reason = (hit or {}).get("evidence") or evidence or None
+            benchmark = ind.get("benchmark")
+
             try:
                 execute(
                     """INSERT INTO ai_audit_results
                        (meeting_id, session_id, category_id, indicator_id,
                         category_name, category_weight, indicator_name, indicator_value, is_gate,
-                        ai_score, ai_max_score, ai_evidence, ai_raw_response, oqi_score,
-                        evidence_quote, talk_ratio)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ai_score, ai_max_score, ai_evidence, rating, reason, benchmark,
+                        ai_raw_response, oqi_score, evidence_quote, talk_ratio)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                        ON DUPLICATE KEY UPDATE
                         category_name = VALUES(category_name),
                         category_weight = VALUES(category_weight),
@@ -188,6 +195,9 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
                         ai_score = VALUES(ai_score),
                         ai_max_score = VALUES(ai_max_score),
                         ai_evidence = VALUES(ai_evidence),
+                        rating = VALUES(rating),
+                        reason = VALUES(reason),
+                        benchmark = VALUES(benchmark),
                         ai_raw_response = VALUES(ai_raw_response),
                         oqi_score = VALUES(oqi_score),
                         evidence_quote = VALUES(evidence_quote),
@@ -195,8 +205,8 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
                     (
                         meeting_id, session_id, category_id, indicator_id,
                         cat_name, float(category_weight or 0), ind.get("name"),
-                        int(max_value), 1 if ind.get("is_gate") else 0,
-                        ai_score, ai_max, evidence,
+                        float(max_value), 1 if ind.get("is_gate") else 0,
+                        ai_score, ai_max, evidence, rating, reason, benchmark,
                         json.dumps({
                             "rubric_category_id": category_code,
                             "rubric_indicator_id": indicator_code,
@@ -205,7 +215,7 @@ def _persist_audit(context, meeting_id, session_id, audit_results):
                             "category_weight": float(category_weight or 0),
                             "indicator_id": indicator_id,
                             "indicator_name": ind.get("name"),
-                            "indicator_value": int(max_value),
+                            "indicator_value": float(max_value),
                             "is_gate": bool(ind.get("is_gate")),
                             "answer": evidence
                         }),
@@ -237,3 +247,30 @@ def _overall_rating(percentage):
     if pct >= 50:
         return "Developing"
     return "Beginning"
+
+
+def _derive_rating(ai_score, ai_max):
+    """
+    Derive a Met / Partial / Not met / N/A rating from a numeric score and its
+    max value so the rating column is populated even when the AI omits it.
+
+    - score is None (excluded, e.g. video-gated) -> "N/A"
+    - score >= max                              -> "Met"
+    - 0 < score < max                           -> "Partial"
+    - score == 0                                -> "Not met"
+    """
+    if ai_score is None:
+        return "N/A"
+    try:
+        s = float(ai_score)
+    except (TypeError, ValueError):
+        return "N/A"
+    try:
+        m = float(ai_max or 0)
+    except (TypeError, ValueError):
+        m = 0.0
+    if m and s >= m:
+        return "Met"
+    if s > 0:
+        return "Partial"
+    return "Not met"

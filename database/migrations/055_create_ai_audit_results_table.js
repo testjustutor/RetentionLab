@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ai_audit_results (
     reason TEXT DEFAULT NULL,
     benchmark TEXT DEFAULT NULL,
     ai_raw_response JSON,
-    oqi_score INT,
+    oqi_score DECIMAL(5,2) DEFAULT 1.00,
     evidence_quote TEXT,
     talk_ratio DECIMAL(5,2),
     scored_at DATETIME,

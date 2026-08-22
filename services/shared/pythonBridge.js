@@ -173,9 +173,9 @@ class PythonBridge {
       
       // 3. Unpack complete analytical payload block
       
-      logger.error('========== JSON PAYLOAD START ==========');
-      logger.error(standardJsonOutput);
-      logger.error('========== JSON PAYLOAD END ==========');
+      logger.info('========== JSON PAYLOAD START ==========');
+      logger.info(standardJsonOutput);
+      logger.info('========== JSON PAYLOAD END ==========');
 
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Python Bridge] Execution data package parsed successfully.`);

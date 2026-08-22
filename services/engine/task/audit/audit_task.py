@@ -170,7 +170,11 @@ def _normalize_audit_result(result):
     oqi = result.get("oqi_score") or 0
     if not max_score_total:
         max_score_total = 100
-    percentage = round((score_total / max_score_total) * 100, 2) if max_score_total else round(float(oqi or 0), 2)
+    # When a weighted oqi_score is present (computed in audit_worker), use it as
+    # the authoritative percentage; otherwise fall back to the unweighted ratio.
+    percentage = round(float(oqi), 2) if oqi else (
+        round((score_total / max_score_total) * 100, 2) if max_score_total else 0.0
+    )
 
     result["overall_score"] = int(round(oqi)) if oqi else int(round(score_total))
     result["max_score"] = int(max_score_total)

@@ -179,12 +179,7 @@ class PipelineContext:
 
         Resolution order:
           1. meeting_sessions.meeting_id for the given session_id (fast path).
-          2. meetings.external_meeting_id parsed from the filename; if found,
-             ensure a meeting_sessions row (id=session_id) links to it.
-          3. If no meeting exists yet, create a meetings row (keyed by
-             external_meeting_id) + a meeting_sessions row, then return the new
-             integer meetings.id.
-
+          
         Returns:
             meetings.id (int) if resolvable/created, otherwise None (the caller
             falls back to base_id so file writes never break).
@@ -202,25 +197,6 @@ class PipelineContext:
             if row and row.get("meeting_id"):
                 return row["meeting_id"]
 
-            # 2) Resolve (or create) the meeting via the embedded external id,
-            #    then ensure the meeting_sessions row links it to this session.
-            external_id = self._resolve_external_meeting_id()
-            if external_id:
-                meeting = fetch_one(
-                    "SELECT id FROM meetings WHERE external_meeting_id = %s LIMIT 1",
-                    (external_id,)
-                )
-                if meeting and meeting.get("id"):
-                    meeting_id = meeting["id"]
-                else:
-                    meeting_id = insert(
-                        "INSERT INTO meetings (external_meeting_id, title, status, created_at, updated_at) "
-                        "VALUES (%s, %s, 'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                        (external_id, external_id)
-                    )
-                if meeting_id:
-                    self._ensure_session_row(int(session_id), meeting_id)
-                    return meeting_id
         except Exception as e:
             print(
                 f"[PIPELINE CONTEXT] WARNING: Could not resolve meeting_id for "
@@ -228,12 +204,6 @@ class PipelineContext:
                 flush=True
             )
         return None
-
-    def _resolve_external_meeting_id(self):
-        """Extract the leading external meeting id from the filename base_id,
-        e.g. '82014705313_Sess159_2026-08-12_19-57' -> '82014705313'."""
-        m = re.match(r"^([^_]+)_Sess", str(self.base_id))
-        return m.group(1) if m else None
 
     def _ensure_session_row(self, session_id, meeting_id):
         """Upsert a meeting_sessions row linking session_id -> meetings.id so

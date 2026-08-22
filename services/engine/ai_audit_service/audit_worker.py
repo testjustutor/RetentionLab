@@ -11,11 +11,51 @@ from database.python_db import get_cursor, execute, fetch_all
 from services.engine.ai_audit_service.rubric_loader import RubricLoader
 
 
+_AUDIT_SYSTEM_INSTRUCTION = """You are a QA evaluation service. Score the transcript against the supplied indicators.
+
+INPUT: audio transcript only. Video-dependent indicators have been removed — do not score any code you were not sent.
+
+RULES:
+1. Score each supplied indicator as 1 (Met), 0 (Not Met), or null (Not Applicable) against its benchmark. Cite one short quote (≤12 words) as evidence. For 0 or null, add a ≤15-word reason.
+2. Session-completeness: if the transcript is clearly an opening/partial segment and the indicator (closure, summary, practice output, in-session improvement, etc.) could not yet have occurred, score null — never 0. Not-yet-observed ≠ failed.
+3. ASR tolerance: treat single odd words that are plausibly transcription errors (unusual proper nouns, near-homophones, e.g. "El Chabra" for "Algebra", "attenuate" for "attempt") as the intended word. Do NOT trigger terminology, accuracy, or professionalism gates on them. Flag the suspected ASR issue in evidence.
+4. Gates: any indicator marked G that you score 0 goes in gate_failures. Null does not count as a gate failure.
+5. Output ONLY the JSON below with no extra fields. No prose, no code fences.
+
+SCHEMA:
+{"scores":{"A1.1":{"s":1,"e":"quote"},"A1.2":{"s":0,"r":"why","e":"quote"},"A1.4":{"s":null,"r":"partial session"}},
+ "gate_failures":["A3.1"],
+ "evidence_quote":"single strongest quote"}"""
+
+
 def _json_default(o):
     """json.dumps default handler: convert non-serializable types (Decimal etc.)."""
     if isinstance(o, Decimal):
         return float(o)
     return str(o)
+
+
+def _derive_rating(ai_score, ai_max):
+    """
+    Derive a Met / Partial / Not met / N/A rating from a numeric score + max so
+    the rating column is populated even when the AI omits an explicit rating.
+    score is None (excluded/video-gated) -> N/A; >= max -> Met; == 0 -> Not met.
+    """
+    if ai_score is None:
+        return "N/A"
+    try:
+        s = float(ai_score)
+    except (TypeError, ValueError):
+        return "N/A"
+    try:
+        m = float(ai_max or 0)
+    except (TypeError, ValueError):
+        m = 0.0
+    if m and s >= m:
+        return "Met"
+    if s > 0:
+        return "Partial"
+    return "Not met"
 
 class AuditWorker:
 
@@ -183,6 +223,151 @@ class AiAuditService:
             for cat in raw_rubric["categories"]
         ]
 
+    def _build_compact_prompt(self, rubric_schema, transcript_text):
+        """
+        Build a small prompt: per-category weights + one line per scorable
+        (non-video) indicator as `code|gate|benchmark`. Video-only indicators are
+        omitted entirely so the LLM never sees them (they are re-inserted with an
+        explicit N/A in code afterwards).
+        """
+        weight_parts = []
+        ind_lines = ["INDICATORS (code|gate|benchmark):"]
+        for cat in rubric_schema:
+            code = cat.get("category_id")
+            weight = float(cat.get("weight") or 0)
+            weight_str = f"{weight:.2f}"
+            if weight_str.startswith("0."):
+                weight_str = weight_str[1:]
+            weight_parts.append(f"{code}={weight_str}")
+            for ind in cat.get("indicators", []):
+                if ind.get("requires_video"):
+                    continue
+                ind_code = ind.get("indicator_id")
+                gate = "G" if ind.get("is_gate") else "."
+                benchmark = (ind.get("benchmark") or "").strip()
+                ind_lines.append(f"{ind_code}|{gate}|{benchmark}")
+
+        weights_line = "WEIGHTS: " + " ".join(weight_parts)
+        return (
+            weights_line
+            + "\n\n"
+            + "\n".join(ind_lines)
+            + "\n\nTranscript Target Data:\n"
+            + transcript_text
+        )
+
+    def _expand_compact_result(self, rubric_schema, compact):
+        """
+        Expand the compact LLM response (scores keyed by indicator code) into the
+        named per-category structure downstream expects, and do ALL the math in
+        code (category score, scored/excluded counts, weighted oqi_score).
+
+        - Re-inserts video-only indicators as score=null / rating N/A.
+        - Remaps s/e/r back to score/evidence/reason.
+        - Re-attaches category + indicator names.
+        - Recomputes gate_failures from scores (never trusts the LLM's math).
+        """
+        raw_scores = compact.get("scores") if isinstance(compact.get("scores"), dict) else {}
+        evidence_quote = compact.get("evidence_quote", "") or ""
+
+        def norm_score(v):
+            if isinstance(v, str):
+                v = v.strip().lower()
+                if v in ("null", "none", ""):
+                    return None
+                try:
+                    v = float(v)
+                except (TypeError, ValueError):
+                    return None
+            if v is None:
+                return None
+            try:
+                return int(round(float(v)))
+            except (TypeError, ValueError):
+                return None
+
+        category_scores = {}
+        gate_set = set()
+        num = 0.0
+        den = 0.0
+
+        for cat in rubric_schema:
+            cat_name = cat.get("category")
+            weight = float(cat.get("weight") or 0)
+            indicators_out = {}
+            scored_count = 0
+            excluded_count = 0
+            score_sum = 0.0
+
+            for ind in cat.get("indicators", []):
+                code = ind.get("indicator_id")
+                name = ind.get("name")
+                requires_video = bool(ind.get("requires_video"))
+                is_gate = bool(ind.get("is_gate"))
+
+                entry = raw_scores.get(code)
+                score = None
+                reason = ""
+                evidence = ""
+                if isinstance(entry, dict):
+                    score = norm_score(entry.get("s"))
+                    reason = str(entry.get("r") or "").strip()
+                    evidence = str(entry.get("e") or "").strip()
+                elif entry is not None:
+                    score = norm_score(entry)
+
+                if score is not None:
+                    # Coerce any abnormal s to binary 0/1 (0 < score < 1 rounds to 0).
+                    score = 1 if score >= 1 else 0
+                    scored_count += 1
+                    score_sum += score
+                    if is_gate and score == 0:
+                        gate_set.add(code)
+                else:
+                    excluded_count += 1
+                    if requires_video:
+                        reason = reason or "requires video"
+                        evidence = "requires video"
+                    elif not reason:
+                        reason = "not observable from the provided transcript"
+
+                rating = "Met" if score == 1 else ("Not met" if score == 0 else "N/A")
+
+                indicators_out[name] = {
+                    "indicator": code,
+                    "indicator_id": code,
+                    "question": name,
+                    "rubric_id": code,
+                    "score": score,
+                    "max_score": 1,
+                    "rating": rating,
+                    "reason": reason or None,
+                    "evidence": evidence,
+                    "requires_video": requires_video,
+                }
+
+            cat_pct = round(score_sum / scored_count * 100, 2) if scored_count else None
+            category_scores[cat_name] = {
+                "score": cat_pct,
+                "scored": scored_count,
+                "excluded": excluded_count,
+                "scored_indicator_count": scored_count,
+                "excluded_indicator_count": excluded_count,
+                "indicators": indicators_out,
+            }
+            if cat_pct is not None:
+                num += cat_pct * weight
+                den += weight
+
+        oqi_score = round(num / den, 2) if den else 0.0
+
+        return {
+            "category_scores": category_scores,
+            "oqi_score": oqi_score,
+            "gate_failures": sorted(gate_set),
+            "evidence_quote": evidence_quote,
+        }
+
     def _save_prompt_file(self, prompt_output_path, meeting_id, session_id,
                           system_instruction, prompt, talk_ratio,
                           raw_response=None, status="PENDING"):
@@ -259,37 +444,9 @@ class AiAuditService:
 
         print("[AUDIT MICROSERVICE] Status: Structuring evaluation instruction maps...", flush=True)
 
-        system_instruction = (
-            "You are an isolated QA evaluation microservice. Score the transcript text against the provided rubric parameters.\n\n"
-            "INPUT MODE: This evaluation is being run on AUDIO/TRANSCRIPT ONLY. No video feed is available.\n\n"
-            "RULES:\n"
-            "1. For each category and its indicators, you MUST return a per-indicator result.\n"
-            '2. Each indicator has a "benchmark" describing what a passing session looks like — use it as your scoring standard instead of inferring from the name alone.\n'
-            '3. Each indicator has a "requires_video" flag.\n'
-            '   - If requires_video is true: you CANNOT score this indicator from a transcript alone. Set "score" to null, "max_score" to the indicator\'s value, and set "evidence" to "Not scorable from transcript — requires video." Do NOT guess or assume a score for these indicators under any circumstance.\n'
-            '   - If requires_video is false: score normally from 0 to its value, using the benchmark as your standard, and cite the specific line(s) of transcript that justify the score.\n'
-            '4. Calculate each category\'s score as a weighted average using ONLY the indicators that were actually scored (score is not null) within that category. Indicators with a null score must be excluded from both the numerator and denominator of the category average — do not treat them as 0.\n'
-            "5. Calculate the overall weighted OQI score (0–100) from the category scores and their weights, using the same exclusion rule if an entire category has no scorable indicators.\n"
-            '6. Note any indicator marked "gate": true and scored 0 in a separate "gate_failures" array in your response, listing the indicator_id.\n'
-            "7. You must return ONLY a raw JSON string matching this structure exactly. No conversational text, no markdown wrappers, no code fences:\n"
-            "{\n"
-            '  "category_scores": {\n'
-            '    "Category Name": {\n'
-            '      "score": 85.0,\n'
-            '      "scored_indicator_count": 10,\n'
-            '      "excluded_indicator_count": 2,\n'
-            '      "indicators": {\n'
-            '        "Indicator Name": { "score": 2, "max_score": 2, "evidence": "brief reason citing the transcript, or note" }\n'
-            "      }\n"
-            "    }\n"
-            "  },\n"
-            '  "oqi_score": 85.0,\n'
-            '  "gate_failures": ["A3.1"],\n'
-            '  "evidence_quote": "Exact string excerpt from text proving evaluation matrix"\n'
-            "}"
-        )
+        system_instruction = _AUDIT_SYSTEM_INSTRUCTION
 
-        prompt = f"Rubric Target Rules:\n{json.dumps(raw_rubric, indent=2, default=_json_default)}\n\nTranscript Target Data:\n{transcript_text}"
+        prompt = self._build_compact_prompt(rubric_schema, transcript_text)
         print(f"[AUDIT MICROSERVICE] Status: Sending payload data to '{self.ai_api.provider.upper()}' engine...", flush=True)
 
         # Persist the EXACT request sent to AI (system_instruction + full rubric
@@ -328,8 +485,22 @@ class AiAuditService:
         )
 
         try:
-            clean_json = re.sub(r'^```(?:json)?\s*|```\s*$', '', raw_response.strip(), flags=re.IGNORECASE)
-            result = json.loads(clean_json)
+            clean_json = re.sub(r'^```(?:json)?\s*|```\s*$', '', raw_response.strip(), flags=re.IGNORECASE).strip()
+
+            # Robust extraction: LLM responses occasionally wrap the JSON in
+            # prose or leave trailing text after a code fence. If a bare parse
+            # fails, slice the JSON object between the first "{" and the last "}"
+            # and parse that instead, so a stray suffix never kills the audit.
+            try:
+                result = json.loads(clean_json)
+            except Exception:
+                start = clean_json.find("{")
+                end = clean_json.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    result = json.loads(clean_json[start:end + 1])
+                else:
+                    raise
+
             print("[AUDIT MICROSERVICE] Progress: Evaluation 100% complete! Metrics isolated.", flush=True)
         except Exception as e:
             print(f"[AUDIT MICROSERVICE] ERROR: JSON Parse Failed: {type(e).__name__}: {str(e)}", flush=True)
@@ -358,6 +529,11 @@ class AiAuditService:
                 "evidence_quote": "Process failure during schema conversion optimization.",
                 "error_log": str(e)
             }
+
+        # Expand the compact LLM response (scores keyed by code) into the named
+        # per-category structure downstream expects, and compute all math in code.
+        if isinstance(result, dict) and isinstance(result.get("scores"), dict):
+            result = self._expand_compact_result(rubric_schema, result)
 
         if meeting_id:
             self._store_audit_results(
@@ -415,6 +591,14 @@ class AiAuditService:
                             "value": 1
                         }
 
+            # Flat lookup of the rubric schema by indicator name so we can write
+            # is_gate / benchmark / value (rubric_lookup only keeps value/type).
+            schema_by_indicator = {}
+            for cat in rubric_schema:
+                for ind in cat.get("indicators", []):
+                    ind_key = ind["name"] if isinstance(ind, dict) else ind
+                    schema_by_indicator[ind_key] = ind
+
             # Clear previous audit results for this meeting and session
             execute(
                 "DELETE FROM ai_audit_results WHERE meeting_id = %s AND session_id = %s",
@@ -442,6 +626,8 @@ class AiAuditService:
                         ai_score = None
                         ai_max = 2
                         indicator_id = ""
+                        ind_ref = None
+                        category_weight = 0.0
 
                         if isinstance(ind_data, dict):
                             raw_score = ind_data.get("score")
@@ -462,19 +648,58 @@ class AiAuditService:
                             if ind_name in rubric_cat["indicators"]:
                                 ind_ref = rubric_cat["indicators"][ind_name]
                                 indicator_id = ind_ref.get("indicator_id_pk") or ind_ref["indicator_id"]
+                                category_weight = float(rubric_cat.get("weight") or 0)
                                 break
 
-                        print(f"[AUDIT DEBUG] ind_name={ind_name} | ind_data={ind_data} | ai_score={ai_score} | ai_max={ai_max}", flush=True)
+                        ind_meta = schema_by_indicator.get(ind_name) or {}
+                        if ind_ref:
+                            indicator_value = ind_meta.get("value")
+                            if indicator_value is None:
+                                indicator_value = ind_ref.get("value", 1)
+                        else:
+                            indicator_value = 1
+                        indicator_is_gate = 1 if ind_meta.get("is_gate") else 0
+                        benchmark = ind_meta.get("benchmark")
+
+                        ai_evidence = ""
+                        ai_rating = None
+                        ai_reason = None
+                        if isinstance(ind_data, dict):
+                            ai_evidence = ind_data.get("evidence") or ""
+                            ai_rating = ind_data.get("rating")
+                            ai_reason = ind_data.get("reason")
+
+                        # Prefer the AI-provided rating/reason; fall back to a
+                        # derived rating from the numeric score when the AI omits it.
+                        rating = _derive_rating(ai_score, ai_max)
+                        if ai_rating and str(ai_rating).strip().lower() in (
+                            "met", "not met", "not applicable", "partial", "na", "n/a",
+                        ):
+                            rating = str(ai_rating).strip()
+                        reason = (ai_reason or ai_evidence or "").strip() or None
+                        indicator_name = ind_name
+
+                        print(f"[AUDIT DEBUG] ind_name={ind_name} | ind_data={ind_data} | ai_score={ai_score} | ai_max={ai_max} | rating={rating}", flush=True)
 
                         execute(
                             """INSERT INTO ai_audit_results
                                (meeting_id, session_id, category_id, indicator_id,
-                                ai_score, ai_max_score, ai_raw_response, oqi_score,
-                                evidence_quote, talk_ratio)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                category_name, category_weight, indicator_name, indicator_value, is_gate,
+                                ai_score, ai_max_score, ai_evidence, rating, reason, benchmark,
+                                ai_raw_response, oqi_score, evidence_quote, talk_ratio)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                ON DUPLICATE KEY UPDATE
+                                category_name = VALUES(category_name),
+                                category_weight = VALUES(category_weight),
+                                indicator_name = VALUES(indicator_name),
+                                indicator_value = VALUES(indicator_value),
+                                is_gate = VALUES(is_gate),
                                 ai_score = VALUES(ai_score),
                                 ai_max_score = VALUES(ai_max_score),
+                                ai_evidence = VALUES(ai_evidence),
+                                rating = VALUES(rating),
+                                reason = VALUES(reason),
+                                benchmark = VALUES(benchmark),
                                 ai_raw_response = VALUES(ai_raw_response),
                                 oqi_score = VALUES(oqi_score),
                                 evidence_quote = VALUES(evidence_quote),
@@ -482,7 +707,9 @@ class AiAuditService:
                             (
                                 meeting_id, session_id,
                                 category_id, indicator_id,
-                                ai_score, ai_max, raw_response, oqi_score,
+                                cat_name, category_weight, indicator_name, float(indicator_value), indicator_is_gate,
+                                ai_score, ai_max, ai_evidence, rating, reason, benchmark,
+                                raw_response, oqi_score,
                                 evidence_quote, talk_ratio_json
                             )
                         )

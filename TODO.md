@@ -1527,6 +1527,37 @@ node test_videos_api.js
 
 - [x] Create EngagementModel (getEngagementReports)
 - [x] Refactor controller to call model (no direct db usage)
+## Task: Compact audit rubric — strip video-only, codes instead of names, math in code
+
+Requirement: fix the four audit scoring problems (partial-session scored as failed, ASR errors
+trigger terminology gates, drifting counts, and request/response bloat) by (a) stripping the 20
+video-only indicators before the LLM sees them, (b) sending only codes + gate + benchmark +
+weights, (c) dropping max_score/rating/duplicate reason/evidence from the AI output, and
+(d) computing category scores, counts, and oqi_score in Python code.
+
+- [x] audit_worker.py: replace system_instruction with the compact prompt (1/0/null scoring, session-completeness N/A, ASR tolerance, gates)
+- [x] audit_worker.py: build compact rubric payload (WEIGHTS + `code|.(G)|benchmark`, 74 scorable, video-only omitted) instead of the 94-indicator JSON
+- [x] audit_worker.py: parse compact `scores` response, re-insert 20 video-only indicators with null/N-A, re-map s/e/r back to score/evidence/reason, re-attach category+indicator names
+- [x] audit_worker.py: compute category score/counts and weighted oqi_score in code (no LLM math)
+- [x] audit_worker.py: keep _store_audit_results compatible (name-keyed category_scores preserved)
+- [x] Verify py_compile clean; counts deterministic; video-only rows persist with score=NULL rating N/A
+
+## Task: Store rating/reason/benchmark + decimal ai_score in ai_audit_results (audit flow)
+
+Requirement: ai_audit_results has rating/reason/benchmark columns but they show empty for
+Video Processing audit runs. The writer (persist_results_task._persist_audit) never wrote them,
+and audit_worker._store_audit_results wrote only a subset of columns. ai_score is DECIMAL(5,2)
+now; keep scores decimal and add per-row rating/reason/benchmark. Also extend the audit AI prompt
+to ask for PCrating/reason per indicator (Met / Not Met / Not Applicable) so future runs get real
+ratings, while keeping the numeric score/max_score/evidence output that downstream code depends on.
+
+- [x] persist_results_task._persist_audit: derive + write rating/reason/benchmark columns (rating from score vs max with None->N/A, reason=evidence, benchmark=rubric benchmark); keep ai_score/indicator_value as decimals
+- [x] audit_worker._store_audit_results: expand INSERT to category_name/weight, indicator_name/value, is_gate, ai_evidence, rating, reason, benchmark; fall back to derive rating when AI omits it
+- [x] audit_worker system_instruction: instruct AI to return per-indicator "rating"/"reason" (Met/Not Met/Not Applicable) and require non-empty reason when Not Met, while preserving score/max_score/evidence output
+- [x] py_compile both .py files; node/JS unaffected; verify syntax clean
+- [x] Verify a real Gemini run populates rating/reason/benchmark in ai_audit_results (requires live DB + AI credentials) — REAL live run on Session 159: oqi_score=97.0, gate_failures=[], 94 rows persisted with rating/reason/benchmark populated; cleaned up throwaway rows
+- [x] FULL real pipeline run (node -> pythonBridge -> engine_main -> media -> whisper ASR -> Gemini audit -> summary -> DB persist) on REC_...Sess159.mp3: oqi_score=84.74, 94 rows persisted to meeting 1 / session 159, rating/reason/benchmark all populated, decimal ai_score (0.00-1.00), G1.1 video-only NULL/N-A, B2.2 ASR gate Met. JSON PAYLOAD now logs to info (error log: 0 hits, info log: 1 hit)
+- [x] NOTE: test-engine.js still calls runFullAudioPipeline(fileName) with 1 arg -> fileName lands in meetingId slot -> file becomes undefined -> media 'Input missing .../recordings/undefined'. Stale dev harness; real app paths (VideoProcessingModel / socraticbot) pass all 3 args correctly.
 - [x] Verify both files syntax, model exports, and no direct db usage in controller
 
 
