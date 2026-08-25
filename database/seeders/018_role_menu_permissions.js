@@ -28,6 +28,7 @@ const seedRoleMenuPermissions = async () => {
         ['sa-user-defaults', 'sa-settings'],
         ['sa-table-controls', 'sa-settings'],
         ['sa-video-processing', 'sa-settings'],
+        ['sa-deepgram-processing', 'sa-settings'],
       ['sa-monitoring', null],
         ['sa-server-performance', 'sa-monitoring'],
         ['sa-audit-logs', 'sa-monitoring'],

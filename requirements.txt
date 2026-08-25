@@ -19,10 +19,10 @@ pip install torch==2.3.1+cpu torchvision==0.18.1+cpu torchaudio==2.3.1+cpu --ind
 
 pip install faster-whisper==1.0.3
 pip install whisperx==3.1.1
-
-pip install pyannote.audio==2.1.1
+pip install -U google-genai
+# pip install pyannote.audio==2.1.1
 pip install onnxruntime
 pip install transformers huggingface_hub
 
 
-npm install -g pm2
+# npm install -g pm2

@@ -113,11 +113,11 @@ class ProfessionalMeetingBot {
                 if (provider === 'openai') {
                     apiUrl = 'https://api.openai.com/v1/chat/completions';
                     apiKey = settings.ai.openaiApiKey;
-                    model = 'gpt-4o'; // or gpt-3.5-turbo
+                    model = settings.ai.openaiModel;
                 } else {
                     apiUrl = 'https://api.cloude.com/openai/v1/chat/completions';
                     apiKey = settings.ai.cloudeApiKey;
-                    model = 'llama3-8b-8192';
+                    model = settings.ai.anthropicModel;
                 }
 
                 const response = await axios.post(apiUrl, {

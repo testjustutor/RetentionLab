@@ -7,22 +7,22 @@
 const { runAsync, getAsync, allAsync } = require('../seedHelpers');
 
 const PROVIDERS = [
-  {
-    provider_key: 'cloude',
-    label: 'cloude',
-    icon: 'G',
-    icon_bg: 'from-orange-500 to-red-600',
-    description: 'Ultra-fast inference',
-    base_url: 'https://api.cloude.com/v1',
+    {
+    provider_key: 'anthropic',
+    label: 'Anthropic Claude',
+    icon: 'ClaudeIcon',
+    icon_bg: 'from-amber-600 to-orange-700',
+    description: 'Frontier intelligence and deep reasoning',
+    base_url: 'https://anthropic.com',
     enabled: 1,
-    default_model: 'llama-3.1-8b-instant',
-    default_temperature: 0.2,
-    default_max_tokens: 2048,
+    default_model: 'claude-5-sonnet',
+    default_temperature: 0.7,
+    default_max_tokens: 4096,
     model_options: [
-      { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-      { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
-      { value: 'gemma2-9b-it', label: 'Gemma 2 9B IT' },
-      { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }
+      { value: 'claude-fable-5', label: 'Claude 5 Fable' },
+      { value: 'claude-5-sonnet', label: 'Claude 5 Sonnet' },
+      { value: 'claude-opus-5', label: 'Claude 5 Opus' },
+      { value: 'claude-haiku-4.5', label: 'Claude 4.5 Haiku' }
     ],
     sort_order: 1
   },
@@ -31,17 +31,17 @@ const PROVIDERS = [
     label: 'Google Gemini',
     icon: 'G',
     icon_bg: 'from-blue-500 to-cyan-600',
-    description: 'Advanced reasoning',
+    description: 'Advanced reasoning, coding, and multi-step agent workflows.',
     base_url: 'https://generativelanguage.googleapis.com',
-    enabled: 0,
-    default_model: 'gemini-2.5-flash',
-    default_temperature: 0.2,
-    default_max_tokens: 2048,
+    enabled: 1, // Set to 1 to enable it immediately
+    default_model: 'gemini-3.7-flash',
+    default_temperature: 0.2, // Great for consistent, reliable code logic
+    default_max_tokens: 8192,  // Increased from 2048 to handle larger code generations
     model_options: [
-      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-      { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-      { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }
+      { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash (Coding & Agents)' },
+      { value: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro (Large Monorepos)' },
+      { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (Fast Stable)' },
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Legacy Production)' }
     ],
     sort_order: 2
   },
@@ -50,36 +50,36 @@ const PROVIDERS = [
     label: 'OpenAI',
     icon: 'O',
     icon_bg: 'from-green-500 to-emerald-600',
-    description: 'GPT-4o & GPT-4',
+    description: 'Frontier reasoning, agentic coding, and multi-step orchestration.',
     base_url: 'https://api.openai.com/v1',
-    enabled: 0,
-    default_model: 'gpt-4o-mini',
-    default_temperature: 0.2,
-    default_max_tokens: 2048,
+    enabled: 1, // Set to 1 to activate the provider instantly
+    default_model: 'gpt-5.4-mini', // The leading fast, cost-effective model for subagents and coding
+    default_temperature: 0.2, // Low temperature ensures accurate and structured code output
+    default_max_tokens: 16384, // Expanded to support large code generation files without truncation
     model_options: [
-      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-      { value: 'gpt-4o', label: 'GPT-4o' },
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+      { value: 'gpt-5.4-mini', label: 'GPT-5.4 Mini (Fast Coding & Subagents)' },
+      { value: 'gpt-5.5', label: 'GPT-5.5 Flagship (Agentic Workflows)' },
+      { value: 'o3', label: 'OpenAI o3 (Deep Math, Code & Science Reasoning)' },
+      { value: 'gpt-4o', label: 'GPT-4o (Legacy General-Purpose)' }
     ],
     sort_order: 3
-  },
+  },  
   {
     provider_key: 'ollama',
     label: 'Ollama (Local)',
-    icon: 'O',
-    icon_bg: 'from-purple-500 to-pink-600',
-    description: 'Self-hosted models',
+    icon: 'OllamaIcon',
+    icon_bg: 'from-zinc-700 to-zinc-900',
+    description: 'Privacy-focused local models',
     base_url: 'http://localhost:11434/v1',
-    enabled: 0,
-    default_model: 'llama3.1',
-    default_temperature: 0.2,
-    default_max_tokens: 2048,
+    enabled: 1,
+    default_model: 'llama3.3',
+    default_temperature: 0.7,
+    default_max_tokens: 4096,
     model_options: [
-      { value: 'llama3.1', label: 'Llama 3.1' },
-      { value: 'llama3.2', label: 'Llama 3.2' },
-      { value: 'mistral', label: 'Mistral' },
-      { value: 'codellama', label: 'Code Llama' }
+      { value: 'llama3.3', label: 'Llama 3.3 (70B)' },
+      { value: 'llama3.2', label: 'Llama 3.2 (3B)' },
+      { value: 'qwen2.5', label: 'Qwen 2.5' },
+      { value: 'mistral', label: 'Mistral 7B' }
     ],
     sort_order: 4
   }

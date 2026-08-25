@@ -18,7 +18,7 @@ class SuperAdminPageModel {
         'people': ['access-control', 'add-user', 'manage-rubrics', 'manage-users', 'profile', 'user-settings'],
         'reports': ['meeting-ai-evaluation-report', 'meeting-ai-session-report'],
         'roles': ['roles-access', 'rubric-management'],
-        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms', 'video-processing'],
+        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms', 'video-processing', 'deepgram-processing'],
         'content': ['archives', 'assets']
       },
       single: ['index', 'dashboard']

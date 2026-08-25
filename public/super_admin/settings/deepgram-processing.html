@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin" />
+  <title>Deepgram Processing — Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css" />
+</head>
+<body class="antialiased font-sans p-2 sm:p-0 bg-slate-100 text-slate-900">
+  <div id="sidebar-placeholder"></div>
+  <div class="mx-auto flex flex-col gap-2">
+    <!-- Header -->
+    <div id="header-placeholder"></div>
+
+    <!-- Engine status -->
+    <div class="px-3">
+      <span id="engineStatus" class="inline-block text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-1 rounded border-2 border-slate-300 bg-slate-100 text-slate-500">Checking Deepgram API...</span>
+    </div>
+
+    <!-- Videos Table -->
+    <section class="bg-white rounded-lg border-2 border-slate-300 shadow-md mx-3 overflow-hidden">
+      <div class="px-3 py-2 bg-gradient-to-r from-violet-50 to-purple-100 border-b-2 border-violet-300">
+        <h2 class="text-sm font-bold text-violet-950 uppercase tracking-wide">Session Recordings <span class="text-violet-400 normal-case font-medium">(Deepgram pipeline)</span></h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600 uppercase tracking-wider text-left">
+              <th class="px-3 py-2">#</th>
+              <th class="px-3 py-2">File Name</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Speakers</th>
+              <th class="px-3 py-2">Turns</th>
+              <th class="px-3 py-2">Duration</th>
+              <th class="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="videosBody" class="divide-y divide-slate-100">
+            <tr><td colspan="7" class="px-3 py-4 text-center text-slate-400">Loading videos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Transcript Modal -->
+  <div id="transcriptModal" style="display:none;" class="hidden fixed inset-0 bg-black/50 z-[99999] items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full border-2 border-violet-400 overflow-hidden max-h-[85vh] flex flex-col">
+      <div class="px-3 py-2 border-b-2 border-violet-300 bg-violet-100 flex items-center justify-between">
+        <h2 id="transcriptTitle" class="text-sm font-bold text-violet-950 uppercase tracking-wide truncate">Transcript</h2>
+        <button type="button" id="transcriptClose" class="text-violet-700 hover:text-violet-900 text-sm leading-none">&#10005;</button>
+      </div>
+      <pre id="transcriptContent" class="p-4 overflow-y-auto flex-1 text-xs whitespace-pre-wrap font-mono text-slate-800"></pre>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-3 right-3 bg-slate-800 border border-slate-700 rounded p-3 shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <div class="flex items-center gap-2">
+      <div id="toastIcon"></div>
+      <div><p id="toastMessage" class="text-xs font-medium"></p></div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/auth.js"></script>
+  <script src="/js/load-components.js"></script>
+  <script src="/js/common-ui-super-admin.js"></script>
+  <script src="/js/super_admin/settings/deepgram-processing.js"></script>
+</body>
+</html>
+

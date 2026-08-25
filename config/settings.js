@@ -162,14 +162,15 @@ module.exports = {
   HF_TOKEN: process.env.HF_TOKEN,
 
   ai: {
-    provider: "gemini",
+    provider: process.env.AI_PROVIDER, 
     geminiApiKey: process.env.GEMINI_API_KEY,
-    geminiModel: "gemini-2.5-flash",
+    geminiModel: process.env.GEMINI_MODEL, 
     openaiApiKey: process.env.OPENAI_API_KEY,
-    openaiModel: "gpt-4o-mini",
-    groqApiKey: process.env.GROQ_API_KEY,
-    ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434/v1",
-    ollamaModel: process.env.OLLAMA_MODEL || "llama3.1"
+    openaiModel: process.env.OPENAI_MODEL, 
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    anthropicModel: process.env.ANTHROPIC_MODEL , 
+    ollamaUrl: process.env.OLLAMA_URL,
+    ollamaModel: process.env.OLLAMA_MODEL
   },
 
   pipeline_features: {

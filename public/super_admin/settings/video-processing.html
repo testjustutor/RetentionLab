@@ -142,6 +142,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Report View Modal -->
+    <div id="reportModal" class="hidden fixed inset-0 bg-black/50 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border-2 border-violet-400 overflow-hidden max-h-[85vh] flex flex-col">
+        <div class="px-3 py-2 border-b-2 border-violet-300 bg-violet-100 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-violet-950 uppercase tracking-wide">Observation Report</h2>
+          <button type="button" data-close-report class="text-violet-700 hover:text-violet-900 text-sm leading-none">✕</button>
+        </div>
+        <div id="reportContent" class="p-4 overflow-y-auto flex-1"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification -->

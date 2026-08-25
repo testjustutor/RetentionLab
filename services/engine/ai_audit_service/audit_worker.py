@@ -11,21 +11,9 @@ from database.python_db import get_cursor, execute, fetch_all
 from services.engine.ai_audit_service.rubric_loader import RubricLoader
 
 
-_AUDIT_SYSTEM_INSTRUCTION = """You are a QA evaluation service. Score the transcript against the supplied indicators.
-
-INPUT: audio transcript only. Video-dependent indicators have been removed — do not score any code you were not sent.
-
-RULES:
-1. Score each supplied indicator as 1 (Met), 0 (Not Met), or null (Not Applicable) against its benchmark. Cite one short quote (≤12 words) as evidence. For 0 or null, add a ≤15-word reason.
-2. Session-completeness: if the transcript is clearly an opening/partial segment and the indicator (closure, summary, practice output, in-session improvement, etc.) could not yet have occurred, score null — never 0. Not-yet-observed ≠ failed.
-3. ASR tolerance: treat single odd words that are plausibly transcription errors (unusual proper nouns, near-homophones, e.g. "El Chabra" for "Algebra", "attenuate" for "attempt") as the intended word. Do NOT trigger terminology, accuracy, or professionalism gates on them. Flag the suspected ASR issue in evidence.
-4. Gates: any indicator marked G that you score 0 goes in gate_failures. Null does not count as a gate failure.
-5. Output ONLY the JSON below with no extra fields. No prose, no code fences.
-
-SCHEMA:
-{"scores":{"A1.1":{"s":1,"e":"quote"},"A1.2":{"s":0,"r":"why","e":"quote"},"A1.4":{"s":null,"r":"partial session"}},
- "gate_failures":["A3.1"],
- "evidence_quote":"single strongest quote"}"""
+_AUDIT_SYSTEM_INSTRUCTION = """Evaluate the tutoring transcript against the supplied indicators. Output ONLY JSON:
+{"scores":{"A1.1":{"s":1,"e":"quote"},"A1.2":{"s":0,"r":"reason","e":"quote"},"A1.4":{"s":null,"r":"partial session"}},"gate_failures":[],"evidence_quote":"best quote"}
+Rules: 1=Met, 0=Not Met, null=Not applicable/insufficient evidence. Score 0 for observed failures. Gates with s=0 go in gate_failures; null never counts. ASR errors → treat as intended word, don't penalize. Cite ≤12-word evidence; for 0/null add a ≤15-word reason."""
 
 
 def _json_default(o):
@@ -225,20 +213,15 @@ class AiAuditService:
 
     def _build_compact_prompt(self, rubric_schema, transcript_text):
         """
-        Build a small prompt: per-category weights + one line per scorable
-        (non-video) indicator as `code|gate|benchmark`. Video-only indicators are
-        omitted entirely so the LLM never sees them (they are re-inserted with an
-        explicit N/A in code afterwards).
+        Build a small prompt: one line per scorable (non-video) indicator as
+        `code|gate|benchmark`. Category weights are NOT sent — they are used only
+        in post-processing (code) to compute the final score, so sending them
+        would only waste tokens. Video-only indicators are omitted entirely so
+        the LLM never sees them (they are re-inserted with an explicit N/A in
+        code afterwards).
         """
-        weight_parts = []
         ind_lines = ["INDICATORS (code|gate|benchmark):"]
         for cat in rubric_schema:
-            code = cat.get("category_id")
-            weight = float(cat.get("weight") or 0)
-            weight_str = f"{weight:.2f}"
-            if weight_str.startswith("0."):
-                weight_str = weight_str[1:]
-            weight_parts.append(f"{code}={weight_str}")
             for ind in cat.get("indicators", []):
                 if ind.get("requires_video"):
                     continue
@@ -247,12 +230,9 @@ class AiAuditService:
                 benchmark = (ind.get("benchmark") or "").strip()
                 ind_lines.append(f"{ind_code}|{gate}|{benchmark}")
 
-        weights_line = "WEIGHTS: " + " ".join(weight_parts)
         return (
-            weights_line
-            + "\n\n"
-            + "\n".join(ind_lines)
-            + "\n\nTranscript Target Data:\n"
+            "\n".join(ind_lines)
+            + "\n\nTranscript:\n"
             + transcript_text
         )
 
@@ -376,10 +356,11 @@ class AiAuditService:
         returned by the AI into a single structured JSON file under
         storage/cache_llm_prompts/PROMPT_AUDIT_<id>.json.
 
-        - 'request' holds the exact payload that was sent to the AI
-          (system_instruction + user prompt, the OpenAI 'messages' array, and
-          a single 'replayable_prompt' string that can be copy-pasted directly
-          into a chat UI to reproduce the same response).
+        - 'request' holds the exact payload that was sent to the AI:
+            - "system_instruction" — the system rules,
+            - "prompt" — the user message (indicator list + transcript),
+            - "replayable_prompt" — the full combined text (system + user) you can
+              paste into a chat box to reproduce the same response.
         - 'response' holds the exact raw text the AI returned (status OK once
           the call completed, PENDING while the call has not returned yet).
         """
@@ -393,11 +374,6 @@ class AiAuditService:
             except Exception:
                 model = None
 
-            messages = [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": prompt},
-            ]
-
             payload = {
                 "task": "audit",
                 "provider": self.ai_api.provider,
@@ -407,9 +383,7 @@ class AiAuditService:
                 "request": {
                     "system_instruction": system_instruction,
                     "prompt": prompt,
-                    "messages": messages,
-                    # Exact combined prompt you can paste into a chat box to
-                    # reproduce the same AI response.
+                    # Full combined prompt for copy-pasting into a chat UI.
                     "replayable_prompt": f"{system_instruction}\n\n{prompt}"
                 },
                 "response": {

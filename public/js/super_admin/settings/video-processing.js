@@ -84,6 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">' + label + '</button>';
   }
 
+  // Report button: shown only when a report file exists for this video.
+  function reportButtonHtml(video) {
+    if (!video || !video.reportJsonExists) {
+      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Report</button>';
+    }
+    return '<button type="button" class="report-btn px-2 py-1 text-[10px] rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold" data-file="' + video.fileName + '">Report</button>';
+  }
+
   // Render the videos table
   function renderTable(videos) {
     videosTableBody.innerHTML = '';
@@ -116,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         + '<td class="py-1.5 px-2 space-x-1.5">'
         + convertButtonHtml(video, canConvert)
         + processButtonHtml(video, canProcess)
+        + reportButtonHtml(video)
         + '</td>';
       videosTableBody.appendChild(tr);
     });
@@ -127,6 +136,78 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.process-btn').forEach(btn => {
       btn.addEventListener('click', () => openProcessModal(btn.getAttribute('data-file')));
     });
+    document.querySelectorAll('.report-btn').forEach(btn => {
+      btn.addEventListener('click', () => openReportModal(btn.getAttribute('data-file')));
+    });
+  }
+
+  // Open report modal for a video (fetches JSON, renders PDF-style report)
+  function openReportModal(fileName) {
+    const video = videosCache[fileName];
+    const modal = document.getElementById('reportModal');
+    const container = document.getElementById('reportContent');
+    if (!modal || !container) return;
+    container.innerHTML = '<p class="text-xs text-slate-500">Loading report...</p>';
+    modal.classList.remove('hidden');
+    setTimeout(() => modal.classList.add('opacity-100'), 10);
+
+    if (!video || !video.reportJsonExists) {
+      container.innerHTML = '<p class="text-xs text-slate-500">No report available for this video.</p>';
+      return;
+    }
+    fetch(video.reportJsonUrl, { credentials: 'include' })
+      .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+      .then(report => { container.innerHTML = renderReport(report); })
+      .catch(err => { container.innerHTML = '<p class="text-xs text-red-500">Failed to load report: ' + err.message + '</p>'; });
+  }
+
+  // Build HTML for the report (categories, ratings, marks, red flags, comments)
+  function renderReport(report) {
+    const meta = report.meta || {};
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    let html = '<div class="space-y-3 text-xs">';
+
+    // Header
+    html += '<div class="border-b border-slate-200 pb-2"><p class="font-bold text-sm text-slate-800">Tutor Observation Report</p>'
+      + '<p class="text-slate-600">' + esc(meta.tutor_name || '')
+      + (meta.student_name ? ' — ' + esc(meta.student_name) : '') + '</p>'
+      + (meta.session_date ? '<p class="text-slate-500">' + esc(meta.session_date) + (meta.session_time ? ' ' + esc(meta.session_time) : '') + '</p>' : '')
+      + '<p class="text-slate-700 font-semibold mt-1">Total: <span class="text-violet-700">' + esc(report.total_score) + ' / ' + esc(report.total_marks) + '</span>'
+      + (report.rating_overall ? ' · <span class="text-slate-600">' + esc(report.rating_overall) + '</span>' : '') + '</p></div>';
+
+    // Categories + indicators
+    (report.categories || []).forEach(cat => {
+      html += '<div class="rounded border border-slate-200 overflow-hidden"><div class="bg-slate-100 px-2 py-1.5 font-bold text-slate-700">'
+        + esc(cat.code) + '. ' + esc(cat.name) + ' <span class="font-medium">(' + esc(cat.scored_marks) + '/' + esc(cat.marks) + ')</span></div><div class="p-2 space-y-1.5">';
+      (cat.indicators || []).forEach(ind => {
+        const ratingClass = ind.rating === 'Meets Expectations' ? 'text-emerald-700' : (ind.rating === 'Partially Meets' ? 'text-amber-700' : (ind.rating === 'Needs Improvement' ? 'text-red-700' : 'text-slate-500'));
+        html += '<div><p class="font-semibold text-slate-700">' + esc(ind.id) + ' ' + esc(ind.name)
+          + ' <span class="' + ratingClass + '">(' + esc(ind.rating || 'N/A') + ')</span></p>';
+        if (ind.rating_descriptor) html += '<p class="text-slate-500 italic">' + esc(ind.rating_descriptor) + '</p>';
+        if (ind.additional_notes) html += '<p class="text-slate-600">— ' + esc(ind.additional_notes) + '</p>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    // Red flags
+    const flags = (report.red_flags || []).filter(f => f.flagged);
+    html += '<div class="rounded border border-red-200"><div class="bg-red-50 px-2 py-1.5 font-bold text-red-700">Red Flags</div><div class="p-2">';
+    if (!flags.length) html += '<p class="text-slate-500">None</p>';
+    else flags.forEach(f => html += '<p class="text-red-700">• ' + esc(f.name) + (f.note ? ': ' + esc(f.note) : '') + '</p>');
+    html += '</div></div>';
+
+    // Comments + recommendations
+    if ((report.observer_comments || []).length) {
+      html += '<div><p class="font-bold text-slate-700 mb-0.5">Observer Comments</p><p class="text-slate-600">' + esc(report.observer_comments.join(' ')) + '</p></div>';
+    }
+    if ((report.recommendations || []).length) {
+      html += '<div><p class="font-bold text-slate-700 mb-0.5">Recommendations</p><ul class="list-disc pl-4 text-slate-600">';
+      report.recommendations.forEach(r => html += '<li>' + esc(r) + '</li>');
+      html += '</ul></div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   // Open convert modal
@@ -253,6 +334,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Close buttons (data-close)
   document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', closeModals));
+
+  // Report modal close (its own close button + backdrop)
+  const reportModal = document.getElementById('reportModal');
+  if (reportModal) {
+    document.querySelectorAll('[data-close-report]').forEach(el => el.addEventListener('click', () => {
+      reportModal.classList.add('hidden');
+      reportModal.classList.remove('opacity-100');
+    }));
+    reportModal.addEventListener('click', (e) => {
+      if (e.target === reportModal) {
+        reportModal.classList.add('hidden');
+        reportModal.classList.remove('opacity-100');
+      }
+    });
+  }
 
   // Refresh button
   const refreshBtn = document.getElementById('refreshBtn');

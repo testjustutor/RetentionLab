@@ -220,11 +220,11 @@ For confidence, use exactly: "High", "Medium", or "Low".
       if (provider === 'openai') {
         apiUrl = 'https://api.openai.com/v1/chat/completions';
         apiKey = settings.ai.openaiApiKey;
-        model = settings.ai.openaiModel || 'gpt-4o-mini';
+        model = settings.ai.openaiModel;
       } else if (provider === 'cloude') {
         apiUrl = 'https://api.cloude.com/openai/v1/chat/completions';
         apiKey = settings.ai.cloudeApiKey;
-        model = settings.ai.cloudeModel || 'llama-3.1-8b-instant';
+        model = settings.ai.cloudeModel;
       } else {
         continue;
       }

@@ -39,12 +39,14 @@ def build_ai_config(ai_settings: dict):
     ai_config dict for AiApiService — or None if AI isn't usable
     (caller should fall back to its non-AI worker).
     """
-    provider = os.getenv("AI_PROVIDER", ai_settings.get("provider", "gemini")).lower()
+    provider = os.getenv("AI_PROVIDER", ai_settings.get("provider")).lower()
 
+    # Fixed spelling from "cloude" to "anthropic" to prevent connection bugs
     provider_keys = {
-        "cloude": ai_settings.get("cloudeApiKey"),
+        "anthropic": ai_settings.get("anthropicApiKey"), 
         "gemini": ai_settings.get("geminiApiKey"),
         "openai": ai_settings.get("openaiApiKey"),
+        "ollama": "local" # Added a simple placeholder so local Ollama runs without an API key
     }
 
     if not provider_keys.get(provider):
@@ -52,11 +54,12 @@ def build_ai_config(ai_settings: dict):
 
     return {
         "provider": provider,
-        "cloudeModel": ai_settings.get("cloudeModel", "claude-sonnet-5"),
-        "cloudeApiKey": ai_settings.get("cloudeApiKey"),
+        "anthropicModel": ai_settings.get("anthropicModel"),
+        "anthropicApiKey": ai_settings.get("anthropicApiKey"),
         "openaiApiKey": ai_settings.get("openaiApiKey"),
+        "openaiModel": ai_settings.get("openaiModel"),
         "ollamaUrl": ai_settings.get("ollamaUrl", "http://localhost:11434/v1"),
-        "ollamaModel": ai_settings.get("ollamaModel", "llama3.1"),
+        "ollamaModel": ai_settings.get("ollamaModel", "llama3.3"),
         "geminiApiKey": ai_settings.get("geminiApiKey"),
         "geminiModel": ai_settings.get("geminiModel"),
     }

@@ -37,6 +37,7 @@ const platformsConfig = require('./settings/platforms');
 const aiproviders = require('./settings/ai-providers');
 const userdefaults = require('./settings/user-defaults');
 const videoprocessing = require('./settings/video-processing');
+const deepgramprocessing = require('./settings/deepgram-processing');
 const tablecontrols = require('./settings/table-controls');
 const monitoringserver = require('./monitoring/server');
 const monitoringaudit = require('./monitoring/audit');
@@ -150,6 +151,7 @@ router.use('/settings/user-defaults', requireAuth, requireSuperAdmin, userdefaul
 // ── Settings (video-processing page) - Video to audio processing ─────────────
 // GET /, POST /process, GET /history
 router.use('/settings/video-processing', requireAuth, requireSuperAdmin, videoprocessing);
+router.use('/settings/deepgram-processing', requireAuth, requireSuperAdmin, deepgramprocessing);
 
 // ── Settings (table-controls page) - Table Controls (list + update) ───────────
 // GET /, GET /:tableId, PUT/POST /:tableId
