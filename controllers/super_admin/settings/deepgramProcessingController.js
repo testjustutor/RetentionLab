@@ -48,18 +48,41 @@ async function getAllVideos(req, res) {
       : [];
     const videos = [];
     for (const fileName of files) {
-      const record = await DeepgramProcessingModel.getLatestByFile(fileName).catch(() => null);
       const mp3Name = toMp3Name(fileName);
-      const jsonName = `${transcriptBaseName(mp3Name)}.transcript.json`;
-      const txtName = `${transcriptBaseName(mp3Name)}.transcript.txt`;
+      const base = transcriptBaseName(mp3Name);
+      const jsonName = `${base}.transcript.json`;
+      const txtName = `${base}.transcript.txt`;
+      const mp3Path = path.join(CONVERTED_DIR, mp3Name);
       const jsonPath = path.join(TRANSCRIPTS_DIR, jsonName);
+
+      // Same authoritative state machine as video-processing:
+      //   no MP3                  -> pending,   canConvert
+      //   MP3 + status=processing -> processing
+      //   MP3 + status=failed     -> failed,    canProcess (re-process)
+      //   MP3 + transcript saved  -> processed
+      //   MP3 otherwise           -> converted, canProcess
+      const hasMp3 = fs.existsSync(mp3Path) && fs.statSync(mp3Path).size > 0;
+      const record = await DeepgramProcessingModel.getLatestByFile(fileName).catch(() => null);
+      const lastStatus = record ? record.status : null;
+      const transcriptExists = fs.existsSync(jsonPath);
+
+      let status; let canConvert = false; let canProcess = false;
+      if (hasMp3 && transcriptExists) status = 'processed';
+      else if (!hasMp3) { status = 'pending'; canConvert = true; }
+      else if (lastStatus === 'processing') status = 'processing';
+      else if (lastStatus === 'failed') { status = 'failed'; canProcess = true; }
+      else { status = 'converted'; canProcess = true; }
+
       videos.push({
         fileName,
         videoPath: `/storage/screen-recordings/${encodeURIComponent(fileName)}`,
         videoSizeBytes: fileSizeOrNull(path.join(SCREEN_DIR, fileName)),
-        mp3Exists: fs.existsSync(path.join(CONVERTED_DIR, mp3Name)),
-        mp3SizeBytes: fileSizeOrNull(path.join(CONVERTED_DIR, mp3Name)),
-        status: record ? record.status : (fs.existsSync(jsonPath) ? 'processed' : 'pending'),
+        mp3Name,
+        mp3Exists: hasMp3,
+        mp3SizeBytes: fileSizeOrNull(mp3Path),
+        processingStatus: status,
+        canConvert,
+        canProcess,
         speakers: record ? record.speakers : null,
         turns: record ? record.turns : null,
         durationSec: record ? Number(record.duration_sec) : null,
@@ -67,7 +90,7 @@ async function getAllVideos(req, res) {
         processedAt: record ? record.updated_at : null,
         transcriptJsonUrl: `/storage/deepgram_transcripts/${encodeURIComponent(jsonName)}`,
         transcriptTxtUrl: `/storage/deepgram_transcripts/${encodeURIComponent(txtName)}`,
-        transcriptExists: fs.existsSync(jsonPath),
+        transcriptExists,
       });
     }
     return res.json({ success: true, data: { engine: 'deepgram', available: deepgramAvailable(), videos } });

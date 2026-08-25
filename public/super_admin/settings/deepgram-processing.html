@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="dashboard-role" content="super_admin" />
-  <title>Deepgram Processing — Super Admin</title>
+  <title>Deepgram Processing â€” Super Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/css/shared.css" />
 </head>
@@ -27,9 +27,11 @@
       <div class="overflow-x-auto">
         <table class="min-w-full text-xs">
           <thead>
-            <tr class="bg-slate-50 text-slate-600 uppercase tracking-wider text-left">
+            <tr class="bg-violet-100 text-violet-800 uppercase tracking-wider text-left">
               <th class="px-3 py-2">#</th>
               <th class="px-3 py-2">File Name</th>
+              <th class="px-3 py-2">MP4 Size</th>
+              <th class="px-3 py-2">MP3 Size</th>
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Speakers</th>
               <th class="px-3 py-2">Turns</th>
@@ -38,7 +40,7 @@
             </tr>
           </thead>
           <tbody id="videosBody" class="divide-y divide-slate-100">
-            <tr><td colspan="7" class="px-3 py-4 text-center text-slate-400">Loading videos...</td></tr>
+            <tr><td colspan="9" class="px-3 py-4 text-center text-slate-400">Loading videos...</td></tr>
           </tbody>
         </table>
       </div>
@@ -70,4 +72,5 @@
   <script src="/js/super_admin/settings/deepgram-processing.js"></script>
 </body>
 </html>
+
 

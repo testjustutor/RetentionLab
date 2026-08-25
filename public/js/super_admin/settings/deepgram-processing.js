@@ -68,20 +68,63 @@ function fmtDuration(sec) {
   return `${m}m ${s}s`;
 }
 
+function fmtSize(bytes) {
+  if (bytes == null) return '<span class="text-slate-400">-</span>';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+
+// Convert button: enabled only when server says canConvert (no MP3 yet).
+function convertButtonHtml(video) {
+  if (!video.canConvert) {
+    return '<button type="button" class="px-2 py-1 rounded bg-slate-200 text-slate-400 cursor-not-allowed font-semibold" disabled title="' + (video.mp3Exists ? 'Already converted' : 'Not available') + '">Convert</button>';
+  }
+  return '<button type="button" class="act-convert px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold" data-file="' + escapeHtml(video.fileName) + '">Convert</button>';
+}
+
+// Process button state machine (same as video-processing):
+//   pending    -> disabled "Process"
+//   converted  -> enabled "Process"
+//   failed     -> enabled "Re-process"
+//   processing -> disabled "Processing"
+//   processed  -> disabled "Processed"
+function processButtonHtml(video) {
+  const s = video.processingStatus || 'pending';
+  if (s === 'processing') {
+    return '<button type="button" class="px-2 py-1 rounded bg-blue-200 text-blue-500 cursor-wait font-semibold" disabled>Processing</button>';
+  }
+  if (!video.canProcess) {
+    return '<button type="button" class="px-2 py-1 rounded bg-slate-200 text-slate-400 cursor-not-allowed font-semibold" disabled title="' + (s === 'processed' ? 'Already processed' : 'Convert first') + '">Process</button>';
+  }
+  const label = s === 'failed' ? 'Re-process' : 'Process';
+  return '<button type="button" class="act-process px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + escapeHtml(video.mp3Name || video.fileName) + '">' + label + '</button>';
+}
+
+// Transcript button: enabled only when a transcript file exists.
+function transcriptButtonHtml(video) {
+  if (!video.transcriptExists) {
+    return '<button type="button" class="px-2 py-1 rounded bg-slate-200 text-slate-400 cursor-not-allowed font-semibold" disabled title="No transcript yet">Transcript</button>';
+  }
+  return '<button type="button" class="act-transcript px-2 py-1 rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold" data-url="' + video.transcriptJsonUrl + '" data-txt="' + video.transcriptTxtUrl + '" data-name="' + escapeHtml(video.fileName) + '">Transcript</button>';
+}
+
 function rowHtml(v, idx) {
   const safeName = escapeHtml(v.fileName);
   return `
-  <tr>
+  <tr class="hover:bg-violet-50/40">
     <td>${idx}</td>
-    <td class="file-cell" title="${safeName}">${safeName}</td>
-    <td>${statusBadge(v.status)}${v.error ? `<div class="err-line" title="${escapeHtml(v.error)}">${escapeHtml(v.error.slice(0, 60))}</div>` : ''}</td>
+    <td class="max-w-[260px] truncate" title="${safeName}">${safeName}</td>
+    <td>${fmtSize(v.videoSizeBytes)}</td>
+    <td>${v.mp3Exists ? fmtSize(v.mp3SizeBytes) : '<span class="text-slate-400">-</span>'}</td>
+    <td>${statusBadge(v.processingStatus || v.status)}${v.error ? `<div class="text-red-500 text-[10px] mt-0.5" title="${escapeHtml(v.error)}">${escapeHtml(v.error.slice(0, 60))}</div>` : ''}</td>
     <td>${v.speakers ?? '-'}</td>
     <td>${v.turns ?? '-'}</td>
     <td>${fmtDuration(v.durationSec)}</td>
-    <td style="text-align:right; white-space:nowrap;">
-      <button class="act-convert px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold" data-file="${safeName}" ${v.mp3Exists ? 'disabled title="Already converted"' : ''}>Convert</button>
-      <button class="act-process px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold" data-file="${safeName}" ${v.mp3Exists ? '' : 'disabled title="Convert first"'}>Process</button>
-      <button class="act-transcript px-2 py-1 rounded bg-violet-600 hover:bg-violet-500 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold" data-url="${v.transcriptJsonUrl}" data-txt="${v.transcriptTxtUrl}" data-name="${safeName}" ${v.transcriptExists ? '' : 'disabled title="No transcript yet"'}>Transcript</button>
+    <td style="text-align:right; white-space:nowrap;" class="space-x-1">
+      ${convertButtonHtml(v)}
+      ${processButtonHtml(v)}
+      ${transcriptButtonHtml(v)}
     </td>
   </tr>`;
 }
