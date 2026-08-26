@@ -80,45 +80,52 @@ function runPythonEngine(audioInput, opts = {}, timeoutMs = 0) {
       }, timeoutMs);
     }
 
-    let lastLine = '';
-    let barActive = false;   // whether a progress bar line is currently open
-    const renderBar = (pct, stage) => {
-      const p = Math.max(0, Math.min(100, pct));
-      const filled = Math.round(p / 5);
-      const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-      // Single-line in-place update (no data dump)
-      process.stdout.write(`\r[python_engine] [${bar}] ${String(p).padStart(3)}%  ${stage}   `);
-      if (p >= 100) { process.stdout.write('\n'); barActive = false; }
-      else barActive = true;
-    };
-    const closeBarIfNeeded = () => {
-      if (barActive) { process.stdout.write('\n'); barActive = false; }
+    let lastLine = '';       // last echoed line (dedupe identical consecutive)
+    let lastProgress = '';   // last PROGRESS pct+stage (skip no-change repeats)
+    let lineBuf = '';        // partial-line buffer across data chunks
+
+    /** Classify + print ONE complete line as PLAIN TEXT (never large data,
+     *  never an in-place bar - every progress update is its own line). */
+    const handleLine = (rawLine) => {
+      const line = rawLine.trim();
+      if (!line) return;
+
+      // Progress marker: PROGRESS <pct> <stage...> -> print as a simple line.
+      const pm = line.match(/^PROGRESS\s+(\d{1,3})\s+(.+)$/);
+      if (pm) {
+        const key = `${pm[1]}|${pm[2]}`;
+        if (key !== lastProgress) {
+          console.log(`[python_engine] ${line}`);
+          lastProgress = key;
+          lastLine = '';
+        }
+        return;
+      }
+      // Never echo large JSON payloads (final result, arrays, etc.)
+      // NOTE: text log lines like "[STEP] ..." also start with "[" - only
+      // suppress when it's actually a JSON array/object payload.
+      const isJsonPayload = line.startsWith('{') || /^\[\s*[{\"]/.test(line);
+      if (isJsonPayload) return;
+
+      // Keep normal log lines short (truncate anything huge)
+      const shown = line.length > 200 ? line.slice(0, 200) + '…' : line;
+      if (shown !== lastLine) {
+        console.log(`[python_engine] ${shown}`);
+        lastLine = `[python_engine] ${shown}`;
+      }
     };
 
     proc.stdout.on('data', (d) => {
-      stdout += d.toString();
-      // Handle line-by-line; suppress large payloads
-      d.toString().split(/\r?\n/).forEach((rawLine) => {
-        const line = rawLine.trim();
-        if (!line) return;
-
-        // Progress marker: PROGRESS <pct> <stage...>
-        const pm = line.match(/^PROGRESS\s+(\d{1,3})\s+(.+)$/);
-        if (pm) {
-          renderBar(Number(pm[1]), pm[2]);
-          return;
-        }
-        // Never echo large JSON payloads to the terminal
-        if (line.startsWith('{') || line.startsWith('[')) return;
-
-        // Keep normal log lines short (truncate anything huge)
-        const shown = line.length > 200 ? line.slice(0, 200) + '…' : line;
-        if (shown !== lastLine) {
-          closeBarIfNeeded();
-          console.log(`[python_engine] ${shown}`);
-          lastLine = `[python_engine] ${shown}`;
-        }
-      });
+      const text = d.toString();
+      stdout += text;
+      // Buffer partial lines: a single huge JSON line (e.g. the final result)
+      // can arrive split across several OS pipe chunks. Without buffering,
+      // its middle chunks don't start with '{' and would leak to the terminal
+      // as large data dumps. Splitting only on COMPLETE lines prevents that.
+      lineBuf += text;
+      const lines = lineBuf.split(/\r?\n/);
+      lineBuf = lines.pop(); // keep the trailing (possibly incomplete) piece
+      lines.forEach(handleLine);
     });
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
     proc.on('error', (err) => {
@@ -131,26 +138,30 @@ function runPythonEngine(audioInput, opts = {}, timeoutMs = 0) {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      closeBarIfNeeded();
 
-      // Strip any warnings (stderr) so only the JSON on stdout is parsed.
-      const trimmed = stdout.trim();
-      const jsonStart = trimmed.indexOf('{');
-      const jsonEnd = trimmed.lastIndexOf('}');
-      if (code !== 0 && (jsonStart === -1 || jsonEnd === -1)) {
-        reject(new Error(`python_engine failed (exit ${code}): ${stderr.trim()}`));
+      // The engine writes log lines AND the final result to stdout. Log lines
+      // may contain braces (e.g. "speakers=[{'speaker': ...}]"), so the old
+      // first-'{'..last-'}' slice broke. The result is always printed as ONE
+      // complete single-line JSON object LAST - scan lines from the END and
+      // take the first line that parses as a JSON object.
+      const outLines = stdout.trim().split(/\r?\n/);
+      for (let i = outLines.length - 1; i >= 0; i--) {
+        const candidate = outLines[i].trim();
+        if (!candidate.startsWith('{') || !candidate.endsWith('}')) continue;
+        try {
+          const parsed = JSON.parse(candidate);
+          resolve(parsed);
+          return;
+        } catch (_) { /* a log line with braces - keep scanning backwards */ }
+      }
+
+      if (code !== 0) {
+        reject(new Error(`python_engine failed (exit ${code}): ${stderr.trim().slice(0, 500)}`));
         return;
       }
-      let raw = trimmed;
-      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
-        raw = trimmed.slice(jsonStart, jsonEnd + 1);
-      }
-      try {
-        const parsed = JSON.parse(raw);
-        resolve(parsed);
-      } catch (err) {
-        reject(new Error(`python_engine returned invalid JSON: ${raw.slice(0, 300)}`));
-      }
+      reject(new Error(
+        `python_engine returned no valid JSON result (exit ${code}). stderr: ${stderr.trim().slice(0, 300)}`
+      ));
     });
   });
 }

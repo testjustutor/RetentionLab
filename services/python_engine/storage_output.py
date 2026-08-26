@@ -15,6 +15,8 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
+from utils.logger_util import log_with_type
+
 
 def default_output_dir() -> str:
     project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -99,5 +101,39 @@ def save_diarization_result(
 
         return txt_path
     except Exception as exc:  # never break the pipeline on a write error
-        print(f"[python_engine][storage_output] failed to write result: {exc}", flush=True)
+        log_with_type(
+            "error",
+            f"python_engine/storage_output: failed to write result -> {type(exc).__name__}: {exc}",
+            "PYTHON_ENGINE",
+        )
+        return None
+
+
+def save_plain_transcript(
+    result: Dict[str, Any],
+    output_dir: Optional[str] = None,
+) -> Optional[str]:
+    """Write the audio-only plain transcript to <base>.transcript.txt next to
+    the diarization outputs. Contains EXACTLY result["plain_text"] - no speaker
+    labels, no timestamps, no headers. Never raises; returns the path or None.
+    """
+    if not result or not (result.get("plain_text") or "").strip():
+        return None
+
+    audio_file = result.get("audio_file") or "audio"
+    base = os.path.splitext(os.path.basename(audio_file))[0]
+    out_dir = output_dir or default_output_dir()
+
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        txt_path = os.path.join(out_dir, f"{base}.transcript.txt")
+        with open(txt_path, "w", encoding="utf-8") as fh:
+            fh.write(result["plain_text"])
+        return txt_path
+    except Exception as exc:  # never break the pipeline on a write error
+        log_with_type(
+            "error",
+            f"python_engine/storage_output: failed to write plain transcript -> {type(exc).__name__}: {exc}",
+            "PYTHON_ENGINE",
+        )
         return None

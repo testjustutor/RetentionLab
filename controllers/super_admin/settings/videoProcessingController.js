@@ -9,6 +9,7 @@
  * real DB ids).
  */
 const VideoProcessingModel = require('../../../models/super_admin/settings/VideoProcessingModel');
+const SessionMetadataModel = require('../../../models/session-quality/SessionMetadataModel');
 const { runPythonEngine, convertVideoToMp3 } = require('../../../services/python_engine/runner');
 const { exec } = require('child_process');
 const path = require('path');
@@ -462,7 +463,8 @@ const controller = {
         const hasMp3 = mp3Exists(fileName);
         const lastStatus = await VideoProcessingModel.getLatestStatus(fileName);
         const ids = await resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null }));
-        const processed = hasMp3 && await VideoProcessingModel.hasAuditResults(ids.sessionId);
+        const hasAuditData = await VideoProcessingModel.hasAuditResults(ids.sessionId);
+        const processed = hasMp3 && hasAuditData;
 
         let status; let canConvert = false; let canProcess = false;
         if (processed) status = 'processed';
@@ -474,6 +476,8 @@ const controller = {
         videos.push({
           fileName, size: meta.size, duration: meta.duration, mp3Exists: hasMp3,
           processingStatus: status, processed, canConvert, canProcess,
+          hasAuditData,
+          auditReportUrl: ids.sessionId ? `/api/super_admin/settings/video-processing/report?sessionId=${ids.sessionId}` : null,
           videoPath: videoLink(fileName),
           audioPath: hasMp3 ? audioLink(toMp3Name(fileName)) : null,
           meetingId: ids.meetingId, sessionId: ids.sessionId,
@@ -575,14 +579,42 @@ async processAudio(req, res) {
         return res.json({ success: true, data: { success: true, alreadyExists: true, mp3Path, audioPath: audioLink(mp3Name), duplicate: true } });
       }
 
+      // Dynamic per-session name boosting for transcription (NEVER hardcoded):
+      //   - tutor name parsed from THIS recording's filename
+      //   - student name from session_metadata for THIS meeting (when present)
+      const boostNames = new Set();
+      if (parsed) {
+        const fullName = `${parsed.firstName || ''} ${parsed.lastName || ''}`.trim();
+        if (fullName) boostNames.add(fullName);
+        if (parsed.firstName) boostNames.add(parsed.firstName);
+        if (parsed.lastName) boostNames.add(parsed.lastName);
+      }
+      if (meetingId) {
+        const meta = await SessionMetadataModel.getByMeeting(meetingId).catch(() => null);
+        const studentName = meta && meta.student_name ? String(meta.student_name).trim() : '';
+        if (studentName) {
+          boostNames.add(studentName);
+          studentName.split(/\s+/).forEach((part) => part.length > 1 && boostNames.add(part));
+        }
+      }
+      const wordBoost = [...boostNames];
+
       await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'processing', mp3Path, seed: trackSeed })).catch(() => {});
       try {
         const result = await runPythonEngine(mp3Name, {
-          aiSettings: { meeting_id: meetingId, session_id: sessionId },
+          aiSettings: {
+            meeting_id: meetingId,
+            session_id: sessionId,
+            // Per-session known names -> AssemblyAI word_boost (proper-name fix)
+            ...(wordBoost.length ? { word_boost: wordBoost } : {})
+          },
           // 'tiny' is much faster on CPU (no GPU). Use 'base'/'small' for better
           // accuracy if slower speed is acceptable.
           model: process.env.PYTHON_ENGINE_MODEL || 'tiny'
-        });
+        },
+        // Hard watchdog: if the Python engine hangs (stuck upload/API/ffmpeg),
+        // fail cleanly instead of waiting forever. Override via .env.
+        Number(process.env.PYTHON_ENGINE_TIMEOUT_MS) || 45 * 60 * 1000);
         if (result && result.success === false) {
           await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'failed', mp3Path, seed: trackSeed })).catch(() => {});
           return res.json({ success: false, data: { success: false, error: result.error || 'Audio processing returned an error.' } });

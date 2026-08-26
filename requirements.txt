@@ -29,6 +29,7 @@ soundfile
 librosa
 pyannote.audio
 requests
+assemblyai
 
 # ---- Media / audio conversion ----------------------------------------------
 moviepy
@@ -39,6 +40,9 @@ noisereduce
 sentence-transformers
 google-genai
 deepgram-sdk
+# Optional managed transcription + diarization backend (opt-in, enable via
+# PYTHON_ENGINE_USE_ASSEMBLYAI=1). Replaces part of the local WhisperX stack.
+assemblyai
 
 # ---- Database ---------------------------------------------------------------
 mysql-connector-python

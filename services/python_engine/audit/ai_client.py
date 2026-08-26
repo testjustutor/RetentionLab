@@ -13,6 +13,8 @@ import os
 import json
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as _FutureTimeout
 
 try:
     from dotenv import load_dotenv
@@ -21,6 +23,11 @@ except Exception:
     pass
 
 from utils.logger_util import log_with_type
+
+# Hard ceiling for ONE AI provider call. Some SDK paths (e.g. google-genai)
+# have no built-in timeout and can hang forever on network issues -> without
+# this watchdog the whole pipeline stalls at "Running AI audit".
+AI_CALL_TIMEOUT = int(os.getenv("AI_CALL_TIMEOUT", "180"))
 
 
 class AiClient:
@@ -112,7 +119,8 @@ class AiClient:
 
     def ask_ai(self, prompt, system_instruction="You are a helpful assistant."):
         log_with_type("info", f"audit/ai_client: calling {self.provider}", "PYTHON_ENGINE")
-        try:
+
+        def _call():
             if self.provider == "anthropic":
                 return self._ask_anthropic(prompt, system_instruction)
             if self.provider == "gemini":
@@ -120,6 +128,31 @@ class AiClient:
             if self.provider == "ollama":
                 return self._ask_ollama(prompt, system_instruction)
             return self._ask_openai_like(prompt, system_instruction)
+
+        # Watchdog: never let a provider call hang the pipeline. On timeout we
+        # raise so the audit step fails cleanly (and the pipeline continues).
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            future = executor.submit(_call)
+            try:
+                result = future.result(timeout=AI_CALL_TIMEOUT)
+                log_with_type("info", f"audit/ai_client: {self.provider} responded OK", "PYTHON_ENGINE")
+                return result
+            except _FutureTimeout:
+                log_with_type(
+                    "error",
+                    f"audit/ai_client: {self.provider} call timed out after {AI_CALL_TIMEOUT}s "
+                    f"(model={self.model}) - check network/API key/model name",
+                    "PYTHON_ENGINE",
+                )
+                raise RuntimeError(
+                    f"AI Provider timeout: {self.provider} did not respond within {AI_CALL_TIMEOUT}s"
+                )
+        except RuntimeError:
+            raise
         except Exception as e:
             log_with_type("error", f"audit/ai_client: {self.provider} call failed -> {e}", "PYTHON_ENGINE")
             raise RuntimeError(f"AI Provider error: {str(e)}")
+        finally:
+            # Do NOT wait for the orphaned request thread; it will finish/die on its own.
+            executor.shutdown(wait=False)

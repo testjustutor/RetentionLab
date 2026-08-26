@@ -8,8 +8,6 @@ Confirmed session facts baked in:
     - language is English
     - tutor teaches -> speaker with most talk time is labelled "Tutor"
 
-Output shape matches services/python_engine so either engine can be used
-interchangeably by the Node controller:
     {"success": true, "segments": [...], "words": [...], "language": "en",
      "diarization": [...], "plain_text": "...", "backend": "deepgram-nova-3"}
 """
@@ -31,6 +29,32 @@ except Exception:
 
 DEFAULT_MODEL = "nova-3"
 TUTOR_STUDENT = ["Tutor", "Student"]
+
+
+def _extract_name_from_filename(audio_path: str) -> List[str]:
+    """Best-effort extraction of a proper name from the recording filename.
+
+    Recordings in this system follow a naming convention like:
+        1064_Neeraj Tanwar_Regular_247412_General Discussion-20260817_092941.mp3
+    i.e. underscore-separated fields where the 2nd field (index 1) is
+    typically the student's name. This is used as a *dynamic* keyterm
+    fallback so callers don't have to manually pass names every time -
+    if the filename doesn't match the expected shape, this just returns
+    an empty list and keyterm prompting is skipped (no error).
+    """
+    try:
+        base = os.path.splitext(os.path.basename(audio_path))[0]
+        parts = base.split("_")
+        if len(parts) < 2:
+            return []
+        candidate = parts[1].strip()
+        # Guard against obviously-not-a-name tokens (empty, pure digits,
+        # or something that looks like another metadata field).
+        if not candidate or candidate.isdigit():
+            return []
+        return [candidate]
+    except Exception:
+        return []
 
 
 def _get_client():
@@ -59,8 +83,25 @@ def _apply_role_labels(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return segments
 
 
-def transcribe_audio(audio_path: str) -> Dict[str, Any]:
-    """Send local audio bytes to Deepgram and return engine-shaped JSON."""
+def transcribe_audio(audio_path: str, keyterms: List[str] | None = None) -> Dict[str, Any]:
+    """Send local audio bytes to Deepgram and return engine-shaped JSON.
+
+    keyterms: optional list of proper nouns / names to bias recognition
+        toward (e.g. the tutor's and student's names for this session).
+        This uses Nova-3's "Keyterm Prompting" feature, which is the
+        Nova-3 replacement for the older Nova-2 "keywords" boosting -
+        it is NOT just a statistical boost, it contextually biases the
+        model toward those exact terms. Pass plain names/terms with no
+        weights or ":INTENSIFIER" syntax (that syntax is Nova-2 only and
+        is silently ignored/treated as a literal term on Nova-3).
+        Without this, names the model hasn't seen much of (e.g. "Abeer")
+        can get misheard as a similar-sounding common word/name (e.g.
+        "Lee"), especially in short, low-confidence opening greetings.
+
+        If not supplied, this function tries to auto-derive a name from
+        the audio filename (see _extract_name_from_filename) so most
+        callers get the accuracy boost without any extra wiring.
+    """
     result: Dict[str, Any] = {
         "success": False, "audio_file": audio_path, "language": "en",
         "backend": f"deepgram-{DEFAULT_MODEL}", "segments": [], "words": [],
@@ -78,10 +119,31 @@ def transcribe_audio(audio_path: str) -> Dict[str, Any]:
         with open(audio_path, "rb") as fh:
             audio_bytes = fh.read()
 
-        log_with_type("info", f"deepgram: sending audio to API (model={DEFAULT_MODEL}, diarize=true)", "PYTHON_DEEPGRAM")
+        # Clean/dedupe keyterms; drop anything blank.
+        clean_keyterms = [k.strip() for k in (keyterms or []) if k and k.strip()]
+        clean_keyterms = list(dict.fromkeys(clean_keyterms))  # de-dupe, preserve order
+
+        # Dynamic fallback: if the caller didn't supply keyterms explicitly,
+        # try to derive a name automatically from the filename convention
+        # (see _extract_name_from_filename). This means callers get the
+        # keyterm-prompting accuracy boost "for free" on correctly-named
+        # recordings, without having to look up and pass names manually.
+        keyterm_source = "explicit"
+        if not clean_keyterms:
+            auto_keyterms = _extract_name_from_filename(audio_path)
+            if auto_keyterms:
+                clean_keyterms = auto_keyterms
+                keyterm_source = "auto-from-filename"
+
+        log_with_type(
+            "info",
+            f"deepgram: sending audio to API (model={DEFAULT_MODEL}, diarize=true, keyterms={clean_keyterms or None}, keyterm_source={keyterm_source})",
+            "PYTHON_DEEPGRAM"
+        )
         # deepgram-sdk v7: options are passed as keyword arguments and the
-        # file payload is raw bytes.
-        response = client.listen.v1.media.transcribe_file(
+        # file payload is raw bytes. `keyterm` (singular param name, list
+        # value) is the Nova-3 proper-noun/keyterm-prompting feature.
+        transcribe_kwargs = dict(
             request=audio_bytes,
             model=DEFAULT_MODEL,
             smart_format=True,
@@ -91,6 +153,10 @@ def transcribe_audio(audio_path: str) -> Dict[str, Any]:
             paragraphs=True,
             utterances=True,
         )
+        if clean_keyterms:
+            transcribe_kwargs["keyterm"] = clean_keyterms
+
+        response = client.listen.v1.media.transcribe_file(**transcribe_kwargs)
         if hasattr(response, "model_dump"):
             data = response.model_dump()
         elif hasattr(response, "to_dict"):
@@ -104,6 +170,17 @@ def transcribe_audio(audio_path: str) -> Dict[str, Any]:
 
         words = alt.get("words", []) or []
 
+        log_with_type(
+            "info",
+            f"deepgram: word count={len(words)} first_words={words[:20]}",
+            "PYTHON_DEEPGRAM"
+        )
+
+        log_with_type(
+            "info",
+            f"deepgram: utterances={alt.get('utterances')}",
+            "PYTHON_DEEPGRAM"
+        )
         # Preferred: ready-made speaker turns from the API.
         api_utterances = alt.get("utterances") or []
         segments: List[Dict[str, Any]] = []
@@ -118,10 +195,24 @@ def transcribe_audio(audio_path: str) -> Dict[str, Any]:
                 })
         else:
             # Fallback: group per-word speakers into turns.
+            # Deepgram's utterances endpoint sometimes returns nothing
+            # (see "deepgram: utterances=None" in logs) even when requested,
+            # so this path runs more often than expected. Splitting purely on
+            # speaker-id change is not enough: Deepgram can tag two genuinely
+            # different speaker turns with the *same* id, and without a gap
+            # check they get silently concatenated into one merged segment
+            # (e.g. a 1s+ silence between "Lee." and "Hi." at call open was
+            # being glued into a single "Hello, Lee. Hi." turn). A max-gap
+            # threshold forces a turn break whenever there's a real pause,
+            # regardless of what speaker id Deepgram assigned.
+            MAX_GAP_SECONDS = 0.6
             cur: Dict[str, Any] = None
             for w in words:
                 spk = w.get("speaker", 0)
-                if cur is None or cur["_spk"] != spk:
+                start = w.get("start")
+                gap = (start - cur["end"]) if (cur is not None and start is not None and cur.get("end") is not None) else 0.0
+                new_turn = cur is None or cur["_spk"] != spk or (gap is not None and gap > MAX_GAP_SECONDS)
+                if new_turn:
                     if cur is not None:
                         segments.append(cur)
                     cur = {"_spk": spk, "speaker": f"SPEAKER_{int(spk):02d}", "start": w.get("start"),
@@ -133,6 +224,11 @@ def transcribe_audio(audio_path: str) -> Dict[str, Any]:
                 segments.append(cur)
             for s in segments:
                 s.pop("_spk", None)
+            log_with_type(
+                "info",
+                f"deepgram: fallback turn-building used (utterances missing) -> {len(segments)} raw turns, max_gap={MAX_GAP_SECONDS}s",
+                "PYTHON_DEEPGRAM"
+            )
 
         segments = _apply_role_labels(segments)
         diarization = [{"start": s["start"], "end": s["end"], "speaker": s["speaker"]} for s in segments]

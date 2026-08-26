@@ -36,6 +36,96 @@ Confirmed by user: ALL videos are 1:1 tutor-student, exactly 2 speakers, languag
 - [x] Verified migration runner (database/reset-db.js) discovers files via readdirSync - no tracking table, so file removal is safe.
 - [x] Verified zero references to the deleted files; all 62 remaining migrations pass node --check; zero ALTER TABLE statements remain in the migrations folder.
 
+## Task: AssemblyAI — opt-in backend for python_engine
+
+- [x] Create services/python_engine/assemblyai_engine.py mirroring WhisperXEngine: transcribe_and_diarize(audio_path) -> {language, segments, words, backend, num_speakers_forced}.
+- [x] Wire opt-in AssemblyAI branch (first) into pipeline.py via PYTHON_ENGINE_USE_ASSEMBLYAI / config.use_assemblyai (default OFF -> no behaviour change).
+- [x] Skip _align_diarization for assemblyai and channels backends (midpoint/gap collision bug).
+- [x] Add `assemblyai` to requirements.txt and ASSEMBLYAI_API_KEY / PYTHON_ENGINE_USE_ASSEMBLYAI to .env.
+- [x] Verify: AST syntax check on all touched files; lazy-import resilience (assemblyai not installed -> graceful fallback to WhisperX); pipeline fall-back behaviour unchanged.
+- [x] ENABLED: PYTHON_ENGINE_USE_ASSEMBLYAI=1 in .env; fixed IndentationError at assemblyai_engine.py line 64; removed duplicate empty ASSEMBLYAI_API_KEY= that could shadow the real key; engine now load_dotenv()s root .env itself (python_deepgram pattern). Live-verified against storage/recordings/1064_Neeraj Tanwar_Regular_247412_General Discussion-20260817_092941.mp3 -> 94 segments / 1089 words / 2 speakers / backend=assemblyai.
+
+## Task: Step-level START/FINISH logging in python_engine pipeline
+
+- [x] Added _step() helper to services/python_engine/pipeline.py: prints ONE simple "[STEP] <name> : STARTED/COMPLETED/FAILED (detail)" line to stdout per stage (echoed by runner.js on its own line - bar is closed first, so nothing glues onto the percentage line) + writes to the log file.
+- [x] Instrumented every stage: audio preprocessing, AssemblyAI transcription, channel transcription, WhisperX transcription, Whisper fallback, speaker diarization, diarization health check, AI audit, observation report, save results.
+- [x] Verified: py_compile OK; live _step/_emit_progress output shows each step on its own line between progress updates.
+
+## Task: Stuck-vs-working visibility (step timing + heartbeat + Node timeout)
+
+- [x] Step timing: every [STEP] COMPLETED/FAILED line now includes how long the step took, e.g. "[STEP] AI audit : COMPLETED (took 37s) (oqi=78.5)".
+- [x] Liveness heartbeat: daemon thread in pipeline.py refreshes the progress bar every 20s during a step as "PROGRESS <pct> <stage> | still working: '<step>' for Ns (total Ms)" -> if the bar line FREEZES, the process is truly stuck. Daemon dies with the process.
+- [x] Hard timeout: videoProcessingController now passes PYTHON_ENGINE_TIMEOUT_MS (default 45 min) to runPythonEngine so a hung Python engine fails cleanly (record marked failed, error toast) instead of waiting forever.
+- [x] Verified: py_compile OK; node --check OK; live test shows heartbeat lines at 2s/4s while a step runs and "took Ns" on completion/failure.
+
+## Task: Replace in-place progress bar with plain text lines
+
+- [x] runner.js no longer renders the single-line \r progress bar; every PROGRESS update (including heartbeat "still working" lines) is echoed as its own plain [python_engine] line. Identical consecutive PROGRESS updates are deduped.
+- [x] BUGFIX: the JSON-payload filter skipped any line starting with "[" which also swallowed "[STEP] ..." log lines - now only suppresses real JSON payloads ({...} or [{/"...).
+- [x] Verified: node --check OK; simulation shows PROGRESS/heartbeat/STEP lines each on their own line, JSON object+array payloads suppressed, duplicate progress lines skipped.
+
+## Task: Fix pipeline hang at "Running AI audit"
+
+- [x] ROOT CAUSE: AI_PROVIDER=gemini -> ai_client._ask_gemini calls client.models.generate_content() with NO timeout; the google-genai SDK can hang forever on network/API issues, stalling the pipeline at "[STEP] AI audit : STARTED".
+- [x] FIX: AiClient.ask_ai now runs every provider call under a watchdog thread - raises "AI Provider timeout" after AI_CALL_TIMEOUT seconds (default 180, override via .env) so the audit step FAILS cleanly and the pipeline continues to report/save instead of hanging. Added AI_CALL_TIMEOUT to .env.example.
+- [x] Verified: py_compile OK; simulated 60s-hanging provider call -> RuntimeError fired at exactly 3s (test env); normal fast calls unaffected.
+
+## Task: Failure logging everywhere (no silent failures)
+
+- [x] Save results step: wrapped in try/except - on write failure logs "failed to save results file" + [STEP] Save results : FAILED, pipeline continues (transcript still returned in JSON).
+- [x] main.py top-level catch now logs "FATAL pipeline crashed" with exception type + traceback to the log file before returning the error JSON.
+- [x] storage_output.py: replaced silent print with proper log_with_type ERROR entry.
+- [x] Verified: py_compile OK; live test shows FileNotFoundError logged as ERROR | [PYTHON_ENGINE] when output path is bad; FATAL log present in main.py.
+
+## Task: No raw print() - always the logger
+
+- [x] utils/logger_util.py console StreamHandler now writes to STDOUT so every log line is relayed by the Node runner to the terminal.
+- [x] pipeline.py: _emit_progress -> "[PROGRESS] 40% - <stage>" via log_with_type INFO; heartbeat -> "[HEARTBEAT] still working: '<step>' for Ns (total Ms)" via log_with_type WARNING; _step no longer prints - logger only.
+- [x] Only remaining stdout writes are the JSON data contracts (python_engine/main.py final result, video_convert.py CLI output) - marked with "DATA CHANNEL" comments; these are machine-readable payloads for Node, not logs.
+- [x] Verified: py_compile OK; live run emits timestamped INFO/WARNING logger lines for progress/steps/heartbeat on stdout (relayed by runner.js); zero stray prints left in services/python_engine.
+
+## Task: Fix "python_engine returned invalid JSON" after logger-to-stdout change
+
+- [x] ROOT CAUSE: runner.js extracted the result via first-'{'..last-'}' slice of stdout. After logs moved to stdout, log lines containing braces (e.g. health check "speakers=[{'speaker': ...}])") poisoned the slice -> invalid JSON.
+- [x] FIX: runner.js close handler now scans complete stdout lines BACKWARDS and takes the first line that parses as a JSON object (the result is always printed last as one single-line JSON). Clean rejects with stderr excerpt when no result found.
+- [x] Verified: node --check OK; 4-case test passes (braces-in-log-lines, last-JSON-wins, no-JSON+nonzero-exit reject, JSON-before-trailing-log-line).
+
+## Task: Add plain audio-only transcript file (<base>.transcript.txt)
+
+- [x] storage_output.py: new save_plain_transcript(result, output_dir=None) - writes result["plain_text"] EXACTLY as-is (no headers/speakers/timestamps) to <base>.transcript.txt in the same output dir; same defensive pattern as save_diarization_result (never raises, None on failure, log_with_type ERROR on write failure).
+- [x] pipeline.py: added "plain_text" (the SAME string already computed for the audit step, not re-derived) to the save payload; calls save_plain_transcript right after save_diarization_result; Save results COMPLETED step now reports both paths.
+- [x] run_pipeline result dict now includes "plain_output_path" so Node sees the new file's path.
+- [x] Existing .diarization.txt/.diarization.json outputs unchanged - purely additive third file.
+- [x] Verified: py_compile OK; live test confirms byte-exact content, all 3 files side by side (.diarization.json/.diarization.txt/.transcript.txt), empty/missing plain_text -> None without error, unwritable dir -> None + ERROR log.
+
+## Task: Validate transcription against Teams VTT (session 247412 audio vs 247410 VTT)
+
+- [x] Same session confirmed: first 15 min of VTT content matches recording word-for-word ("It's still loading", annotation issue, y=x+1 lesson etc.). VTT covers 55.6 min meeting; recording/audio only ~14.9 min -> recording is truncated, transcript is correct for the audio that exists.
+- [x] Speaker mapping learned from data: Speaker 1 = Neeraj Tanwar (tutor), Speaker 2 = Abeir (student) - matches talk-time dominance rule.
+- [x] Segment-level speaker match vs real names: 65.6% (59/90). Limited by Teams caption lag + AssemblyAI merging adjacent tutor/student turns into one utterance.
+- [x] Text match (overlap window, 200 VTT cues): naive WER 62.4% is inflated by incomplete reference (VTT 789 words vs ours 1086 - insertions alone imply ~38% floor). Fair alignment (difflib): 79.6% of ALL words Teams captured also appear in our transcript; our transcript contains ~38% MORE speech than the captions caught (Teams drops quiet/faint speech).
+- [x] Quality spot-checks favor ours: "Hello, be."/"Code." in VTT vs "Hello, Abhijit."/"Cold." in ours.
+- Note: jiwer not installed in system python; WER computed via Levenshtein fallback. validate_transcription.py remains available for full re-runs.
+
+## Task: Fix proper-name recognition ("Abir" misheard as "Abhijit")
+
+- [x] User spotted: tutor's greeting "Hello, Abir." (student's real name, confirmed by VTT voice tags "Abeir" x274) was transcribed as "Hello, Abhijit." by AssemblyAI / "Hello, be." by Teams.
+- [x] FIX: word_boost support - AssemblyAIEngine now accepts word_boost=[names] and passes it to TranscriptionConfig; pipeline reads it from aiSettings.word_boost or PYTHON_ENGINE_WORD_BOOST env (comma separated).
+- [x] .env: PYTHON_ENGINE_WORD_BOOST=Abir,Abeir,Neeraj Tanwar; .env.example documents the key.
+- [x] Verified: py_compile OK; local test shows boost names reach TranscriptionConfig correctly; no-boost path unchanged (None).
+
+## Task: Make word_boost fully dynamic (NO hardcoded names)
+
+- [x] Removed hardcoded 'Abir','Abeir','Neeraj Tanwar' from .env (PYTHON_ENGINE_WORD_BOOST now empty, documented as optional global fallback only).
+- [x] videoProcessingController.processAudio builds word_boost DYNAMICALLY per session: tutor name from THIS recording's filename (parseNamedVideoName firstName/lastName) + student_name from session_metadata via SessionMetadataModel.getByMeeting(meetingId); passed as aiSettings.word_boost.
+- [x] Flow: controller aiSettings.word_boost -> runner argv -> pipeline config.get('word_boost') -> AssemblyAIEngine word_boost -> TranscriptionConfig. Env var only a fallback; scales to millions of sessions with zero code/config changes per session.
+- [x] Verified: node --check OK; parse_ai_config test shows aiSettings.word_boost reaches pipeline config; no-boost path unchanged.
+
+### Notes / assumptions
+- `assemblyai` is OPTIONAL: lazy-imported inside __init__, so a missing package or key is caught by the pipeline try/except and falls back to WhisperX (no behaviour change by default).
+- Segments carry {start, end, text, speaker} and words {word, start, end, speaker} (ms -> s), matching WhisperXEngine output shape so downstream audit/storage/health-check work unchanged.
+- FIXED log spam: runner.js processed stdout per data-chunk, so the huge single-line result JSON arriving split across pipe chunks leaked its middle fragments to the terminal as [python_engine] dumps. Now partial lines are buffered across chunks; only complete non-JSON lines are echoed (200-char truncated). Verified: 2000-word payload in ugly 997-char chunks -> zero fragments echoed, stdout still fully captured for parsing.
+
 ## Task: Verify video-processing page matches video_processing table schema
 
 - [x] FIXED BUG: makeTrackRec returned snake_case keys (user_id/file_user_id/...) while VideoProcessingModel.saveProcessingRecord reads camelCase (userId/fileUserId/...) -> all tracking columns were inserting as NULL. Rewrote makeTrackRec to emit camelCase keys matching the model exactly.

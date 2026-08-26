@@ -25,7 +25,6 @@ function deepgramAvailable() {
 
 /**
  * Transcribe local audio via Deepgram API.
- * Resolves the same JSON shape as python_engine's runPythonEngine:
  *   {success, segments:[{start,end,text,speaker}], words, diarization,
  *    plain_text, language:'en', backend}
  */

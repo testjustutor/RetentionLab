@@ -59,9 +59,18 @@ def main(argv=None) -> int:
             model_size=args.model,
         )
     except Exception as exc:  # pragma: no cover - safety net
+        import traceback
+        from utils.logger_util import log_with_type
+        log_with_type(
+            "error",
+            f"python_engine: FATAL pipeline crashed -> {type(exc).__name__}: {exc} "
+            f"| trace: {traceback.format_exc(limit=3)}",
+            "PYTHON_ENGINE",
+        )
         result = {"success": False, "engine": "python_engine", "error": str(exc)}
 
-    # Always print JSON on stdout so Node can capture it.
+    # DATA CHANNEL (not a log): single-line JSON on stdout is the Node bridge
+    # contract - this is the ONLY permitted raw stdout write in this engine.
     print(json.dumps(result, ensure_ascii=False, default=_json_default))
 
     # Optionally persist a copy (diarization JSON) for inspection/tests.

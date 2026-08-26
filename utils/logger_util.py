@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
@@ -51,8 +52,10 @@ file_handler.setFormatter(file_formatter)
 file_handler.addFilter(LogTypeInjectFilter()) # Attach the safety filter
 logger.addHandler(file_handler)
 
-# 🖥️ Stream Handler (Terminal Console)
-stream_handler = logging.StreamHandler()
+# 🖥️ Stream Handler (Console) - writes to STDOUT so the Node runner
+# (services/python_engine/runner.js) relays every log line to the terminal.
+# NEVER use raw print() for messages; always log_with_type().
+stream_handler = logging.StreamHandler(sys.stdout)
 stream_formatter = logging.Formatter(fmt=log_format, datefmt=date_format)
 stream_handler.setFormatter(stream_formatter)
 stream_handler.addFilter(LogTypeInjectFilter()) # Attach the safety filter
