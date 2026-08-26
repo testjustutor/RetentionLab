@@ -53,6 +53,7 @@ class AudioPreprocessor:
 
     @staticmethod
     def _denoise_wav(path: str):
+        """Denoise the WAV **in place** (single output file). Returns True on success."""
         try:
             import soundfile as sf
             from noisereduce import reduce_noise
@@ -61,14 +62,18 @@ class AudioPreprocessor:
             if data.ndim > 1:
                 data = data.mean(axis=1)
             reduced = reduce_noise(y=data, sr=sr)
-            out = path.replace(".wav", ".denoised.wav")
-            sf.write(out, reduced.astype("float32"), sr)
-            return out
+            sf.write(path, reduced.astype("float32"), sr)  # overwrite in place
+            return True
         except Exception as e:
             log_with_type("warning", f"audio_preprocess: denoise skipped -> {e}", "PYTHON_ENGINE")
-            return None
+            return False
+
     def preprocess(self, audio_path: str):
-        """Return (path_to_use, info). Falls back to the original on failure."""
+        """Return (path_to_use, info). Falls back to the original on failure.
+
+        Produces a SINGLE preprocessed WAV: `<base>.prep.wav` containing the
+        loudnorm-normalized AND denoised audio. No extra `.denoised.wav` copy.
+        """
         info = {"preprocessed": False, "channels": 1, "split_channels": False}
         if not self.enabled or not audio_path or not os.path.exists(audio_path):
             return audio_path, info
@@ -94,11 +99,10 @@ class AudioPreprocessor:
                 info["channel_files"] = [split["left"], split["right"]]
                 log_with_type("info", "audio_preprocess: stereo -> per-participant channels available", "PYTHON_ENGINE")
 
+        # Denoise in place so we keep a single simple WAV file.
         if self.denoise:
-            den = self._denoise_wav(prepped)
-            if den and os.path.exists(den) and os.path.getsize(den) > 1000:
+            if self._denoise_wav(prepped):
                 info["denoised"] = True
-                return den, info
 
         return prepped, info
 

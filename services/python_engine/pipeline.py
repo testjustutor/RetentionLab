@@ -267,15 +267,15 @@ def run_pipeline(
             diar_error = diar.get("error")
             log_with_type("info", f"python_engine: diarization done -> speakers={len(set(s['speaker'] for s in diarization))}, available={diar_available}", "PYTHON_ENGINE")
 
-            # Apply confirmed role labels (Tutor / Student) by talk-time dominance
+            # Apply confirmed role labels (Tutor / Student) by talk-time dominance.
+            # IMPORTANT: relabel the DIARIZATION SPANS (which carry the real
+            # SPEAKER_xx cluster ids), then let _align_diarization map those to the
+            # Whisper segments by time overlap. Applying it to the raw Whisper
+            # segments instead corrupted every speaker to null.
             try:
                 from .whisperx_engine import WhisperXEngine as _WXE
-                segments = _WXE._apply_role_labels(segments, fallback_names)
-                diarization = [
-                    {"start": s["start"], "end": s["end"], "speaker": s["speaker"]}
-                    for s in segments
-                ]
-                log_with_type("info", f"python_engine: role labels applied -> {sorted(set(s['speaker'] for s in segments))}", "PYTHON_ENGINE")
+                diarization = _WXE._apply_role_labels(diarization, fallback_names)
+                log_with_type("info", f"python_engine: role labels applied -> {sorted(set(s['speaker'] for s in diarization))}", "PYTHON_ENGINE")
             except Exception as exc:
                 log_with_type("warning", f"python_engine: role labeling skipped ({exc})", "PYTHON_ENGINE")
         except Exception as exc:
@@ -343,7 +343,39 @@ def run_pipeline(
     })
     _emit_progress(100, "Done")
 
-    log_with_type("info", f"python_engine: pipeline completed -> file={os.path.basename(audio_path)}, speakers={diar_available}, output={output_path or 'n/a'}", "PYTHON_ENGINE")
+    # ---- Clear completion summary log ---------------------------------------
+    try:
+        n_speakers = len(set((s.get("speaker") or "none") for s in labeled_segments))
+    except Exception:
+        n_speakers = 0
+    audit_oqi = None
+    if audit_result:
+        audit_oqi = audit_result.get("oqi_score")
+    report_total = None
+    report_marks = None
+    if report_result:
+        report_total = report_result.get("total_score")
+        report_marks = report_result.get("total_marks")
+
+    diar_status = ("OK (%d speakers)" % n_speakers) if diar_available else "unavailable"
+    audit_status = ("OK (OQI=%s)" % audit_oqi) if audit_oqi is not None else "skipped"
+    report_status = ("OK (%s/%s)" % (report_total, report_marks)) if report_total is not None else "n/a"
+
+    log_with_type(
+        "info",
+        "########## PROCESS COMPLETED ########## "
+        "file=%s | transcription=OK | diarization=%s | segments=%d | "
+        "AI audit=%s | report=%s | output=%s"
+        % (
+            os.path.basename(audio_path),
+            diar_status,
+            len(labeled_segments),
+            audit_status,
+            report_status,
+            output_path or "n/a",
+        ),
+        "PYTHON_ENGINE",
+    )
 
     return {
         "success": True,

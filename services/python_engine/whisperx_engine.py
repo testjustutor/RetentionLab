@@ -182,10 +182,15 @@ class WhisperXEngine:
                    for i, (spk, _) in enumerate(ordered)}
 
         for seg in segments or []:
-            seg["speaker"] = mapping.get(seg.get("speaker"), seg.get("speaker"))
+            # Use the same normalized key as the totals pass so entries without an
+            # explicit speaker (None) map to "SPEAKER_00" -> "Speaker 1" instead of
+            # being assigned None (which would collapse the transcript to SPEAKER_00).
+            key = seg.get("speaker") or "SPEAKER_00"
+            seg["speaker"] = mapping.get(key, seg.get("speaker"))
             for w in seg.get("words", []) or []:
-                if w.get("speaker") in mapping:
-                    w["speaker"] = mapping[w["speaker"]]
+                wkey = w.get("speaker") or "SPEAKER_00"
+                if wkey in mapping:
+                    w["speaker"] = mapping[wkey]
         return segments
 
     @staticmethod

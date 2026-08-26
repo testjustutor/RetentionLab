@@ -1,29 +1,45 @@
 # Python dependencies used by this project
+#
+# Install with:  python -m pip install -r requirements.txt
 # NOTE: ffmpeg must also be installed on PATH separately.
 # On Windows, install CPU PyTorch wheels directly if needed:
-# python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#     python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# NOTE: `webrtcvad` (a Resemblyzer dependency) builds a C++ extension that
+# requires "Microsoft C++ Build Tools". If it fails to install, apply the
+# lightweight `webrtcvad.py` stub that lives in the Python site-packages, or
+# install Resemblyzer with:  python -m pip install --no-deps resemblyzer
 
-torch 
-torchaudio
+# ---- Core / transcription -------------------------------------------------
 openai-whisper
 openai
+whisperx
+faster-whisper
+torch
+torchaudio
+transformers
+accelerate
+huggingface_hub
+onnxruntime
+
+# ---- Speaker diarization --------------------------------------------------
+resemblyzer
+scikit-learn
+soundfile
+librosa
 pyannote.audio
+requests
+
+# ---- Media / audio conversion ----------------------------------------------
 moviepy
 ffmpeg-python
-transformers 
-accelerate
-huggingface_hub 
-python-dotenv
+noisereduce
+
+# ---- AI SDKs / misc ---------------------------------------------------------
+sentence-transformers
+google-genai
+deepgram-sdk
+
+# ---- Database ---------------------------------------------------------------
 mysql-connector-python
-
-pip install torch==2.3.1+cpu torchvision==0.18.1+cpu torchaudio==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu
-
-pip install faster-whisper==1.0.3
-pip install whisperx==3.1.1
-pip install -U google-genai
-# pip install pyannote.audio==2.1.1
-pip install onnxruntime
-pip install transformers huggingface_hub
-
-
-# npm install -g pm2
+python-dotenv
