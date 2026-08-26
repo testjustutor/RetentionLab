@@ -8,6 +8,7 @@ torchaudio
 openai-whisper
 openai
 pyannote.audio
+moviepy
 ffmpeg-python
 transformers 
 accelerate

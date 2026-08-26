@@ -25,3 +25,5 @@ package-lock.json
 __pycache__/
 *.pyc
 *.sql
+
+env
