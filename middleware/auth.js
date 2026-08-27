@@ -35,16 +35,20 @@ function requireAuth(req, res, next) {
   const token = bearerToken || req.cookies?.auth_token;
 
   if (!token) {
-    const id = req.get('x-user-id');
-    const role = req.get('x-user-role');
-    const company = req.get('x-user-company');
-    if (id) {
-      req.user = {
-        id: Number(id),
-        role_name: role || 'employee',
-        company_id: company ? Number(company) : null
-      };
-      return next();
+    // Development/testing-only passthrough. Disabled unless explicitly opted in via
+    // ENABLE_HEADER_AUTH=true so production cannot impersonate a user by spoofing headers.
+    if (process.env.ENABLE_HEADER_AUTH === 'true') {
+      const id = req.get('x-user-id');
+      const role = req.get('x-user-role');
+      const company = req.get('x-user-company');
+      if (id) {
+        req.user = {
+          id: Number(id),
+          role_name: role || 'employee',
+          company_id: company ? Number(company) : null
+        };
+        return next();
+      }
     }
     return res.status(401).json({ error: 'Unauthorized: missing token' });
   }

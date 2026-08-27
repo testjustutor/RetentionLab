@@ -342,7 +342,7 @@ class UsersModel {
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE users SET deleted_at = CURRENT_TIMESTAMP, status = "deleted",
-         is_active = 0, is_deleted = 1, deleted_by = ?,
+         is_active = 0, is_deleted = 1, updated_by = ?,
          email = ?, user_uuid = ? WHERE id = ?`,
         [user.id, anonEmail, anonUuid, id],
         function(err) {

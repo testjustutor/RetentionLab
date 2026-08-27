@@ -109,7 +109,7 @@ def _align_diarization(segments, diarization):
 def run_pipeline(
     audio_input: str,
     ai_settings_json: Optional[str] = None,
-    model_size: str = "base",
+    model_size: str = "large-v3",
     n_speakers: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run Whisper transcription + diarization. Never raises;
@@ -252,7 +252,11 @@ def run_pipeline(
             log_with_type("info", "python_engine: per-participant channels detected -> transcribing each channel (no diarization)", "PYTHON_ENGINE")
             ch_result = transcribe_channels(
                 channel_files,
-                model_size=os.getenv("PYTHON_ENGINE_MODEL_CHANNELS") or "small",
+                # Heaviest-by-default: dedicated env wins over aiSettings so a
+                # caller cannot silently downgrade quality (mirrors WhisperX branch).
+                model_size=os.getenv("PYTHON_ENGINE_MODEL_CHANNELS")
+                or config.get("model_size")
+                or "large-v3",
                 language=language,
                 progress_cb=whisper_progress,
                 # Speaker labels: first channel/most talk time = Speaker 1
@@ -297,9 +301,7 @@ def run_pipeline(
             from .whisperx_engine import WhisperXEngine
             log_with_type("info", "python_engine: attempting WhisperX path (preferred)", "PYTHON_ENGINE")
 
-            wx_model = config.get("model_size") or os.getenv("PYTHON_ENGINE_MODEL_WHISPERX") or "large-v3"
-            subject = config.get("subject")
-            wx_model = config.get("model_size") or os.getenv("PYTHON_ENGINE_MODEL_WHISPERX") or "large-v3"
+            wx_model = os.getenv("PYTHON_ENGINE_MODEL_WHISPERX") or config.get("model_size") or "large-v3"
             subject = config.get("subject")
             engine = WhisperXEngine(
                 model_size=wx_model,

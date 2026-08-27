@@ -106,21 +106,29 @@ const controller = {
 
   /**
    * Sync a single calendar event into the meetings table, deduplicating by
-   * title + start time + owner: update the existing meeting or create a new one.
+   * title + start time + calendar account: update the existing meeting or
+   * create a new one.
    * (Helper for calendarSyncService — wraps the MeetingModel calendar-sync queries.)
    */
-  async syncMeetingFromCalendar({ title, platform, startTime, endTime, userId }) {
+  async syncMeetingFromCalendar({ title, platform, startTime, endTime, userId, calendarAccount }) {
     if (!title || !startTime || !endTime || !userId) {
       throw new Error('Controller(meeting): syncMeetingFromCalendar requires title, startTime, endTime, userId');
     }
-    const existingMeeting = await MeetingModel.findMeetingByTitleAndTime(title, startTime, userId);
+    // Normalize Google ISO timestamps to the app's MySQL-friendly wall-clock
+    // format (Asia/Kolkata, 'YYYY-MM-DD HH:MM:SS') used across the codebase, so
+    // the insert and the deduplication lookup compare the same stable value.
+    const norm = (iso) => new Date(iso).toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(',', '');
+    const start = norm(startTime);
+    const end = norm(endTime);
+
+    const existingMeeting = await MeetingModel.findMeetingByTitleAndTime(title, start, calendarAccount);
 
     if (existingMeeting) {
-      await MeetingModel.updateMeetingFromCalendar(existingMeeting.meeting_id, title, platform, startTime, endTime);
-      return { created: false, meetingId: existingMeeting.meeting_id };
+      await MeetingModel.updateMeetingFromCalendar(existingMeeting.id, title, platform, start, end);
+      return { created: false, meetingId: existingMeeting.id };
     }
 
-    const created = await MeetingModel.createMeetingFromCalendar(title, platform, startTime, endTime, userId);
+    const created = await MeetingModel.createMeetingFromCalendar(title, platform, start, end, userId, calendarAccount);
     return { created: true, meetingId: created.meetingId };
   }
 };

@@ -68,6 +68,10 @@ const controller = {
    */
   async copyFromMaster(req) {
     try {
+      if (!req.user || !req.user.id) {
+        return err('Authentication required', 401);
+      }
+
       const { categoryIds } = req.body;
 
       if (!categoryIds || !Array.isArray(categoryIds) || categoryIds.length === 0) {
@@ -81,7 +85,7 @@ const controller = {
         message: `Successfully copied ${copied} categor${copied !== 1 ? 'ies' : 'y'}`
       });
     } catch (e) {
-      return err(e.message, 500);
+      return err(e.message, e.statusCode || 500);
     }
   },
 
@@ -124,7 +128,7 @@ const controller = {
       }
 
       const indicatorId = await AdminRubricModel.createAdminIndicator({
-        original_category_id: category_id,
+        master_category_id: category_id,
         admin_user_id: req.user.id,
         category_id: parseInt(category_id),
         name: name.trim(),

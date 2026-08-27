@@ -138,7 +138,8 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
           platform: 'Google Calendar',
           startTime: event.start.dateTime,
           endTime: event.end.dateTime,
-          userId
+          userId,
+          calendarAccount: userEmail
         });
 
         synced++;

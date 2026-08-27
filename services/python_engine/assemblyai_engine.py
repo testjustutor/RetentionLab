@@ -70,13 +70,20 @@ class AssemblyAIEngine:
         # Known terms (participant names, subject jargon) to bias recognition
         # toward - fixes proper-name errors like "Abir" -> "Abhijit".
         self.word_boost = [str(w).strip() for w in (word_boost or []) if str(w).strip()] or None
+        # Heaviest ASR tier: pin AssemblyAI to its "best" speech model
+        # (highest accuracy, slower/more expensive than "nano"). Overridable
+        # via PYTHON_ENGINE_ASSEMBLYAI_SPEECH_MODEL for cost-sensitive setups.
+        self.speech_model = (
+            os.getenv("PYTHON_ENGINE_ASSEMBLYAI_SPEECH_MODEL") or "best"
+        ).strip()
         # Stable first-seen mapping of a raw speaker/channel key -> label so the
         # same participant keeps the same name across every utterance/word.
         self._seen: Dict[str, str] = {}
         log_with_type(
             "info",
             f"assemblyai_engine: init (multichannel={self.multichannel}, "
-            f"num_speakers={self.num_speakers}, language={self.language})",
+            f"num_speakers={self.num_speakers}, language={self.language}, "
+            f"speech_model={self.speech_model})",
             "PYTHON_ENGINE",
         )
 
@@ -119,11 +126,15 @@ class AssemblyAIEngine:
         if self.word_boost:
             # Bias recognition toward known names/terms (e.g. "Abir").
             config_kwargs["word_boost"] = self.word_boost
+        if self.speech_model and self.speech_model.lower() != "default":
+            # Pin the speech model tier ("best" = heaviest/highest accuracy).
+            config_kwargs["speech_model"] = self.speech_model.lower()
         config = aai.TranscriptionConfig(**config_kwargs)
 
         log_with_type(
             "info",
             f"assemblyai_engine: submitting (multichannel={self.multichannel}, "
+            f"speech_model={config_kwargs.get('speech_model')}, "
             f"word_boost={self.word_boost})",
             "PYTHON_ENGINE",
         )

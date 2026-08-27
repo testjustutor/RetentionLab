@@ -48,8 +48,8 @@ class CalendarVerificationModel {
       // Insert new record
       const result = await runAsync(
         `INSERT INTO calendar_connections
-         (user_id, provider_id, verification_token, verification_status, verification_expires_at, connected_at)
-         VALUES (?, ?, ?, 'pending', ?, ?)`,
+         (user_id, provider_id, verification_token, verification_status, verification_expires_at, connected_at, connection_status)
+         VALUES (?, ?, ?, 'pending', ?, ?, 'pending')`,
         [userId, providerId, verificationToken, expiresAtFormatted, current_time]
       );
 

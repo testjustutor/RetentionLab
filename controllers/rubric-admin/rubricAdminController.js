@@ -136,7 +136,7 @@ const controller = {
     try {
       const { weight } = req.body;
       if (weight === undefined) return res.status(400).json({ error: 'weight is required' });
-      const result = await RubricAdminModel.updateAdminCategoryWeight(parseInt(req.params.admin_user_id), req.params.original_category_id, weight, req.user.id);
+      const result = await RubricAdminModel.updateAdminCategoryWeight(parseInt(req.params.admin_user_id), req.params.master_category_id, weight, req.user.id);
       res.json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
@@ -144,7 +144,7 @@ const controller = {
     try {
       const { value } = req.body;
       if (value === undefined) return res.status(400).json({ error: 'value is required' });
-      const result = await RubricAdminModel.updateAdminIndicatorValue(parseInt(req.params.admin_user_id), req.params.original_indicator_id, value, req.user.id);
+      const result = await RubricAdminModel.updateAdminIndicatorValue(parseInt(req.params.admin_user_id), req.params.master_indicator_id, value, req.user.id);
       res.json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
   },

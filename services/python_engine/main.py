@@ -46,7 +46,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Whisper + Resemblyzer diarization (isolated engine)")
     parser.add_argument("input_file", help="Path or /storage/... handle to the audio file")
     parser.add_argument("ai_settings_json", nargs="?", default="", help="Optional JSON settings blob")
-    parser.add_argument("--model", default="base", help="Whisper model size (tiny/base/small/medium/large)")
+    parser.add_argument("--model", default="large-v3", help="Whisper model size (tiny/base/small/medium/large)")
     parser.add_argument("--output_dir", default=None, help="Optional directory to write the JSON result to")
     args = parser.parse_args(argv)
 

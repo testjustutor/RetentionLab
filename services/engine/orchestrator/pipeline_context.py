@@ -162,8 +162,54 @@ class PipelineContext:
             if os.path.exists(candidate):
                 return candidate
 
+        # Fuzzy fallback: match any TRANS_*.txt whose stem shares the meeting id +
+        # session, so a pre-existing transcript in storage/transcripts is found
+        # even when base_id and the stored filename differ (naming/date).
+        try:
+            # Derive a clean meeting key from the basename, dropping any REC_ prefix
+            # and path so "storage\\recordings\\REC_fkx-mkrk-mbq_Sess3..." -> "fkx-mkrk-mbq"
+            import re as _re
+            base = os.path.basename(self.base_id or "").lower()
+            if base.startswith("rec_"):
+                base = base[4:]
+            raw_key = _re.sub(r"(_sess\d+|_\d+|_20\d{2}.*)$", "", base).strip("_")
+            base_session = self._session_from_key(base)
+            for directory in search_dirs:
+                if not os.path.isdir(directory):
+                    continue
+                for candidate in sorted(os.listdir(directory)):
+                    low = candidate.lower()
+                    if not (low.startswith("trans_") and low.endswith(".txt")):
+                        continue
+                    stem = candidate[6:-4].lower()
+                    if not (raw_key and self._transcript_matches(stem, raw_key)):
+                        continue
+                    # Prefer a transcript whose session matches the current one,
+                    # so Sess3 doesn't pick up Sess2's file.
+                    cand_session = self._session_from_key(stem)
+                    if base_session is not None and cand_session is not None and cand_session != base_session:
+                        continue
+                    return os.path.join(directory, candidate)
+        except Exception:
+            pass
+
         # Not found — diarization will proceed with SPEAKER_XX labels
         return None
+
+    @staticmethod
+    def _session_from_key(key):
+        """Extract _Sess<N> (case-insensitive) from a filename/key, else None."""
+        import re as _re
+        m = _re.search(r"_sess(\d+)", key, re.IGNORECASE)
+        return int(m.group(1)) if m else None
+
+    def _transcript_matches(self, stem, meeting_key):
+        """True if a TRANS file stem and the meeting key share meet id + session."""
+        import re as _re
+        strip = lambda s: _re.sub(r"(_sess\d+|_\d+|_20\d{2}.*)$", "", s).strip("_")
+        return bool(strip(meeting_key)) and (
+            strip(stem).startswith(strip(meeting_key)) or strip(meeting_key) in strip(stem)
+        )
 
     def _resolve_session_id(self, filename_no_ext):
         match = re.search(r"_Sess(\d+)(?:_|$)", filename_no_ext)

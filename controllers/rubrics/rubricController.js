@@ -74,13 +74,25 @@ const rubricController = {
       const adminId = parseInt(req.params.adminUserId);
       const { categoryIds } = req.body;
 
+      if (!Number.isInteger(adminId) || adminId <= 0) {
+        return err('Invalid admin user id', 400);
+      }
+
       if (!categoryIds || !Array.isArray(categoryIds) || categoryIds.length === 0) {
         return err('Please select at least one category', 400);
       }
 
+      // Guard against undefined/null/garbage selections — these must never
+      // reach the model, otherwise getCategoryById throws and surfaces as a
+      // generic 500. Reject early with a clear client error instead.
+      const hasInvalidId = categoryIds.some(id => !/^\d+$/.test(String(id).trim()));
+      if (hasInvalidId) {
+        return err('Invalid category selection — refresh the page and try again', 400);
+      }
+
       let copied = 0;
       for (const categoryId of categoryIds) {
-        await RubricAdminModel.assignCategoryToAdmin(categoryId, adminId, req.user?.id);
+        await RubricAdminModel.assignCategoryToAdmin(parseInt(categoryId), adminId, req.user?.id);
         copied++;
       }
 
@@ -189,13 +201,13 @@ const rubricController = {
       const categoryRow = await RubricAdminModel.getCategoryIdForIndicator(adminId, indicator_id);
 
       if (categoryRow) {
-        const indicators = await RubricAdminModel.getIndicatorsByCategoryForAdmin(adminId, categoryRow.original_category_id);
+        const indicators = await RubricAdminModel.getIndicatorsByCategoryForAdmin(adminId, categoryRow.master_category_id);
 
         const allInactive = indicators.length > 0 && indicators.every(ind => ind.status === 'inactive');
         
         if (allInactive) {
           // Auto-deactivate category via model
-          await RubricAdminModel.updateCategoryStatus(adminId, categoryRow.original_category_id, 'inactive');
+          await RubricAdminModel.updateCategoryStatus(adminId, categoryRow.master_category_id, 'inactive');
         }
       }
 

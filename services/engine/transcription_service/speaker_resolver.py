@@ -42,8 +42,10 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 TEAMS_LINE_RE   = re.compile(r"\[(\d+:\d+:\d+\s*[AP]M)\]\s+(.+?):\s*(.*)")
-HEADER_DATE_RE  = re.compile(r"Date\s*:\s*(\d+/\d+/\d+),?\s+(\d+:\d+:\d+\s+[AP]M)", re.IGNORECASE)
+GM_LINE_RE      = re.compile(r"\[(\d{1,2}:\d{2}:\d{2})\]\s+(.+?):\s*(.*)")
+HEADER_DATE_RE  = re.compile(r"Date\s*:\s*(\d+/\d+/\d+),?\s+(\d+:\d+:\d+\s*[AP]m)\s*", re.IGNORECASE)
 TIME_FMT        = "%I:%M:%S %p"
+TIME_FMT_24     = "%H:%M:%S"
 OFFSET_LOW      = -10.0    # seconds
 OFFSET_HIGH     = 60.0     # seconds
 OFFSET_STEP     = 0.5      # seconds
@@ -62,7 +64,13 @@ def _parse_teams_file(path: str) -> tuple[list[dict], datetime | None]:
     m = HEADER_DATE_RE.search(raw)
     if m:
         try:
-            meeting_start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%m/%d/%Y %I:%M:%S %p")
+            # Try month-first first (Teams style), else day-first (Google Meet style)
+            for fmt in ("%m/%d/%Y %I:%M:%S %p", "%d/%m/%Y %I:%M:%S %p"):
+                try:
+                    meeting_start = datetime.strptime(f"{m.group(1)} {m.group(2)}", fmt)
+                    break
+                except ValueError:
+                    continue
         except ValueError:
             pass
     lines = []
@@ -72,6 +80,14 @@ def _parse_teams_file(path: str) -> tuple[list[dict], datetime | None]:
         except ValueError:
             continue
         lines.append({"time": t, "speaker": match.group(2).strip(), "text": match.group(3).strip()})
+    # If no 12h lines matched, try the 24-hour Google Meet caption format
+    if not lines:
+        for match in GM_LINE_RE.finditer(raw):
+            try:
+                t = datetime.strptime(match.group(1).strip(), TIME_FMT_24)
+            except ValueError:
+                continue
+            lines.append({"time": t, "speaker": match.group(2).strip(), "text": match.group(3).strip()})
     return lines, meeting_start
 
 

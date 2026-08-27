@@ -94,8 +94,8 @@
 
       let html = '<div class="space-y-3">';
       cats.forEach(function(c, i) {
-        const cId = c.original_category_id;
-        const cItems = inds.filter(function(x) { return x.original_category_id === cId; });
+        const cId = c.master_category_id;
+        const cItems = inds.filter(function(x) { return x.master_category_id === cId; });
         const totalVal = cItems.reduce(function(s, x) { return s + (+x.value || 0); }, 0);
         const colors = ['violet', 'emerald', 'amber', 'rose', 'sky', 'indigo', 'teal', 'cyan'];
         const color = colors[i % colors.length];
@@ -143,11 +143,11 @@
               '<td class="py-2 px-3">' + escHtml(ind.name) + '</td>' +
               '<td class="py-2 px-3"><span class="text-[12px] px-1.5 py-0.5 rounded ' + typeColor + '">' + (ind.type || 'HUMAN') + '</span></td>' +
               '<td class="py-2 px-3 text-center">' + (ind.is_gate ? '<span class="text-emerald-400 font-bold">&#x2713;</span>' : '<span class="text-slate-600">--</span>') + '</td>' +
-              '<td class="py-2 px-3 text-center"><input type="number" step="0.1" min="0" value="' + (+ind.value || 1) + '" data-ind="' + ind.original_indicator_id + '" class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-center ind-value focus:border-violet-500 outline-none" oninput="markDirty()"></td>' +
+              '<td class="py-2 px-3 text-center"><input type="number" step="0.1" min="0" value="' + (+ind.value || 1) + '" data-ind="' + ind.master_indicator_id + '" class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-center ind-value focus:border-violet-500 outline-none" oninput="markDirty()"></td>' +
               '<td class="py-2 px-3 text-right text-slate-500">' + pct + '%</td>' +
               '<td class="py-2 px-3 text-center">' + statusBadge + '</td>' +
               '<td class="py-2 px-3 text-center">' +
-                '<select onchange="changeIndicatorStatus(\'' + ind.original_indicator_id + '\', this.value, \'' + escHtml(ind.name).replace(/'/g, "\\'") + '\')" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-center focus:border-violet-500 outline-none">' +
+                '<select onchange="changeIndicatorStatus(\'' + ind.master_indicator_id + '\', this.value, \'' + escHtml(ind.name).replace(/'/g, "\\'") + '\')" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-center focus:border-violet-500 outline-none">' +
                   '<option value="active"' + (indStatus === 'active' ? ' selected' : '') + '>Active</option>' +
                   '<option value="inactive"' + (indStatus === 'inactive' ? ' selected' : '') + '>Inactive</option>' +
                 '</select>' +
@@ -205,7 +205,7 @@
       return;
     }
 
-    const availableCats = masterCategories.filter(function(c) { return !assignedCategoryIds.includes(c.category_id); });
+    const availableCats = masterCategories.filter(function(c) { return !assignedCategoryIds.includes(String(c.id)); });
     const allSelected = availableCats.length > 0 && selectedCategories.size === availableCats.length;
 
     let html = '<tr><td colspan="5" class="py-2 px-3 border-b border-slate-200">' +
@@ -214,16 +214,20 @@
       '<span class="text-sm font-medium text-slate-700">Select All (' + availableCats.length + ' available)</span></label></td></tr>';
 
     masterCategories.forEach(function(cat) {
-      const isAssigned = assignedCategoryIds.includes(cat.category_id);
-      const isChecked = selectedCategories.has(cat.category_id);
-      const isExpanded = expandedCategories.has(cat.category_id);
-      const catIndicators = masterIndicators.filter(function(i) { return i.category_id === cat.category_id; });
+      // Master categories come from rubric_categories: identity is `id` (numeric),
+      // code is `category_code`. Normalize to string so Set/lookup matching is
+      // consistent between checkbox clicks ("1") and Select All (String(cat.id)).
+      const cid = String(cat.id);
+      const isAssigned = assignedCategoryIds.includes(cid);
+      const isChecked = selectedCategories.has(cid);
+      const isExpanded = expandedCategories.has(cid);
+      const catIndicators = masterIndicators.filter(function(i) { return String(i.category_id) === cid; });
 
       html += '<tr class="' + (isAssigned ? 'opacity-50' : 'hover:bg-slate-100') + '">' +
-        '<td>' + (isAssigned ? '<span class="badge badge-success text-[10px]">Copied</span>' : '<input type="checkbox" class="master-category-checkbox" value="' + cat.category_id + '" ' + (isChecked ? 'checked' : '') + '>') + '</td>' +
-        '<td class="font-mono text-sm">' + escHtml(cat.category_id) + '</td>' +
+        '<td>' + (isAssigned ? '<span class="badge badge-success text-[10px]">Copied</span>' : '<input type="checkbox" class="master-category-checkbox" value="' + cid + '" ' + (isChecked ? 'checked' : '') + '>') + '</td>' +
+        '<td class="font-mono text-sm">' + escHtml(cat.category_code || cat.id) + '</td>' +
         '<td class="font-medium text-slate-900">' +
-          '<button onclick="toggleCategoryExpand(\'' + cat.category_id + '\')" class="flex items-center gap-2 hover:text-violet-600 transition-colors text-left">' +
+          '<button onclick="toggleCategoryExpand(\'' + cid + '\')" class="flex items-center gap-2 hover:text-violet-600 transition-colors text-left">' +
             '<svg class="w-4 h-4 transform transition-transform ' + (isExpanded ? 'rotate-90' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
               '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>' +
             '</svg>' +
@@ -286,7 +290,7 @@
         return;
       }
       sel.innerHTML = '<option value="">Select category</option>' + cats.map(function(c) {
-        return '<option value="' + c.original_category_id + '">' + escHtml(c.name) + '</option>';
+        return '<option value="' + c.id + '">' + escHtml(c.name) + '</option>';
       }).join('');
     } catch (e) {
       console.error('Failed to load categories:', e);
@@ -333,9 +337,9 @@
   // Toggle select all
   function toggleSelectAll(checked) {
     masterCategories.forEach(function(cat) {
-      if (!assignedCategoryIds.includes(cat.category_id)) {
-        if (checked) selectedCategories.add(cat.category_id);
-        else selectedCategories.delete(cat.category_id);
+      if (!assignedCategoryIds.includes(String(cat.id))) {
+        if (checked) selectedCategories.add(String(cat.id));
+        else selectedCategories.delete(String(cat.id));
       }
     });
     document.querySelectorAll('.master-category-checkbox:not(:disabled)').forEach(function(cb) { cb.checked = checked; });
@@ -346,7 +350,7 @@
   function updateSelectAllState() {
     const el = document.getElementById('select-all-categories');
     if (el) {
-      const avail = masterCategories.filter(function(c) { return !assignedCategoryIds.includes(c.category_id); });
+      const avail = masterCategories.filter(function(c) { return !assignedCategoryIds.includes(String(c.id)); });
       el.checked = avail.length > 0 && selectedCategories.size === avail.length;
     }
   }
@@ -425,14 +429,14 @@
     const type = document.getElementById('indicator-type').value;
     const is_gate = document.getElementById('indicator-gate').value;
     const value = document.getElementById('indicator-value').value;
-    const description = document.getElementById('indicator-description').value;
+    const benchmark = document.getElementById('indicator-benchmark').value;
     if (!category_id) { showToast('Please select a category', true); return; }
     try {
       const response = await fetch('/api/admin/evaluation/rubrics/admin/' + currentUserId + '/indicators', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ category_id: category_id, name: name, type: type, is_gate: is_gate, value: value, description: description })
+        body: JSON.stringify({ category_id: category_id, name: name, type: type, is_gate: is_gate, value: value, benchmark: benchmark })
       });
       const data = await response.json();
       if (data.success) {
@@ -454,10 +458,10 @@
     const indEls = rubricsRoot.querySelectorAll('.ind-value');
     const catChanges = [], indChanges = [];
     catEls.forEach(function(el) {
-      catChanges.push({ original_category_id: el.getAttribute('data-cat'), weight: parseFloat(el.value) || 0 });
+      catChanges.push({ master_category_id: el.getAttribute('data-cat'), weight: parseFloat(el.value) || 0 });
     });
     indEls.forEach(function(el) {
-      indChanges.push({ original_indicator_id: el.getAttribute('data-ind'), value: parseFloat(el.value) || 0 });
+      indChanges.push({ master_indicator_id: el.getAttribute('data-ind'), value: parseFloat(el.value) || 0 });
     });
     if (!catChanges.length && !indChanges.length) { showToast('No changes'); return; }
     try {

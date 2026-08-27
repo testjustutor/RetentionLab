@@ -56,9 +56,10 @@ class RubricAdminModel {
       // 3. Create admin copy of the category (with master's weight) — admin tables only
       await new Promise((resolve, reject) => {
         db.run(
-          `INSERT IGNORE INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight, source)
-           VALUES (?, ?, ?, ?, 'master')`,
-          [category_id, admin_user_id, category.name, category.weight || 0],
+          `INSERT IGNORE INTO admin_rubric_categories
+            (master_category_id, category_code, admin_user_id, name, weight, source)
+           VALUES (?, ?, ?, ?, ?, 'master')`,
+          [category.id, category.category_code, admin_user_id, category.name, parseFloat(category.weight) || 0],
           function(err) {
             if (err) return reject(err);
             resolve();
@@ -66,14 +67,16 @@ class RubricAdminModel {
         );
       });
 
-      // 5. Create admin copies of each indicator (with master's value and description)
+      // 5. Create admin copies of each indicator (with master's value and benchmark)
       for (const ind of indicators) {
         await new Promise((resolve, reject) => {
           db.run(
-            `INSERT IGNORE INTO admin_rubric_indicators 
-             (original_indicator_id, original_category_id, admin_user_id, name, type, is_gate, value, description, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'master')`,
-            [ind.indicator_id, category_id, admin_user_id, ind.name, ind.type || 'HUMAN', ind.is_gate || 0, ind.value || 1, ind.description || null],
+            `INSERT IGNORE INTO admin_rubric_indicators
+             (master_indicator_id, indicator_code, master_category_id, category_code,
+              admin_user_id, name, type, is_gate, value, benchmark, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'master')`,
+            [ind.id, ind.indicator_code, category.id, category.category_code, admin_user_id,
+             ind.name, ind.type || 'HUMAN', ind.is_gate || 0, parseFloat(ind.value) || 1, ind.benchmark || null],
             function(err) {
               if (err) return reject(err);
               resolve();
@@ -113,8 +116,8 @@ class RubricAdminModel {
   static unassignCategoryFromAdmin(category_id, admin_user_id, performed_by = null) {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
-        db.run('DELETE FROM admin_rubric_indicators WHERE original_category_id = ? AND admin_user_id = ?', [category_id, admin_user_id]);
-        db.run('DELETE FROM admin_rubric_categories WHERE original_category_id = ? AND admin_user_id = ?', [category_id, admin_user_id], async function(err) {
+        db.run('DELETE FROM admin_rubric_indicators WHERE master_category_id = ? AND admin_user_id = ?', [category_id, admin_user_id]);
+        db.run('DELETE FROM admin_rubric_categories WHERE master_category_id = ? AND admin_user_id = ?', [category_id, admin_user_id], async function(err) {
           if (err) return reject(err);
           const unassigned = this.changes > 0;
           
@@ -201,11 +204,11 @@ class RubricAdminModel {
   static getAdminAssignedCategoryIds(admin_user_id) {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT original_category_id FROM admin_rubric_categories WHERE admin_user_id = ?',
+        'SELECT master_category_id FROM admin_rubric_categories WHERE admin_user_id = ?',
         [admin_user_id],
         (err, rows) => {
           if (err) return reject(err);
-          resolve((rows || []).map(r => r.original_category_id));
+          resolve((rows || []).map(r => r.master_category_id));
         }
       );
     });
@@ -240,7 +243,7 @@ class RubricAdminModel {
       db.all(
         `SELECT ari.*, arc.name AS category_name
          FROM admin_rubric_indicators ari
-         JOIN admin_rubric_categories arc ON ari.original_category_id = arc.original_category_id AND ari.admin_user_id = arc.admin_user_id
+         JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id AND ari.admin_user_id = arc.admin_user_id
          WHERE ari.admin_user_id = ?
          ORDER BY arc.name ASC, ari.name ASC`,
         [admin_user_id],
@@ -255,11 +258,11 @@ class RubricAdminModel {
   /**
    * Get admin-specific indicators for a specific category
    */
-  static getAdminIndicatorsByCategory(admin_user_id, original_category_id) {
+  static getAdminIndicatorsByCategory(admin_user_id, master_category_id) {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT * FROM admin_rubric_indicators WHERE admin_user_id = ? AND original_category_id = ? ORDER BY name ASC',
-        [admin_user_id, original_category_id],
+        'SELECT * FROM admin_rubric_indicators WHERE admin_user_id = ? AND master_category_id = ? ORDER BY name ASC',
+        [admin_user_id, master_category_id],
         (err, rows) => {
           if (err) return reject(err);
           resolve(rows || []);
@@ -271,20 +274,20 @@ class RubricAdminModel {
   /**
    * Update admin-specific category weight (only admin's own copy)
    */
-  static updateAdminCategoryWeight(admin_user_id, original_category_id, weight, performed_by = null) {
+  static updateAdminCategoryWeight(admin_user_id, master_category_id, weight, performed_by = null) {
     return new Promise((resolve, reject) => {
       // Get old values
       db.get(
-        'SELECT * FROM admin_rubric_categories WHERE admin_user_id = ? AND original_category_id = ?',
-        [admin_user_id, original_category_id],
+        'SELECT * FROM admin_rubric_categories WHERE admin_user_id = ? AND master_category_id = ?',
+        [admin_user_id, master_category_id],
         (err, oldRow) => {
           if (err) return reject(err);
           if (!oldRow) return resolve({ updated: false, message: 'No admin copy found' });
 
           db.run(
             `UPDATE admin_rubric_categories SET weight = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE admin_user_id = ? AND original_category_id = ?`,
-            [parseFloat(weight), admin_user_id, original_category_id],
+             WHERE admin_user_id = ? AND master_category_id = ?`,
+            [parseFloat(weight), admin_user_id, master_category_id],
             async function(err) {
               if (err) return reject(err);
               const updated = this.changes > 0;
@@ -294,7 +297,7 @@ class RubricAdminModel {
                   await RubricAdminModel.addAuditLog({
                     action: 'UPDATE_ADMIN_WEIGHT',
                     entity_type: 'admin_category',
-                    entity_id: original_category_id,
+                    entity_id: master_category_id,
                     admin_user_id,
                     performed_by,
                     old_values: oldRow,
@@ -315,20 +318,20 @@ class RubricAdminModel {
   /**
    * Update admin-specific indicator value (only admin's own copy)
    */
-  static updateAdminIndicatorValue(admin_user_id, original_indicator_id, value, performed_by = null) {
+  static updateAdminIndicatorValue(admin_user_id, master_indicator_id, value, performed_by = null) {
     return new Promise((resolve, reject) => {
       // Get old values
       db.get(
-        'SELECT * FROM admin_rubric_indicators WHERE admin_user_id = ? AND original_indicator_id = ?',
-        [admin_user_id, original_indicator_id],
+        'SELECT * FROM admin_rubric_indicators WHERE admin_user_id = ? AND master_indicator_id = ?',
+        [admin_user_id, master_indicator_id],
         (err, oldRow) => {
           if (err) return reject(err);
           if (!oldRow) return resolve({ updated: false, message: 'No admin copy found' });
 
           db.run(
             `UPDATE admin_rubric_indicators SET value = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE admin_user_id = ? AND original_indicator_id = ?`,
-            [parseFloat(value), admin_user_id, original_indicator_id],
+             WHERE admin_user_id = ? AND master_indicator_id = ?`,
+            [parseFloat(value), admin_user_id, master_indicator_id],
             async function(err) {
               if (err) return reject(err);
               const updated = this.changes > 0;
@@ -338,7 +341,7 @@ class RubricAdminModel {
                   await RubricAdminModel.addAuditLog({
                     action: 'UPDATE_ADMIN_VALUE',
                     entity_type: 'admin_indicator',
-                    entity_id: original_indicator_id,
+                    entity_id: master_indicator_id,
                     admin_user_id,
                     performed_by,
                     old_values: oldRow,
@@ -364,7 +367,7 @@ class RubricAdminModel {
     for (const ind of indicators) {
       const result = await RubricAdminModel.updateAdminIndicatorValue(
         admin_user_id, 
-        ind.original_indicator_id || ind.indicator_id, 
+        ind.master_indicator_id || ind.indicator_id, 
         ind.value,
         performed_by
       );
@@ -381,7 +384,7 @@ class RubricAdminModel {
     for (const cat of categories) {
       const result = await RubricAdminModel.updateAdminCategoryWeight(
         admin_user_id,
-        cat.original_category_id || cat.category_id,
+        cat.master_category_id || cat.category_id,
         cat.weight,
         performed_by
       );
@@ -401,14 +404,14 @@ class RubricAdminModel {
     const adminCategories = await RubricAdminModel.getAdminCategories(admin_user_id);
     
     for (const adminCat of adminCategories) {
-      const masterCat = await MasterRubricModel.getCategoryById(adminCat.original_category_id);
+      const masterCat = await MasterRubricModel.getCategoryById(adminCat.master_category_id);
       if (masterCat) {
         // Update name in admin copy (but preserve admin's weight)
         await new Promise((resolve, reject) => {
           db.run(
             `UPDATE admin_rubric_categories SET name = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE admin_user_id = ? AND original_category_id = ?`,
-            [masterCat.name, admin_user_id, adminCat.original_category_id],
+             WHERE admin_user_id = ? AND master_category_id = ?`,
+            [masterCat.name, admin_user_id, adminCat.master_category_id],
             (err) => {
               if (err) reject(err);
               else resolve();
@@ -417,12 +420,12 @@ class RubricAdminModel {
         });
 
         // Update indicator names (preserve admin's values)
-        const masterInds = await MasterRubricModel.getIndicatorsByCategory(adminCat.original_category_id);
+        const masterInds = await MasterRubricModel.getIndicatorsByCategory(adminCat.master_category_id);
         for (const ind of masterInds) {
           await new Promise((resolve, reject) => {
             db.run(
               `UPDATE admin_rubric_indicators SET name = ?, type = ?, is_gate = ?, updated_at = CURRENT_TIMESTAMP
-               WHERE admin_user_id = ? AND original_indicator_id = ?`,
+               WHERE admin_user_id = ? AND master_indicator_id = ?`,
               [ind.name, ind.type || 'HUMAN', ind.is_gate || 0, admin_user_id, ind.indicator_id],
               (err) => {
                 if (err) reject(err);
@@ -464,14 +467,14 @@ class RubricAdminModel {
             arc.name as category_name,
             arc.weight as category_weight,
             ari.name as indicator_name,
-            ari.original_indicator_id as indicator_id,
+            ari.master_indicator_id as indicator_id,
             ari.value as indicator_value,
             ms.score,
             ms.comment,
             ms.scored_at
           FROM meeting_scores ms
-          LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.original_indicator_id AND ari.admin_user_id = ?
-          LEFT JOIN admin_rubric_categories arc ON ari.original_category_id = arc.original_category_id AND arc.admin_user_id = ?
+          LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.master_indicator_id AND ari.admin_user_id = ?
+          LEFT JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id AND arc.admin_user_id = ?
           WHERE ms.meeting_id = ?
         `;
       } else {
@@ -514,11 +517,11 @@ class RubricAdminModel {
     return new Promise((resolve, reject) => {
       const sql = `
         SELECT 
-          arc.original_category_id,
+          arc.master_category_id,
           arc.name,
           arc.weight,
-          (SELECT COUNT(*) FROM admin_rubric_indicators ari WHERE ari.admin_user_id = ? AND ari.original_category_id = arc.original_category_id) as indicator_count,
-          (SELECT SUM(ari.value) FROM admin_rubric_indicators ari WHERE ari.admin_user_id = ? AND ari.original_category_id = arc.original_category_id) as total_value
+          (SELECT COUNT(*) FROM admin_rubric_indicators ari WHERE ari.admin_user_id = ? AND ari.master_category_id = arc.master_category_id) as indicator_count,
+          (SELECT SUM(ari.value) FROM admin_rubric_indicators ari WHERE ari.admin_user_id = ? AND ari.master_category_id = arc.master_category_id) as total_value
         FROM admin_rubric_categories arc
         WHERE arc.admin_user_id = ?
         ORDER BY arc.name ASC
@@ -572,14 +575,14 @@ class RubricAdminModel {
         let totalWeightedScore = 0;
 
         for (const cat of categories) {
-          const catIndicators = indicators.filter(ind => ind.original_category_id === cat.original_category_id);
+          const catIndicators = indicators.filter(ind => ind.master_category_id === cat.master_category_id);
           
           // Calculate average indicator score for this category
           let categoryTotalScore = 0;
           let categoryIndicatorCount = 0;
           
           for (const ind of catIndicators) {
-            const score = scoreMap[ind.original_indicator_id] || 0;
+            const score = scoreMap[ind.master_indicator_id] || 0;
             categoryTotalScore += score * (ind.value || 1);  // Weight by indicator value
             categoryIndicatorCount += (ind.value || 1);
           }
@@ -593,7 +596,7 @@ class RubricAdminModel {
           totalWeightedScore += weightedCategoryScore;
 
           categoryScores.push({
-            category_id: cat.original_category_id,
+            category_id: cat.master_category_id,
             category_name: cat.name,
             category_weight: cat.weight,
             indicator_count: catIndicators.length,
@@ -623,12 +626,12 @@ class RubricAdminModel {
   /**
    * Verify if an admin has access to a specific rubric category
    */
-  static async hasAdminAccessToCategory(admin_user_id, original_category_id) {
+  static async hasAdminAccessToCategory(admin_user_id, master_category_id) {
     return new Promise((resolve, reject) => {
       db.get(
         `SELECT COUNT(*) as count FROM admin_rubric_categories 
-         WHERE admin_user_id = ? AND original_category_id = ?`,
-        [admin_user_id, original_category_id],
+         WHERE admin_user_id = ? AND master_category_id = ?`,
+        [admin_user_id, master_category_id],
         (err, row) => {
           if (err) return reject(err);
           resolve(row && row.count > 0);
@@ -643,11 +646,11 @@ class RubricAdminModel {
   static async getAdminAssignedCategoryIds(admin_user_id) {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT original_category_id FROM admin_rubric_categories WHERE admin_user_id = ?',
+        'SELECT master_category_id FROM admin_rubric_categories WHERE admin_user_id = ?',
         [admin_user_id],
         (err, rows) => {
           if (err) return reject(err);
-          resolve((rows || []).map(r => r.original_category_id));
+          resolve((rows || []).map(r => r.master_category_id));
         }
       );
     });
@@ -660,16 +663,38 @@ class RubricAdminModel {
   /**
    * Create a custom category for an admin
    */
+  static async _firstCategoryCode() {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT category_code FROM rubric_categories ORDER BY id ASC LIMIT 1', [],
+        (err, row) => err ? reject(err) : resolve(row ? row.category_code : null));
+    });
+  }
+
+  static async _firstIndicatorCode() {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT indicator_code FROM rubric_indicators ORDER BY id ASC LIMIT 1', [],
+        (err, row) => err ? reject(err) : resolve(row ? row.indicator_code : null));
+    });
+  }
+
+  /**
+   * Create a custom category for an admin.
+   * fk_arc_category_code requires an existing rubric_categories.category_code, so the
+   * first master code is stamped as a carrier while master_category_id stays NULL —
+   * (admin_user_id, NULL) bypasses uq_arc_admin_category so customs stay unrestricted.
+   */
   static async createCustomCategory(admin_user_id, name, weight) {
-    const categoryId = 'CUSTOM_' + Date.now();
+    const carrierCode = await RubricAdminModel._firstCategoryCode();
+    if (!carrierCode) throw new Error('No master categories available yet');
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO admin_rubric_categories (original_category_id, admin_user_id, name, weight, source, created_at, updated_at)
+        `INSERT INTO admin_rubric_categories
+           (category_code, admin_user_id, name, weight, source, created_at, updated_at)
          VALUES (?, ?, ?, ?, 'custom', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [categoryId, admin_user_id, name, parseFloat(weight) || 0],
+        [carrierCode, admin_user_id, name, parseFloat(weight) || 0],
         function(err) {
           if (err) return reject(err);
-          resolve({ categoryId });
+          resolve({ categoryId: String(this.lastID) });
         }
       );
     });
@@ -678,26 +703,47 @@ class RubricAdminModel {
   /**
    * Create a custom indicator for an admin
    */
-  static async createCustomIndicator(admin_user_id, { category_id, name, type, is_gate, value, description }) {
-    const indicatorId = 'IND_' + Date.now();
+  static async createCustomIndicator(admin_user_id, { category_id, name, type, is_gate, value, benchmark }) {
+    const parentRef = String(category_id == null ? '' : category_id).trim();
+    if (!parentRef) throw new Error('Category is required');
+
+    // Resolve parent ref: admin-categories PK first (covers custom parents whose
+    // dropdown values are row PKs), then fall back to the master table.
+    let childMasterCatId = null; // master_category_id parity for FE grouping
+    let catCarrier = null;       // must exist in rubric_categories.category_code (FK)
+    const arcRow = /^\d+$/.test(parentRef)
+      ? await new Promise((resolve, reject) => {
+          db.get(
+            'SELECT id, master_category_id, category_code FROM admin_rubric_categories WHERE id = ? AND admin_user_id = ? LIMIT 1',
+            [parseInt(parentRef, 10), admin_user_id],
+            (err, row) => err ? reject(err) : resolve(row || null)
+          );
+        })
+      : null;
+    if (arcRow) {
+      childMasterCatId = arcRow.master_category_id;
+      catCarrier = arcRow.category_code;
+    } else {
+      const pc = await MasterRubricModel.getCategoryById(parentRef);
+      if (!pc) throw new Error(`Parent category ${parentRef} not found`);
+      childMasterCatId = pc.id;
+      catCarrier = pc.category_code;
+    }
+
+    const indCarrier = await RubricAdminModel._firstIndicatorCode();
+    if (!indCarrier) throw new Error('No master indicators available yet');
+
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO admin_rubric_indicators 
-         (original_indicator_id, original_category_id, admin_user_id, name, type, is_gate, value, description, source, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'custom', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [
-          indicatorId,
-          category_id,
-          admin_user_id,
-          name,
-          type || 'HUMAN',
-          is_gate ? 1 : 0,
-          parseFloat(value) || 1,
-          description || null
-        ],
+        `INSERT INTO admin_rubric_indicators
+           (master_indicator_id, indicator_code, master_category_id, category_code,
+            admin_user_id, name, type, is_gate, value, benchmark, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [null, indCarrier, childMasterCatId, catCarrier, admin_user_id,
+         name, type || 'HUMAN', is_gate ? 1 : 0, parseFloat(value) || 1, benchmark || null],
         function(err) {
           if (err) return reject(err);
-          resolve({ indicatorId });
+          resolve({ indicatorId: String(this.lastID) });
         }
       );
     });
@@ -729,7 +775,7 @@ class RubricAdminModel {
   static async updateIndicatorStatus(admin_user_id, indicator_id, status) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE admin_rubric_indicators SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE original_indicator_id = ? AND admin_user_id = ?`,
+        `UPDATE admin_rubric_indicators SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE master_indicator_id = ? AND admin_user_id = ?`,
         [status, indicator_id, admin_user_id],
         function(err) {
           if (err) return reject(err);
@@ -746,7 +792,7 @@ class RubricAdminModel {
   static async getCategoryIdForIndicator(admin_user_id, indicator_id) {
     return new Promise((resolve, reject) => {
       db.get(
-        `SELECT original_category_id FROM admin_rubric_indicators WHERE original_indicator_id = ? AND admin_user_id = ?`,
+        `SELECT master_category_id FROM admin_rubric_indicators WHERE master_indicator_id = ? AND admin_user_id = ?`,
         [indicator_id, admin_user_id],
         (err, row) => err ? reject(err) : resolve(row)
       );
@@ -756,11 +802,11 @@ class RubricAdminModel {
   /**
    * Get all indicators in a category for an admin
    */
-  static async getIndicatorsByCategoryForAdmin(admin_user_id, original_category_id) {
+  static async getIndicatorsByCategoryForAdmin(admin_user_id, master_category_id) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT id, status FROM admin_rubric_indicators WHERE original_category_id = ? AND admin_user_id = ?`,
-        [original_category_id, admin_user_id],
+        `SELECT id, status FROM admin_rubric_indicators WHERE master_category_id = ? AND admin_user_id = ?`,
+        [master_category_id, admin_user_id],
         (err, rows) => err ? reject(err) : resolve(rows || [])
       );
     });
@@ -769,14 +815,143 @@ class RubricAdminModel {
   /**
    * Update category status for an admin
    */
-  static async updateCategoryStatus(admin_user_id, original_category_id, status) {
+  static async updateCategoryStatus(admin_user_id, master_category_id, status) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE admin_rubric_categories SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE original_category_id = ? AND admin_user_id = ?`,
-        [status, original_category_id, admin_user_id],
+        `UPDATE admin_rubric_categories SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE master_category_id = ? AND admin_user_id = ?`,
+        [status, master_category_id, admin_user_id],
         function(err) {
           if (err) return reject(err);
           resolve({ changes: this.changes });
+        }
+      );
+    });
+  }
+  // ==================================================================
+  // BULK COPY FROM MASTER (POST /api/admin/rubric-admin/copy-from-master)
+  // ==================================================================
+
+  /**
+   * Copy selected master categories (with their active indicators) into an
+   * admin's own rubric tables.
+   * - Every selection must be a numeric master-category id (400 otherwise).
+   * - Categories the admin already has are skipped (idempotent resubmits).
+   * - Returns how many categories were ACTUALLY newly persisted — INSERT IGNORE
+   *   can silently drop rows (FK/duplicate-key downgraded to warnings), so each
+   *   copy is verified with a follow-up lookup before being counted.
+   */
+  static async copyMasterCategories(admin_user_id, categoryIds = []) {
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+      const e = new Error('Please select at least one category'); e.statusCode = 400; throw e;
+    }
+
+    const ids = [...new Set(categoryIds.map(id => String(id).trim()).filter(s => s !== ''))];
+    if (ids.length === 0 || ids.some(id => !/^\d+$/.test(id))) {
+      const e = new Error('Invalid category selection — refresh the page and try again'); e.statusCode = 400; throw e;
+    }
+
+    const assigned = new Set(await RubricAdminModel.getAdminAssignedCategoryIds(admin_user_id));
+
+    let copied = 0;
+    for (const rawId of ids) {
+      const masterId = parseInt(rawId, 10);
+      if (assigned.has(masterId)) continue;
+      await RubricAdminModel.assignCategoryToAdmin(masterId, admin_user_id, admin_user_id);
+      const persisted = await RubricAdminModel.categoryCopyExists(masterId, admin_user_id);
+      if (persisted) { copied++; assigned.add(masterId); }
+    }
+    return copied;
+  }
+
+  /** True when this master category already exists as an admin copy */
+  static async categoryCopyExists(master_category_id, admin_user_id) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id FROM admin_rubric_categories WHERE master_category_id = ? AND admin_user_id = ? LIMIT 1',
+        [master_category_id, admin_user_id],
+        (err, row) => err ? reject(err) : resolve(!!row)
+      );
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Aliases consumed by controllers/admin/adminRubricController.js
+  // ------------------------------------------------------------------
+
+  /** Master categories (all active) */
+  static async getMasterCategories() {
+    return MasterRubricModel.getCategories();
+  }
+
+  /** Master indicators, optionally filtered by master category id/code */
+  static async getMasterIndicators(categoryId = null) {
+    if (categoryId != null && String(categoryId).trim() !== '') {
+      return MasterRubricModel.getIndicatorsByCategory(String(categoryId).trim());
+    }
+    return MasterRubricModel.getIndicators();
+  }
+
+  /** Custom category creation (returns admin-table PK id) */
+  static async createAdminCategory(admin_user_id, { name, weight }) {
+    const result = await RubricAdminModel.createCustomCategory(admin_user_id, name, weight);
+    return result.categoryId;
+  }
+
+  /**
+   * Custom indicator creation. Accepts the adminRubricController payload shape
+   * ({ master_category_id|category_id, admin_user_id, ... }) directly, or the
+   * positional form ({admin_user_id}, {category_id, ...}).
+   */
+  static async createAdminIndicator(input = {}) {
+    let payload = input;
+    let admin = input ? input.admin_user_id : undefined;
+    if (arguments.length === 2) {
+      admin = arguments[0];
+      payload = arguments[1] || {};
+    }
+    return RubricAdminModel.createCustomIndicator(admin, {
+      category_id: payload.master_category_id != null ? payload.master_category_id : payload.category_id,
+      name: payload.name,
+      type: payload.type,
+      is_gate: payload.is_gate,
+      value: payload.value,
+      benchmark: payload.benchmark
+    });
+  }
+
+  /**
+   * Delete an admin category by admin-table PK plus its indicator copies.
+   * Children share the parent's master link: copied masters group on
+   * master_category_id; customs group on (NULL master + same carrier code).
+   */
+  static async deleteAdminCategory(categoryId, admin_user_id) {
+    const pk = parseInt(categoryId, 10);
+    if (!Number.isInteger(pk)) return false;
+
+    const row = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, master_category_id, category_code FROM admin_rubric_categories WHERE id = ? AND admin_user_id = ? LIMIT 1',
+        [pk, admin_user_id],
+        (err, r) => err ? reject(err) : resolve(r || null)
+      );
+    });
+    if (!row) return false;
+
+    await new Promise((resolve, reject) => {
+      const sql = row.master_category_id != null
+        ? 'DELETE FROM admin_rubric_indicators WHERE admin_user_id = ? AND master_category_id = ?'
+        : 'DELETE FROM admin_rubric_indicators WHERE admin_user_id = ? AND master_category_id IS NULL AND category_code = ?';
+      const params = row.master_category_id != null ? [admin_user_id, row.master_category_id] : [admin_user_id, row.category_code];
+      db.run(sql, params, err => err ? reject(err) : resolve());
+    });
+
+    return new Promise((resolve, reject) => {
+      db.run(
+        'DELETE FROM admin_rubric_categories WHERE id = ? AND admin_user_id = ?',
+        [pk, admin_user_id],
+        function(err) {
+          if (err) return reject(err);
+          resolve(this.changes > 0);
         }
       );
     });

@@ -46,6 +46,21 @@ function createOAuth2Client(config, redirectUri) {
   );
 }
 
+/**
+ * Resolve the OAuth callback ORIGIN.
+ * Prefers a configured GOOGLE_OAUTH_BASE_URL (e.g. http://www.localretentionlab.com)
+ * so the redirect_uri sent to Google is deterministic and matches a URI registered
+ * in the Google Cloud Console — instead of blindly following whatever Host header
+ * the instructor's link happens to load from (which caused redirect_uri_mismatch).
+ */
+function resolveCallbackBase(req) {
+  const configured = process.env.GOOGLE_OAUTH_BASE_URL;
+  if (configured) {
+    return String(configured).replace(/\/+$/, '');
+  }
+  return `${req.protocol || 'http'}://${req.get('host')}`;
+}
+
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
@@ -107,11 +122,14 @@ const controller = {
           return ok({ count: 0, data: [] });
         }
 
+        // "Connected" requires a real OAuth token — not just a row marked 'active'.
+        const hasValidToken = !!(row.access_token && row.connection_status === 'active');
+
         return ok({
           count: 1,
           data: [{
             email: row.email,
-            status: row.connection_status || 'disconnected',
+            status: hasValidToken ? 'active' : 'disconnected',
             provider: row.provider || null,
             token_expire_at: row.token_expires_at || null, // Map DB field to frontend expected name
             last_synced_at: row.updated_at || null, // Use updated_at as last synced timestamp
@@ -135,7 +153,10 @@ const controller = {
         const connections = (integrations || []).map(conn => ({
           email: conn.email,
           name: conn.first_name,
-          Calendarstatus: conn.connection_status || 'disconnected',
+          // "Connected" requires a real OAuth access_token — a row marked 'active'
+          // without a token (e.g. before the OAuth callback completes) is not really
+          // connected, so surface it as 'disconnected' to show the "Connect" action.
+          Calendarstatus: (conn.connection_status === 'active' && conn.access_token) ? 'active' : 'disconnected',
           Userstatus: conn.is_active || 'disconnected',
           provider: conn.display_name || null,
           token_expire_at: conn.token_expires_at || null, // Map DB field to frontend expected name
@@ -352,7 +373,7 @@ const controller = {
       } catch (e) {
         logger.warn('[InstructorCalendar] Failed to update verification status:', e.message);
       }
-      const baseUrl = `${req.protocol || 'http'}://${req.get('host')}`;
+      const baseUrl = resolveCallbackBase(req);
       const instructorCallbackUrl = `${baseUrl}/api/instructor-calendar/callback`;
 
       logger.info(`[InstructorCalendar] verifyToken: email=${email} baseUrl=${baseUrl} callbackUrl=${instructorCallbackUrl}`);
@@ -424,7 +445,7 @@ const controller = {
 
       const email = payload.email;
 
-      const baseUrl = `${req.protocol || 'http'}://${req.get('host')}`;
+      const baseUrl = resolveCallbackBase(req);
       const actualPath = req.originalUrl || req.url || '';
       const isInstructorPath = actualPath.includes('/api/instructor-calendar/callback');
       const callbackPath = isInstructorPath

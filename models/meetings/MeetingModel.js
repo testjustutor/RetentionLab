@@ -216,54 +216,45 @@ class MeetingModel {
           // Helper function to convert timezone-aware datetime to UTC timestamp
           const convertToUTC = (dateStr, timezone) => {
             if (!dateStr) return null;
-            
-            let year, month, day, hour, minute, second;
-            
-            // Handle different input types
-            if (dateStr instanceof Date) {
-              // If it's already a Date object, extract components
-              year = dateStr.getUTCFullYear();
-              month = dateStr.getUTCMonth() + 1;
-              day = dateStr.getUTCDate();
-              hour = dateStr.getUTCHours();
-              minute = dateStr.getUTCMinutes();
-              second = dateStr.getUTCSeconds();
-            } else if (typeof dateStr === 'string') {
-              // Parse datetime components from string (format: "YYYY-MM-DD HH:MM:SS" or ISO format)
-              let datePart, timePart;
-              
-              // Check if it's ISO format (contains 'T')
-              if (dateStr.includes('T')) {
-                const isoDate = new Date(dateStr);
-                year = isoDate.getUTCFullYear();
-                month = isoDate.getUTCMonth() + 1;
-                day = isoDate.getUTCDate();
-                hour = isoDate.getUTCHours();
-                minute = isoDate.getUTCMinutes();
-                second = isoDate.getUTCSeconds();
-              } else {
-                // Format: "YYYY-MM-DD HH:MM:SS"
-                [datePart, timePart] = dateStr.split(' ');
-                [year, month, day] = datePart.split('-').map(Number);
-                [hour, minute, second = 0] = (timePart || '00:00:00').split(':').map(Number);
-              }
-            } else {
-              // Unknown format, try to convert to Date
-              const date = new Date(dateStr);
-              if (isNaN(date.getTime())) return null;
-              return date.getTime();
+
+            const toMs = (d) => { const t = new Date(d).getTime(); return isNaN(t) ? null : t; };
+
+            // Date object — already an absolute instant
+            if (dateStr instanceof Date) return toMs(dateStr);
+
+            if (typeof dateStr !== 'string') return null;
+
+            const s = dateStr.trim();
+
+            // ISO-8601 that already carries an explicit timezone offset (Z / ±HH:MM /
+            // ±HHMM, e.g. "2026-08-27T08:45:00.000Z"). These are ABSOLUTE instants and
+            // must NOT be shifted again by the column's na�ve timezone — otherwise a UTC
+            // value gets double-converted (the bug that hid live meetings).
+            if (/([Zz]|[+-]\d{2}:?\d{2}|[+-]\d{4})$/.test(s)) {
+              return toMs(s);
             }
-            
+
+            let year, month, day, hour, minute, second = 0;
+            // Naive wall-clock (no timezone embedded): "YYYY-MM-DD HH:MM:SS" or
+            // "YYYY-MM-DDTHH:MM:SS" — interpret as local time in `timezone` (or UTC).
+            const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+            if (m) {
+              year = Number(m[1]); month = Number(m[2]); day = Number(m[3]);
+              hour = Number(m[4]); minute = Number(m[5]); second = Number(m[6] || 0);
+            } else {
+              return toMs(s);
+            }
+
             // If no timezone, treat as UTC
             if (!timezone) {
               return Date.UTC(year, month - 1, day, hour, minute, second);
             }
-            
+
             try {
               // Create a timestamp treating the input as UTC
               const asUTC = Date.UTC(year, month - 1, day, hour, minute, second);
               const tempDate = new Date(asUTC);
-              
+
               // Format this UTC time in the target timezone to see what wall-clock time it represents
               const formatter = new Intl.DateTimeFormat('en-US', {
                 timeZone: timezone,
@@ -272,24 +263,22 @@ class MeetingModel {
                 second: '2-digit',
                 hour12: false
               });
-              
+
               const parts = formatter.formatToParts(tempDate);
               const getPart = (type) => parts.find(p => p.type === type)?.value || '00';
-              
+
               const tzHour = parseInt(getPart('hour'));
               const tzMinute = parseInt(getPart('minute'));
               const tzSecond = parseInt(getPart('second'));
-              
+
               // Calculate the timezone offset in minutes
               const originalMinutes = hour * 60 + minute + second / 60;
               const tzMinutes = tzHour * 60 + tzMinute + tzSecond / 60;
               const offsetMinutes = tzMinutes - originalMinutes;
-              
+
               // Adjust the UTC timestamp by the offset to get the correct UTC time
               return asUTC - (offsetMinutes * 60 * 1000);
-              
             } catch (e) {
-              // Fallback: treat as UTC
               return Date.UTC(year, month - 1, day, hour, minute, second);
             }
           };
@@ -387,25 +376,27 @@ class MeetingModel {
   static getBatchHistory(limit = 50) { return new Promise((resolve, reject) => { db.all(`SELECT * FROM meetings WHERE platform LIKE '%batch%' AND status != 'queued' ORDER BY created_at DESC LIMIT ?`, [limit], (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching batch history:', err); reject(err); } else resolve(rows); }); }); }
 
   /**
-   * Find meeting by title, start time, and owner (for calendar sync deduplication)
+   * Find meeting by title, start time, and owner (for calendar sync deduplication).
+   * The meetings table has no `meeting_id`/`owner_user_id` columns; the owner is
+   * tracked via `calendar_account` (email). Returns the row's primary key `id`.
    */
-  static findMeetingByTitleAndTime(title, startTime, ownerUserId) {
+  static findMeetingByTitleAndTime(title, startTime, calendarAccount) {
     return new Promise((resolve, reject) => {
       db.get(
-        `SELECT meeting_id FROM meetings WHERE title = ? AND scheduled_start_time = ? AND owner_user_id = ?`,
-        [title, startTime, ownerUserId],
+        `SELECT id FROM meetings WHERE title = ? AND scheduled_start_time = ? AND calendar_account = ?`,
+        [title, startTime, calendarAccount],
         (err, row) => err ? reject(err) : resolve(row || null)
       );
     });
   }
 
   /**
-   * Update meeting from calendar sync
+   * Update meeting from calendar sync (matches by primary key id)
    */
   static updateMeetingFromCalendar(meetingId, title, platform, startTime, endTime) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE meetings SET title = ?, platform = ?, scheduled_start_time = ?, scheduled_end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE external_meeting_id = ?`,
+        `UPDATE meetings SET title = ?, platform = ?, scheduled_start_time = ?, scheduled_end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [title, platform, startTime, endTime, meetingId],
         function(err) {
           if (err) {
@@ -421,20 +412,22 @@ class MeetingModel {
   }
 
   /**
-   * Create meeting from calendar sync
+   * Create meeting from calendar sync.
+   * Uses real meetings columns: external_meeting_id, calendar_account, created_by.
    */
-  static createMeetingFromCalendar(title, platform, startTime, endTime, userId) {
+  static createMeetingFromCalendar(title, platform, startTime, endTime, userId, calendarAccount) {
     return new Promise((resolve, reject) => {
+      const externalId = `cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       db.run(
-        `INSERT INTO meetings (external_meeting_id, title, platform, scheduled_start_time, scheduled_end_time, owner_user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [`cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, title, platform, startTime, endTime, userId],
+        `INSERT INTO meetings (external_meeting_id, title, platform, scheduled_start_time, scheduled_end_time, calendar_account, created_by, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [externalId, title, platform, startTime, endTime, calendarAccount || null, userId],
         function(err) {
           if (err) {
             logger.error(`[MeetingModel] Error creating meeting for ${title}:`, err);
             reject(err);
           } else {
             logger.info(`[MeetingModel] Created meeting: ${title} at ${startTime}`);
-            resolve({ id: this.lastID, meetingId: `cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` });
+            resolve({ id: this.lastID, meetingId: externalId });
           }
         }
       );
