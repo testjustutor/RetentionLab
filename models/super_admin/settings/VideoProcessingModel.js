@@ -9,6 +9,7 @@
  * (user_id / meeting_id / session_id).
  */
 const { db } = require('../../../database/db');
+const { normalizeStorageRef } = require('../../../utils/storagePaths');
 
 class VideoProcessingModel {
   static ensureTable() {
@@ -296,7 +297,7 @@ class VideoProcessingModel {
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE meeting_sessions SET audio_file_name = ?, transcript_file_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [mp3Name, transcriptName, sessionId],
+        [normalizeStorageRef('audio', mp3Name), normalizeStorageRef('transcript', transcriptName), sessionId],
         function (err) { err ? reject(err) : resolve(); }
       );
     });
@@ -312,7 +313,10 @@ class VideoProcessingModel {
           video_path = VALUES(video_path),
           status = 'Conversion',
           processed_at = CURRENT_TIMESTAMP`;
-      db.run(sql, [String(a.meetingId), String(a.sessionId), a.mp3Name, a.transcriptName, a.videoPath],
+      db.run(sql, [String(a.meetingId), String(a.sessionId),
+          normalizeStorageRef('audio', a.mp3Name),
+          normalizeStorageRef('transcript', a.transcriptName),
+          normalizeStorageRef('video', a.videoPath)],
         function (err) { err ? reject(err) : resolve(); });
     });
   }

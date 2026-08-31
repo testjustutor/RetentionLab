@@ -300,30 +300,42 @@ class MeetingModel {
     });
   }
 
-  /** Get all completed/ended meetings within a time window (across all users) */
-  static getCompletedMeetingsByAccounts(emails, hours) {
+  /** Get all completed/ended meetings within a time window (across all users).
+   *  A meeting is considered "completed with data" when `meeting_assets` has a
+   *  row for the same meeting (and its session). No meeting/session status is checked.
+   */
+  static getCompletedMeetingsByAccounts(emails, hours, filters = {}) {
     return new Promise((resolve, reject) => {
-      const lookback = new Date(Date.now() - hours * 3600000).toISOString();
-      const now = new Date().toISOString();
+      const { from_date, to_date } = filters;
 
-      // Include meetings that are:
-      // 1. Status = 'completed', OR
-      // 2. Have at least one session with both transcript_file_name AND audio_file_name
-      const sql = `
+      let sql = `
         SELECT DISTINCT m.*, u.first_name, u.last_name, r.role_name
         FROM meetings m
+        INNER JOIN meeting_assets ma ON ma.meeting_id = m.id
         LEFT JOIN users u ON u.email = m.calendar_account
         LEFT JOIN roles r ON r.id = u.role_id
-        LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.external_meeting_id
         WHERE m.scheduled_start_time IS NOT NULL
           AND (
-            m.status = 'completed'
-            OR (ms.transcript_file_name IS NOT NULL AND ms.audio_file_name IS NOT NULL)
+            ma.transcript_path IS NOT NULL
+            OR ma.audio_path IS NOT NULL
+            OR ma.summary_path IS NOT NULL
+            OR ma.video_path IS NOT NULL
           )
-        ORDER BY m.scheduled_start_time DESC
       `;
 
-      const params = [now, lookback];
+      const params = [];
+
+      if (Array.isArray(emails) && emails.length > 0) {
+        sql += ` AND LOWER(m.calendar_account) IN (${emails.map(() => '?').join(',')})`;
+        params.push(...emails.map((e) => String(e).toLowerCase()));
+      }
+
+      if (from_date && to_date) {
+        sql += ` AND m.scheduled_start_time >= ? AND m.scheduled_start_time <= ?`;
+        params.push(from_date + ' 00:00:00', to_date + ' 23:59:59');
+      }
+
+      sql += ` ORDER BY m.scheduled_start_time DESC`;
 
       db.all(sql, params, (err, rows) => {
         if (err) {

@@ -5,6 +5,7 @@
  */
 const MeetingModel = require('../../models/meetings/MeetingModel');
 const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
+const UsersModel = require('../../models/users/UsersModel');
 const CalendarEventController = require('../calendar/CalendarEventController');
 const CalendarHelper = require('../../utils/calendarHelper');
 const TranscriptModel = require('../../models/transcripts/transcriptModel');
@@ -31,8 +32,13 @@ function groupByAccount(rows) {
       title: r.title || 'Untitled',
       scheduled_start_time: r.scheduled_start_time,
       scheduled_end_time: r.scheduled_end_time,
+      start_time: r.scheduled_start_time,
+      end_time: r.scheduled_end_time,
+      start: r.scheduled_start_time,
+      end: r.scheduled_end_time,
       duration: duration,
-      platform: r.platform || null
+      platform: r.platform || null,
+      status: r.status || null
     });
   });
   return Object.values(groups).map(g => ({ email: g.email, role_name: g.role_name, total: g.events.length, events: g.events }));
@@ -322,16 +328,49 @@ const controller = {
   /** POST /api/meeting-schedule/completed */
   async getCompletedMeetings(req) {
     try {
-      const hours = parseInt(req.body.hours) || 24;
+      const hours = parseInt(req.body?.hours || req.query.hours) || 24;
+      const fromDate = req.body?.from_date || req.query.from_date || null;
+      const toDate = req.body?.to_date || req.query.to_date || null;
+      const instructorId = req.body?.instructor_id || req.query.instructor_id || null;
       const adminId = req.user ? req.user.id : null;
-      // Get completed meetings (filtered by SQL: status='completed' OR has transcript+audio)
-      const rows = await MeetingModel.getCompletedMeetingsByAccounts([], hours);
+      const userRole = req.user ? req.user.role_name : null;
+
+      // Determine which emails to fetch
+      let targetEmails = [];
+      if (instructorId) {
+        // instructor_id is a users.user_uuid for the admin filter
+        let instructor = null;
+        try {
+          instructor = await UsersModel.getUserByUuid(instructorId);
+        } catch (lookupErr) {
+          logger.warn('[MeetingSchedule] getUserByUuid failed:', lookupErr.message);
+        }
+        if (instructor && instructor.email) {
+          targetEmails = [instructor.email.toLowerCase()];
+        } else {
+          logger.warn(`[MeetingSchedule] Instructor not found for uuid: ${instructorId}`);
+        }
+      } else {
+        // For admin: only get users they created with instructor/reviewer roles
+        const filterOptions = {};
+        if (userRole === 'admin' && adminId) {
+          filterOptions.createdBy = adminId;
+          filterOptions.roles = ['instructor', 'solo_instructor', 'reviewer'];
+          filterOptions.excludeSelf = true;
+          filterOptions.adminId = adminId;
+        }
+        const connections = await CalendarUsersModel.getAllUsers(filterOptions);
+        targetEmails = (connections || []).filter(c => c.connection_status === 'active' && c.email).map(c => c.email.toLowerCase());
+      }
+
+      // Get completed meetings (filtered by SQL: meeting_assets has data; no status check)
+      const rows = await MeetingModel.getCompletedMeetingsByAccounts(targetEmails, hours, { from_date: fromDate, to_date: toDate });
       const users = groupByAccount(rows);
-      
+
       // Connected calendars count from calendar_connections, users, roles, calendar_connections & created_by admin
       const connectedCount = await CalendarUsersModel.getConnectedCalendarCount(adminId);
-      
-      return ok({ hours, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
+
+      return ok({ hours, from_date: fromDate, to_date: toDate, instructor_id: instructorId, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
     } catch (e) { return err(e.message); }
   }
 };

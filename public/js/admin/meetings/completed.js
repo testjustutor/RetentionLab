@@ -10,11 +10,11 @@ function getFilterParams() {
   const fromDate = document.getElementById('filterFromDate')?.value || '';
   const toDate = document.getElementById('filterToDate')?.value || '';
   const instructorId = window.instructorFilter ? window.instructorFilter.getValue() : null;
-  const params = new URLSearchParams();
-  if (fromDate) params.append('from_date', fromDate);
-  if (toDate) params.append('to_date', toDate);
-  if (instructorId) params.append('instructor_id', instructorId);
-  return params.toString();
+  const params = {};
+  if (fromDate) params.from_date = fromDate;
+  if (toDate) params.to_date = toDate;
+  if (instructorId) params.instructor_id = instructorId;
+  return params;
 }
 
 function setDefaultDateRange() {
@@ -64,11 +64,12 @@ async function loadCompleted() {
   var c = document.getElementById('completedContainer');
   c.innerHTML = '<div class="flex items-center justify-center py-20"><div class="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div><span class="ml-3 text-sm text-slate-500">Loading completed sessions...</span></div>';
   try {
-    const params = getFilterParams();
-    var json = await apiFetch('/api/admin/meeting-schedule/completed?' + params, {
+    const filters = getFilterParams();
+    filters.hours = 168;
+    var json = await apiFetch('/api/admin/meeting-schedule/completed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hours: 168 })
+      body: JSON.stringify(filters)
     });
     var users = json.users || [];
     var total = json.totalEvents || 0;

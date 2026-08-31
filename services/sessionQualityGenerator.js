@@ -26,6 +26,7 @@ const axios = require('axios');
 const settings = require('../config/settings');
 const { db } = require('../database/db');
 const { logger } = require('../utils/logger');
+const { resolveStoragePath } = require('../utils/storagePaths');
 
 // â”€â”€ Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const RubricEvaluationModel = require('../models/rubrics/RubricEvaluationModel');
@@ -57,10 +58,11 @@ async function getTranscriptText(sessionId) {
           return reject(new Error(`No transcript file found for session ${sessionId}`));
         }
 
-        const transcriptPath = path.resolve(
-          __dirname, '..', 'storage', 'transcripts', row.transcript_file_name
+        const transcriptPath = resolveStoragePath(
+          path.resolve(__dirname, '..'),
+          row.transcript_file_name,
+          'transcript'
         );
-
         if (!fs.existsSync(transcriptPath)) {
           return reject(new Error(`Transcript file not found on disk: ${transcriptPath}`));
         }

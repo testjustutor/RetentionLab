@@ -37,6 +37,7 @@ const PythonBridge = require('./shared/pythonBridge');
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../utils/logger');
+const { resolveStoragePath } = require('../utils/storagePaths');
 
 class SocraticBot {
   constructor(config = {}) {
@@ -46,6 +47,7 @@ class SocraticBot {
     this.sessionId = config.sessionId;
     this.platform = config.platform;
     this.meetingId = config.meetingId;
+    this.meetingDbId = config.meetingDbId ?? null; // internal meetings.id (auto-increment PK)
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
     this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
@@ -57,9 +59,6 @@ class SocraticBot {
 
     this.browserManager = null;
     this.captionMonitor = null;
-    // FIX 2: now tracked at the SocraticBot level for ALL platforms
-    // (previously only set implicitly for zoom/google-meet; Teams never
-    // stored a reference here, so stop() couldn't reset attendance).
     this.participantTracker = null;
   }
 
@@ -385,14 +384,18 @@ class SocraticBot {
           
           if (session && session.transcript_file_name) {
 
-            const transcriptPath = path.join(__dirname, '../storage/transcripts', session.transcript_file_name);
+            const transcriptPath = resolveStoragePath(
+              path.resolve(__dirname, '..'),
+              session.transcript_file_name,
+              'transcript'
+            );
             
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
               await MeetingSessionController.updateMeetingSessionStatus(this.meetingId, this.sessionId, 'completed');
 
-              await MeetingAssetController.initializeAssets(this.meetingId, this.sessionId, finalAudioPath, transcriptPath);
+              await MeetingAssetController.initializeAssets(this.meetingDbId, this.sessionId, finalAudioPath, transcriptPath);
 
               const finalAudioFileName = path.basename(finalAudioPath);
               const auditResults = await PythonBridge.runFullAudioPipeline(this.meetingId, this.sessionId, finalAudioFileName);

@@ -254,53 +254,242 @@ class TeamsJoiner {
   // PASSCODE MODAL HANDLER
   // -----------------------------
   async handlePasscodeModal() {
-    const requiresPasscode = await this.page.evaluate(() => {
-      const body = document.body.innerText;
-      return (
-        body.includes("We couldn't find a meeting") ||
-        body.includes("Type a meeting passcode")
+    // 1) Detect the "can't find meeting / enter passcode" screen (searches all frames).
+    const state = await this.readPasscodeScreen();
+
+    if (!state.isPasscodeScreen) {
+      return false;
+    }
+
+    logger.info(
+      `TeamsAdapter(teamJoiner): Passcode screen detected. Displayed: "${state.text}"`
+    );
+
+    // 2) Resolve passcode value (config first, then URL params).
+    let pass = this.passcode;
+    if (!pass) {
+      try {
+        const cleanUrl = this.meetingUrl.replace(/[>\]"']+$/, '');
+        const urlObj = new URL(cleanUrl);
+        pass =
+          urlObj.searchParams.get('p') ||
+          urlObj.searchParams.get('passcode') ||
+          urlObj.searchParams.get('pwd');
+      } catch (e) {}
+    }
+
+    // 3) Locate the passcode field: selectors first, then Tab discovery.
+    const field = await this.findPasscodeField();
+
+    if (!field.found) {
+      logger.warn(
+        'TeamsAdapter(teamJoiner): Could not locate the passcode input even after Tab navigation. ' +
+          (pass
+            ? 'A passcode is available but NO field was found — aborting recovery (unexpected field/selector).'
+            : 'No passcode is configured (this.passcode / URL ?p=?passcode=?pwd=). The user MUST provide the meeting passcode.')
       );
-    });
+      return false;
+    }
 
-    if (requiresPasscode) {
-      logger.info('TeamsAdapter(teamJoiner): Meeting passcode modal detected! Attempting recovery.');
+    logger.info(
+      `TeamsAdapter(teamJoiner): Passcode input located via ${field.method} ` +
+        `(tag=${field.tag}, type=${field.type}, id=${field.id}, name=${field.name}, placeholder=${field.placeholder}, data-tid=${field.dataTid}, frame=${field.frameName}).`
+    );
 
-      let pass = this.passcode;
-      if (!pass) {
-        try {
-          const cleanUrl = this.meetingUrl.replace(/[>\])"']+$/, '');
-          const urlObj = new URL(cleanUrl);
-          pass =
-            urlObj.searchParams.get('p') ||
-            urlObj.searchParams.get('passcode') ||
-            urlObj.searchParams.get('pwd');
-        } catch (e) {}
+    // 4) If we have a passcode, type it and submit.
+    if (pass) {
+      const typed = await this.typeIntoPasscode(field, pass);
+      if (!typed) {
+        logger.warn('TeamsAdapter(teamJoiner): Passcode field located but typing failed.');
+        return false;
       }
+      logger.info('TeamsAdapter(teamJoiner): Passcode typed. Submitting...');
 
-      if (pass) {
-        logger.info(`TeamsAdapter(teamJoiner): Typing extracted passcode: ${pass}`);
-        const passInput = 'input[data-tid="meeting-passcode-input"]';
-        await this.page.waitForSelector(passInput, { timeout: 5000 }).catch(() => {});
-        await this.page.click(passInput, { clickCount: 3 }).catch(() => {});
-        await this.page.keyboard.press('Backspace');
-        await this.page.type(passInput, pass, { delay: 100 }).catch(() => {});
+      await field.frame.evaluate(() => {
+        const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
+          /rejoin|join|check|continue/i.test(b.innerText || '')
+        );
+        if (submitBtn) submitBtn.click();
+      });
+      // Enter as a fallback submit in case no visible button matched.
+      await this.page.keyboard.press('Enter').catch(() => {});
+      await new Promise(r => setTimeout(r, 2500));
+      return true;
+    }
 
-        await this.page.evaluate(async () => {
-          const delay = ms => new Promise(r => setTimeout(r, ms));
-          const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
-            /rejoin|join/i.test(b.innerText || '')
-          );
-          if (submitBtn) {
-            submitBtn.click();
-            await delay(4000);
+    // No passcode available — surface what is on screen so the operator can act.
+    logger.warn(
+      `TeamsAdapter(teamJoiner): Passcode is REQUIRED but was not provided. Currently displayed: "${state.text}"`
+    );
+    return false;
+  }
+
+  // -----------------------------
+  // READ THE PASSCODE ERROR SCREEN (across all frames)
+  // -----------------------------
+  async readPasscodeScreen() {
+    const frames = this.page.frames();
+    let text = '';
+    let isPasscodeScreen = false;
+
+    for (const frame of frames) {
+      const res = await frame
+        .evaluate(() => {
+          const t = document.body ? document.body.innerText || '' : '';
+          const low = t.toLowerCase();
+          const hit =
+            /we can'?t find this meeting/i.test(low) ||
+            /we couldn'?t find a meeting/i.test(low) ||
+            /meeting might have ended/i.test(low) ||
+            /type (a )?meeting passcode/i.test(low) ||
+            /enter (a )?meeting passcode/i.test(low) ||
+            /meeting passcode/i.test(low) ||
+            /rejoin call/i.test(low) ||
+            !!document.querySelector(
+              'input[data-tid*="passcode"], input[data-tid*="otp"]'
+            );
+          return { t: t.trim().slice(0, 400), hit };
+        })
+        .catch(() => ({ t: '', hit: false }));
+      if (res.hit) isPasscodeScreen = true;
+      if (res.t) text += (text ? ' | ' : '') + res.t;
+    }
+
+    return { isPasscodeScreen, text };
+  }
+// -----------------------------
+  // FIND THE PASSCODE INPUT — selectors first, then Tab+Enter discovery (all frames)
+  // -----------------------------
+  async findPasscodeField() {
+    const frames = this.page.frames();
+    const selectors = [
+      'input[data-tid="meeting-passcode-input"]',
+      'input[data-tid*="passcode"]',
+      'input[data-tid*="otp"]',
+      'input[type="password"]',
+      'input[inputmode="numeric"]',
+      'input[autocomplete="one-time-code"]',
+      'input[name*="passcode"]',
+      'input[placeholder*="passcode" i]',
+      'input[placeholder*="OTP" i]',
+      'input[aria-label*="passcode" i]',
+      'input[aria-label*="password" i]'
+    ];
+
+    // A) Selectors across ALL frames.
+    for (const frame of frames) {
+      const info = await frame
+        .evaluate((sels) => {
+          for (const s of sels) {
+            const el = document.querySelector(s);
+            if (el) {
+              return {
+                found: true,
+                tag: el.tagName,
+                type: el.type,
+                id: el.id,
+                name: el.name,
+                placeholder: el.placeholder,
+                dataTid: el.getAttribute('data-tid')
+              };
+            }
           }
-        });
-        return true;
-      } else {
-        logger.warn('TeamsAdapter(teamJoiner): Passcode required but not found in configuration or URL.');
+          return { found: false };
+        }, selectors)
+        .catch(() => ({ found: false }));
+
+      if (info.found) {
+        return {
+          ...info,
+          method: 'selector',
+          frame,
+          frameName: frame === this.page.mainFrame() ? 'main' : frame.name() || 'child'
+        };
       }
     }
-    return false;
+
+    // B) Real keyboard Tab navigation — logging each focused element until we
+    //    land on an editable (input/textarea) field.
+    logger.info(
+      'TeamsAdapter(teamJoiner): No passcode field by selector — using Tab navigation to discover it.'
+    );
+    const tabFrames = [this.page.mainFrame(), ...this.page.frames()];
+
+    for (let i = 0; i < 14; i++) {
+      await this.page.keyboard.press('Tab').catch(() => {});
+      await new Promise(r => setTimeout(r, 180));
+
+      for (const frame of tabFrames) {
+        const info = await frame
+          .evaluate(() => {
+            const ae = document.activeElement;
+            if (!ae || (ae.tagName !== 'INPUT' && ae.tagName !== 'TEXTAREA')) return null;
+            return {
+              found: true,
+              tag: ae.tagName,
+              type: ae.type,
+              id: ae.id,
+              name: ae.name,
+              placeholder: ae.placeholder,
+              dataTid: ae.getAttribute('data-tid')
+            };
+          })
+          .catch(() => null);
+
+        if (info && info.found) {
+          const fname = frame === this.page.mainFrame() ? 'main' : frame.name() || 'child';
+          logger.info(
+            `TeamsAdapter(teamJoiner): TAB ${i + 1} frame=${fname} → focused ${info.tag} ` +
+              `type=${info.type} id=${info.id} name=${info.name} data-tid=${info.dataTid} placeholder=${info.placeholder}`
+          );
+          return { ...info, method: 'tab-navigation', frame, frameName: fname };
+        }
+      }
+    }
+
+    return { found: false };
+  }
+
+  // -----------------------------
+  // TYPE THE PASSCODE INTO THE LOCATED FIELD
+  // -----------------------------
+  async typeIntoPasscode(field, pass) {
+    return field.frame.evaluate((code) => {
+      const candidates = [
+        'input[data-tid*="passcode"]',
+        'input[data-tid*="otp"]',
+        'input[type="password"]',
+        'input[inputmode="numeric"]',
+        'input[name*="passcode"]',
+        'input[placeholder*="passcode" i]',
+        'input[placeholder*="OTP" i]'
+      ];
+      let input = null;
+      for (const c of candidates) {
+        const e = document.querySelector(c);
+        if (e) { input = e; break; }
+      }
+      if (!input && document.activeElement && document.activeElement.tagName === 'INPUT') {
+        input = document.activeElement;
+      }
+      if (!input) return false;
+
+      input.focus();
+      const proto = window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) setter.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Best-effort real-typing simulation; React reliably recognizes execCommand.
+      try {
+        document.execCommand('insertText', false, code);
+      } catch (e) {
+        if (setter) setter.call(input, code);
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }, pass);
   }
 
   // -----------------------------
@@ -338,7 +527,12 @@ class TeamsJoiner {
 
         const needsPasscode =
           text.includes("We couldn't find a meeting") ||
-          text.includes("Type a meeting passcode");
+          text.includes("We can't find this meeting") ||
+          text.includes("Type a meeting passcode") ||
+          text.includes('meeting might have ended') ||
+          /type a meeting passcode/i.test(text) ||
+          /can'?t find this meeting/i.test(text) ||
+          /meeting passcode/i.test(text);
 
         return {
           isAdmitted,
@@ -353,8 +547,13 @@ class TeamsJoiner {
         await new Promise(r => setTimeout(r, 2000));
         return true;
       }
-
-      if (sessionState.needsPasscode) {
+
+      // Also check across ALL frames - the light experience may render the
+      // "can't find meeting / passcode" prompt inside an iframe that the
+      // top-frame text check above would miss.
+      const passcodeState = await this.readPasscodeScreen();
+
+      if (sessionState.needsPasscode || passcodeState.isPasscodeScreen) {
         logger.info('TeamsAdapter(teamJoiner): Passcode modal popped up while waiting!');
         const recovered = await this.handlePasscodeModal();
         if (recovered) {

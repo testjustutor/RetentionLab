@@ -1,3 +1,59 @@
+## Task: Store meeting_assets path columns as base-relative storage paths
+
+- [x] Extended `utils/storagePaths.js` FOLDERS with `summary` -> `storage/summaries` and `video` -> `storage/screen-recordings` (audio/transcript already existed).
+- [x] `meetingAssetModel.initializeAssets()` now normalizes `audio_path` (recordings) and `transcript_path` (transcripts).
+- [x] `meetingAssetModel.updateAssets()` now normalizes `audio_path`, `transcript_path`, `summary_path`, `video_path` via a per-column kind map.
+- [x] `VideoProcessingModel.insertMeetingAsset()` now normalizes `audio_path` (mp3), `transcript_path`, `video_path` (screen-recordings).
+- [x] Format matches the existing seeder `09_seed_meeting_assets.js` (`storage/recordings`, `storage/transcripts`, `storage/summaries`, `storage/screen-recordings`), and `toUrl()`/`/storage` static serving handle it.
+- [x] Verified: node --check clean on storagePaths.js, meetingAssetModel.js, VideoProcessingModel.js, socraticbot.js.
+
+## Task: Fix MODULE_NOT_FOUND './utils/storagePaths' on server boot
+
+- [x] `socraticbot.js` (in `services/`) had a wrong relative require `./utils/storagePaths`; it must be `../utils/storagePaths`. Fixed.
+- [x] Audit other helper importers: `sessionQualityGenerator` (`../`), `transcriptModel` (`../../`), `meetingSessionModel` (`../../../`), `VideoProcessingModel` (`../../../`) — all correct.
+- [x] Verified: `node --check` clean and all 5 importer modules load successfully via require.
+
+## Task: Fix FK error on meeting_assets insert (meeting_assets.meeting_id must be internal meetings.id)
+
+- [x] Diagnosed: `meeting_assets.meeting_id` FK → `meetings.id` (INT, migration 031). `socraticbot.js:398` called `MeetingAssetController.initializeAssets(this.meetingId, ...)` with the EXTERNAL id (`jpd-zkvh-tjg`), so the insert failed with ER_NO_REFERENCED_ROW_2.
+- [x] Fixed: `socraticbot.js` now passes `this.meetingDbId` (the internal `meetings.id`) to `initializeAssets`.
+- [x] Audited other meeting_assets writers: `pythonBridge.js` resolves internal id via `getMeetingIdBySessionId`; `VideoProcessingModel.insertMeetingAsset` (videoProcessing seed path) already passes internal `meetings.id` via `resolveOrCreateSession`/`resolveVideoIds`. No other external-id leaks.
+- [x] Verified: node --check clean on socraticbot.js, pythonBridge.js, meetingAssetModel.js.
+
+## Task: Store meeting_sessions transcript/audio as base-relative storage paths
+
+- [x] Audited writers: `TranscriptModel.saveTranscriptFile`/`saveAudioFile` stored bare names (or absolute audio path via `updateAudioPath`), `VideoProcessingModel.updateSessionFileNames` stored bare names — so columns held mixed formats (transcript=bare, audio=absolute)。
+- [x] Added `utils/storagePaths.js` with `normalizeStorageRef(kind, input)` (absolute/bare/relative → `storage/recordings/` or `storage/transcripts/<basename>`) and `resolveStoragePath(baseDir, ref, kind)`（joins onto the storage ROOT without double folder。
+- [x] Writers now store base-relative refs: `TranscriptModel.saveTranscriptFile`+`saveAudioFile`, `MeetingSessionModel.updateAudioPath`, `VideoProcessingModel.updateSessionFileNames`。
+- [x] Readers updated to resolve against the storage ROOT via `resolveStoragePath(path.resolve(__dirname,'..'), ...)` in `services/sessionQualityGenerator.js` and `services/socraticbot.js`。
+- [x] Verified: `node --check` clean on the new helper + all 5 touched files.
+
+## Task: Fix FK error on /api/bot/start-bot (meeting_sessions.meeting_id must be internal meetings.id)
+
+- [x] Diagnosed: `meeting_sessions.meeting_id` FK → `meetings.id` (INT PK, migration 029). Both botManager paths called `createSession(meetingId)` with the EXTERNAL string (`sku-qvqr-qts`), so the FK failed when no meetings row had `id` = that external id.
+- [x] `meetingSessionModel.createSession`/`meetingAssetModel.getMeetingIdBySessionId` already treat `meeting_sessions.meeting_id` as the internal meetings.id — so the fix is to pass the internal id into `createSession`.
+- [x] Added `MeetingAssetModel.ensureMeetingByExternalId(externalId, extra)`: resolves the internal `meetings.id`, or CREATES the meetings row (status='queued', platform/title) if absent, returning the internal id. Guarantees a valid FK target exists。
+- [x] `botManager.launchFromDb()`: `createSession(meetingDbId)` (was external meetingId)。
+- [x] `botManager.startBot()`: now resolves+guarantees `meetingDbId` via `ensureMeetingByExternalId(meetingId,...)` and calls `createSession(meetingDbId)` (was external meetingId)。
+- [x] Verified: node --check clean on botManager.js, meetingAssetModel.js, socraticbot.js; both createSession calls now use meetingDbId.
+
+## Task: Carry both meetings.id,and meetings.external_meeting_id into the bot
+- [x] Traced source: `socraticbot.js` `this.meetingId = config.meetingId` is set from `botManager.launchFromDb()`, which reads only `meetingRecord.external_meeting_id` (botManager.js:119). The DB row from `getQueuedMeetings()` (SELECT *) already contains `meetings.id`, but it was unused.
+- [x] Where written: `models/meetings/MeetingModel.js` — `getMeetingByIdOrCreate()` insert (line 79/81) writes `meetingData.meetingId` into `external_meeting_id`; `createMeetingFromCalendar` (line 422) writes a generated `cal_...` id; seeder 06 + VideoProcessingModel write it too. `meetings.id` is the auto-increment PK, already returned as `id`/`lastID` at insert.
+- [x] `botManager.launchFromDb()` now also reads `const meetingDbId = meetingRecord.id ?? null;` and passes `meetingDbId` into SocraticBot config + instance config + log line.
+- [x] `socraticbot.js` stores both: `this.meetingId = config.meetingId` (external) and new `this.meetingDbId = config.meetingDbId ?? null` (internal PK).
+- [x] `botManager.startBot()` (immediate path)now ALSO resolves+guarantees `meetingDbId` via `MeetingAssetModel.ensureMeetingByExternalId(meetingId)` (creating a meetings row if absent then, non-fatal)and passes it into SocraticBot config + instance config, so BOTH launch paths carry the internal id — no null caveat remains there (see FK task below for the full FK-safe wiring。
+- [x] Verified: node --check clean on botManager.js and socraticbot.js.
+
+## Task: Teams bot stuck on "We can't find this meeting / Type a meeting passcode" — Tab-to-find + type passcode
+
+- [x] Root cause: `handlePasscodeModal` used a single hard-coded selector `input[data-tid="meeting-passcode-input"]` (swallowed by `.catch`), mis-detected only "We couldn't find a meeting", and the light-experience `teams.live.com/light-meetings/launch` page can render the prompt in an iframe that the top-frame lobby-wait text check missed — so the bot never filled/typed anything and stayed stuck.
+- [x] Rewrote `handlePasscodeModal()` to (a) detect the passcode/can't-find screen across ALL frames, (b) resolve passcode from config or URL `?p=/?passcode=/?pwd=`, (c) locate the field via selectors first, then real Tab navigation logging every focused element, (d) type via `execCommand('insertText')` (React-reliable) + native-setter fallback, (e) submit via Rejoin/Join/check/continue button or Enter.
+- [x] Added `readPasscodeScreen()` (frame-aware detection + captured text for logs), `findPasscodeField()` (selector → Tab discovery across main+child frames), `typeIntoPasscode()`.
+- [x] `waitForJoinConfirmation` loop now also checks `readPasscodeScreen()` across frames (`needsPasscode || passcodeState.isPasscodeScreen`) so an iframe-rendered prompt triggers recovery.
+- [x] Broadened detection strings to "We can't find this meeting", "We couldn't find a meeting", "meeting might have ended", "Type/Enter a meeting passcode", "rejoin call".
+- [x] Verified: node --check passes; helpers present; old method removed; UTF-8/CRLF preserved.
+
 ## Task: Fix Teams participantTracker calling undefined _autoRecoverParticipant
 
 - [x] Confirmed: `services/platforms/teams/participantTracker.js` called `this._autoRecoverParticipant()` but never defined it — every leave for an untracked participant threw, was swallowed, and returned `{success:false,'Auto recovery failed'}`, so Teams attendance auto-recovery was silently non-functional.
@@ -248,3 +304,65 @@ Confirmed by user: ALL videos are 1:1 tutor-student, exactly 2 speakers, languag
 - [x] Frontend Report button now keys off reportJsonExists (file on disk) instead of always-truthy reportJsonUrl.
 - [x] Live insert test through the model confirmed every column family populates (file_user_id=1064, video_session_id=247410, user_id, meeting_type=teams, names/title); test row deleted.
 - [x] node --check clean on model + controller; running server already had latest code; API correctly returns 401 without a super_admin session (auth working).
+
+## Task: Fix ER_BAD_FIELD_ERROR - participants + participant_sessions table mismatch (zoom bot)
+
+- [x] Diagnosed: ParticipantModel/ParticipantsModel used columns (first_joined_at, last_left_at,
+      total_duration_seconds, participant_status) that do NOT exist in the participants table
+      (which uses join_time/leave_time), causing Unknown column first_joined_at.
+- [x] Confirmed the legacy participant_sessions table was removed from the live DB; only
+      participant_attendance_sessions (keyed by participant_id) remains.
+- [x] Chose a code-only fix (no migration/table changes): reverted the temporary migration-030
+      edit and dropped the temporary added columns from the live DB (restored original schema).
+
+## Code changes (all consolidated onto participants + participant_attendance_sessions)
+
+- [x] ParticipantModel.recordParticipantJoin now inserts join_time (not first_joined_at /
+      participant_status) and no longer calls the removed MeetingParticipantSessionModel; it
+      records attendance via ensureAttendanceSession.
+- [x] ensureAttendanceSession now writes session_id (was missing, so INSERT IGNORE silently
+      failed the session_id NOT NULL constraint); signature takes sessionId.
+- [x] ParticipantModel.recordParticipantLeave uses join_time/leave_time (no non-existent cols)
+      and drops the removed MeetingParticipantSessionModel call.
+- [x] ParticipantModel.recordParticipantRejoin / recordRejoinLeave no longer reference
+      participant_status/total_duration_seconds or MeetingParticipantSessionModel, and the
+      rejoin INSERT now includes session_id.
+- [x] getMeetingAttendanceSummary derives first_joined_at/last_left_at/total_duration_seconds/
+      participant_status from join_time/leave_time + attendance durations (as aliases).
+- [x] Removed the unused MeetingParticipantSessionModel require from ParticipantModel.
+- [x] ParticipantsModel.create/getByMeeting now use join_time/leave_time.
+- [x] Rewrote ParticipantSessionsModel.js and removed MeetingParticipantSessionModel.js (both
+      previously hit the deleted participant_sessions); they now operate on
+      participant_attendance_sessions (resolving participant by name).
+- [x] Reviewer participant counts (ReviewerSessionsModel.js, reviewerSessionsController.js) now
+      count from participants instead of the deleted participant_sessions.
+
+## Verification (live MySQL)
+
+- [x] node --check passes on every touched file.
+- [x] Live join test: recordParticipantJoin succeeds with join_time set and no column error.
+- [x] Live attendance insert persists (session_id, session_number, attendance_status=active).
+- [x] Live leave test: recordParticipantLeave succeeds, join_time+leave_time both populated.
+- [x] Test rows cleaned up.
+
+## Task: Fix admin meetings/completed page returning no data
+
+- [x] Diagnosed root cause: getCompletedMeetingsByAccounts only matched status=completed (none exist)and JOINed meeting_sessions on the wrong key ms.meeting_id=m.external_meeting_id (meeting_sessions.meeting_id is internal meetings.id), so nothing ever matched.
+
+- [x] Rewrote query to INNER JOIN meeting_assets ma ON ma.meeting_id=m.id (internal key)and require only that an asset row exists (transcript/audio/summary/video not null)- no meeting/session status check, per requirement.
+
+- [x] Added optional from_date/to_date AND target-email IN filters to the query.
+
+- [x] Controller getCompletedMeetings now reads from_date/to_date/instructor_id from req.body (falls back to req.query)and resolves target emails via CalendarUsersModel (instructor uuid or all active connections.
+
+- [x] Frontend completed.js now sends all filters (from_date/to_date/instructor_id/hours)in the POST payload body instead of the URL query string.
+
+- [x] Verified live: query returns 2 meetings with meeting_assets (zoom Meeting, bot test, totalEvents=2) inspite their meetings.status=in_progress, with correct durations.
+
+- [x] node --check passes on MeetingModel.js, meetingScheduleController.js, completed.js.
+
+
+- [x] Fixed Date & Time not showing on completed page: controller groupByAccount now emits start_time/end_time/start/end (it previously only sent scheduled_start_time/scheduled_end_time, but the JS reads e.start_time via fmtTime(e.start_time), so the cell rendered --.)
+
+
+- [x] Fixed instructor_id filter on admin meetings/completed: instructor_id is a users.user_uuid; switch lookup from CalendarUsersModel.getUserById (calendar_connections-based) to UsersModel.getUserByUuid (users table direct). Now the email IN filter is applied against the resolved instructor.

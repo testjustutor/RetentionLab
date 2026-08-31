@@ -10,6 +10,15 @@ class ZoomJoiner {
     this.botName = botName;
     this.passcode = passcode;
     this.meetingUrl = meetingUrl;
+    // FIX: guards against re-submitting the name/Join form on every polling
+    // pass. Previously `_fillNameAndJoin` re-ran on every loop iteration
+    // (every 5s) for as long as the name input remained in the DOM and
+    // `hasLeave` hadn't appeared yet — e.g. while sitting on a "waiting to
+    // be admitted" screen that still technically contains the name field.
+    // That repeatedly cleared/retyped the name and re-clicked Join, which
+    // can interrupt an in-progress admission or trip Zoom's own abuse
+    // protections.
+    this.joinSubmitted = false;
   }
 
   // ─────────────────────────────────────────────
@@ -54,7 +63,7 @@ class ZoomJoiner {
             if (attempts % 6 === 0) {
               logger.info(`ZoomAdapter(zoomJoiner): Waiting for host (${Math.round(attempts * 5 / 60)} min elapsed)...`);
             }
-            break;
+            continue; // FIX: only skip this frame, not the rest of the pass
           }
 
           await this._handleFrameActions(frame, analysis);
@@ -150,7 +159,13 @@ class ZoomJoiner {
       await this._clickJoinFromBrowser(frame);
     }
 
-    if (analysis.foundNameInput && !analysis.hasLeave) {
+    // FIX: gate on this.joinSubmitted so the name is filled in and Join is
+    // clicked exactly once per join attempt, instead of on every polling
+    // pass while the name input is still present in the DOM (e.g. during
+    // the post-click "joining..." transition or an admission-pending
+    // screen that hasn't swapped the form out yet).
+    if (analysis.foundNameInput && !analysis.hasLeave && !this.joinSubmitted) {
+      this.joinSubmitted = true;
       await this._fillNameAndJoin(frame, analysis);
     }
   }
@@ -385,6 +400,19 @@ async _muteMicPreJoin(frame) {
 
       if (isVisible) {
         logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Sidebar and Captions activated.');
+
+        // FIX: separated the "open the transcript sidebar" step from the
+        // "toggle live captions on" step. Previously both were crammed
+        // into one navigation sequence, and the second half re-walked the
+        // "More" menu using the SAME broad regex (/Captions|Transcript/i)
+        // used to open the sidebar in the first place. By this point the
+        // sidebar is already in the DOM and contains that same text in its
+        // own header/labels, so the "find first visible match" logic
+        // frequently clicked the sidebar's own text instead of the actual
+        // menu item — the toggle click silently went nowhere.
+        const captionsToggled = await this.enableLiveCaptions(frame);
+        logger.info(`ZoomAdapter(zoomJoiner): Live captions toggle result: ${captionsToggled}`);
+
         if (captionMonitor) captionMonitor.startPolling();
       } else {
         logger.error('ZoomAdapter(zoomJoiner): ERROR: Sidebar did not open.');
@@ -393,6 +421,79 @@ async _muteMicPreJoin(frame) {
     } catch (err) {
       logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in startTranscriptMonitor: ' + err.message);
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // ENABLE LIVE CAPTIONS (post-sidebar toggle)
+  // ─────────────────────────────────────────────
+  async enableLiveCaptions(frame) {
+    // Preferred path: once the transcript sidebar is open, Zoom often
+    // exposes a dedicated Closed-Caption ("CC") toggle directly in the
+    // main toolbar. This is far more reliable than re-walking the "More"
+    // menu, whose structure/labels can differ now that the sidebar is
+    // showing.
+    const direct = await frame.evaluate(() => {
+      const btn =
+        document.querySelector('button[aria-label="Show Captions"]') ||
+        document.querySelector('button[aria-label="Enable Captions"]') ||
+        document.querySelector('button[aria-label*="Turn On Captions"]') ||
+        document.querySelector('button[aria-label*="Closed Caption"]') ||
+        document.querySelector('.cc-button');
+      if (btn) {
+        btn.click();
+        return btn.getAttribute('aria-label') || btn.innerText.trim();
+      }
+      return null;
+    });
+
+    if (direct) {
+      logger.info(`ZoomAdapter(zoomJoiner): Captions enabled via direct toolbar control ("${direct}")`);
+      return true;
+    }
+
+    // Fallback: walk the "More" menu again, but this time explicitly
+    // EXCLUDE anything inside the transcript sidebar from candidate
+    // matches, and require an exact (not substring) label match so
+    // sidebar headers like "Transcript" can no longer be picked up by
+    // accident.
+    return frame.evaluate(async () => {
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+
+      const inSidebar = (el) =>
+        !!el.closest('.transcript-item-area, .zm-transcript-viewer, .zm-sidebar-pane, [class*="sidebar"], [id*="transcript"]');
+
+      const getCandidates = (regex) =>
+        Array.from(document.querySelectorAll('button, .dropdown-item, li, div[role="menuitem"]'))
+          .filter(el => {
+            if (inSidebar(el)) return false;
+            const s = window.getComputedStyle(el);
+            if (s.display === 'none' || s.visibility === 'hidden' || el.offsetWidth === 0) return false;
+            return regex.test((el.innerText || el.ariaLabel || '').trim());
+          });
+
+      const clickFirst = (regex) => {
+        const el = getCandidates(regex)[0];
+        if (el) { el.click(); return (el.innerText || el.ariaLabel || '').trim(); }
+        return null;
+      };
+
+      clickFirst(/^More$/i);
+      await delay(1500);
+      clickFirst(/^more options$/i);
+      await delay(1500);
+      // Exact match on the menu item label, not a substring — avoids
+      // matching "View Full Transcript" or sidebar text that also
+      // contains the word "Captions"/"Transcript".
+      clickFirst(/^Captions$/i);
+      await delay(1500);
+
+      const toggled =
+        clickFirst(/^Show Captions$/i) ||
+        clickFirst(/^Enable Captions$/i) ||
+        clickFirst(/^Turn On Captions$/i);
+
+      return !!toggled;
+    });
   }
 
   async handleHostPermissionPopup(frame) {
@@ -473,6 +574,12 @@ async _muteMicPreJoin(frame) {
   }
 
   async executeNavigationSequence(frame) {
+    // FIX: this sequence now ONLY opens the transcript sidebar (steps
+    // 1-4). The old steps 5+ that tried to also toggle "Show Captions" by
+    // re-walking the "More" menu have been removed from here and moved
+    // into enableLiveCaptions(), which is called separately (and only)
+    // once we've confirmed the sidebar is actually visible. See
+    // startTranscriptMonitor() and enableLiveCaptions() for why.
     return await frame.evaluate(async () => {
       const delay = ms => new Promise(r => setTimeout(r, ms));
       const logs = [];
@@ -504,15 +611,8 @@ async _muteMicPreJoin(frame) {
       await delay(2000);
       findAndClick(/Captions|Transcript/i, 'STEP3_CAPTIONS_MENU');
       await delay(2000);
-      findAndClick(/View Full Transcript|Show Transcript/i, 'STEP4_OPEN_SIDEBAR');
+      const hasView = findAndClick(/View Full Transcript|Show Transcript/i, 'STEP4_OPEN_SIDEBAR');
       await delay(4000);
-      findAndClick(/More/i, 'STEP5_REOPEN_MORE');
-      await delay(1500);
-      findAndClick(/more options|^More$/i, 'STEP5_REOPEN_NESTED');
-      await delay(1500);
-      findAndClick(/Captions|Transcript/i, 'STEP5_REOPEN_CAPTIONS');
-      await delay(1500);
-      const hasView = findAndClick(/Show Captions|Enable Captions/i, 'STEP5_SHOW_CAPTIONS_TOGGLE');
 
       return { status: hasView ? 'SUCCESS' : 'FAIL', logs };
     });

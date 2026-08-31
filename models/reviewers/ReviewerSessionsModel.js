@@ -71,7 +71,7 @@ class ReviewerSessionsModel {
                ma.evidence_quote,
                (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as score_count,
                (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as avg_score,
-               (SELECT COUNT(*) FROM participant_sessions ps WHERE ps.meeting_id = m.external_meeting_id) as participant_count
+               (SELECT COUNT(*) FROM participants ps WHERE ps.meeting_id = m.id) as participant_count
         FROM meetings m
         INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
         LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
@@ -166,7 +166,8 @@ class ReviewerSessionsModel {
   static getParticipantsForMeeting(meetingId) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM participant_sessions WHERE meeting_id = ? ORDER BY joined_at`,
+        `SELECT p.* FROM participants p
+         WHERE p.meeting_id = ? AND p.deleted_at IS NULL ORDER BY p.join_time`,
         [meetingId],
         (err, rows) => {
           if (err) {

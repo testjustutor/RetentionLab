@@ -3,7 +3,6 @@
  */
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
-const MeetingParticipantSessionModel = require('../meetings/MeetingParticipantSessionModel');
 
 /**
  * ParticipantModel - Manages participant attendance tracking
@@ -22,9 +21,9 @@ class ParticipantModel {
 
       const sql = `
         INSERT IGNORE INTO participants (
-          meeting_id, session_id, participant_name, first_joined_at, 
-          participant_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'joined', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          meeting_id, session_id, participant_name, join_time, 
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `;
 
       const stmt = db.prepare(sql);
@@ -55,18 +54,12 @@ class ParticipantModel {
 
                 try {
                   await ParticipantModel.ensureAttendanceSession(
-                    meetingId,
-                    participantId,
-                    1,
-                    joinedAt
-                  );
-
-                  await MeetingParticipantSessionModel.recordParticipantJoin(
-                    meetingId,
-                    sessionId,
-                    participantName,
-                    0
-                  );
+                      meetingId,
+                      sessionId,
+                      participantId,
+                      1,
+                      joinedAt
+                    );
                 } catch (trackingErr) {
                   logger.error('Model(ParticipantModel): Error recording participant session:', trackingErr);
                   return reject(trackingErr);
@@ -78,7 +71,7 @@ class ParticipantModel {
                   meetingId,
                   sessionId,
                   participantName,
-                  firstJoinedAt: joinedAt.toISOString()
+                  joinedAt: joinedAt.toISOString()
                 });
               }
             );
@@ -88,17 +81,24 @@ class ParticipantModel {
     });
   }
 
-  static ensureAttendanceSession(meetingId, participantId, sessionNumber, joinedAt = new Date()) {
+  static ensureAttendanceSession(meetingId, sessionId, participantId, sessionNumber, joinedAt = new Date()) {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
         INSERT IGNORE INTO participant_attendance_sessions (
-          meeting_id, participant_id, session_number, joined_at,
-          attendance_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          meeting_id,
+          session_id,
+          participant_id,
+          session_number,
+          joined_at,
+          attendance_status,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
 
       stmt.run(
         meetingId,
+        sessionId,
         participantId,
         sessionNumber,
         joinedAt.toISOString(),
@@ -122,7 +122,7 @@ class ParticipantModel {
     return new Promise((resolve, reject) => {
       // Get current participant record to calculate duration
       db.get(
-        `SELECT id, first_joined_at, total_duration_seconds FROM participants 
+        `SELECT id, join_time FROM participants 
          WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL`,
         [meetingId, participantName],
         (err, row) => {
@@ -137,17 +137,14 @@ class ParticipantModel {
           }
 
           // Calculate session duration
-          const joinTime = new Date(row.first_joined_at);
+          const joinTime = new Date(row.join_time);
           const leaveTime = new Date(leftAt);
           const sessionDuration = Math.floor((leaveTime - joinTime) / 1000); // seconds
-          const totalDuration = (row.total_duration_seconds || 0) + sessionDuration;
 
           // Update participant record
           const updateSql = `
             UPDATE participants 
-            SET last_left_at = ?, 
-                total_duration_seconds = ?,
-                participant_status = 'left',
+            SET leave_time = ?, 
                 updated_at = CURRENT_TIMESTAMP
             WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL
           `;
@@ -155,7 +152,6 @@ class ParticipantModel {
           const stmt = db.prepare(updateSql);
           stmt.run(
             leftAt.toISOString(),
-            totalDuration,
             meetingId,
             participantName,
             function(err) {
@@ -165,17 +161,15 @@ class ParticipantModel {
                 reject(err);
               } else {
                 ParticipantModel.closeLatestAttendanceSession(row.id, leftAt)
-                  .then(() => MeetingParticipantSessionModel.recordParticipantLeave(meetingId, participantName))
                   .then(() => {
                     logger.info(
-                      `Model(ParticipantModel): Participant left - ${participantName} (duration: ${sessionDuration}s, total: ${totalDuration}s)`
+                      `Model(ParticipantModel): Participant left - ${participantName} (duration: ${sessionDuration}s)`
                     );
 
                     resolve({
                       success: true,
                       participantId: row.id,
                       sessionDuration,
-                      totalDuration,
                       leftAt: leftAt.toISOString()
                     });
                   })
@@ -265,14 +259,15 @@ class ParticipantModel {
 
               const sql = `
                 INSERT INTO participant_attendance_sessions (
-                  meeting_id, participant_id, session_number, joined_at, 
+                  meeting_id, session_id, participant_id, session_number, joined_at, 
                   attendance_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
               `;
 
               const stmt = db.prepare(sql);
               stmt.run(
                 participantRow.meeting_id,
+                participantRow.session_id,
                 participantId,
                 nextSessionNumber,
                 rejoinedAt.toISOString(),
@@ -285,19 +280,14 @@ class ParticipantModel {
                     // Update main participant record status
                     db.run(
                       `UPDATE participants 
-                       SET participant_status = 'joined', updated_at = CURRENT_TIMESTAMP 
+                       SET updated_at = CURRENT_TIMESTAMP 
                        WHERE id = ?`,
                       [participantId],
                       (updateErr) => {
                         if (updateErr) {
                           logger.error('Model(ParticipantModel): Error updating participant status:', updateErr);
                         }
-                        MeetingParticipantSessionModel.recordParticipantJoin(
-                          participantRow.meeting_id,
-                          participantRow.session_id,
-                          participantRow.participant_name,
-                          0
-                        )
+                        Promise.resolve()
                           .then(() => {
                             logger.info(
                               `Model(ParticipantModel): Participant rejoined - session #${nextSessionNumber} (participant_id: ${participantId})`
@@ -390,9 +380,9 @@ class ParticipantModel {
                       const totalSessionsDuration = sumRow.total || 0;
                       db.run(
                         `UPDATE participants 
-                         SET total_duration_seconds = total_duration_seconds + ?
+                         SET updated_at = CURRENT_TIMESTAMP 
                          WHERE id = ?`,
-                        [duration, row.participant_id],
+                        [row.participant_id],
                         (updateErr) => {
                           if (updateErr) {
                             logger.error('Model(ParticipantModel): Error updating total duration:', updateErr);
@@ -401,7 +391,7 @@ class ParticipantModel {
                       );
                     }
 
-                    MeetingParticipantSessionModel.recordParticipantLeave(row.meeting_id, row.participant_name)
+                    Promise.resolve()
                       .then(() => {
                         logger.info(
                           `Model(ParticipantModel): Rejoin session ended - session_id: ${sessionId} (duration: ${duration}s)`
@@ -490,16 +480,16 @@ class ParticipantModel {
         `SELECT 
           mp.id,
           mp.participant_name,
-          mp.first_joined_at,
-          mp.last_left_at,
-          mp.total_duration_seconds,
-          mp.participant_status,
+          mp.join_time as first_joined_at,
+          mp.leave_time as last_left_at,
+          COALESCE(SUM(CASE WHEN mpas.deleted_at IS NULL THEN mpas.duration_seconds ELSE 0 END), 0) as total_duration_seconds,
+          CASE WHEN MAX(CASE WHEN mpas.attendance_status = 'active' AND mpas.deleted_at IS NULL THEN 1 ELSE 0 END) = 1 THEN 'joined' ELSE 'left' END as participant_status,
           COUNT(mpas.id) as rejoin_count
          FROM participants mp
          LEFT JOIN participant_attendance_sessions mpas ON mp.id = mpas.participant_id AND mpas.deleted_at IS NULL
          WHERE mp.meeting_id = ? AND mp.deleted_at IS NULL
-         GROUP BY mp.id
-         ORDER BY mp.first_joined_at ASC`,
+         GROUP BY mp.id, mp.join_time, mp.leave_time
+         ORDER BY mp.join_time ASC`,
         [meetingId],
         (err, rows) => {
           if (err) {

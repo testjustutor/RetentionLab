@@ -4,6 +4,7 @@
  */
 const { db } = require('../../../database/db');
 const { logger } = require('../../../utils/logger');
+const { normalizeStorageRef } = require('../../../utils/storagePaths');
 
 // Promisified run helper matching the MySQL shim's callback style
 const run = (sql, params = []) => new Promise((resolve, reject) => {
@@ -80,7 +81,7 @@ class MeetingSessionModel {
         `UPDATE meeting_sessions
          SET audio_file_name = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [filePath, sessionId],
+        [normalizeStorageRef('audio', filePath), sessionId],
         function (err) {
           if (err) {
             logger.error('Model(MeetingSessionModel): Error saving audio file path:', err);

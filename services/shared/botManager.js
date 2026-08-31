@@ -7,6 +7,7 @@ const SocraticBot = require('../socraticbot');
 const settings = require('../../config/settings');
 
 const MeetingSessionController = require('../../controllers/meetings/meeting-session/meetingSessionController');
+const MeetingAssetModel = require('../../models/meetings/assets/meetingAssetModel');
 
 const ACTIVE_STATUSES = ['running', 'joining', 'starting', 'launching', 'live'];
 
@@ -94,7 +95,7 @@ class BotManager {
     if (platform === 'zoom') {
       link = passcode
         ? `${platformConfig.baseUrl}join/${meetingId}?pwd=${encodeURIComponent(passcode)}`
-        : `${platformConfig.baseUrl}${meetingId}`;
+        : `${platformConfig.baseUrl}join/${meetingId}`;
     }
     else if (platform === 'google-meet') {
       link = `${platformConfig.baseUrl}${meetingId}`;
@@ -117,6 +118,7 @@ class BotManager {
     let session = null;
     try {
       const meetingId = meetingRecord.external_meeting_id;
+      const meetingDbId = meetingRecord.id ?? null; // internal meetings.id (auto-increment PK)
       const platform = meetingRecord.platform;
       const passcode = meetingRecord.passcode || '';
 
@@ -127,10 +129,10 @@ class BotManager {
         return { success: true, meetingId, sessionId: activeSession.sessionId, status: activeSession.status, skipped: true };
       }
 
-      logger.info(`Shared(botManager): Launching queued ${meetingId}`);
+      logger.info(`Shared(botManager): Launching queued ${meetingId} (meetings.id=${meetingDbId})`);
 
       // Create transcript session
-      session = await MeetingSessionController.createSession(meetingId);
+      session = await MeetingSessionController.createSession(meetingDbId);
       
       await MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'launching');
 
@@ -146,6 +148,7 @@ class BotManager {
         platform,
         meetingUrl: meetingLink,
         meetingId,
+        meetingDbId,
         sessionId: session.id,
         passcode,
         botName: platformConfig?.botName || process.env.BOT_NAME,
@@ -162,6 +165,7 @@ class BotManager {
         startedAt: Date.now(),
         config: {
           meetingId,
+          meetingDbId,
           platform,
           hasPasscode: !!passcode,
           webhookUrl: !!meetingRecord.webhook_url
@@ -363,10 +367,21 @@ class BotManager {
 
       const meetingLink = this.buildMeetingLink(platform, meetingId, passcode, meetingUrl);
 
-      logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (pass:${!!passcode}, webhook:${!!webhookUrl})`);
+      // Resolve the internal meetings.id (auto-increment PK) from the external id.
+      // Guarantee a meetings row EXISTS first (creating if absent) so the FK.
+      let meetingDbId = null;
+      try {
+        const mRes = await MeetingAssetModel.ensureMeetingByExternalId(meetingId, { platform, title: ('Bot: ' + meetingId) });
+        meetingDbId = mRes.id ? Number(mRes.id) : null;
+      } catch (mErr) {
+        logger.warn(('Shared(botManager): Could not ensure meetings row for ' + meetingId + ': ' + mErr.message));
+        meetingDbId = null;
+      }
+
+      logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (meetings.id=${meetingDbId}, pass:${!!passcode}, webhook:${!!webhookUrl})`);
 
       // Create transcript session
-      const session = await MeetingSessionController.createSession(meetingId);
+      const session = await MeetingSessionController.createSession(meetingDbId);
       logger.info(`Shared(botManager): Session created: ${session.id} for immediate ${meetingId}`);
 
       // Create SocraticBot
@@ -374,6 +389,7 @@ class BotManager {
         platform,
         meetingUrl: meetingLink,
         meetingId,
+        meetingDbId,
         sessionId: session.id,
         passcode: passcode || '',
         botName: settings.platforms[platform]?.botName || process.env.BOT_NAME,
@@ -390,6 +406,7 @@ class BotManager {
         startedAt: Date.now(),
         config: {
           meetingId,
+          meetingDbId,
           platform,
           hasPasscode: !!passcode,
           webhookUrl: !!webhookUrl
