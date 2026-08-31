@@ -67,15 +67,30 @@ class RubricAdminModel {
         );
       });
 
+      // 4. Resolve the admin category's own PK (admin_category_id) — required by
+      //    admin_rubric_indicators.admin_category_id (NOT NULL FK). Look it up
+      //    because INSERT IGNORE may no-op if the admin already had this category.
+      const adminCat = await new Promise((resolve, reject) => {
+        db.get(
+          `SELECT id FROM admin_rubric_categories
+           WHERE master_category_id = ? AND admin_user_id = ? LIMIT 1`,
+          [category.id, admin_user_id],
+          (err, row) => err ? reject(err) : resolve(row || null)
+        );
+      });
+      if (!adminCat) {
+        throw new Error(`Admin category copy not found for master category ${category_id}`);
+      }
+
       // 5. Create admin copies of each indicator (with master's value and benchmark)
       for (const ind of indicators) {
         await new Promise((resolve, reject) => {
           db.run(
             `INSERT IGNORE INTO admin_rubric_indicators
-             (master_indicator_id, indicator_code, master_category_id, category_code,
-              admin_user_id, name, type, is_gate, value, benchmark, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'master')`,
-            [ind.id, ind.indicator_code, category.id, category.category_code, admin_user_id,
+             (admin_category_id, master_indicator_id, indicator_code, master_category_id,
+              category_code, admin_user_id, name, type, is_gate, value, benchmark, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'master')`,
+            [adminCat.id, ind.id, ind.indicator_code, category.id, category.category_code, admin_user_id,
              ind.name, ind.type || 'HUMAN', ind.is_gate || 0, parseFloat(ind.value) || 1, ind.benchmark || null],
             function(err) {
               if (err) return reject(err);
@@ -711,6 +726,7 @@ class RubricAdminModel {
     // dropdown values are row PKs), then fall back to the master table.
     let childMasterCatId = null; // master_category_id parity for FE grouping
     let catCarrier = null;       // must exist in rubric_categories.category_code (FK)
+    let adminCatId = null;       // admin_rubric_categories PK (NOT NULL FK on indicators)
     const arcRow = /^\d+$/.test(parentRef)
       ? await new Promise((resolve, reject) => {
           db.get(
@@ -723,11 +739,23 @@ class RubricAdminModel {
     if (arcRow) {
       childMasterCatId = arcRow.master_category_id;
       catCarrier = arcRow.category_code;
+      adminCatId = arcRow.id;
     } else {
       const pc = await MasterRubricModel.getCategoryById(parentRef);
       if (!pc) throw new Error(`Parent category ${parentRef} not found`);
       childMasterCatId = pc.id;
       catCarrier = pc.category_code;
+      // Parent is a master category — find this admin's copy so we can stamp
+      // the NOT NULL admin_category_id on the new indicator.
+      const adminCat = await new Promise((resolve, reject) => {
+        db.get(
+          'SELECT id FROM admin_rubric_categories WHERE master_category_id = ? AND admin_user_id = ? LIMIT 1',
+          [pc.id, admin_user_id],
+          (err, row) => err ? reject(err) : resolve(row || null)
+        );
+      });
+      if (!adminCat) throw new Error(`Admin does not have category ${parentRef}; copy the category first`);
+      adminCatId = adminCat.id;
     }
 
     const indCarrier = await RubricAdminModel._firstIndicatorCode();
@@ -736,10 +764,10 @@ class RubricAdminModel {
     return new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO admin_rubric_indicators
-           (master_indicator_id, indicator_code, master_category_id, category_code,
-            admin_user_id, name, type, is_gate, value, benchmark, source, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [null, indCarrier, childMasterCatId, catCarrier, admin_user_id,
+           (admin_category_id, master_indicator_id, indicator_code, master_category_id,
+            category_code, admin_user_id, name, type, is_gate, value, benchmark, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [adminCatId, null, indCarrier, childMasterCatId, catCarrier, admin_user_id,
          name, type || 'HUMAN', is_gate ? 1 : 0, parseFloat(value) || 1, benchmark || null],
         function(err) {
           if (err) return reject(err);

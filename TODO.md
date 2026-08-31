@@ -366,3 +366,24 @@ Confirmed by user: ALL videos are 1:1 tutor-student, exactly 2 speakers, languag
 
 
 - [x] Fixed instructor_id filter on admin meetings/completed: instructor_id is a users.user_uuid; switch lookup from CalendarUsersModel.getUserById (calendar_connections-based) to UsersModel.getUserByUuid (users table direct). Now the email IN filter is applied against the resolved instructor.
+
+## Task: Fix admin content summaries page returning 0
+
+- [x] Diagnosed: admin /api/admin/content/summaries uses VideoRecordingsModel.getAssets(assetType=summary). It scoped meetings by m.created_by=user.id but meetings have created_by=NULL (their instructor relation is via m.calendar_account email), so the admin/instructor filters excluded all rows -> count 0.
+- [x] Joins users by LOWER(u.email)=LOWER(m.calendar_account) instead of m.created_by=u.id.
+- [x] Admin scope now: calendar_account IN instructor/solo_instructor emails of the admin company.
+- [x] Instructor filter now resolves user.email by id and matches calendar_account.
+- [x] Fixed duplicate rows: joined meeting_sessions by ms.id=ma.session_id (asset already carries session_id) instead of ms.meeting_id=m.id.
+- [x] Kept no status check - only requires ma.summary_path IS NOT NULL.
+- [x] Verified (live): returns 3 summaries for meeting_assets with summary_path (zoom Meeting + 2 bot test sessions), admin scoping + instructor filter + date range all work.
+- [x] node --check passes on VideoRecordingsModel.js.
+
+- [x] Fixed summary View URL: videoRecordingsController.getSummaries returned the raw storage path (storage\summaries\...\ backslash or C:\... absolute) as summary_url, so the browser treated it as a relative file under public/admin/content/ and requested storage...txt.html -> ENOENT. Added a toUrl() helper that turns relative/absolute/malformed storage paths into /storage/... web URLs, and server.js already serves /storage -> storage/. Verified files exist at the resolved paths.
+
+## Task: copy-from-master only stored categories, not indicators
+
+- [x] Diagnosed: admin_rubric_indicators.admin_category_id is NOT NULL (FK to admin_rubric_categories.id) but assignCategoryToAdmin and createCustomIndicator inserted indicators WITHOUT admin_category_id, so INSERT IGNORE silently dropped every indicator row (MySQL upgrade to warning). Result: categories persisted, indicators = 0.
+- [x] assignCategoryToAdmin now resolves the admin category PK (admin_category_id) after creating the admin category (looks it up via master_category_id+admin_user_id) and stamps it on each indicator INSERT.
+- [x] createCustomIndicator now resolves admin_category_id (arcRow.id for admin parents; looks up admin category copy for master parents) and includes it in the INSERT for the custom indicator.
+- [x] Existing admin 2 data backfilled: category 17 had 0 indicators -> 16; all 8 categories now have 16/12/12/12/12/12/9/9 indicators.
+- [x] Verified: assignCategoryToAdmin(1,2,2) returns indicators_copied=16 and DB shows 16 rows for admin_category_id=17; join back to admin_rubric_categories works. node --check clean.

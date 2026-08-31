@@ -34,6 +34,7 @@ class VideoRecordingsModel {
           m.actual_end_time,
           m.status as meeting_status,
           m.created_by as instructor_id,
+          u.id as user_id,
           u.first_name as instructor_first_name,
           u.last_name as instructor_last_name,
           u.email as instructor_email,
@@ -51,9 +52,9 @@ class VideoRecordingsModel {
           ma.audit_summary,
           ma.status as asset_status
         FROM meetings m
-        LEFT JOIN users u ON m.created_by = u.id
-        LEFT JOIN meeting_sessions ms ON ms.meeting_id = m.id
+        LEFT JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
         LEFT JOIN meeting_assets ma ON ma.meeting_id = m.id
+        LEFT JOIN meeting_sessions ms ON ms.id = ma.session_id
       `;
 
       const params = [];
@@ -68,7 +69,7 @@ class VideoRecordingsModel {
 
       // Admin sees meetings from all instructors in their company
       if (userRole === 'admin') {
-        conditions.push(`m.created_by IN (SELECT id FROM users WHERE company_id = ? AND role_id = (SELECT id FROM roles WHERE role_name = 'instructor'))`);
+        conditions.push(`LOWER(m.calendar_account) IN (SELECT LOWER(email) FROM users WHERE company_id = ? AND role_id IN (SELECT id FROM roles WHERE role_name IN ('instructor', 'solo_instructor')))`);
         params.push(companyId);
       }
 
@@ -79,13 +80,13 @@ class VideoRecordingsModel {
       }
 
       if (filters.endDate) {
-        conditions.push(`m.scheduled_end_time <= ?`);
+        conditions.push(`m.scheduled_start_time <= ?`);
         params.push(filters.endDate + ' 23:59:59');
       }
 
-      // Apply instructor filter
+      // Apply instructor filter (resolve by user email)
       if (filters.instructorId) {
-        conditions.push(`m.created_by = ?`);
+        conditions.push(`LOWER(m.calendar_account) = (SELECT LOWER(email) FROM users WHERE id = ?)`);
         params.push(filters.instructorId);
       }
 

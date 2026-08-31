@@ -7,6 +7,60 @@ const VideoRecordingsModel = require('../../models/recordings/VideoRecordingsMod
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
+// Convert a stored file path (relative `storage/...`, absolute Windows `C:\...`,
+// or malformed concatenated `storage...`) into a web-accessible `/storage/...` URL.
+function toUrl(p) {
+  if (!p) return null;
+  let normalized = p.replace(/\\/g, '/').replace(/\/+/g, '/');
+
+  // Handle malformed paths (no separators after 'storage', e.g. "storagesummariesFILE.txt")
+  const hasSeparators = normalized.includes('/');
+  const lower = normalized.toLowerCase();
+  const filenameExtract = normalized.match(/([^/]+\.\w+)$/);
+
+  const byPrefix = (fn, fname) => {
+    if (fn.startsWith('summary_')) return '/storage/summaries/' + fname;
+    if (fn.startsWith('trans_')) return '/storage/transcripts/' + fname;
+    if (fn.startsWith('diar_')) return '/storage/diarization/' + fname;
+    if (fn.endsWith('.wav') || fn.endsWith('.mp3') || fn.endsWith('.ogg')) return '/storage/audio/' + fname;
+    if (fn.endsWith('.mp4') || fn.endsWith('.webm') || fn.endsWith('.mov')) return '/storage/screen-recordings/' + fname;
+    if (fn.endsWith('.json')) return '/storage/json/' + fname;
+    return '/' + fname;
+  };
+
+  if (!hasSeparators) {
+    if (filenameExtract) return byPrefix(filenameExtract[1].toLowerCase(), filenameExtract[1]);
+    return '/' + normalized;
+  }
+
+  let storageIdx = lower.indexOf('storage/');
+  if (storageIdx === -1) storageIdx = lower.indexOf('storage');
+  if (storageIdx !== -1) {
+    let result = normalized.slice(storageIdx).replace(/\/+/g, '/');
+    // storage but no folder separator after it -> malformed; rebuild from filename
+    if (!result.includes('/', 'storage'.length + 1)) {
+      if (filenameExtract) return byPrefix(filenameExtract[1].toLowerCase(), filenameExtract[1]);
+      return null;
+    }
+    return '/' + result.replace(/^\/+/, '');
+  }
+
+  // Absolute Windows drive path (e.g. C:/xampp/htdocs/RetentionLab/storage/...)
+  const driveMatch = normalized.match(/^[a-zA-Z]:\/?(.*)$/);
+  if (driveMatch && driveMatch[1]) {
+    const rest = driveMatch[1].replace(/^\/+/, '');
+    if (!rest.includes('/')) {
+      if (filenameExtract) return byPrefix(filenameExtract[1].toLowerCase(), filenameExtract[1]);
+      return null;
+    }
+    const sIdx = rest.toLowerCase().indexOf('storage');
+    if (sIdx !== -1) return '/' + rest.slice(sIdx).replace(/^\/+/, '');
+    return '/' + rest;
+  }
+
+  return normalized.startsWith('/') ? normalized : '/' + normalized;
+}
+
 const controller = {
   /**
    * GET /api/recordings/videos
@@ -132,7 +186,7 @@ const controller = {
       );
 
       const summaries = data.map(r => {
-        let summaryUrl = r.summary_path || null;
+        let summaryUrl = toUrl(r.summary_path);
         return {
           meeting_id: r.meeting_id,
           title: r.title || 'Untitled',

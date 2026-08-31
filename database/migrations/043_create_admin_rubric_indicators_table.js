@@ -11,6 +11,7 @@ const up = async () => {
   await runAsync(`
     CREATE TABLE IF NOT EXISTS admin_rubric_indicators (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      admin_category_id INT NOT NULL,
       master_indicator_id INT NULL,
       indicator_code VARCHAR(255) NOT NULL,
       master_category_id INT NULL,
@@ -27,6 +28,8 @@ const up = async () => {
       status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_ari_admin_category_id (admin_category_id),
+      FOREIGN KEY (admin_category_id) REFERENCES admin_rubric_categories(id) ON DELETE RESTRICT,
       INDEX idx_ari_admin (admin_user_id),
       INDEX idx_ari_master_indicator_id (master_indicator_id),
       INDEX idx_ari_indicator_code (indicator_code),
