@@ -61,6 +61,28 @@ class ParticipantTracker {
     return { success: true, participantName, event: 'rejoin', participantId: tracked.id, sessionId: rejoinResult.id };
   }
 
+  // Auto-recover a participant whose join event was never observed (e.g. missed by
+  // the monitor). Creates the participant record so the leave can still be recorded.
+  async _autoRecoverParticipant(participantName) {
+    const originalName = participantName.trim();
+    const joinTime = new Date(Date.now() - 60000); // assume joined ~1 minute ago
+
+    logger.warn(
+      `TeamsAdapter(participantTracker): Missing join state, auto-creating participant record - ${originalName}`
+    );
+
+    const joinResult = await ParticipantModel.recordParticipantJoin(
+      this.meetingId,
+      this.sessionId,
+      originalName,
+      joinTime
+    );
+
+    const tracked = this._buildTrackedRecord(joinResult.id, joinTime, 'auto-recovered');
+    this.trackedParticipants.set(this._key(originalName), tracked);
+    return tracked;
+  }
+
   async handleParticipantJoin(participantName, joinTime = new Date()) {
     try {
       const key = this._key(participantName);
@@ -133,6 +155,15 @@ class ParticipantTracker {
       const leaveResult = isRejoin && tracked.currentSessionId
         ? await ParticipantModel.recordRejoinLeave(tracked.currentSessionId, leaveTime)
         : await ParticipantModel.recordParticipantLeave(this.meetingId, originalName, leaveTime);
+
+      // Guard: ParticipantModel returned { success:false } (e.g. the DB row was deleted
+      // out from under us) — do not report a successful leave that was never persisted.
+      if (leaveResult && leaveResult.success === false) {
+        logger.warn(
+          `TeamsAdapter(participantTracker): Leave not persisted for ${originalName}: ${leaveResult.message || 'unknown reason'}`
+        );
+        return { success: false, participantName: originalName, message: leaveResult.message || 'Leave not persisted' };
+      }
 
       tracked.status = 'left';
       tracked.leaveTime = leaveTime;

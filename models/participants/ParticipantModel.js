@@ -21,7 +21,7 @@ class ParticipantModel {
       }
 
       const sql = `
-        INSERT OR IGNORE INTO participants (
+        INSERT IGNORE INTO participants (
           meeting_id, session_id, participant_name, first_joined_at, 
           participant_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, 'joined', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

@@ -219,6 +219,15 @@ class ParticipantTracker {
         );
       }
 
+      // Guard: ParticipantModel returned { success:false } (e.g. the DB row was deleted
+      // out from under us) — do not report a successful leave that was never persisted.
+      if (leaveResult && leaveResult.success === false) {
+        logger.warn(
+          `GoogleMeetAdapter(participantTracker): Leave not persisted for ${participantName}: ${leaveResult.message || 'unknown reason'}`
+        );
+        return { success: false, participantName, message: leaveResult.message || 'Leave not persisted' };
+      }
+
       tracked.status = 'left';
       tracked.leaveTime = leaveTime;
       if (lastSession) {

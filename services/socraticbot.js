@@ -32,9 +32,6 @@ const ScreenRecorder = require('./screenRecorder');
 const MeetingSessionController = require('../controllers/meetings/meeting-session/meetingSessionController');
 const MeetingAssetController = require('../controllers/meetings/assets/meetingAssetController');
 
-/*  here call meeting session controller that will update status of session and next
- is no need to update in meeting table for any status so please do this change*/
-
 const PythonBridge = require('./shared/pythonBridge');
 
 const fs = require('fs');
@@ -56,13 +53,14 @@ class SocraticBot {
     const screenStorageDir = path.resolve(__dirname, '..', 'storage', 'screen-recordings');
     this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingId);
 
-    // Initialize platform-specific transcription service
     this.transcriptionService = this.createTranscriptionService();
 
     this.browserManager = null;
-    this.ZoomCaptionMonitor = null;
-    this.TeamsCaptionMonitor = null;
-    this.GoogleMeetCaptionMonitor = null;
+    this.captionMonitor = null;
+    // FIX 2: now tracked at the SocraticBot level for ALL platforms
+    // (previously only set implicitly for zoom/google-meet; Teams never
+    // stored a reference here, so stop() couldn't reset attendance).
+    this.participantTracker = null;
   }
 
   // -------------------------
@@ -70,9 +68,6 @@ class SocraticBot {
   // -------------------------
   async run() {
     try {
-      
-      // this.browserManager = await new BrowserManager().init();
-
       const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
       
       const uniqueProfileDir = path.resolve(
@@ -188,6 +183,7 @@ class SocraticBot {
           this.meetingId,
           this.sessionId
         );
+        this.participantTracker = participantTracker;
 
         if (joiner.setParticipantTracker) {
           joiner.setParticipantTracker(participantTracker);
@@ -238,8 +234,8 @@ class SocraticBot {
           this.meetingId,
           this.sessionId
         );
+        this.participantTracker = participantTracker;
 
-        // Inject dependencies using setters for proper state initialization
         joiner.setCaptionMonitor(this.captionMonitor);
         joiner.setParticipantTracker(participantTracker);
 
@@ -247,7 +243,6 @@ class SocraticBot {
           await joiner.startTranscriptMonitor();
         }
 
-        // Start the Google Meet monitor loop (handles "bot alone" exit condition).
         GoogleMeetMonitor.monitorMeeting(
             this.browserManager.page,
             this.meetingId,
@@ -269,6 +264,11 @@ class SocraticBot {
       // ---------------- TEAMS ----------------
       case 'teams': {
 
+        // FIX 1: TeamsCaptionMonitor is now the SINGLE source of truth for
+        // caption capture/persistence on Teams. teamsJoiner.js's
+        // startTranscriptMonitor() no longer runs its own polling loop —
+        // it only does post-join setup (mute mic, enable captions), so
+        // there is no more double-polling here.
         this.captionMonitor = new TeamsCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
@@ -284,14 +284,21 @@ class SocraticBot {
           await joiner.enableCaptionsIfPossible();
         }
 
-        // const participantTracker = new TeamsParticipantTracker(
-        //   this.meetingId,
-        //   this.sessionId
-        // );
+        // FIX 2: participant tracker now created here (matching zoom/meet),
+        // stored on `this.participantTracker` so stop() can reset it, and
+        // passed both to the joiner (for future use, e.g. in-lobby events)
+        // and into TeamsMonitor.monitorMeeting so attendance tracking uses
+        // the SAME instance instead of an invisible one created internally
+        // inside monitor.js.
+        const participantTracker = new TeamsParticipantTracker(
+          this.meetingId,
+          this.sessionId
+        );
+        this.participantTracker = participantTracker;
 
-        // if (joiner.setParticipantTracker) {
-        //   joiner.setParticipantTracker(participantTracker);
-        // }
+        if (joiner.setParticipantTracker) {
+          joiner.setParticipantTracker(participantTracker);
+        }
 
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
@@ -301,7 +308,8 @@ class SocraticBot {
           this.browserManager.page,
           this.meetingId,
           this.botName,
-          this.sessionId
+          this.sessionId,
+          participantTracker
         )
           .then(() => this.stop())
           .catch(err =>
@@ -333,17 +341,23 @@ class SocraticBot {
       await this.joiner.stopTranscriptMonitor();
     }
 
-    // // ✅ Mark all still-active participants as left
-    // if (this.participantTracker) {
-    //   await this.participantTracker.reset(new Date());
-    // }
+    // FIX 2: this now works for ALL platforms (zoom, google-meet, teams)
+    // since this.participantTracker is consistently populated in
+    // handlePlatformFeatures() above. Previously this was commented out
+    // and Teams participants never got marked "left" on shutdown.
+    if (this.participantTracker) {
+      try {
+        await this.participantTracker.reset(new Date());
+      } catch (err) {
+        logger.error('DefaultAdapter(SocraticBot): Error resetting participant tracker:', err);
+      }
+    }
 
     // stop recording + transcribe
     if (this.audioRecorder) {
       this.audioRecorder.stop();
       await this.screenRecorder.stop();
 
-      // ADD at the end of stop(), after the catch block
       try {
         if (this.browserManager) {
           await this.browserManager.close();
@@ -351,9 +365,6 @@ class SocraticBot {
         }
       } catch (err) {
         logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
-      } finally {
-        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
-        // process.exit(0);
       }
       
       try {
@@ -368,10 +379,8 @@ class SocraticBot {
 
           logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
-          // 1. Save audio path to DB
           await MeetingSessionController.updateMeetingSessionAudioPath(this.meetingId, this.sessionId, finalAudioPath);
           
-          // 2. MATCHING: Get the speaker-labeled transcript file from Database
           const session = await MeetingSessionController.getMeetingSessionById(this.sessionId);
           
           if (session && session.transcript_file_name) {

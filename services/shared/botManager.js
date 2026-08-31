@@ -66,7 +66,13 @@ class BotManager {
       duration: instance.startedAt ? Math.floor((Date.now() - instance.startedAt) / 1000) : 0,
       createdAt: instance.startedAt,
       config: {
-        passcode: instance.config?.passcode ? '***hidden***' : undefined,
+        // FIX 5: passcode is now ALWAYS a boolean "hasPasscode" flag,
+        // regardless of which code path registered the instance
+        // (launchFromDb vs startBot). Previously launchFromDb's config
+        // didn't even include a passcode key, while startBot's did as
+        // `passcode: !!passcode` — inconsistent shapes for the same field
+        // across the two ways an instance can be created.
+        hasPasscode: !!instance.config?.hasPasscode,
         webhookUrl: instance.config?.webhookUrl
       }
     }));
@@ -147,11 +153,19 @@ class BotManager {
       });
 
       // Store instance (keyed by sessionId, indexed under meetingId)
+      // FIX 5: config shape now matches startBot() below — hasPasscode is
+      // a boolean flag, and webhookUrl presence is also captured as a flag
+      // for consistency with listInstances()/getStats() reporting.
       this._registerInstance(meetingId, session.id, {
         bot,
         status: 'starting',
         startedAt: Date.now(),
-        config: { meetingId, platform },
+        config: {
+          meetingId,
+          platform,
+          hasPasscode: !!passcode,
+          webhookUrl: !!meetingRecord.webhook_url
+        },
         dbRecord: meetingRecord
       });
 
@@ -367,11 +381,19 @@ class BotManager {
       });
 
       // Store instance (keyed by sessionId, indexed under meetingId)
+      // FIX 5: config key renamed passcode -> hasPasscode to match
+      // launchFromDb() above, so both instance-creation paths produce the
+      // exact same config shape for listInstances()/getStats().
       this._registerInstance(meetingId, session.id, {
         bot,
         status: 'starting',
         startedAt: Date.now(),
-        config: { meetingId, platform, passcode: !!passcode, webhookUrl: !!webhookUrl },
+        config: {
+          meetingId,
+          platform,
+          hasPasscode: !!passcode,
+          webhookUrl: !!webhookUrl
+        },
         type: 'immediate' // Mark as immediate (no DB record)
       });
 

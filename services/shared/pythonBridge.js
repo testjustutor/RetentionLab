@@ -121,28 +121,72 @@ class PythonBridge {
    * reads the meeting id FROM the database via meeting_sessions.meeting_id
    * (authoritative meetings.id), keyed by the session id. The meeting id is
    * never fabricated — it always comes from meeting_sessions.
+   *
+   * FIX 6: this now returns a tagged result instead of silently returning
+   * null on every failure path. Callers that NEED ids (i.e. weren't given
+   * both meetingIdInput/sessionIdInput up front) can now distinguish
+   * "intentionally skippable" (e.g. ad-hoc screen recording with no DB
+   * session at all) from "should have resolved but didn't" (regex/DB lookup
+   * failed unexpectedly) and react accordingly instead of always just
+   * logging a warn and moving on.
    */
   static async resolveMeetingContext(meetingIdInput, sessionIdInput, engineMeetingId) {
     if (meetingIdInput && sessionIdInput) {
-      return { meetingId: meetingIdInput, sessionId: sessionIdInput };
+      return { meetingId: meetingIdInput, sessionId: sessionIdInput, resolved: true, reason: 'caller_supplied' };
     }
 
     // Determine session id: prefer the caller-supplied sessionId; otherwise
     // parse the Sess<n> portion embedded in the engine's meeting_id string.
     let sessionId = sessionIdInput;
+    let parseFailed = false;
     if (!sessionId && engineMeetingId) {
       const m = /^[^_]+_Sess(\d+)_/.exec(String(engineMeetingId));
-      sessionId = m ? Number(m[1]) : null;
+      if (m) {
+        sessionId = Number(m[1]);
+      } else {
+        // FIX 6: previously this just silently left sessionId null with no
+        // distinction from "there was genuinely no engineMeetingId to parse".
+        parseFailed = true;
+      }
     }
-    if (!sessionId) return null;
+
+    if (!sessionId) {
+      return {
+        meetingId: null,
+        sessionId: null,
+        resolved: false,
+        // FIX 6: distinguishes "nothing to resolve from" (expected for
+        // ad-hoc runs with no engineMeetingId at all) from "regex could not
+        // parse the engine's meeting_id format" (an unexpected format
+        // change that deserves attention, not a silent skip).
+        reason: parseFailed ? 'session_id_parse_failed' : 'no_session_id_available'
+      };
+    }
 
     // meeting_sessions.meeting_id references meetings.id (the internal ID).
     // This is the authoritative source — no meeting id is created here.
-    const row = await MeetingAssetModel.getMeetingIdBySessionId(sessionId).catch(() => null);
-    if (row && row.meeting_id) {
-      return { meetingId: row.meeting_id, sessionId };
+    let row = null;
+    let dbLookupFailed = false;
+    try {
+      row = await MeetingAssetModel.getMeetingIdBySessionId(sessionId);
+    } catch (err) {
+      dbLookupFailed = true;
+      logger.error(`[Python Bridge] resolveMeetingContext: DB lookup for sessionId=${sessionId} threw: ${err.message}`);
     }
-    return null;
+
+    if (row && row.meeting_id) {
+      return { meetingId: row.meeting_id, sessionId, resolved: true, reason: 'db_lookup' };
+    }
+
+    return {
+      meetingId: null,
+      sessionId,
+      resolved: false,
+      // FIX 6: separates "DB lookup threw an error" from "DB lookup ran
+      // fine but found no matching row" — both used to collapse into the
+      // same silent `null` return before.
+      reason: dbLookupFailed ? 'db_lookup_error' : 'db_row_not_found'
+    };
   }
 
   /**
@@ -183,13 +227,30 @@ class PythonBridge {
       // Resolve meetingId/sessionId from the engine payload when the caller did
       // not supply them (e.g. socraticbot test runs), so the asset DB-sync below
       // is never skipped for a parseable meeting id.
-      const resolved = await this.resolveMeetingContext(meetingId, sessionId, executionMatrix.meeting_id);
-      const syncMeetingId = resolved ? resolved.meetingId : meetingId;
-      const syncSessionId = resolved ? resolved.sessionId : sessionId;
+      const resolution = await this.resolveMeetingContext(meetingId, sessionId, executionMatrix.meeting_id);
+      const syncMeetingId = resolution.resolved ? resolution.meetingId : meetingId;
+      const syncSessionId = resolution.resolved ? resolution.sessionId : sessionId;
+
+      // FIX 6: hard-fail loudly when resolution was EXPECTED to succeed
+      // (i.e. the engine gave us a meeting_id to parse, meaning this wasn't
+      // an intentional caller-less/no-context run) but didn't, instead of
+      // silently logging a warn and quietly skipping the DB asset sync as
+      // before. A parse or DB-lookup failure on a real meeting id is a bug,
+      // not a no-op case, and should surface as a thrown error so callers
+      // (and monitoring/alerting) actually see it.
+      const wasExpectedToResolve = !!executionMatrix.meeting_id &&
+        (resolution.reason === 'session_id_parse_failed' || resolution.reason === 'db_lookup_error');
+
+      if (wasExpectedToResolve) {
+        const failureMsg = `[Python Bridge] Asset DB-sync FAILED unexpectedly (reason: ${resolution.reason}). ` +
+          `engine meeting_id="${executionMatrix.meeting_id}", inputMeetingId="${meetingId}", inputSessionId="${sessionId}".`;
+        logger.error(failureMsg);
+        throw new Error(failureMsg);
+      }
 
       // 4. Handle sequential Database initialization tracking matching your model interface requirements.
       //    Screen recordings (REC_*.mp3) may not have seeded meeting/session, so this is best-effort
-      //    and skips gracefully when ids still cannot be resolved.
+      //    and skips gracefully ONLY when ids genuinely can't exist (no engine meeting_id at all).
       if (syncMeetingId && syncSessionId) {
         logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
         await MettingAssetController.updateAssets(syncMeetingId, syncSessionId, { audio_path: executionMatrix.audio_path });
@@ -204,7 +265,7 @@ class PythonBridge {
 
         logger.info(`[Python Bridge] Transaction complete. Asset tracking record finalized for ${syncMeetingId}.`);
       } else {
-        logger.warn(`[Python Bridge] Skipping asset DB-sync: missing meetingId/sessionId for "${syncMeetingId}" / "${syncSessionId}".`);
+        logger.warn(`[Python Bridge] Skipping asset DB-sync: no meeting/session context available for "${syncMeetingId}" / "${syncSessionId}" (reason: ${resolution.reason}).`);
       }
 
       // Match data resolution format expected back in test-engine.js

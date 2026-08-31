@@ -1,3 +1,26 @@
+## Task: Fix Teams participantTracker calling undefined _autoRecoverParticipant
+
+- [x] Confirmed: `services/platforms/teams/participantTracker.js` called `this._autoRecoverParticipant()` but never defined it — every leave for an untracked participant threw, was swallowed, and returned `{success:false,'Auto recovery failed'}`, so Teams attendance auto-recovery was silently non-functional.
+- [x] Ported Google Meet's inline auto-recovery into Teams as `_autoRecoverParticipant()` (uses Teams' `_key`/`_buildTrackedRecord` conventions; creates the participant record via `recordParticipantJoin` so the leave can be recorded).
+- [x] Added `leaveResult.success === false` guard in `handleParticipantLeave` for all three trackers (Teams, Google Meet, Zoom) so they no longer report a successful leave when the model persisted nothing (e.g. row deleted out from under it).
+- [x] Minor check: confirmed `database/db.js` DOES implement `db.prepare()`/`stmt.run()`/`stmt.finalize()` for the MySQL shim, so ParticipantModel's sqlite3-style API is safe (no hard crash) — no change needed.
+- [x] Verified: node --check passes on all three tracker files; em-dash encoding preserved (UTF-8/CRLF safe edit).
+
+## Task: Fix SQLite syntax in ParticipantModel.recordParticipantJoin
+
+- [x] Audit: `recordParticipantJoin` used `INSERT OR IGNORE` (SQLite-only) while `ensureAttendanceSession` already used MySQL-correct `INSERT IGNORE` — inconsistent and a MySQL syntax error.
+- [x] Fix: changed `INSERT OR IGNORE` → `INSERT IGNORE` (line 24), matching the existing MySQL idiom at line 94.
+- [x] Verified: only 1 occurrence of `OR IGNORE` in the file, both INSERT statements now consistent, node --check passes.
+
+## Task: Teams bot stuck on "We can't find this meeting / Type a meeting passcode"
+
+- [x] Diagnose: screen text is "We can't find this meeting" but detector only matched "We couldn't find a meeting"; hard-coded passcode selector was silently swallowed (`.catch(()=>{})`) and still returned `true`.
+- [x] Fix detection to match all real screen variants (can't/couldn't find, "meeting might have ended", "Type a meeting passcode").
+- [x] Add robust passcode-field discovery: multiple selectors FIRST, then real Tab+Enter keyboard navigation inspecting the focused element; log what is displayed.
+- [x] Type passcode reliably (DOM setter + input/change events + focus) and submit via Join/Rejoin button or Enter.
+- [x] Return `false` + clear warning when no passcode configured/field not found (no false "recovery success").
+- [x] Verify: node --check clean on teamsJoiner.js.
+
 ## Task: Fix 500 on POST /api/admin/evaluation/rubrics/admin/2/copy-from-master
 
 - [ ] Diagnose root cause (error logs + live DB schema inspection)

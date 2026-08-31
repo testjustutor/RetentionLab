@@ -12,6 +12,15 @@ class TeamsJoiner {
     this.passcode = passcode;
 
     this.captionMonitor = null;
+    // FIX 2: allow socraticbot.js to inject a ParticipantTracker, matching
+    // how google-meet's joiner is wired (joiner.setParticipantTracker(...))
+    this.participantTracker = null;
+  }
+
+  // FIX 2: added — mirrors GoogleMeetJoiner's setParticipantTracker pattern
+  setParticipantTracker(participantTracker) {
+    this.participantTracker = participantTracker;
+    logger.info('TeamsAdapter(teamJoiner): Participant tracker attached');
   }
 
   // -----------------------------
@@ -22,7 +31,6 @@ class TeamsJoiner {
 
     try {
       await this.page.setRequestInterception(true);
-
       this.page.removeAllListeners('request');
 
       this.page.on('request', (request) => {
@@ -45,22 +53,13 @@ class TeamsJoiner {
     }
 
     await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
-
     await this.page.keyboard.press('Escape').catch(() => {});
 
-    // STAGE 2: Click "Continue on this browser"
     await this.clickContinueOnBrowser();
-
-    // STAGE 3: Handle pre-join (mic/cam off)
     await this.handlePreJoin();
-
-    // STAGE 4: Dismiss audio/video popup HERE — right before touching name input
     await this.dismissAudioVideoPopup();
-
-    // STAGE 5: Enter name and join
     await this.enterLobby();
 
-    // STAGE 6: Wait for host to admit
     const wasAdmitted = await this.waitForJoinConfirmation();
 
     return wasAdmitted;
@@ -119,6 +118,8 @@ class TeamsJoiner {
 
   // -----------------------------
   // STAGE 3: PRE-JOIN (mic/cam)
+  // FIX 7: extracted the actual mute logic into muteMicAndCamera() so it can
+  // be re-run after passcode-modal recovery without duplicating code.
   // -----------------------------
   async handlePreJoin() {
     logger.info('TeamsAdapter(teamJoiner): Handling Teams pre-join screen...');
@@ -129,31 +130,29 @@ class TeamsJoiner {
       logger.info('TeamsAdapter(teamJoiner): Checking for Passcode Error Modal (Pre-join)...');
       await this.handlePasscodeModal();
 
-      // Turn off mic and camera
-      await this.page.evaluate(() => {
-        const mic = document.querySelector('[data-track-action-scenario="callMuteAudio"], [aria-label*="Mute mic"], [data-state="mic-volume-renderer"]');
-        if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
-
-        const cam = document.querySelector('[aria-label="Turn camera off"], [data-state="call-video"], [data-track-action-scenario="callStopVideo"], [data-track-module-name-new="videoOff"]');
-        if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
-      });
-    
-      // await this.muteMicWithRetry();  // retries 10× every 2s until confirmed muted
-      // await this.muteCamera();        // camera still single-shot (no retry needed)
-    
+      await this.muteMicAndCamera();
     } catch (e) {
       logger.error('TeamsAdapter(teamJoiner): Pre-join adjustments error: ' + e.message);
     }
   }
 
+  // FIX 7: reusable mic/cam mute helper (was inline in handlePreJoin before)
+  async muteMicAndCamera() {
+    await this.page.evaluate(() => {
+      const mic = document.querySelector('[data-track-action-scenario="callMuteAudio"], [aria-label*="Mute mic"], [data-state="mic-volume-renderer"]');
+      if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
+
+      const cam = document.querySelector('[aria-label="Turn camera off"], [data-state="call-video"], [data-track-action-scenario="callStopVideo"], [data-track-module-name-new="videoOff"]');
+      if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
+    });
+  }
+
   // -----------------------------
   // STAGE 4: DISMISS AUDIO/VIDEO POPUP
-  // ✅ Separated into its own method, called right before enterLobby
   // -----------------------------
   async dismissAudioVideoPopup() {
     logger.info('TeamsAdapter(teamJoiner): Checking for "Continue without audio or video" popup...');
 
-    // Poll for up to 10 seconds (20 × 500ms)
     for (let i = 0; i < 20; i++) {
       try {
         const dismissed = await this.page.evaluate(() => {
@@ -169,18 +168,14 @@ class TeamsJoiner {
 
         if (dismissed) {
           logger.info('TeamsAdapter(teamJoiner): Dismissed audio/video popup successfully');
-          // Wait for the popup to fully close before proceeding
           await new Promise(r => setTimeout(r, 1500));
           return;
         }
-      } catch (e) {
-        // page.evaluate can throw if page is mid-navigation — safe to ignore
-      }
+      } catch (e) {}
 
       await new Promise(r => setTimeout(r, 500));
     }
 
-    // Not an error — the popup may simply not appear on all meeting types
     logger.info('TeamsAdapter(teamJoiner): No audio/video popup found — continuing');
   }
 
@@ -193,18 +188,14 @@ class TeamsJoiner {
     try {
       const nameInputSelector = 'input[data-tid="prejoin-display-name-input"]';
 
-      // ✅ Wait for the name input — it must be visible and not obscured
-      logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...',nameInputSelector);
+      logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...', nameInputSelector);
       await this.page.waitForSelector(nameInputSelector, { timeout: 15000 });
 
-      // ✅ Small settle delay — Teams re-renders after popup closes
       await new Promise(r => setTimeout(r, 1000));
 
-      // Clear the field properly
       await this.page.click(nameInputSelector, { clickCount: 3 });
       await this.page.keyboard.press('Backspace');
 
-      // Wait for it to actually be empty
       await this.page.waitForFunction(
         (sel) => document.querySelector(sel)?.value === '',
         {},
@@ -213,7 +204,6 @@ class TeamsJoiner {
 
       await this.page.type(nameInputSelector, this.botName, { delay: 60 });
 
-      // Verify final value, retry if mismatched
       const finalValue = await this.page.$eval(nameInputSelector, el => el.value);
       if (finalValue !== this.botName) {
         logger.info(`Name mismatch ("${finalValue}"), retrying with fill...`);
@@ -229,20 +219,17 @@ class TeamsJoiner {
       await new Promise(r => setTimeout(r, 1000));
       logger.info(`TeamsAdapter(teamJoiner): Set bot name to: ${this.botName}`);
 
-      // ✅ Wait for Join button to become enabled, then click
       logger.info('TeamsAdapter(teamJoiner): Waiting for Join Now button to become enabled...');
       await this.page.evaluate(async () => {
         const delay = ms => new Promise(r => setTimeout(r, ms));
 
         for (let i = 0; i < 20; i++) {
-          // Teams Enterprise
           const btnTid = document.querySelector('button[data-tid="prejoin-join-button"]');
           if (btnTid && !btnTid.disabled) {
             btnTid.click();
             return;
           }
 
-          // Teams Personal / Live
           const btnText = Array.from(document.querySelectorAll('button')).find(
             b => /join now/i.test(b.innerText || '') && !b.disabled
           );
@@ -361,14 +348,12 @@ class TeamsJoiner {
         };
       });
       
-      // 1. SUCCESS: Admitted
       if (sessionState.isAdmitted) {
         logger.info('TeamsAdapter(teamJoiner): SUCCESS: Host admitted the bot to the meeting');
         await new Promise(r => setTimeout(r, 2000));
         return true;
       }
 
-      // 2. PASSCODE: Still working
       if (sessionState.needsPasscode) {
         logger.info('TeamsAdapter(teamJoiner): Passcode modal popped up while waiting!');
         const recovered = await this.handlePasscodeModal();
@@ -377,6 +362,12 @@ class TeamsJoiner {
 
           logger.info('TeamsAdapter(teamJoiner): Re-clicked Join Now after passcode recovery');
           await this.dismissAudioVideoPopup();
+
+          // FIX 7: re-mute mic/cam after passcode recovery — previously this
+          // step was skipped, risking an unmuted rejoin if the modal
+          // interrupted before the original mute had settled.
+          await this.muteMicAndCamera();
+
           await this.clickJoinNowButton();
           continue;
         }
@@ -392,15 +383,12 @@ class TeamsJoiner {
     logger.warn('TeamsAdapter(teamJoiner): Admission timeout: Bot was never let into the meeting');
   }
 
-
   async clickJoinNowButton() {
     await this.page.evaluate(async () => {
       const delay = ms => new Promise(r => setTimeout(r, ms));
 
       for (let i = 0; i < 20; i++) {
-        const btnTid = document.querySelector(
-          'button[data-tid="prejoin-join-button"]'
-        );
+        const btnTid = document.querySelector('button[data-tid="prejoin-join-button"]');
 
         if (btnTid && !btnTid.disabled) {
           btnTid.click();
@@ -424,53 +412,25 @@ class TeamsJoiner {
   }
 
   // -----------------------------
-  // CAPTION MONITOR
+  // POST-JOIN SETUP
+  // FIX 1: startTranscriptMonitor() no longer runs its own caption-polling
+  // setInterval. captionMonitor.js (TeamsCaptionMonitor, instantiated in
+  // socraticbot.js) is now the SINGLE source of truth for caption capture
+  // and persistence. This method now only does post-join housekeeping:
+  // mute mic, enable captions in the UI so captionMonitor can read them.
   // -----------------------------
   async startTranscriptMonitor() {
-    logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
+    logger.info('TeamsAdapter(teamJoiner): Admitted! Running post-join setup (mute + enable captions)...');
 
-    // ✅ Mute mic right after joining
     await this.muteMicAfterJoin();
-
     await this.enableCaptionsIfPossible();
 
-    this.captionMonitor = setInterval(async () => {
-      try {
-
-        if (!this.page || this.page.isClosed()) {
-           this.stopTranscriptMonitor();
-
-          logger.info(
-            'TeamsAdapter(teamJoiner): Caption monitor stopped (page closed)'
-          );
-
-          return;
-        }
-
-        const captions = await this.page.evaluate(() => {
-          const captionContainer =
-            document.querySelector('.pt-captions-container') ||
-            document.querySelector('[data-tid="closed-captions-renderer"]');
-
-          if (captionContainer) return captionContainer.innerText;
-
-          const nodes = Array.from(
-            document.querySelectorAll('div[data-tid="caption-text"]')
-          );
-          return nodes.map(n => n.innerText).join('\n');
-        });
-
-        if (captions && captions.trim().length > 0) {
-          logger.info(`TeamsAdapter(teamJoiner): TEAMS CAPTION: ${captions.slice(-150)}`);
-        }
-      } catch (e) {
-        logger.error(
-          `TeamsAdapter(teamJoiner): Teams caption monitor error: ${e.message}`
-        );
-      }
-    }, 4000);
+    // NOTE: caption polling itself is handled entirely by
+    // TeamsCaptionMonitor (captionMonitor.js), started separately in
+    // socraticbot.js via this.captionMonitor.startPolling(). Do not add
+    // a second polling loop here.
   }
-  
+
   async muteMicAfterJoin() {
     await new Promise(r => setTimeout(r, 2000));
 
@@ -487,7 +447,6 @@ class TeamsJoiner {
       if (mic) mic.click();
     });
 
-    // Confirm mic is now muted
     await new Promise(r => setTimeout(r, 1000));
 
     const isMuted = await this.page.evaluate(() => {
@@ -505,15 +464,12 @@ class TeamsJoiner {
     }
   }
 
+  // FIX 1: stopTranscriptMonitor() no longer needs to clear an interval
+  // here since this class doesn't own a polling loop anymore. Kept as a
+  // no-op passthrough for API compatibility with socraticbot.js's
+  // `joiner.stopTranscriptMonitor()` call in stop().
   async stopTranscriptMonitor() {
-    if (this.captionMonitor) {
-      clearInterval(this.captionMonitor);
-      this.captionMonitor = null;
-
-      logger.info(
-        'TeamsAdapter(teamJoiner): Transcript monitor stopped'
-      );
-    }
+    logger.info('TeamsAdapter(teamJoiner): Post-join monitor cleanup (no-op; caption polling owned by CaptionMonitor)');
   }
 
   async enableCaptionsIfPossible() {
@@ -536,9 +492,6 @@ class TeamsJoiner {
       logger.warn('TeamsAdapter(teamJoiner): Captions not available or already enabled');
     }
   }
-
-
-
 }
 
 module.exports = TeamsJoiner;

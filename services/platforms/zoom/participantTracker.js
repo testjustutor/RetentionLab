@@ -147,6 +147,15 @@ class ParticipantTracker {
         ? await ParticipantModel.recordRejoinLeave(tracked.currentSessionId, leaveTime)
         : await ParticipantModel.recordParticipantLeave(this.meetingId, originalName, leaveTime);
 
+      // Guard: ParticipantModel returned { success:false } (e.g. the DB row was deleted
+      // out from under us) — do not report a successful leave that was never persisted.
+      if (leaveResult && leaveResult.success === false) {
+        logger.warn(
+          `ZoomAdapter(participantTracker): Leave not persisted for ${originalName}: ${leaveResult.message || 'unknown reason'}`
+        );
+        return { success: false, participantName: originalName, message: leaveResult.message || 'Leave not persisted' };
+      }
+
       tracked.status = 'left';
       tracked.leaveTime = leaveTime;
       if (lastSession) lastSession.leaveTime = leaveTime;

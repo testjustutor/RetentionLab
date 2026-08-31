@@ -20,8 +20,10 @@ class CaptionMonitor {
     this.isShuttingDown = false;
     this.isMeetingActive = true;
 
-    this.lastKnownSpeaker = "Participant"; 
-    this.lastSavedText = "";
+    this.lastKnownSpeaker = "Participant";
+    // FIX 4: replaced single global lastSavedText with a per-speaker map
+    // so interleaved speakers don't clobber each other's dedup state.
+    this.lastTextBySpeaker = new Map();
 
     const now = new Date();
     const timestamp = now.toISOString().split('T')[0] + '_' + 
@@ -29,8 +31,6 @@ class CaptionMonitor {
                       now.getMinutes().toString().padStart(2, '0');
 
     this.dirPath = path.join(__dirname, '../../../storage/transcripts');
-    
-    // We change "transcripts" to "TRANS" or keep it, but match the rest of the structure
     this.fileName = `TRANS_${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
     this.filePath = path.join(this.dirPath, this.fileName);
 
@@ -147,25 +147,16 @@ class CaptionMonitor {
 
   async getTeamsTranscript() {
     return await this.page.evaluate(() => {
-      // 1. Target the specific chat message container identified in your HTML
       const rows = Array.from(document.querySelectorAll('.fui-ChatMessageCompact'));
-      
       if (rows.length === 0) return { count: 0, data: [] };
 
       return {
         count: rows.length,
         data: rows.map(row => {
-          // 2. Extract Author/Speaker Name
           const nameEl = row.querySelector('[data-tid="author"]');
-          // 3. Extract Message Content
           const msgEl = row.querySelector('[data-tid="closed-caption-text"]');
-          
-          // 4. Fallbacks for safety
           const name = nameEl ? nameEl.innerText.trim() : "Unknown";
           const text = msgEl ? msgEl.innerText.trim() : "";
-          
-          // Teams doesn't provide explicit timestamps per row in this structure,
-          // so we generate one at the time of scraping.
           const time = new Date().toLocaleTimeString();
 
           return { name, text, time };
@@ -174,6 +165,7 @@ class CaptionMonitor {
     });
   }
 
+  // FIX 4: dedup is now scoped per-speaker via this.lastTextBySpeaker
   async processAndSaveTranscript(transcriptData) {
     for (const item of transcriptData) {
       let cleanName = item.name.replace(/:$/, '').trim();
@@ -187,17 +179,23 @@ class CaptionMonitor {
 
       if (!cleanText || cleanText.length < 2) continue;
 
-      if (cleanName === this.lastKnownSpeaker && this.lastSavedText !== "") {
-        if (cleanText.includes(this.lastSavedText) && cleanText.length > this.lastSavedText.length) {
-          continue; 
-        }
+      const speakerKey = cleanName.toLowerCase();
+      const lastTextForSpeaker = this.lastTextBySpeaker.get(speakerKey) || "";
+
+      // If this is a growing continuation of the SAME speaker's last caption,
+      // skip it (still growing, wait for the finalized version) — but only
+      // compare against THIS speaker's own last line, not whoever spoke last.
+      if (lastTextForSpeaker !== "" &&
+          cleanText.includes(lastTextForSpeaker) &&
+          cleanText.length > lastTextForSpeaker.length) {
+        continue;
       }
 
       const key = `${cleanName}:${cleanText}`;
 
       if (!this.seenRows.has(key)) {
         this.seenRows.add(key);
-        this.lastSavedText = cleanText;
+        this.lastTextBySpeaker.set(speakerKey, cleanText);
 
         const timestamp = item.time || new Date().toLocaleTimeString();
         const logLine = `[${timestamp}] ${cleanName}: ${cleanText}`;
@@ -209,7 +207,6 @@ class CaptionMonitor {
         } catch (fileErr) {
           logger.error(`TeamsAdapter(captionMonitor): File Append Error: ${fileErr.message}`);
         }
-
       }
     }
   }
