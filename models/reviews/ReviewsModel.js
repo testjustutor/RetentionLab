@@ -33,9 +33,9 @@ class ReviewsModel {
                rev.first_name as reviewer_name, rev.email as reviewer_email,
                creator.first_name as assigned_by_name,
                owner.company_id as owner_company_id,
-               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = mr.meeting_id) as score_count
+               (SELECT COUNT(*) FROM meeting_session_scores ms WHERE ms.meeting_id = mr.meeting_id) as score_count
         FROM meeting_reviewers mr
-        LEFT JOIN meetings m ON m.external_meeting_id = mr.meeting_id
+        LEFT JOIN meetings m ON m.id = mr.meeting_id
         LEFT JOIN users rev ON rev.id = mr.reviewer_id
         LEFT JOIN users creator ON creator.id = mr.assigned_by
         LEFT JOIN users owner ON owner.email = m.calendar_account
@@ -131,7 +131,15 @@ class ReviewsModel {
 
   /**
    * Assign a reviewer to a single meeting (INSERT IGNORE).
-   * @param {string} meetingId
+   * NOTE: meeting_reviewers.meeting_id is an INT FK to meetings.id — pass
+   * the internal numeric id (m.id from getMeetingsByInstructorEmail), not
+   * the external_meeting_id string.
+   * NOTE: meeting_reviewers has no UNIQUE KEY on (meeting_id, reviewer_id),
+   * so INSERT IGNORE currently cannot dedupe repeat assignments — it will
+   * insert a new row each call rather than silently no-op on a duplicate.
+   * A migration adding that unique key is needed for this to behave as
+   * the method name/comment implies.
+   * @param {number} meetingId - Internal meetings.id
    * @param {number} reviewerId
    * @param {number} assignedById
    * @returns {Promise<{ id: number, changes: number }>}

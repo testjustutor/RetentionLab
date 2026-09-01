@@ -130,8 +130,8 @@ class MeetingSessionScoresModel {
       const sql = `
         SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
-        FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
+        FROM meeting_session_scores ms
+        LEFT JOIN meetings m ON m.id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id
         WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ORDER BY ms.scored_at DESC

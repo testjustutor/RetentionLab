@@ -19,8 +19,8 @@ class AuditReportModel {
       let sql = `
         SELECT ms.*, m.title as meeting_title, m.platform, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name, m.created_by as instructor_id
-        FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
+        FROM meeting_session_scores ms
+        LEFT JOIN meetings m ON m.id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id
         WHERE ms.scored_at >= ? AND ms.scored_at <= ?
       `;
@@ -56,7 +56,7 @@ class AuditReportModel {
       let sql = `
         SELECT aar.*, m.title as meeting_title, m.scheduled_start_time as meeting_date, m.created_by as instructor_id
         FROM ai_audit_results aar
-        LEFT JOIN meetings m ON m.external_meeting_id = aar.meeting_id
+        LEFT JOIN meetings m ON m.id = aar.meeting_id
         WHERE aar.scored_at >= ? AND aar.scored_at <= ?
       `;
       
@@ -126,8 +126,8 @@ class AuditReportModel {
       const sql = `
         SELECT ms.*, m.title as meeting_title, m.platform, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
-        FROM meeting_scores ms
-        LEFT JOIN meetings m ON m.external_meeting_id = ms.meeting_id
+        FROM meeting_session_scores ms
+        LEFT JOIN meetings m ON m.id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id
         WHERE ms.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ORDER BY ms.scored_at DESC
@@ -153,7 +153,7 @@ class AuditReportModel {
       const sql = `
         SELECT aar.*, m.title as meeting_title, m.scheduled_start_time as meeting_date
         FROM ai_audit_results aar
-        LEFT JOIN meetings m ON m.external_meeting_id = aar.meeting_id
+        LEFT JOIN meetings m ON m.id = aar.meeting_id
         WHERE aar.scored_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ORDER BY aar.scored_at DESC
         LIMIT 200

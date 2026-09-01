@@ -21,7 +21,7 @@ class EvaluationReportModel {
                m.platform,
                m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name
-        FROM meeting_scores ms
+        FROM meeting_session_scores ms
         LEFT JOIN meetings m ON m.id = ms.meeting_id
         LEFT JOIN users u ON u.id = ms.reviewer_id
         LEFT JOIN users ui ON ui.email = m.calendar_account
@@ -142,5 +142,3 @@ class EvaluationReportModel {
 }
 
 module.exports = EvaluationReportModel;
-
-

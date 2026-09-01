@@ -48,17 +48,19 @@ async function loadScores(fromDate, toDate) {
       toDate = dates.toDate;
     }
 
-    const params = new URLSearchParams();
-    params.append('from_date', fromDate);
-    params.append('to_date', toDate);
+    const payload = { from_date: fromDate, to_date: toDate };
     const instructorId = instructorFilter ? instructorFilter.getValue() : null;
-    if (instructorId) params.append('instructor_id', instructorId);
+    if (instructorId) payload.instructor_id = instructorId;
     const activeEl = document.getElementById('activeFilter');
-    if (activeEl && activeEl.checked) params.append('active', '1');
+    if (activeEl && activeEl.checked) payload.active = '1';
 
     showLoadingRows();
 
-    const data = await apiFetch('/api/admin/evaluations/reports/summary?' + params.toString());
+    const data = await apiFetch('/api/admin/evaluations/reports/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
     allScores = data.scores || [];
     allMeetings = data.meetings || [];
 

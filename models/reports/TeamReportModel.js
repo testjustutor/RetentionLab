@@ -49,8 +49,8 @@ class TeamReportModel {
       let sql = `
         SELECT ms.reviewer_id, ms.score, ms.score_type, ms.scored_at,
                u_instr.id as instructor_id
-        FROM meeting_scores ms
-        JOIN meetings m ON m.external_meeting_id = ms.meeting_id
+        FROM meeting_session_scores ms
+        JOIN meetings m ON m.id = ms.meeting_id
         LEFT JOIN users u_instr ON LOWER(u_instr.email) = LOWER(m.calendar_account)
         WHERE 1=1
       `;

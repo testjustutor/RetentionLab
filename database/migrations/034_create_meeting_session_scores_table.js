@@ -18,14 +18,18 @@ const up = async () => {
       meeting_id INT NOT NULL,
       session_id INT NOT NULL,
       indicator_id INT NULL,
-      score DECIMAL(5,2),
+      reviewer_id INT NULL,
+      score DECIMAL(5,2) NULL,
       score_type VARCHAR(50) DEFAULT 'AI',
       comment TEXT,
-      reviewer_id INT,
+      scored_at DATETIME NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_mss_meeting (meeting_id),
       INDEX idx_mss_session (session_id),
       INDEX idx_mss_indicator (indicator_id),
+      INDEX idx_mss_reviewer (reviewer_id),
       CONSTRAINT fk_mss_meeting
         FOREIGN KEY (meeting_id)
         REFERENCES meetings(id)

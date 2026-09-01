@@ -16,7 +16,7 @@ const controller = {
    */
   async getSummary(req) {
     try {
-      const { from_date, to_date, instructor_id, active, days } = req.query;
+      const { from_date, to_date, instructor_id, active, days } = req.body;
       const filters = { from_date, to_date, instructor_id, active, days };
 
       const [scores, meetings] = await Promise.all([
