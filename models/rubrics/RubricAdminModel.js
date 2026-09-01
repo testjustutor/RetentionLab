@@ -488,7 +488,7 @@ class RubricAdminModel {
             ms.score,
             ms.comment,
             ms.scored_at
-          FROM meeting_scores ms
+          FROM meeting_session_scores ms
           LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.master_indicator_id AND ari.admin_user_id = ?
           LEFT JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id AND arc.admin_user_id = ?
           WHERE ms.meeting_id = ?
@@ -505,7 +505,7 @@ class RubricAdminModel {
             ms.score,
             ms.comment,
             ms.scored_at
-          FROM meeting_scores ms
+          FROM meeting_session_scores ms
           JOIN admin_rubric_indicators ri ON ms.indicator_id = ri.indicator_id
           JOIN admin_rubric_categories rc ON ri.category_id = rc.category_id
           WHERE ms.meeting_id = ?
@@ -564,11 +564,8 @@ class RubricAdminModel {
         const scoreRows = await new Promise((res, rej) => {
           db.all(
             `SELECT indicator_id, score FROM meeting_session_scores 
-             WHERE meeting_id = ? 
-             UNION ALL 
-             SELECT indicator_id, score FROM meeting_scores 
              WHERE meeting_id = ?`,
-            [meetingId, meetingId],
+            [meetingId],
             (err, rows) => {
               if (err) rej(err);
               else res(rows || []);

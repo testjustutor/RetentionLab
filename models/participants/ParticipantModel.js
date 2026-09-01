@@ -85,30 +85,32 @@ class ParticipantModel {
     return new Promise((resolve, reject) => {
       const stmt = db.prepare(`
         INSERT IGNORE INTO participant_attendance_sessions (
-          meeting_id,
-          session_id,
-          participant_id,
-          session_number,
-          joined_at,
-          attendance_status,
-          created_at,
-          updated_at
+          meeting_id, session_id, participant_id, session_number, joined_at,
+          attendance_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
 
       stmt.run(
-        meetingId,
-        sessionId,
-        participantId,
-        sessionNumber,
-        joinedAt.toISOString(),
+        meetingId, sessionId, participantId, sessionNumber, joinedAt.toISOString(),
         function(err) {
           stmt.finalize();
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ id: this.lastID, participantId, sessionNumber });
+          if (err) return reject(err);
+
+          // insertId is 0 when INSERT IGNORE hit the unique key and skipped
+          // the insert — don't trust lastID blindly, fetch the real row.
+          if (this.lastID) {
+            return resolve({ id: this.lastID, participantId, sessionNumber });
           }
+
+          db.get(
+            `SELECT id FROM participant_attendance_sessions
+             WHERE participant_id = ? AND session_number = ? AND deleted_at IS NULL`,
+            [participantId, sessionNumber],
+            (fetchErr, row) => {
+              if (fetchErr) return reject(fetchErr);
+              resolve({ id: row?.id || null, participantId, sessionNumber });
+            }
+          );
         }
       );
     });
@@ -117,14 +119,25 @@ class ParticipantModel {
   /**
    * Record a participant leaving
    * Updates the main participants table with last_left_at and duration
+   *
+   * FIX 3: now takes sessionId and scopes BOTH the lookup and the UPDATE by
+   * (meeting_id, session_id, participant_name) instead of just
+   * (meeting_id, participant_name). A meeting can have multiple sessions
+   * (bot reconnect/relaunch — see botManager.js), and without session_id in
+   * the WHERE clause this could grab/close an older session's row for a
+   * participant name that recurs across sessions.
    */
-  static recordParticipantLeave(meetingId, participantName, leftAt = new Date()) {
+  static recordParticipantLeave(meetingId, sessionId, participantName, leftAt = new Date()) {
     return new Promise((resolve, reject) => {
+      if (sessionId === undefined || sessionId === null) {
+        return reject(new Error('sessionId is required to record participant leave'));
+      }
+
       // Get current participant record to calculate duration
       db.get(
         `SELECT id, join_time FROM participants 
-         WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL`,
-        [meetingId, participantName],
+         WHERE meeting_id = ? AND session_id = ? AND participant_name = ? AND deleted_at IS NULL`,
+        [meetingId, sessionId, participantName],
         (err, row) => {
           if (err) {
             logger.error('Model(ParticipantModel): Error fetching participant:', err);
@@ -132,7 +145,7 @@ class ParticipantModel {
           }
 
           if (!row) {
-            logger.warn(`Model(ParticipantModel): Participant not found for leave - ${participantName} (meeting: ${meetingId})`);
+            logger.warn(`Model(ParticipantModel): Participant not found for leave - ${participantName} (meeting: ${meetingId}, session: ${sessionId})`);
             return resolve({ success: false, message: 'Participant not found' });
           }
 
@@ -146,13 +159,14 @@ class ParticipantModel {
             UPDATE participants 
             SET leave_time = ?, 
                 updated_at = CURRENT_TIMESTAMP
-            WHERE meeting_id = ? AND participant_name = ? AND deleted_at IS NULL
+            WHERE meeting_id = ? AND session_id = ? AND participant_name = ? AND deleted_at IS NULL
           `;
 
           const stmt = db.prepare(updateSql);
           stmt.run(
             leftAt.toISOString(),
             meetingId,
+            sessionId,
             participantName,
             function(err) {
               stmt.finalize();

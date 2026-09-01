@@ -45,7 +45,7 @@ class OrganizationModel {
       sql = 'SELECT COUNT(*) c FROM meetings m JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) WHERE 1=1' + (isAdmin ? ' AND u.company_id = ?' : '');
       const totalMeetings = (await run(sql, isAdmin ? [cid] : [])).c || 0;
 
-      sql = 'SELECT COUNT(*) c FROM meeting_scores ms JOIN meetings m ON m.id = ms.meeting_id JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) WHERE 1=1' + (isAdmin ? ' AND u.company_id = ?' : '');
+      sql = 'SELECT COUNT(*) c FROM meeting_session_scores ms JOIN meetings m ON m.id = ms.meeting_id JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) WHERE 1=1' + (isAdmin ? ' AND u.company_id = ?' : '');
       const totalScores = (await run(sql, isAdmin ? [cid] : [])).c || 0;
 
       return { totalUsers, activeInstructors, totalDepartments, totalMeetings, totalScores };

@@ -1,6 +1,13 @@
 /**
  * Migration: Create participants table
  * Includes all columns from subsequent fix migrations (062)
+ *
+ * FIX 4: added UNIQUE KEY on (meeting_id, session_id, participant_name) so
+ * INSERT IGNORE in ParticipantModel.recordParticipantJoin() actually has
+ * something to ignore against. Without it, INSERT IGNORE inserted a fresh
+ * row every single call, silently duplicating a participant if the same
+ * join event fired twice (e.g. tracker lost its in-memory entry and
+ * treated a known participant as a first join again).
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -26,6 +33,7 @@ const up = async () => {
       deleted_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_participants_meeting_session_name (meeting_id, session_id, participant_name),
       INDEX idx_part_meeting (meeting_id),
       INDEX idx_part_session (session_id),
       INDEX idx_part_deleted_at (deleted_at),

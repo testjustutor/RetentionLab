@@ -34,8 +34,8 @@ const controller = {
   },
   async scoreUpsert(req, res) {
     try {
-      const { meeting_id, indicator_id, score, comment } = req.body;
-      const result = await MeetingScoresModel.upsertScore({ meeting_id, indicator_id, reviewer_id: req.user.id, score, comment, score_type: 'MANUAL' });
+      const { meeting_id, session_id, indicator_id, score, comment } = req.body;
+      const result = await MeetingScoresModel.upsertScore({ meeting_id, session_id, indicator_id, reviewer_id: req.user.id, score, comment, score_type: 'MANUAL' });
       res.status(201).json(result);
     } catch (err) { res.status(500).json({ error: err.message }); }
   },

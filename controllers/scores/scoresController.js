@@ -11,11 +11,11 @@ const ScoresModel = require('../../models/scores/ScoresModel');
 const controller = {
   async bulkSave(req, res) {
     try {
-      const { meetingId, scores } = req.body;
-      if (!meetingId || !Array.isArray(scores)) {
-        return res.status(400).json({ error: 'meetingId and scores[] required' });
+      const { meetingId, sessionId, scores } = req.body;
+      if (!meetingId || sessionId == null || !Array.isArray(scores)) {
+        return res.status(400).json({ error: 'meetingId, sessionId, and scores[] required' });
       }
-      await RubricModel.saveMeetingScores(meetingId, scores);
+      await RubricModel.saveMeetingScores(meetingId, sessionId, scores);
       res.json({ saved: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
   },

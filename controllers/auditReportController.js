@@ -45,7 +45,7 @@ const controller = {
         });
       });
 
-      // From meeting_scores (review quality)
+      // From meeting_session_scores (review quality)
       scores.forEach(s => {
         if (s.score_type === 'HUMAN') {
           audits.push({
@@ -62,7 +62,7 @@ const controller = {
         }
       });
 
-      // From meeting_scores (compliance - score type metadata)
+      // From meeting_session_scores (compliance - score type metadata)
       const typeCounts = {};
       scores.forEach(s => {
         const t = s.score_type || 'UNKNOWN';

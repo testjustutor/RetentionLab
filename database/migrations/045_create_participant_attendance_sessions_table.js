@@ -2,6 +2,11 @@
  * Migration: Create participant_attendance_sessions table
  *
  * Stores participant attendance and session-level activity.
+ *
+ * FIX 4: added UNIQUE KEY on (participant_id, session_number) so INSERT
+ * IGNORE in ParticipantModel.ensureAttendanceSession() has a real
+ * constraint to ignore against, preventing duplicate attendance-session
+ * rows for the same participant/session_number pair.
  */
 const { runAsync } = require('../seedHelpers');
 
@@ -33,6 +38,7 @@ const up = async () => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_pas_participant_session_number (participant_id, session_number),
       INDEX idx_pas_meeting (meeting_id),
       INDEX idx_pas_session (session_id),
       INDEX idx_pas_participant (participant_id),

@@ -1,7 +1,7 @@
 /**
  * controllers/reviewController.js
  * Business logic for the meeting review queue.
- * Uses meeting_reviewers and meeting_scores models.
+ * Uses meeting_reviewers and meeting_session_scores models.
  */
 const ReviewsModel = require('../../models/reviews/ReviewsModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
@@ -25,7 +25,7 @@ const controller = {
                rev.first_name as reviewer_name, rev.email as reviewer_email,
                creator.first_name as assigned_by_name,
                owner.company_id as owner_company_id,
-               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = mr.meeting_id) as score_count
+               (SELECT COUNT(*) FROM meeting_session_scores ms WHERE ms.meeting_id = mr.meeting_id) as score_count
         FROM meeting_reviewers mr
         LEFT JOIN meetings m ON m.external_meeting_id = mr.meeting_id
         LEFT JOIN users rev ON rev.id = mr.reviewer_id

@@ -67,8 +67,8 @@ const controller = {
                ma.questions_asked_count_path,
                ma.oqi_score,
                ma.evidence_quote,
-               (SELECT COUNT(*) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as score_count,
-               (SELECT AVG(ms.score) FROM meeting_scores ms WHERE ms.meeting_id = m.external_meeting_id) as avg_score,
+               (SELECT COUNT(*) FROM meeting_session_scores ms WHERE ms.meeting_id = m.id) as score_count,
+               (SELECT AVG(ms.score) FROM meeting_session_scores ms WHERE ms.meeting_id = m.id) as avg_score,
                (SELECT COUNT(*) FROM participants ps WHERE ps.meeting_id = m.id) as participant_count
         FROM meetings m
         INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?

@@ -84,7 +84,7 @@ class MeetingSettingsModel {
       sql = 'SELECT COUNT(*) c FROM meeting_sessions ms JOIN meetings m ON m.id = ms.meeting_id' + (isAdmin ? ' JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) AND u.company_id = ?' : '');
       const totalSessions = (await run(sql, isAdmin ? [cid] : [])).c || 0;
 
-      sql = 'SELECT COUNT(*) c FROM meeting_scores ms2 JOIN meetings m ON m.id = ms2.meeting_id' + (isAdmin ? ' JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) AND u.company_id = ?' : '');
+      sql = 'SELECT COUNT(*) c FROM meeting_session_scores ms2 JOIN meetings m ON m.id = ms2.meeting_id' + (isAdmin ? ' JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account) AND u.company_id = ?' : '');
       const totalReviews = (await run(sql, isAdmin ? [cid] : [])).c || 0;
 
       sql = "SELECT COUNT(*) c FROM users u JOIN roles r ON r.id = u.role_id WHERE u.is_deleted = 0 AND r.role_name = 'instructor'" + (isAdmin ? ' AND u.company_id = ?' : '');

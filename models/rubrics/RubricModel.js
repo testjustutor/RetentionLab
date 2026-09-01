@@ -52,20 +52,26 @@ class RubricModel {
 
   /**
    * 2. Meeting Scoring
-   * Saves or updates scores for a specific meeting
+   * Saves or updates scores for a specific meeting + session.
+   * @param {number} meetingId - Internal meetings.id
+   * @param {number} sessionId - meeting_sessions.id
+   * @param {Array} scores - [{ indicator_id, score, comment }]
    */
-  static saveMeetingScores(meetingId, scores) {
+  static saveMeetingScores(meetingId, sessionId, scores) {
     return new Promise((resolve, reject) => {
+      if (!meetingId || sessionId == null) {
+        return reject(new Error('meetingId and sessionId are required'));
+      }
       db.serialize(() => {
-        const sql = `INSERT INTO meeting_scores (meeting_id, indicator_id, score, comment) 
-                     VALUES (?, ?, ?, ?) 
-                     ON DUPLICATE KEY UPDATE 
+        const sql = `INSERT INTO meeting_session_scores (meeting_id, session_id, indicator_id, score, comment)
+                     VALUES (?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
                      score=VALUES(score), comment=VALUES(comment), scored_at=CURRENT_TIMESTAMP`;
 
         const stmt = db.prepare(sql);
-        
+
         scores.forEach(s => {
-          stmt.run([meetingId, s.indicator_id, s.score, s.comment || null]);
+          stmt.run([meetingId, Number(sessionId), s.indicator_id, s.score, s.comment || null]);
         });
 
         stmt.finalize((err) => {
@@ -103,7 +109,7 @@ class RubricModel {
             ms.score,
             ms.comment,
             ms.scored_at
-          FROM meeting_scores ms
+          FROM meeting_session_scores ms
           LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.master_indicator_id 
           AND ari.admin_user_id = ?
           LEFT JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id 
@@ -123,7 +129,7 @@ class RubricModel {
             ms.score,
             ms.comment,
             ms.scored_at
-          FROM meeting_scores ms
+          FROM meeting_session_scores ms
           JOIN admin_rubric_indicators ri ON ms.indicator_id = ri.id
           JOIN admin_rubric_categories rc ON ri.admin_category_id = rc.id
           WHERE ms.meeting_id = ?
