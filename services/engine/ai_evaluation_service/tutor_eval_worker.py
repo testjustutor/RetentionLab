@@ -302,9 +302,84 @@ class TutorEvaluationService:
     # ==========================================================
     # PERSISTENCE
     # ==========================================================
+    def _resolve_admin_indicator_ids(self, meeting_id):
+        """
+        Map master rubric_indicators.id -> admin_rubric_indicators.id for the
+        admin whose rubric governs this meeting.
+
+        Fully dynamic (no hardcoded ids):
+          1. Resolve the meeting owner via meetings.calendar_account -> users.id.
+          2. The admin who owns the rubric is the owner's manager: users.created_by.
+             Fall back to the user themselves if no created_by, then to an admin
+             (role_name='admin') in the same company when there's no direct link.
+          3. Load admin_rubric_indicators copies for that admin.
+        Returns an empty dict when no admin rubric copies exist (score step skipped).
+        """
+        from database.python_db import fetch_one
+
+        if not meeting_id:
+            return {}
+
+        # 1. Meeting owner (instructor) from the calendar account.
+        owner = fetch_one(
+            """
+            SELECT u.id, u.created_by, u.company_id
+            FROM meetings m
+            JOIN users u ON LOWER(u.email) = LOWER(m.calendar_account)
+            WHERE m.id = %s LIMIT 1
+            """,
+            (meeting_id,),
+        )
+        if not owner:
+            return {}
+
+        candidates = []
+        # 2a. Direct manager chain (owner was created by an admin).
+        if owner.get("created_by"):
+            candidates.append(int(owner["created_by"]))
+        # 2b. The owner themself (could BE the admin).
+        candidates.append(int(owner["id"]))
+        # 2c. Any admin in the same company as a dynamic fallback.
+        if owner.get("company_id"):
+            from database.python_db import fetch_all as _fa
+            admins = _fa(
+                """
+                SELECT u.id FROM users u
+                JOIN roles r ON r.id = u.role_id
+                WHERE u.company_id = %s AND r.role_name = 'admin'
+                AND u.deleted_at IS NULL
+                """,
+                (owner["company_id"],),
+            )
+            candidates.extend(int(a["id"]) for a in (admins or []))
+
+        from database.python_db import fetch_all
+
+        # 3. First candidate that actually has admin_rubric_indicators copies wins.
+        for admin_user_id in dict.fromkeys(candidates):
+            rows = fetch_all(
+                """
+                SELECT master_indicator_id, id AS admin_indicator_id
+                FROM admin_rubric_indicators
+                WHERE admin_user_id = %s AND master_indicator_id IS NOT NULL
+                """,
+                (admin_user_id,),
+            )
+            if rows:
+                return {
+                    int(r["master_indicator_id"]): int(r["admin_indicator_id"])
+                    for r in rows
+                }
+        return {}
+
     def _persist(self, session_id, meeting_id, raw_rubric, parsed, computed,
                  raw_response_text=None, evidence_quote=None, analysis=None):
-        from database.python_db import execute
+        from database.python_db import execute, fetch_one
+
+        # Resolve the admin rubric copies for this meeting's admin user.
+        # meeting_session_scores.indicator_id is an INT FK to admin_rubric_indicators.id,
+        # so we map each master indicator (rubric_indicators.id) to the admin copy id.
+        admin_indicator_ids = self._resolve_admin_indicator_ids(meeting_id)
 
         cat_eval = parsed.get("category_evaluations") or {}
         overall_pct = computed["overall_percentage"]
@@ -477,7 +552,8 @@ class TutorEvaluationService:
         )
 
         # 6) meeting_session_scores — one row per indicator (score + comment from
-        #    the AI rating/reason). indicator_id stores the indicator_code.
+        #    the AI rating/reason). indicator_id is an INT FK to admin_rubric_indicators.id,
+        #    so we write the resolved admin copy id (matching master_indicator_id).
         score_map = analysis.get("indicator_scores") or {}
         mss_count = 0
         execute(
@@ -491,6 +567,13 @@ class TutorEvaluationService:
             code = ind.get("indicator_code")
             if rating_raw == "not applicable":
                 continue  # skip N/A for meeting_session_scores
+            master_ind_id = ind.get("id")
+            admin_ind_id = admin_indicator_ids.get(int(master_ind_id)) if master_ind_id is not None else None
+            if admin_ind_id is None:
+                # No admin rubric copy for this indicator — cannot satisfy the FK,
+                # so skip rather than fail the whole evaluation.
+                print(f"[TUTOR EVAL] Skipping meeting_session_scores for indicator {code}: no admin copy (master={master_ind_id})", flush=True)
+                continue
             score = score_map.get(code)
             if score is None:
                 score = float(ind.get("value") or 1) if rating_raw == "met" else 0.0
@@ -498,7 +581,7 @@ class TutorEvaluationService:
                 """INSERT INTO meeting_session_scores
                    (meeting_id, session_id, indicator_id, score, score_type, comment, reviewer_id)
                    VALUES (%s, %s, %s, %s, 'AI', %s, NULL)""",
-                (meeting_id, session_id, code, float(score), ind.get("benchmark") or (entry.get("reason") or "")),
+                (meeting_id, session_id, admin_ind_id, float(score), ind.get("benchmark") or (entry.get("reason") or "")),
             )
             mss_count += 1
 

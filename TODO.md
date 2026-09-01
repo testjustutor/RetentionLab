@@ -387,3 +387,29 @@ Confirmed by user: ALL videos are 1:1 tutor-student, exactly 2 speakers, languag
 - [x] createCustomIndicator now resolves admin_category_id (arcRow.id for admin parents; looks up admin category copy for master parents) and includes it in the INSERT for the custom indicator.
 - [x] Existing admin 2 data backfilled: category 17 had 0 indicators -> 16; all 8 categories now have 16/12/12/12/12/12/9/9 indicators.
 - [x] Verified: assignCategoryToAdmin(1,2,2) returns indicators_copied=16 and DB shows 16 rows for admin_category_id=17; join back to admin_rubric_categories works. node --check clean.
+
+## Task: test-engine.js now accepts explicit meetingId/sessionId
+
+- [x] test-engine.js reads optional args[3] (meetingId) and args[4] (sessionId) after the recording path.
+- [x] runFullAudioPipeline is now called with (meetingId || null, sessionId || null, fileName) - when both are supplied pythonBridge uses caller_supplied context; when omitted it still parses Sess<n> from the filename (backward compatible).
+- [x] Startup log shows which context mode is used. node --check clean. Updated README usage.
+
+- [x] Removed the lock-file mechanism from test-engine.js (LOCK_PATH, acquireLock/releaseLock, fs require, and call sites) - it no longer blocks parallel test runs and no stale .test-engine.lock is created. Removed stale lock file from disk and cleaned the README usage (no more del .test-engine.lock step). node --check clean.
+
+- [x] test-engine.js now accepts a bare session id: node test-engine.js <sessionId>. It resolves meeting_id + audio_file_name from meeting_sessions via MeetingSessionModel.getById, derives the engine file name via path.basename(audio_file_name), and calls runFullAudioPipeline(meetingId, sessionId, fileName). Fixed-name and explicit-path modes kept as fallbacks. Guard for missing session / missing audio_file_name added. Verified live: session 8 -> meeting_id 3, file REC_jpd-zkvh-tjg_Sess8_2026-08-31_16-34.mp3; unknown session -> clear error. node --check clean.
+
+## Task: AI evaluation session-id runner (replaced test_diarization.py)
+
+- [x] Deleted test_diarization.py (bare WhisperX diarization scratch) and created test_ai_evaluation.py - a session-id driven runner mirroring test-engine.js: python test_ai_evaluation.py <sessionId>.
+- [x] Resolves meeting_id + transcript_path from meeting_sessions / meeting_assets via database.python_db.fetch_one; transcript text read from the path or a TRANS_* storage scan.
+- [x] Runs TutorEvaluationService.generate_evaluation (category/overall %, persists to MySQL, caches prompt/response to storage/cache_llm_prompts/EVAL_*.json).
+- [x] Verified (venv): session 9 -> meeting_id 3, transcript TRANS_jpd-zkvh-tjg_Sess9...txt (941 chars); unknown session -> clear error. py_compile clean. README updated.
+
+## Task: Fix FK error on AI evaluation (meeting_session_scores.indicator_id)
+
+- [x] Diagnosed: tutor_eval_worker._persist inserted indicator_code (string) into meeting_session_scores.indicator_id, which is INT with FK -> admin_rubric_indicators.id, so the insert failed with 1452.
+- [x] Fixed in code only (no table change): added _resolve_admin_indicator_ids(meeting_id) which maps master rubric_indicators.id -> admin_rubric_indicators.id via the meeting calendar_account -> users.id, and the score insert now writes the admin copy id. Indicators with no admin copy are skipped (log + continue) instead of failing the whole evaluation.
+- [x] Verified: py_compile clean; live resolution returns the admin copy map (currently empty for these test meetings because calendar_account->user 5 has no admin copies - those belong to admin 2, so scores are skipped as designed).
+
+- [x] Revisited: initial fix resolved the admin via calendar_account->users.id directly, which incorrectly used the INSTRUCTOR (user 5) not the admin (user 2), so all scores were skipped. Made it fully dynamic (no hardcoded ids): meeting -> calendar_account owner -> owner.created_by (the admin manager); falls back to the owner themself, then to any role_name=admin in the same company. Verified: meetings 2/3/4 resolve owner 5 -> created_by 2 -> 94 admin_rubric_indicators copies.
+- [x] COMPLETED: meeting_session_scores FK fix verified. TutorEvaluationService._resolve_admin_indicator_ids dynamically maps master rubric_indicators.id -> admin_rubric_indicators.id (meeting owner -> created_by admin -> same-company admin fallback), no hardcoded ids. Live check: meetings 2/3/4 -> owner 5 -> created_by 2 -> 94 admin copies. Score loop writes admin_indicator_id and skips indicators with no admin copy. py_compile clean.

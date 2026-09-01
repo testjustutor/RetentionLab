@@ -212,8 +212,8 @@ class SessionScoresModel:
                     c.name AS category_name,
                     c.weight AS category_weight
                 FROM meeting_session_scores s
-                LEFT JOIN admin_rubric_indicators i ON s.indicator_id = i.indicator_id
-                LEFT JOIN admin_rubric_categories c ON i.category_id = c.category_id
+                LEFT JOIN admin_rubric_indicators i ON s.indicator_id = i.id
+                LEFT JOIN admin_rubric_categories c ON i.admin_category_id = c.id
                 WHERE s.meeting_id = %s AND s.session_id = %s
                 ORDER BY c.name ASC, i.name ASC
             """
@@ -267,8 +267,8 @@ class SessionScoresModel:
                     i.name AS indicator_name,
                     c.name AS category_name
                 FROM meeting_session_scores s
-                LEFT JOIN admin_rubric_indicators i ON s.indicator_id = i.indicator_id
-                LEFT JOIN admin_rubric_categories c ON i.category_id = c.category_id
+                LEFT JOIN admin_rubric_indicators i ON s.indicator_id = i.id
+                LEFT JOIN admin_rubric_categories c ON i.admin_category_id = c.id
                 WHERE s.meeting_id = %s
                 ORDER BY s.session_id ASC, c.name ASC, i.name ASC
             """

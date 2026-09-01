@@ -240,7 +240,7 @@ class RubricAdminModel {
   static getAdminCategories(admin_user_id) {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT * FROM admin_rubric_categories WHERE admin_user_id = ? ORDER BY name ASC',
+        'SELECT * FROM admin_rubric_categories WHERE admin_user_id = ? ORDER BY category_code ASC',
         [admin_user_id],
         (err, rows) => {
           if (err) return reject(err);
@@ -258,9 +258,10 @@ class RubricAdminModel {
       db.all(
         `SELECT ari.*, arc.name AS category_name
          FROM admin_rubric_indicators ari
-         JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id AND ari.admin_user_id = arc.admin_user_id
+         JOIN admin_rubric_categories arc ON ari.admin_category_id = arc.id 
+         AND ari.admin_user_id = arc.admin_user_id
          WHERE ari.admin_user_id = ?
-         ORDER BY arc.name ASC, ari.name ASC`,
+         ORDER BY arc.category_code ASC, ari.category_code ASC`,
         [admin_user_id],
         (err, rows) => {
           if (err) return reject(err);
@@ -678,17 +679,68 @@ class RubricAdminModel {
   /**
    * Create a custom category for an admin
    */
-  static async _firstCategoryCode() {
+  static async _nextCategoryCode() {
     return new Promise((resolve, reject) => {
-      db.get('SELECT category_code FROM rubric_categories ORDER BY id ASC LIMIT 1', [],
-        (err, row) => err ? reject(err) : resolve(row ? row.category_code : null));
-    });
-  }
+      db.all(
+        `SELECT category_code
+         FROM admin_rubric_categories
+         WHERE category_code IS NOT NULL
+         ORDER BY id DESC`,
+        [],
+        (err, rows) => {
+          if (err) return reject(err);
 
-  static async _firstIndicatorCode() {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT indicator_code FROM rubric_indicators ORDER BY id ASC LIMIT 1', [],
-        (err, row) => err ? reject(err) : resolve(row ? row.indicator_code : null));
+          if (!rows || rows.length === 0) {
+            return resolve('A');
+          }
+
+          // Find the longest/relevant existing repeated-letter code.
+          // Expected format: A, B, ..., Z, AA, BB, ..., ZZ, AAA, BBB, ...
+          let maxLength = 1;
+          let maxLetter = 'A';
+
+          for (const row of rows) {
+            const code = String(row.category_code || '').trim().toUpperCase();
+
+            if (!/^[A-Z]+$/.test(code)) continue;
+
+            // Valid only when all characters are the same:
+            // A, B, ..., AA, BB, ..., AAA, BBB, ...
+            const firstChar = code[0];
+
+            if (![...code].every(char => char === firstChar)) {
+              continue;
+            }
+
+            const length = code.length;
+
+            // Compare by length first, then alphabetically.
+            if (
+              length > maxLength ||
+              (length === maxLength && firstChar > maxLetter)
+            ) {
+              maxLength = length;
+              maxLetter = firstChar;
+            }
+          }
+
+          // Move to the next letter.
+          let nextCharCode = maxLetter.charCodeAt(0) + 1;
+          let nextLength = maxLength;
+
+          // Z -> AA
+          // ZZ -> AAA
+          // ZZZ -> AAAA
+          if (nextCharCode > 'Z'.charCodeAt(0)) {
+            nextCharCode = 'A'.charCodeAt(0);
+            nextLength++;
+          }
+
+          const nextChar = String.fromCharCode(nextCharCode);
+
+          resolve(nextChar.repeat(nextLength));
+        }
+      );
     });
   }
 
@@ -699,7 +751,7 @@ class RubricAdminModel {
    * (admin_user_id, NULL) bypasses uq_arc_admin_category so customs stay unrestricted.
    */
   static async createCustomCategory(admin_user_id, name, weight) {
-    const carrierCode = await RubricAdminModel._firstCategoryCode();
+    const carrierCode = await RubricAdminModel._nextCategoryCode();
     if (!carrierCode) throw new Error('No master categories available yet');
     return new Promise((resolve, reject) => {
       db.run(
@@ -710,6 +762,66 @@ class RubricAdminModel {
         function(err) {
           if (err) return reject(err);
           resolve({ categoryId: String(this.lastID) });
+        }
+      );
+    });
+  }
+
+
+  static async _nextIndicatorCode() {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT indicator_code
+         FROM admin_rubric_indicators
+         WHERE indicator_code IS NOT NULL
+         ORDER BY id DESC`,
+        [],
+        (err, rows) => {
+          if (err) return reject(err);
+
+          if (!rows || rows.length === 0) {
+            return resolve('A1.1');
+          }
+
+          let maxLength = 1;
+          let maxLetter = 'A';
+
+          for (const row of rows) {
+            const code = String(row.indicator_code || '').trim().toUpperCase();
+
+            const match = code.match(/^([A-Z]+)1\.1$/);
+
+            if (!match) continue;
+
+            const letterPart = match[1];
+            const firstChar = letterPart[0];
+
+            if (![...letterPart].every(char => char === firstChar)) {
+              continue;
+            }
+
+            const length = letterPart.length;
+
+            if (
+              length > maxLength ||
+              (length === maxLength && firstChar > maxLetter)
+            ) {
+              maxLength = length;
+              maxLetter = firstChar;
+            }
+          }
+
+          let nextCharCode = maxLetter.charCodeAt(0) + 1;
+          let nextLength = maxLength;
+
+          if (nextCharCode > 'Z'.charCodeAt(0)) {
+            nextCharCode = 'A'.charCodeAt(0);
+            nextLength++;
+          }
+
+          const nextChar = String.fromCharCode(nextCharCode);
+
+          resolve(`${nextChar.repeat(nextLength)}1.1`);
         }
       );
     });
@@ -758,7 +870,7 @@ class RubricAdminModel {
       adminCatId = adminCat.id;
     }
 
-    const indCarrier = await RubricAdminModel._firstIndicatorCode();
+    const indCarrier = await RubricAdminModel._nextIndicatorCode();
     if (!indCarrier) throw new Error('No master indicators available yet');
 
     return new Promise((resolve, reject) => {

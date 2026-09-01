@@ -104,8 +104,10 @@ class RubricModel {
             ms.comment,
             ms.scored_at
           FROM meeting_scores ms
-          LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.master_indicator_id AND ari.admin_user_id = ?
-          LEFT JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id AND arc.admin_user_id = ?
+          LEFT JOIN admin_rubric_indicators ari ON ms.indicator_id = ari.master_indicator_id 
+          AND ari.admin_user_id = ?
+          LEFT JOIN admin_rubric_categories arc ON ari.master_category_id = arc.master_category_id 
+          AND arc.admin_user_id = ?
           WHERE ms.meeting_id = ?
         `;
         params = [admin_user_id, admin_user_id, meetingId];
@@ -122,8 +124,8 @@ class RubricModel {
             ms.comment,
             ms.scored_at
           FROM meeting_scores ms
-          JOIN admin_rubric_indicators ri ON ms.indicator_id = ri.indicator_id
-          JOIN admin_rubric_categories rc ON ri.category_id = rc.category_id
+          JOIN admin_rubric_indicators ri ON ms.indicator_id = ri.id
+          JOIN admin_rubric_categories rc ON ri.admin_category_id = rc.id
           WHERE ms.meeting_id = ?
         `;
         params = [meetingId];
@@ -148,7 +150,7 @@ class RubricModel {
       const sql = `
         SELECT rc.name as category, ri.* 
         FROM admin_rubric_indicators ri 
-        JOIN admin_rubric_categories rc ON ri.category_id = rc.category_id
+        JOIN admin_rubric_categories rc ON ri.admin_category_id = rc.id
       `;
       db.all(sql, [], (err, rows) => {
         if (err) reject(err);

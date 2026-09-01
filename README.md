@@ -255,9 +255,22 @@ If you use port `465`, set `SMTP_SECURE=true`.
     node --check services\platforms\google-meet\monitor.js
 
 ## To test dummy audio file
-    del .test-engine.lock
-    Remove-Item .test-engine.lock -Force
+    # Prefer this: pass a meeting_sessions.id and it auto-resolves meeting_id + audio file from the DB
+    node test-engine.js 8
+
+    # Fallback: full recording path (meetingId/sessionId parsed from the filename)
     node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3
+
+    # Fallback: explicit ids after the path (uses caller_supplied context)
+    node test-engine.js .\storage\recordings\REC_viu-weqt-ecv_Sess23_2026-05-08_11-10.mp3 12 23
+
+
+## To run AI tutor session evaluation from a session id
+    # Pass a meeting_sessions.id — it auto-resolves meeting_id + transcript from the DB
+    .\.venv\Scripts\python.exe test_ai_evaluation.py 9
+
+    # (Fallback if not using the venv:)
+    python test_ai_evaluation.py 9
 
 
 ## FFMPEG

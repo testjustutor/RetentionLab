@@ -143,7 +143,7 @@ class ReviewerSessionsModel {
       db.all(
         `SELECT ms.*, rc.name as category_name
          FROM meeting_scores ms
-         LEFT JOIN rubric_categories rc ON rc.category_id = ms.category_id
+         LEFT JOIN admin_rubric_categories rc ON rc.id = ms.category_id
          WHERE ms.meeting_id = ?
          ORDER BY ms.created_at DESC`,
         [meetingId],

@@ -53,14 +53,14 @@ class ScoresModel {
       let sql = `
         SELECT ms.*, m.title as meeting_title, m.scheduled_start_time as meeting_date,
                CONCAT(u.first_name, ' ', u.last_name) as reviewer_name,
-               i.name as indicator_name, i.category_id,
+               i.name as indicator_name, i.admin_category_id,
                c.name as category_name, c.weight as category_weight
         FROM meeting_session_scores ms
         JOIN meeting_sessions msess ON msess.id = ms.session_id
         JOIN meetings m ON m.id = msess.meeting_id
-        JOIN users u ON u.id = ms.reviewer_id
-        JOIN rubric_indicators i ON i.indicator_id = ms.indicator_id
-        JOIN rubric_categories c ON c.category_id = i.category_id
+        LEFT JOIN users u ON u.id = ms.reviewer_id
+        JOIN admin_rubric_indicators i ON i.id = ms.indicator_id
+        JOIN admin_rubric_categories c ON c.id = i.admin_category_id
         WHERE 1=1
       `;
       const params = [];
