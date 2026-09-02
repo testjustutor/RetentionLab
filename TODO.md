@@ -70,6 +70,34 @@ media -> transcription -> (audit + summary in parallel) -> persist_results
       Updated imports in `orchestrator/task_registry.py` and `task/transcription_task.py`
       (`services.engine.task.<module>` instead of `services.engine.task.<pkg>.<module>`).
 - [x] Re-verified: `compileall` clean, all 5 registry tasks resolve, task modules import, no stale refs.
+
+# TODO — Merge WhisperXEngine / python_engine / assemblyai_engine into services/engine
+
+## Context
+Consolidate 4 areas into ONE main folder `services/engine`:
+  - services/engine (existing monolith)
+  - services/python_engine (Whisper + Resemblyzer + WhisperX + AssemblyAI)
+  - services/assemblyai_engine (standalone AssemblyAI)
+  - WhisperXEngine (part of python_engine)
+
+Chosen strategy (user): keep old module paths / JS runner requires working via
+thin compatibility shims; move real code into services/engine. "Less folder
+structure" + file-location headers at top of each file.
+
+## Entry points to preserve (shims)
+- engine_main.py          -> spawned by services/shared/pythonBridge.js
+- services.python_engine.main / video_convert  -> spawned by python_engine/runner.js
+- services.assemblyai_engine.main              -> spawned by assemblyai_engine/runner.js
+- audit_bridge.py (root) -> imports services.engine.*
+- test_ai_evaluation.py  -> imports services.engine.ai_evaluation_service
+
+## Plan
+- [ ] Move python_engine real code -> services/engine/python_engine (+ shim at old path)
+- [ ] Move assemblyai_engine real code -> services/engine/assemblyai_engine (+ shim at old path)
+- [ ] Dedupe the two AssemblyAI implementations into one canonical module
+- [ ] Update file-location headers (root-relative) on every moved file
+- [ ] Verify: python -m compileall + import tests for all entry points + runner.js paths
+
 # TODO — Remove pyannote from the whole project
 
 ## Context
