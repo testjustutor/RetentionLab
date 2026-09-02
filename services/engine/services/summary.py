@@ -1,6 +1,6 @@
-# services/engine/summary_service/service.py
+# services/engine/services/summary.py
 
-from services.engine.summary_service.summary_worker import (
+from services.engine.services.summary_worker import (
     SummaryWorker,
     SummaryService as AISummaryService
 )

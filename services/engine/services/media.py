@@ -1,12 +1,12 @@
-# services/engine/media_service/service.py
+# services/engine/services/media.py
 
 import os
 
-from services.engine.media_service.file_validator import (
+from services.engine.services.file_validator import (
     validate_file
 )
 
-from services.engine.media_service.audio_extractor import (
+from services.engine.services.audio_extractor import (
     AudioExtractor
 )
 

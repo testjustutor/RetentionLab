@@ -4,10 +4,10 @@ services/engine/python_engine/video_convert.py
 Video -> MP3 audio extraction using MoviePy (VideoFileClip).
 
 Used by the Node controller's Convert step instead of calling ffmpeg
-directly from Node - all media work lives inside python_engine.
+directly from Node - all media work lives inside the consolidated engine.
 
 CLI:
-    python -m services.python_engine.video_convert <video_path> <mp3_path>
+    python -m services.engine.python_engine.video_convert <video_path> <mp3_path>
 
 Prints a JSON result: {"success": true, "audio_file": "...", "duration": ...}
 """

@@ -402,7 +402,7 @@ def run_pipeline(
         try:
             meeting_id = config.get("meeting_id")
             session_id = config.get("session_id")
-            from .audit import AuditService
+            from .audit_service import AuditService
             audit_svc = AuditService()
             audit_result = audit_svc.process_audit(
                 plain_text,

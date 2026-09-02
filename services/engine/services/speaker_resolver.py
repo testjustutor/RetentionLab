@@ -1,4 +1,4 @@
-# services/engine/transcription_service/speaker_resolver.py
+# services/engine/services/speaker_resolver.py
 
 """
 speaker_resolver.py

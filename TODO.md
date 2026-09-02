@@ -92,11 +92,28 @@ structure" + file-location headers at top of each file.
 - test_ai_evaluation.py  -> imports services.engine.ai_evaluation_service
 
 ## Plan
-- [ ] Move python_engine real code -> services/engine/python_engine (+ shim at old path)
-- [ ] Move assemblyai_engine real code -> services/engine/assemblyai_engine (+ shim at old path)
-- [ ] Dedupe the two AssemblyAI implementations into one canonical module
-- [ ] Update file-location headers (root-relative) on every moved file
-- [ ] Verify: python -m compileall + import tests for all entry points + runner.js paths
+- [x] Move python_engine real code -> services/engine/python_engine (+ shim at old path)
+- [x] Move assemblyai_engine real code -> services/engine/assemblyai_engine (+ shim at old path)
+- [x] Dedupe the two AssemblyAI implementations into one canonical module
+- [x] Update file-location headers (root-relative) on every moved file
+- [x] Verify: python -m compileall + import tests for all entry points + runner.js paths
+
+## Flatten services/engine into 5 folders (this session)
+- [x] `services/engine` now has exactly 5 flat folders (no sub-sub-folders):
+      orchestrator/, task/, services/, python_engine/, assemblyai_engine/ + engine_main.py
+- [x] Merged ai_api/ai_audit/ai_evaluation/summary/media/transcription/shared -> `services/`
+      (renamed service.py -> ai_api.py, ai_audit.py, summary.py, media.py, transcription.py)
+- [x] Added `services/__init__.py` re-exports (MediaService, TranscriptionService, AuditService,
+      TutorEvaluationService, SummaryService, AiApiService, AiAuditService)
+- [x] Flattened python_engine/audit/* up into python_engine/ (no nested audit package)
+- [x] Rewrote all internal + external imports to new flat paths
+      (audit_bridge.py, test_ai_evaluation.py updated)
+- [x] Fixed python_engine/pipeline.py `from .audit` -> `from .audit_service`
+- [x] JS shims at old services/python_engine/runner.js + services/assemblyai_engine/runner.js
+      forward to consolidated runners (Node controllers keep working)
+- [x] Removed services/WhisperXEngine (unused)
+- [x] Verified: compileall exit 0, engine_main (with all 5 registry tasks), all services refs,
+      python_engine + assemblyai CLI mains, and Node runner shims all import/load cleanly.
 
 # TODO — Remove pyannote from the whole project
 

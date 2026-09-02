@@ -4,11 +4,11 @@ from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.summary_service.service import (
+from services.engine.services.summary import (
     SummaryService
 )
 
-from services.engine.shared.file_store import (
+from services.engine.services.file_store import (
     FileStore
 )
 

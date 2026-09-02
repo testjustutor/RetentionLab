@@ -4,11 +4,11 @@ from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.ai_audit_service.service import (
+from services.engine.services.ai_audit import (
     AuditService
 )
 
-from services.engine.shared.json_store import (
+from services.engine.services.json_store import (
     JsonStore
 )
 

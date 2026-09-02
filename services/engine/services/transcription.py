@@ -1,22 +1,22 @@
-# root/services/engine/transcription_service/service.py
+# services/engine/services/transcription.py
 
 from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.transcription_service.whisper_loader import (
+from services.engine.services.whisper_loader import (
     WhisperLoader
 )
 
-from services.engine.transcription_service.whisper_runner import (
+from services.engine.services.whisper_runner import (
     WhisperRunner
 )
 
-from services.engine.transcription_service.diarization_engine import (
+from services.engine.services.diarization_engine import (
     DiarizationEngine
 )
 
-from services.engine.transcription_service.transcript_builder import (
+from services.engine.services.transcript_builder import (
     TranscriptBuilder
 )
 

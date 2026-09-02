@@ -1,4 +1,4 @@
-# root/services/engine/transcription_service/diarization_engine.py
+# services/engine/services/diarization_engine.py
 
 from utils.logger_util import log_with_type
 

@@ -1,4 +1,4 @@
-# services/engine/media_service/audio_extractor.py
+# services/engine/services/audio_extractor.py
 
 import os
 import subprocess

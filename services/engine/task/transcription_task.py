@@ -4,7 +4,7 @@ from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.shared.json_store import (
+from services.engine.services.json_store import (
     JsonStore
 )
 
@@ -12,7 +12,7 @@ from services.engine.task.cache_manager import (
     TranscriptionCacheManager
 )
 
-from services.engine.transcription_service.service import (
+from services.engine.services.transcription import (
     TranscriptionService
 )
 

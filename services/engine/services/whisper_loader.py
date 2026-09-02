@@ -1,4 +1,4 @@
-# root/services/engine/transcription_service/whisper_loader.py
+# services/engine/services/whisper_loader.py
 
 from utils.logger_util import log_with_type
 

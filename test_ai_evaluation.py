@@ -39,7 +39,7 @@ except Exception:
 
 from database.python_db import fetch_one
 from services.shared.ai_config import load_settings_ai, build_ai_config
-from services.engine.ai_evaluation_service import TutorEvaluationService
+from services.engine.services import TutorEvaluationService
 
 STORAGE_DIRS = ["cache_audio_transcripts", "transcripts", "cache_captions_raw", ""]
 

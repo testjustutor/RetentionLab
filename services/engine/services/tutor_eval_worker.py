@@ -1,4 +1,4 @@
-# root/services/engine/ai_evaluation_service/tutor_eval_worker.py
+# services/engine/services/tutor_eval_worker.py
 """
 AI-driven Tutor Session Evaluation.
 
@@ -35,8 +35,8 @@ import time
 import traceback
 from decimal import Decimal
 
-from services.engine.ai_api_service import AiApiService
-from services.engine.ai_audit_service.rubric_loader import RubricLoader
+from services.engine.services import AiApiService
+from services.engine.services.rubric_loader import RubricLoader
 
 
 def _json_default(o):

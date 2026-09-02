@@ -1,4 +1,4 @@
-# services/engine/media_service/file_validator.py
+# services/engine/services/file_validator.py
 
 import os
 

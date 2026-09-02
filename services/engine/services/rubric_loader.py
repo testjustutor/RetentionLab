@@ -1,4 +1,4 @@
-# root/services/engine/ai_audit_service/rubric_loader.py
+# services/engine/services/rubric_loader.py
 
 from database.python_db import get_cursor
 

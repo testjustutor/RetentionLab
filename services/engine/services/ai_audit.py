@@ -1,6 +1,6 @@
-# root/services/engine/ai_audit_service/service.py
+# services/engine/services/ai_audit.py
 import traceback
-from services.engine.ai_audit_service.audit_worker import AuditWorker, AiAuditService
+from services.engine.services.audit_worker import AuditWorker, AiAuditService
 from services.shared.ai_config import load_settings_ai, build_ai_config
 
 class AuditService:

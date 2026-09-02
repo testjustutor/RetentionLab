@@ -1,10 +1,10 @@
-# root/services/engine/transcription_service/transcript_builder.py
+# services/engine/services/transcript_builder.py
 
 from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.shared.file_store import (
+from services.engine.services.file_store import (
     FileStore
 )
 

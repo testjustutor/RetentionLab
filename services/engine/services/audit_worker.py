@@ -1,4 +1,4 @@
-# root/services/engine/ai_audit_service/audit_worker.py
+# services/engine/services/audit_worker.py
 
 import json
 import os
@@ -8,7 +8,7 @@ import time
 import traceback
 from decimal import Decimal
 from database.python_db import get_cursor, execute, fetch_all
-from services.engine.ai_audit_service.rubric_loader import RubricLoader
+from services.engine.services.rubric_loader import RubricLoader
 
 
 _AUDIT_SYSTEM_INSTRUCTION = """Evaluate the tutoring transcript against the supplied indicators. Output ONLY JSON:
@@ -75,7 +75,7 @@ class AuditWorker:
 
 class AiAuditService:
     def __init__(self, ai_config):
-        from services.engine.ai_api_service import AiApiService
+        from services.engine.services import AiApiService
         self.ai_api = AiApiService(ai_config)
 
     def _load_rubric_schema(self, admin_user_id=None):

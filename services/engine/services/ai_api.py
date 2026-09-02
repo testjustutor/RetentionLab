@@ -1,5 +1,5 @@
-# services/engine/ai_api_service/service.py
-from services.engine.ai_api_service.api_worker import AiApiService
+# services/engine/services/ai_api.py
+from services.engine.services.api_worker import AiApiService
 
 
 class AIAPIService:

@@ -1,4 +1,4 @@
-# services/engine/summary_service/summary_worker.py
+# services/engine/services/summary_worker.py
 
 import sys
 import time
@@ -35,7 +35,7 @@ class SummaryWorker:
 
 class SummaryService:
     def __init__(self, ai_config):
-        from services.engine.ai_api_service import AiApiService
+        from services.engine.services import AiApiService
 
         self.ai_api = AiApiService(ai_config)
 

@@ -21,7 +21,7 @@ import json
 
 from database.python_db import execute
 
-from services.engine.ai_audit_service.rubric_loader import RubricLoader
+from services.engine.services.rubric_loader import RubricLoader
 
 
 def run_persist_results_task(context):
