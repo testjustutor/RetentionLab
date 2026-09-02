@@ -191,7 +191,7 @@ class PythonBridge {
 
   /**
    * Fully coordinates single-pass asset processing, running everything from
-   * track extraction to transcript parsing and structural audits in one smooth process.
+   * track extraction to parsing and structural audits in one smooth process.
    * @param {string} fileName - Absolute base filename target.
    */
   static async runFullAudioPipeline(meetingId, sessionId, fileName) {
@@ -253,13 +253,11 @@ class PythonBridge {
       //    and skips gracefully ONLY when ids genuinely can't exist (no engine meeting_id at all).
       if (syncMeetingId && syncSessionId) {
         logger.info(`[Python Bridge Database Syncing] Initializing storage asset references...`);
-        await MettingAssetController.updateAssets(syncMeetingId, syncSessionId, { audio_path: executionMatrix.audio_path });
-
-        logger.info(`[Python Bridge Database Syncing] Flushing final transcript and audit matrix indicators...`);
+        logger.info(`[Python Bridge Database Syncing] Flushing final audit matrix indicators...`);
         await MettingAssetController.updateAssets(syncMeetingId, syncSessionId, {
-          transcript_path: executionMatrix.transcript_path || null,
           summary_path: executionMatrix.summary_path || null,
           oqi_score: executionMatrix.oqi_score || 0,
+          audit_completed_at: new Date(),
           status: 'Completed'
         });
 
@@ -273,11 +271,6 @@ class PythonBridge {
         success: true,
         meetingId: syncMeetingId,
         sessionId: syncSessionId,
-        wav_audio_path: executionMatrix.audio_path,
-        stage2Result: {
-          transcript_path: executionMatrix.transcript_path,
-          transcript_text: "Transcript files generated on disk."
-        },
         auditResult: {
           oqi_score: executionMatrix.oqi_score,
           audit_json_path: executionMatrix.audit_json_path

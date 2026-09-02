@@ -69,8 +69,7 @@ class MeetingAssetModel {
   static updateAssets(meetingId, sessionId, data) {
     return new Promise((resolve, reject) => {
       const validColumns = [
-        'audio_path', 'transcript_path', 'summary_path', 'video_path',
-        'oqi_score', 'audit_summary', 'audit_completed_at', 'status'
+        'summary_path', 'video_path', 'oqi_score', 'audit_summary', 'audit_completed_at', 'status'
       ];
       const keys = Object.keys(data).filter((k) => validColumns.includes(k));
 
@@ -83,8 +82,6 @@ class MeetingAssetModel {
       // map each path column to its storage folder kind so values are stored as
       // base-relative "storage/<folder>/<file>" (same style as meeting_sessions)。
       const KIND_BY_COLUMN = {
-        audio_path: 'audio',
-        transcript_path: 'transcript',
         summary_path: 'summary',
         video_path: 'video'
       };
