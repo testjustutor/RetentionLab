@@ -18,7 +18,6 @@ if current_dir not in sys.path:
 REQUIRED_PACKAGES = [
     "openai-whisper",
     "moviepy",
-    "pyannote.audio",
     "torch",
     "torchaudio",
     "requests",

@@ -248,9 +248,6 @@ If you use port `465`, set `SMTP_SECURE=true`.
     python -c "import services.engine.engine_main as m; print('import_ok')"
     python -c "import importlib; importlib.import_module('services.engine.engine_main'); print('import_ok')"
 
-## To test pyannote
-    python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization', token=True)"
-
 # To test node file code is correct
     node --check services\platforms\google-meet\monitor.js
 
@@ -295,8 +292,7 @@ Step 6 : .\.venv\Scripts\Activate.ps1
 
 Step 7 : python -m pip install --upgrade pip
 
-Step 8 :    pip install pyannote.audio
-            pip install openai-whisper
+Step 8 :    pip install openai-whisper
             pip install openai
             pip install sentence-transformers
             pip install -U google-genai

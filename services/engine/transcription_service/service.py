@@ -92,7 +92,7 @@ class TranscriptionService:
         audio_path,
         whisper_result=None
     ):
-        """pyannote speaker diarization + talk_ratio computation.
+        """Speaker diarization + talk_ratio computation.
         
         If whisper_result is not provided, loads it from the cached
         WHISPER_{base_id}.json file via context.whisper_path.

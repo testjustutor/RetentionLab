@@ -4,13 +4,13 @@ from utils.logger_util import log_with_type
 
 def run_media_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_media_task dispatched", "TASK")
-    from services.engine.task.media.media_task import run_media_task as handler
+    from services.engine.task.media_task import run_media_task as handler
     return handler(context)
 
 
 def run_transcription_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_transcription_task dispatched", "TASK")
-    from services.engine.task.transcription.transcription_task import (
+    from services.engine.task.transcription_task import (
         run_transcription_task as handler
     )
     return handler(context)
@@ -18,19 +18,19 @@ def run_transcription_task(context):
 
 def run_audit_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_audit_task dispatched", "TASK")
-    from services.engine.task.audit.audit_task import run_audit_task as handler
+    from services.engine.task.audit_task import run_audit_task as handler
     return handler(context)
 
 
 def run_summary_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_summary_task dispatched", "TASK")
-    from services.engine.task.summary.summary_task import run_summary_task as handler
+    from services.engine.task.summary_task import run_summary_task as handler
     return handler(context)
 
 
 def run_persist_results_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_persist_results_task dispatched", "TASK")
-    from services.engine.task.persist.persist_results_task import run_persist_results_task as handler
+    from services.engine.task.persist_results_task import run_persist_results_task as handler
     return handler(context)
 
 

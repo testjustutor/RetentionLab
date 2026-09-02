@@ -28,17 +28,12 @@ function toUrl(p) {
   if (!p) return null;
   let normalized = p.replace(/\\/g, '/').replace(/\/+/g, '/');
   normalized = normalized.replace(/AUDIO_DIAR_/g, 'DIAR_').replace(/cache_audio_transcripts/g, 'cache_diarization');
-  
-  // ── Handle malformed paths (no separators, e.g. "C:xampphtdocsRetentionLabstorage...") ──
-  // Check if the normalized path has no '/' after the drive letter or 'storage' keyword
+
   const hasSeparators = normalized.includes('/');
   const lower = normalized.toLowerCase();
-  
-  // Extract filename whether the path has separators or not
   const filenameExtract = normalized.match(/([^\\\/]+\.\w+)$/);
-  
+
   if (!hasSeparators && filenameExtract) {
-    // No path separators at all — path is malformed. Determine correct folder by filename prefix.
     const fn = filenameExtract[1].toLowerCase();
     const fname = filenameExtract[1];
     if (fn.startsWith('summary_')) return '/storage/summaries/' + fname;
@@ -48,10 +43,9 @@ function toUrl(p) {
     if (fn.endsWith('.json')) return '/storage/json/' + fname;
     return '/' + fname;
   }
-  
-  // ── Normal path with separators ──
+
   normalized = normalized.replace(/AUDIO_DIAR_/g, 'DIAR_').replace(/cache_audio_transcripts/g, 'cache_diarization');
-  
+
   let storageIdx = lower.indexOf('storage/');
   if (storageIdx === -1) {
     storageIdx = lower.indexOf('storage');
@@ -59,7 +53,6 @@ function toUrl(p) {
   if (storageIdx !== -1) {
     let result = normalized.slice(storageIdx);
     result = result.replace(/\/+/g, '/');
-    // Ensure there's at least one slash after "storage" — otherwise the path has no separators
     if (!result.includes('/', 8)) {
       if (filenameExtract) {
         const fn = filenameExtract[1].toLowerCase();
@@ -76,11 +69,9 @@ function toUrl(p) {
     result = result.replace(/^\/+/, '');
     return '/' + result;
   }
-  // If the path is an absolute Windows drive path, strip the drive prefix and return a relative web path.
   const driveMatch = normalized.match(/^[a-zA-Z]:\/?(.*)$/);
   if (driveMatch && driveMatch[1]) {
     let rest = driveMatch[1].replace(/\\/g, '/').replace(/^\/+/, '');
-    // If the rest has no path separators, the path is malformed — extract filename
     if (!rest.includes('/')) {
       if (filenameExtract) {
         const fn = filenameExtract[1].toLowerCase();
@@ -113,10 +104,10 @@ const controller = {
   // ── Generic data fetcher (shared by all content pages) ──────────────
   async _fetchByUserId(userId, userRole, currentUserId, selectFields, mapFn, limit, startDate, endDate) {
     limit = limit || 50;
-    const rows = await MeetingRecordingsModel.fetchMeetings({ 
-      userId, 
-      userRole, 
-      currentUserId, 
+    const rows = await MeetingRecordingsModel.fetchMeetings({
+      userId,
+      userRole,
+      currentUserId,
       limit,
       startDate,
       endDate
@@ -125,12 +116,9 @@ const controller = {
   },
 
   // ── Shared role-based row resolution (used by recordings & transcripts) ──
-  // Both content endpoints fetch the same underlying meetings/sessions/assets data.
-  // The only difference between them is how each maps a row into its response object.
   async _resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate }) {
     // If a specific instructor/user was requested, fetch only their data
     if (requestedUserId || requestedUserUuid) {
-      // Convert UUID to userId if needed
       let targetUserId = requestedUserId;
       if (requestedUserUuid && !requestedUserId) {
         const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
@@ -138,23 +126,22 @@ const controller = {
       }
       return MeetingRecordingsModel.fetchMeetings({ userId: targetUserId, userRole, currentUserId, limit, startDate, endDate });
     }
-    // Admin without a filter: get all instructors' meetings they created
+    // Admin without a filter: get all instructors they created, plus their meetings
     if (userRole === 'admin') {
-      return MeetingRecordingsModel.getRecordingsForAdmin(currentUserId, limit);
+      return MeetingRecordingsModel.getRecordingsForAdmin(currentUserId, limit, startDate, endDate);
     }
     // Instructor: their own meetings
     if (userRole === 'instructor' || userRole === 'solo_instructor') {
       return MeetingRecordingsModel.fetchMeetings({ userId: currentUserId, userRole, currentUserId, limit, startDate, endDate });
     }
-    // Fallback for other roles
-    return MeetingRecordingsModel.fetchMeetings({ userId: null, userRole, currentUserId, limit, startDate, endDate });
+    // Fallback for any other/unrecognized role: default to the caller's own account
+    // (fetchMeetings itself also defaults userId -> currentUserId, this just makes intent explicit)
+    return MeetingRecordingsModel.fetchMeetings({ userId: currentUserId, userRole, currentUserId, limit, startDate, endDate });
   },
-
 
   /** POST /api/recordings/by-user - Get recordings with filters in body */
   async getRecordings(req) {
     try {
-      // User is already authenticated by requireAuth middleware
       if (!req.user || !req.user.user_uuid) {
         return err('Unauthorized', 401);
       }
@@ -162,12 +149,10 @@ const controller = {
       const currentUserUuid = req.user.user_uuid;
       const userRole = req.user.role_name || '';
       const currentUserId = req.user.id;
-      
-      // Support both GET (userId param) and POST (userId in body with optional filters)
-      // Accept either numeric ID or UUID
+
       let requestedUserId = null;
       let requestedUserUuid = null;
-      
+
       if (req.body?.userId) {
         const userIdVal = req.body.userId;
         if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
@@ -183,15 +168,14 @@ const controller = {
           requestedUserId = parseInt(userIdVal);
         }
       }
-      
+
       const limit = req.body?.limit || 50;
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
-      
+
       const rows = await this._resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate });
-      
-      const data = rows.map(r => { 
-        // Prioritize audio from meeting_sessions (recorded when meeting starts), fallback to meeting_assets
+
+      const data = rows.map(r => {
         let audioUrl = null;
         if (r.session_audio_file && r.session_audio_file.trim() !== '') {
           audioUrl = '/storage/audio/' + r.session_audio_file.trim();
@@ -199,24 +183,24 @@ const controller = {
           audioUrl = toUrl(r.audio_path);
         }
         const instructorName = [r.instructor_first_name, r.instructor_last_name].filter(Boolean).join(' ') || 'Unknown';
-        return { 
-          meeting_id: r.meeting_id, 
-          title: r.title || 'Untitled', 
-          start_time: r.scheduled_start_time, 
-          end_time: r.scheduled_end_time, 
-          platform: r.platform || 'unknown', 
-          play_url: audioUrl, 
-          has_recording: !!audioUrl, 
-          asset_status: r.asset_status || 'not_started', 
+        return {
+          meeting_id: r.meeting_id,
+          title: r.title || 'Untitled',
+          start_time: r.scheduled_start_time,
+          end_time: r.scheduled_end_time,
+          platform: r.platform || 'unknown',
+          play_url: audioUrl,
+          has_recording: !!audioUrl,
+          asset_status: r.asset_status || 'not_started',
           status: r.meeting_status || 'unknown',
           instructor_name: instructorName,
           instructor_email: r.instructor_email || ''
-        }; 
+        };
       });
-      
-      return ok({ 
-        count: data.length, 
-        recordings: data 
+
+      return ok({
+        count: data.length,
+        recordings: data
       });
     } catch (e) { return err(e.message); }
   },
@@ -224,7 +208,6 @@ const controller = {
   /** POST /api/recordings/transcripts - Get transcripts with filters in body */
   async getTranscripts(req) {
     try {
-      // User is already authenticated by requireAuth middleware
       if (!req.user || !req.user.user_uuid) {
         return err('Unauthorized', 401);
       }
@@ -232,12 +215,10 @@ const controller = {
       const currentUserUuid = req.user.user_uuid;
       const userRole = req.user.role_name || '';
       const currentUserId = req.user.id;
-      
-      // Support both GET (userId param) and POST (userId in body with optional filters)
-      // Accept either numeric ID or UUID
+
       let requestedUserId = null;
       let requestedUserUuid = null;
-      
+
       if (req.body?.userId) {
         const userIdVal = req.body.userId;
         if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
@@ -253,15 +234,14 @@ const controller = {
           requestedUserId = parseInt(userIdVal);
         }
       }
-      
+
       const limit = req.body?.limit || 50;
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
-      
+
       const rows = await this._resolveRows({ requestedUserId, requestedUserUuid, userRole, currentUserId, limit, startDate, endDate });
 
       const data = rows.map(r => {
-        // Prioritize transcript from meeting_sessions, fallback to meeting_assets
         let url = null;
         let hasTranscript = false;
         if (r.session_transcript_file) {
@@ -286,18 +266,16 @@ const controller = {
           instructor_email: r.instructor_email || ''
         };
       });
-      return ok({ 
-        count: data.length, 
-        transcripts: data 
+      return ok({
+        count: data.length,
+        transcripts: data
       });
     } catch (e) { return err(e.message); }
   },
 
-
   /** GET /api/recordings/assets/:userId */
   async getAssets(req) {
     try {
-      // User is already authenticated by requireAuth middleware
       if (!req.user || !req.user.user_uuid) {
         return err('Unauthorized', 401);
       }
@@ -305,11 +283,10 @@ const controller = {
       const currentUserUuid = req.user.user_uuid;
       const userRole = req.user.role_name || '';
       const currentUserId = req.user.id;
-      
-      // Accept either numeric ID or UUID in params
+
       let requestedUserId = null;
       let requestedUserUuid = null;
-      
+
       if (req.params.userId) {
         const userIdVal = req.params.userId;
         if (typeof userIdVal === 'string' && userIdVal.includes('-')) {
@@ -318,19 +295,18 @@ const controller = {
           requestedUserId = parseInt(userIdVal);
         }
       }
-      
-      // Convert UUID to userId if needed
+
       let targetUserId = requestedUserId;
       if (requestedUserUuid && !requestedUserId) {
         const targetUser = await UsersModel.getUserByUuid(requestedUserUuid);
         targetUserId = targetUser ? targetUser.id : null;
       }
-      
+
       if (!targetUserId) return err('User ID required', 400);
-      
+
       const startDate = req.body?.startDate || null;
       const endDate = req.body?.endDate || null;
-      
+
       const data = await this._fetchByUserId(targetUserId, userRole, currentUserId, null, rows => {
         const meetings = rows.map(r => {
           const files = [];
@@ -339,13 +315,12 @@ const controller = {
         }).filter(m => m.has_assets);
         return meetings;
       });
-      return ok({ 
-        count: data.length, 
-        meetings: data 
+      return ok({
+        count: data.length,
+        meetings: data
       });
     } catch (e) { return err(e.message); }
   }
 };
 
 module.exports = controller;
-

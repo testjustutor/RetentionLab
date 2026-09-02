@@ -11,10 +11,10 @@ class DiarizationEngine:
     """
     Builds diarization-compatible timeline data from Whisper segments.
 
-    Prefers a real speaker-diarization backend (AssemblyAI, then optional
-    pyannote loaded lazily) and assigns the resulting speaker labels back to
-    Whisper segments. Falls back to a non-diarized per-segment mapping when no
-    backend is available, so the pipeline never crashes on a missing module.
+    Prefers a real speaker-diarization backend (AssemblyAI) and assigns the
+    resulting speaker labels back to Whisper segments. Falls back to a
+    non-diarized per-segment mapping when no backend is available, so the
+    pipeline never crashes on a missing module.
     """
 
     def __init__(
@@ -45,17 +45,8 @@ class DiarizationEngine:
             []
         )
 
-        hf_token = None
-        if hasattr(self.context, "ai_config") and isinstance(self.context.ai_config, dict):
-            hf_token = self.context.ai_config.get("hf_token")
-
-        if not hf_token:
-            hf_token = os.getenv("HF_TOKEN")
-
-        log_with_type("info", "Engine(transcription_service > diarization_engine) : HF token resolved", "SERVICE")
-
         try:
-            # Backend 1 - AssemblyAI (preferred; no local diarization model)
+            # AssemblyAI diarization (preferred; no local diarization model)
             diarization_segments = self._try_assemblyai(audio_path)
 
         except Exception as error:
@@ -63,12 +54,6 @@ class DiarizationEngine:
             log_with_type("warning", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization failed error={str(error)}", "SERVICE")
 
             diarization_segments = []
-
-        # Backend 2 - optional pyannote, loaded lazily (a missing module never
-        # crashes the engine; pyannote is explicitly de-prioritized).
-        if not diarization_segments:
-
-            diarization_segments = self._try_pyannote(audio_path, hf_token)
 
         if not diarization_segments:
 
@@ -115,7 +100,7 @@ class DiarizationEngine:
         return diarization
 
     # ==========================================
-    # ASSEMBLYAI DIARIZATION (no pyannote)
+    # ASSEMBLYAI DIARIZATION
     # ==========================================
     def _try_assemblyai(self, audio_path):
         """Run diarization via services/assemblyai_engine if it is importable."""
@@ -149,27 +134,6 @@ class DiarizationEngine:
             return normalized
         except Exception as error:
             log_with_type("warning", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization failed error={str(error)}", "SERVICE")
-            return []
-
-    # ==========================================
-    # LAZY PYANNOTE DIARIZATION (optional)
-    # ==========================================
-    def _try_pyannote(self, audio_path, hf_token):
-        """Run pyannote ONLY if it is installed; otherwise return [] (no crash)."""
-        try:
-            from .pyannote_diarizer import PyannoteDiarizer
-        except Exception as error:
-            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : Pyannote unavailable (skipped) error={str(error)}", "SERVICE")
-            return []
-
-        try:
-            diarizer = PyannoteDiarizer(hf_token)
-            log_with_type("info", "Engine(transcription_service > diarization_engine) : PyannoteDiarizer initialized", "SERVICE")
-            diarization_segments = diarizer.diarize(audio_path)
-            log_with_type("info", f"Engine(transcription_service > diarization_engine) : Diarization segments received count={len(diarization_segments)}", "SERVICE")
-            return diarization_segments
-        except Exception as error:
-            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : Pyannote failed fallback used error={str(error)}", "SERVICE")
             return []
 
     def _context_language(self):
@@ -258,7 +222,7 @@ class DiarizationEngine:
                 "end": end,
                 "speaker": best_speaker or "Speaker 1",
                 "text": text,
-                "source": "pyannote_diarization",
+                "source": "diarization",
                 "segment_index": index
             })
 

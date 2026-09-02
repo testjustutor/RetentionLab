@@ -10,40 +10,13 @@
 # lightweight `webrtcvad.py` stub that lives in the Python site-packages, or
 # install Resemblyzer with:  python -m pip install --no-deps resemblyzer
 
-# ---- Core / transcription -------------------------------------------------
-openai-whisper
-openai
-whisperx
-faster-whisper
-torch
-torchaudio
-transformers
-accelerate
-huggingface_hub
-onnxruntime
-
-# ---- Speaker diarization --------------------------------------------------
-resemblyzer
-scikit-learn
-soundfile
-librosa
-pyannote.audio
-requests
-assemblyai
-
-# ---- Media / audio conversion ----------------------------------------------
-moviepy
-ffmpeg-python
-noisereduce
-
-# ---- AI SDKs / misc ---------------------------------------------------------
-sentence-transformers
-google-genai
-deepgram-sdk
-# Optional managed transcription + diarization backend (opt-in, enable via
-# PYTHON_ENGINE_USE_ASSEMBLYAI=1). Replaces part of the local WhisperX stack.
-assemblyai
-
-# ---- Database ---------------------------------------------------------------
-mysql-connector-python
-python-dotenv
+# ---- Python Core Libraries -------------------------------------------------
+python -m pip install -U openai-whisper
+python -m pip install -U openai
+python -m pip install mysql-connector-python
+python -m pip install -U google-genai
+python -m pip install -U moviepy
+python -m pip install -U soundfile
+python -m pip install -U deepgram-sdk
+python -m pip install noisereduce
+python -m pip install resemblyzer

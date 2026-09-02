@@ -170,7 +170,7 @@ class SocraticBot {
         this.captionMonitor = new ZoomCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -179,7 +179,7 @@ class SocraticBot {
         this.captionMonitor.startPolling();
 
         const participantTracker = new ZoomParticipantTracker(
-          this.meetingId,
+          this.meetingDbId,
           this.sessionId
         );
         this.participantTracker = participantTracker;
@@ -200,7 +200,7 @@ class SocraticBot {
 
         ZoomMonitor.monitorMeeting(
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.botName,
           this.sessionId,
           participantTracker
@@ -221,7 +221,7 @@ class SocraticBot {
         this.captionMonitor = new GoogleMeetCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -230,7 +230,7 @@ class SocraticBot {
         this.captionMonitor.startPolling();
 
         const participantTracker = new GoogleParticipantTracker(
-          this.meetingId,
+          this.meetingDbId,
           this.sessionId
         );
         this.participantTracker = participantTracker;
@@ -244,7 +244,7 @@ class SocraticBot {
 
         GoogleMeetMonitor.monitorMeeting(
             this.browserManager.page,
-            this.meetingId,
+            this.meetingDbId,
             this.botName,
             this.sessionId,
             participantTracker
@@ -271,7 +271,7 @@ class SocraticBot {
         this.captionMonitor = new TeamsCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -290,7 +290,7 @@ class SocraticBot {
         // the SAME instance instead of an invisible one created internally
         // inside monitor.js.
         const participantTracker = new TeamsParticipantTracker(
-          this.meetingId,
+          this.meetingDbId,
           this.sessionId
         );
         this.participantTracker = participantTracker;
@@ -305,7 +305,7 @@ class SocraticBot {
 
         TeamsMonitor.monitorMeeting(
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.botName,
           this.sessionId,
           participantTracker
@@ -378,7 +378,7 @@ class SocraticBot {
 
           logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
-          await MeetingSessionController.updateMeetingSessionAudioPath(this.meetingId, this.sessionId, finalAudioPath);
+          await MeetingSessionController.updateMeetingSessionAudioPath(this.meetingDbId, this.sessionId, finalAudioPath);
           
           const session = await MeetingSessionController.getMeetingSessionById(this.sessionId);
           
@@ -393,12 +393,12 @@ class SocraticBot {
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
-              await MeetingSessionController.updateMeetingSessionStatus(this.meetingId, this.sessionId, 'completed');
+              await MeetingSessionController.updateMeetingSessionStatus(this.meetingDbId, this.sessionId, 'completed');
 
               await MeetingAssetController.initializeAssets(this.meetingDbId, this.sessionId, finalAudioPath, transcriptPath);
 
               const finalAudioFileName = path.basename(finalAudioPath);
-              const auditResults = await PythonBridge.runFullAudioPipeline(this.meetingId, this.sessionId, finalAudioFileName);
+              const auditResults = await PythonBridge.runFullAudioPipeline(this.meetingDbId, this.sessionId, finalAudioFileName);
 
               if (auditResults) {
                 logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.auditResult?.oqi_score}`);

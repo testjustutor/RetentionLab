@@ -18,9 +18,19 @@ Produces a JSON-serializable dict compatible with what a Node bridge expects:
 from __future__ import annotations
 
 import os
+import sys
+
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import threading
 import time
 from typing import Any, Dict, Optional
+
 
 from utils.logger_util import log_with_type
 
@@ -286,71 +296,9 @@ def run_pipeline(
             _step("Channel transcription", "FAILED", f"{exc} - falling back")
             transcript = None
 
-    # ==================================================================
-    # STEP 2/3/4/5: preferred path - WhisperX word-level alignment +
-    # pyannote diarization with FORCED 2 speakers + domain initial_prompt.
-    # Falls back to faster-whisper + Resemblyzer if whisperx is unavailable.
-    # ==================================================================
-    use_whisperx = str(
-        config.get("use_whisperx", os.getenv("PYTHON_ENGINE_USE_WHISPERX", "1"))
-    ).lower() not in ("0", "false", "no")
-
-    if not transcript and use_whisperx:
-        _step("WhisperX transcription", "STARTED")
-        try:
-            from .whisperx_engine import WhisperXEngine
-            log_with_type("info", "python_engine: attempting WhisperX path (preferred)", "PYTHON_ENGINE")
-
-            wx_model = os.getenv("PYTHON_ENGINE_MODEL_WHISPERX") or config.get("model_size") or "large-v3"
-            subject = config.get("subject")
-            engine = WhisperXEngine(
-                model_size=wx_model,
-                device=config.get("device", "auto"),
-                language=language,
-                num_speakers=n_speakers,
-                subject=subject,
-                speaker_names=config.get("speaker_names") or ["Speaker 1", "Speaker 2"],
-                progress_cb=whisper_progress,
-            )
-            log_with_type("info", f"python_engine: using WhisperX word-level pipeline (model={wx_model})", "PYTHON_ENGINE")
-            transcript = engine.transcribe_and_diarize(audio_path)
-            segments = transcript.get("segments", [])
-            words = transcript.get("words", []) or []
-            language = transcript.get("language") or "en"
-            diarization = [
-                {"start": s["start"], "end": s["end"], "speaker": s["speaker"]}
-                for s in segments
-            ]
-            diar_available = True
-            _emit_progress(70, "Transcription complete")
-            log_with_type(
-                "info",
-                f"python_engine: whisperx done -> {len(segments)} segments, {len(words)} words, lang={language}",
-                "PYTHON_ENGINE",
-            )
-            _step("WhisperX transcription", "COMPLETED", f"{len(segments)} segments, {len(words)} words")
-        except Exception as exc:
-            transcript = None
-            # NOTE: this was logged at "warning" level only, which made WhisperX
-            # silently falling back to the coarse legacy path (no word-level
-            # speaker turns, segments merged across multiple speaker turns like
-            # a single VAD chunk) invisible unless someone was tailing logs.
-            # Bump to "error" and include the exception type so missing deps
-            # (whisperx not installed) vs missing HF_TOKEN (pyannote gated model)
-            # vs actual runtime failures are distinguishable.
-            import traceback
-            log_with_type(
-                "error",
-                f"python_engine: whisperx unavailable/failed ({type(exc).__name__}: {exc}) -> "
-                f"falling back to faster-whisper + Resemblyzer (segments will be coarser, "
-                f"not per-speaker-turn). Trace: {traceback.format_exc(limit=3)}",
-                "PYTHON_ENGINE",
-            )
-            _step("WhisperX transcription", "FAILED", f"{type(exc).__name__}: {exc} - falling back")
-
     # Fallback path (legacy): faster-whisper transcription, then Resemblyzer
     if not transcript:
-        _step("Whisper fallback transcription", "STARTED")
+        _step("Whisper transcription", "STARTED")
         try:
             from .whisperx_engine import get_initial_prompt
 
@@ -368,10 +316,10 @@ def run_pipeline(
             language = transcript.get("language") or "en"
             _emit_progress(66, "Transcription complete")
             log_with_type("info", f"python_engine: whisper done -> {len(segments)} segments, lang={language}, backend={transcript.get('backend')}", "PYTHON_ENGINE")
-            _step("Whisper fallback transcription", "COMPLETED", f"{len(segments)} segments")
+            _step("Whisper transcription", "COMPLETED", f"{len(segments)} segments")
         except Exception as exc:
             log_with_type("error", f"python_engine: Whisper transcription failed -> {exc}", "PYTHON_ENGINE")
-            _step("Whisper fallback transcription", "FAILED", str(exc))
+            _step("Whisper transcription", "FAILED", str(exc))
             return {
                 "success": False,
                 "engine": "python_engine",

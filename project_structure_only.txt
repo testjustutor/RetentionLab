@@ -1008,7 +1008,6 @@ project_root/
             |-- language_detector.py
             |-- meeting_classifier.py
             |-- model_manager.py
-            |-- pyannote_diarizer.py
             |-- question_detector.py
             |-- segment_merger.py
             |-- sentiment_analyzer.py

@@ -6,8 +6,7 @@ Word-level transcription + speaker assignment using WhisperX.
 Pipeline inside this engine:
     1. Whisper (faster-whisper backend) transcription
     2. Forced word-level alignment (precise per-word timestamps)
-    3. pyannote 3.1 diarization with FORCED speaker count (num_speakers=2)
-    4. Each WORD is assigned to a speaker by its timestamp - so a segment that
+    3. Each WORD is assigned to a speaker by its timestamp - so a segment that
        spans two speaker turns no longer gets tagged as a single speaker.
 
 This replaces segment-level merging, which was mislabelling alternating
@@ -45,7 +44,7 @@ def get_initial_prompt(subject: Optional[str] = None) -> str:
 
 
 class WhisperXEngine:
-    """WhisperX transcription + pyannote diarization with forced speaker count."""
+    """WhisperX transcription + word-level alignment with forced speaker count."""
 
     def __init__(
         self,
@@ -57,16 +56,19 @@ class WhisperXEngine:
         batch_size: int = 8,
         progress_cb=None,
         speaker_names: Optional[List[str]] = None,
+        subject: Optional[str] = None,
     ):
+        self.num_speakers = int(num_speakers or 2)
+        self.subject = subject
         self.model_size = model_size
         self.device = device
+
         # Confirmed: all sessions are in English
         self.language = language or os.getenv("PYTHON_ENGINE_LANGUAGE") or "en"
         self.num_speakers = int(num_speakers or 2)
         self.initial_prompt = initial_prompt or get_initial_prompt()
         self.batch_size = int(batch_size or 8)
         self.progress_cb = progress_cb
-        self.hf_token = os.getenv("HF_TOKEN") or None
         # Role labels: assigned by talk-time dominance -> Speaker 1, Speaker 2, ...
         self.speaker_names = speaker_names or ["Speaker 1", "Speaker 2"]
         log_with_type("info", f"whisperx_engine: init model={self.model_size} num_speakers={self.num_speakers}", "PYTHON_ENGINE")
@@ -128,17 +130,9 @@ class WhisperXEngine:
 
         self._report(60)
 
-        # ---- Diarization (forced 2 speakers) ----
-        log_with_type("info", f"whisperx_engine: diarizing with num_speakers={self.num_speakers}", "PYTHON_ENGINE")
-        try:
-            diarize_pipeline = whisperx.DiarizationPipeline(use_auth_token=self.hf_token, device=device)
-            diar_segments = diarize_pipeline(audio, min_speakers=self.num_speakers, max_speakers=self.num_speakers)
-        except Exception as exc:
-            log_with_type("error", f"whisperx_engine: diarization failed -> {exc}", "PYTHON_ENGINE")
-            diar_segments = []
-
-        segments = self._assign_speakers(result.get("segments", []), diar_segments)
-        segments = self._apply_role_labels(segments)
+        # Diarization via whisperx is disabled. The segments carry alignment but
+        # no speaker labels here; callers obtain diarization from other backends.
+        segments = result.get("segments", [])
         self._report(70)
 
         words = []
@@ -192,46 +186,3 @@ class WhisperXEngine:
                 if wkey in mapping:
                     w["speaker"] = mapping[wkey]
         return segments
-
-    @staticmethod
-    def _assign_speakers(segments: List[Dict[str, Any]], diar_segments) -> List[Dict[str, Any]]:
-        """Assign each WORD to a speaker from the pyannote turns; a segment's
-        label is the majority of its words (fixes mixed-turn segments)."""
-        turns = [
-            {"start": float(t.get("start", 0)), "end": float(t.get("end", 0)),
-             "speaker": t.get("speaker") or "SPEAKER_00"}
-            for t in (diar_segments or [])
-        ]
-
-        def speaker_at(midpoint: float):
-            best = None
-            best_gap = None
-            for t in turns:
-                if t["start"] <= midpoint <= t["end"]:
-                    return t["speaker"]
-                gap = min(abs(t["start"] - midpoint), abs(t["end"] - midpoint))
-                if best_gap is None or gap < best_gap:
-                    best_gap = gap
-                    best = t["speaker"]
-            return best
-
-        out = []
-        for seg in segments:
-            words = seg.get("words", []) or []
-            counts: Dict[str, int] = {}
-            for w in words:
-                mid = ((w.get("start") or 0) + (w.get("end") or 0)) / 2.0
-                spk = w.get("speaker") or speaker_at(mid) or "SPEAKER_00"
-                counts[spk] = counts.get(spk, 0) + 1
-            speaker = max(counts.items(), key=lambda kv: kv[1])[0] if counts else (
-                speaker_at(float(seg.get("start", 0))) or "SPEAKER_00")
-            text = (seg.get("text") or "").strip()
-            if not text:
-                continue
-            out.append({
-                "start": float(seg.get("start", 0)),
-                "end": float(seg.get("end", 0)),
-                "text": text,
-                "speaker": speaker,
-            })
-        return out

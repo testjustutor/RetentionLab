@@ -53,7 +53,6 @@ The Python engine dependencies include:
 
 - PyTorch, TorchAudio, and optional CPU wheels.
 - OpenAI Whisper, Faster Whisper, and WhisperX.
-- `pyannote.audio` for speaker diarization.
 - `transformers`, `accelerate`, and `huggingface_hub` for model support.
 - `openai` for LLM-backed analysis where configured.
 - `ffmpeg-python` and system FFmpeg for media operations.
@@ -207,7 +206,7 @@ The meeting workflow is:
 7. Queued meetings are discovered by background polling in `server.js`.
 8. Calendar events are refreshed by the periodic calendar sync loop.
 9. A completed recording can be sent to the Python processing engine.
-10. Python produces transcript, summary, audit, and quality outputs. (Speaker diarization is NOT part of this automatic flow — it is launched on demand via `services/engine/manual/run_diarization.py` for a chosen meeting/session.)
+10. Python produces transcript, summary, audit, and quality outputs. (Speaker diarization is NOT part of this automatic flow — it is available on demand via the isolated `python_engine` or an AssemblyAI backend.)
 11. Node parses the engine JSON result and updates meeting asset/session records.
 12. Dashboards, reviewers, reports, and quality pages read the persisted results.
 
@@ -253,25 +252,16 @@ Diarization is NOT part of the automatic pipeline. It is a separate,
 manual / on-demand process that runs only when explicitly invoked for a
 chosen meeting/session.
 
-### Manual speaker diarization (on-demand)
+### On-demand speaker diarization
 
-Speaker diarization (pyannote speaker labeling + talk_ratio) is intentionally
+Speaker diarization (speaker labeling + talk_ratio) is intentionally
 decoupled from the automatic `media -> transcription -> [audit, summary] ->
 persist_results` flow. It never runs as a pipeline task — not sequentially,
 and not in parallel.
 
-Run it separately for an already-transcribed meeting:
-
-```text
-python services/engine/manual/run_diarization.py --meeting_id=2 \
-    --session_id=159 --audio_path=storage/audio/REC_xxx.wav
-```
-
-This script:
-- loads the meeting's existing Whisper transcript from the cache (`storage/cache_whisper/WHISPER_*.json`) instead of re-running Whisper;
-- runs pyannote diarization against the audio, merges speaker labels onto the existing transcript segments, and computes talk_ratio;
-- writes the `DIAR_*`, `RATIO_*`, and `CAPTIONS_*` cache files;
-- persists `talk_ratio` + speaker segments to the `session_diarization` table directly (independent of `persist_results`).
+It is available on demand through the isolated `python_engine` (Whisper +
+Resemblyzer) or via an AssemblyAI backend, and is not part of the automatic
+pipeline.
 
 Because it runs outside `PipelineRunner` / `DependencyGraph`, the automatic
 pipeline never touches diarization, and diarization never blocks or delays

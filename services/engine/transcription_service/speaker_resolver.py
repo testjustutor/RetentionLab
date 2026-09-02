@@ -3,7 +3,7 @@
 """
 speaker_resolver.py
 ===================
-Resolves pyannote SPEAKER_XX labels to real names using the Teams captions
+Resolves SPEAKER_XX labels to real names using the Teams captions
 transcript. Designed to be called inside transcription_task.py immediately
 after diarization completes and BEFORE transcript_builder runs.
 
@@ -145,7 +145,7 @@ def _calibrate_offset(diar_segs: list[dict], teams: list[dict], meeting_start: d
 
 class SpeakerResolver:
     """
-    Resolves pyannote SPEAKER_XX labels → real speaker names.
+    Resolves SPEAKER_XX labels → real speaker names.
 
     Parameters
     ----------

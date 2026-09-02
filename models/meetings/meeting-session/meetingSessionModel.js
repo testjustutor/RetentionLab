@@ -79,7 +79,7 @@ class MeetingSessionModel {
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE meeting_sessions
-         SET audio_file_name = ?, updated_at = CURRENT_TIMESTAMP
+         SET audio_file_name = ?, end_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [normalizeStorageRef('audio', filePath), sessionId],
         function (err) {

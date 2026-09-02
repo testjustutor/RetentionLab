@@ -31,3 +31,64 @@ reference `meeting_scores` must point at `meeting_session_scores`.
   - `project_structure_only.txt` — historical structure listing./docs。
   - `database/migrations/033...` no longer exists (removed by the user;, ensuring the
     `meeting_scores` table is never created).
+
+# TODO — services/engine: keep only current-flow modules, remove dead code
+
+## Context
+The `services/engine` folder accumulated a lot of modules that are NOT part of the
+current runtime flow. Verified via static import-graph analysis + manual inspection.
+
+### Real entry points (current flow)
+- `engine_main.py` — invoked by Node bridge (`services/shared/pythonBridge.js`
+  `runFullAudioPipeline` -> `runStage('engine_main.py', ...)`), used by
+  `services/socraticbot.js` and `test-engine.js`.
+- `audit_bridge.py` (project root) — used by `controllers/audit/auditController.js`.
+- `services/engine/manual/run_diarization.py` + `run_tutor_evaluation.py` — documented
+  on-demand scripts (ARCHITECTURE.md).
+- `test_ai_evaluation.py` (root) — test harness.
+
+### Main pipeline graph
+media -> transcription -> (audit + summary in parallel) -> persist_results
+(registry: orphan empty task_registry / dependency_graph)
+
+## Plan
+- [x] Keep only the reachable modules (verified import-graph: 39 modules used by
+      `engine_main`, `audit_bridge` services, and `test_ai_evaluation`).
+- [x] Remove unused sub-folders entirely: `cache/`, `dashboard/`, `distributed/`,
+      `intelligence/`, `live/`, `logging/`, `prompts/`, `quality/`, `runtime/`
+- [x] Remove unused files inside kept packages (unused `media_service/*`,
+      `orchestrator/engine_main.py|pipeline_bootstrap.py|pipeline_runtime.py|runtime_state_manager.py`,
+      unused `shared/*`, unused `transcription_service/*`, orphan root-level `task/*.py`, etc.)
+- [x] Clean up stale `__pycache__`
+- [x] Verify imports (`python -m compileall` clean; registry loads 5 tasks; task modules import)
+- [x] Verify no remaining .py/.js references outside engine point at removed modules
+
+## Follow-up (this session)
+- [x] Removed `services/engine/manual/` entirely (`run_diarization.py`, `run_tutor_evaluation.py`).
+- [x] Flattened `services/engine/task/`: moved all files from `task/{audit,media,persist,
+      summary,transcription}/` directly into `task/` and removed the sub-folders.
+      Updated imports in `orchestrator/task_registry.py` and `task/transcription_task.py`
+      (`services.engine.task.<module>` instead of `services.engine.task.<pkg>.<module>`).
+- [x] Re-verified: `compileall` clean, all 5 registry tasks resolve, task modules import, no stale refs.
+# TODO — Remove pyannote from the whole project
+
+## Context
+The user wants pyannote removed entirely from the project (no `pyannote.audio`,
+no whisperx-pyannote diarization).
+
+## Plan
+- [x] Deleted `services/engine/transcription_service/pyannote_diarizer.py`
+- [x] `services/engine/transcription_service/diarization_engine.py` — removed the
+      pyannote `_try_pyannote` backend + HF-token logic; kept AssemblyAI + fallback;
+      changed `"source": "pyannote_diarization"` -> `"diarization"`
+- [x] `audit_bridge.py` — removed `"pyannote.audio"` from `REQUIRED_PACKAGES`
+- [x] `diarization_engine.py`/`speaker_resolver.py`/`service.py` — removed pyannote
+      from docstrings/comments
+- [x] `services/python_engine/whisperx_engine.py` — removed the whisperx
+      `DiarizationPipeline` (pyannote) step, the now-unused `_assign_speakers`, and
+      the dead `self.hf_token`; kept transcription + alignment + `_apply_role_labels`
+      (still used by `pipeline.py`)
+- [x] Docs cleaned: `ARCHITECTURE.md`, `README.md`, `project_structure_only.txt`,
+      `services/python_engine/__init__.py`, `TODO.md`
+- [x] Verified: no `pyannote` references remain project-wide; `compileall` exit 0;
+      `diarization_engine`, `service`, `whisperx_engine`, and `pipeline` all import.

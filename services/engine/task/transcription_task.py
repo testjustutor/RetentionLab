@@ -8,7 +8,7 @@ from services.engine.shared.json_store import (
     JsonStore
 )
 
-from services.engine.task.transcription.cache_manager import (
+from services.engine.task.cache_manager import (
     TranscriptionCacheManager
 )
 

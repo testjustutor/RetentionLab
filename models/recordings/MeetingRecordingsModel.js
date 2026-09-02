@@ -11,7 +11,7 @@ class MeetingRecordingsModel {
   /**
    * Generic data fetcher for recordings, transcripts, summaries
    * @param {Object} options
-   * @param {number|null} options.userId - Specific instructor user ID
+   * @param {number|null} options.userId - Specific instructor user ID (falls back to currentUserId if null)
    * @param {string} options.userRole - Current user role
    * @param {number} options.currentUserId - Current logged in user ID
    * @param {number} options.limit - Max records to return (default 50)
@@ -20,9 +20,11 @@ class MeetingRecordingsModel {
    * @returns {Promise<Array>} Raw database rows
    */
   static async fetchMeetings({ userId, userRole, currentUserId, limit = 50, startDate, endDate }) {
-    // Build base SQL for meetings + latest session (no meeting_assets join)
-    // Use subquery to get only the latest session per meeting (since one meeting can have multiple sessions)
-    // Note: meeting_sessions.meeting_id references meetings.id (internal ID), not external_meeting_id
+    // SAFETY: never run this query unfiltered. If no specific userId was requested,
+    // default to the currently authenticated user's own account instead of
+    // silently returning everyone's data or silently returning nothing.
+    const effectiveUserId = userId || currentUserId;
+
     let sql = `
       SELECT m.id, m.external_meeting_id, m.title, m.description, m.scheduled_start_time, m.scheduled_end_time, 
              m.actual_start_time, m.actual_end_time, m.platform, m.calendar_account, m.meeting_link, 
@@ -43,58 +45,34 @@ class MeetingRecordingsModel {
     `;
     const params = [];
 
-    // If userId is provided, get recordings for that specific instructor
-    if (userId) {
+    if (effectiveUserId) {
       // First try to get from calendar_connections
       const conns = await CalendarUsersModel.getAllUsers();
-      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.connection_status === 'active');
-      
-      if (conn && conn.email) {
-        sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
-        params.push(conn.email);
-      } else {
-        // If not found in calendar_connections, try to get email from users table
-        const user = await new Promise((resolve, reject) => {
-          db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [userId], (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          });
-        });
-        
-        if (user && user.email) {
-          sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
-          params.push(user.email);
-        } else {
-          // No email found, return empty result
-          return [];
-        }
-      }
-    } else if (userRole === 'admin') {
+      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == effectiveUserId && c.connection_status === 'active');
 
-      // First try to get from calendar_connections
-      const conns = await CalendarUsersModel.getAllUsers();
-      const conn = (conns || []).find(c => (c.user_id || c.user_id_ref) == userId && c.connection_status === 'active');
-      
       if (conn && conn.email) {
         sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
         params.push(conn.email);
       } else {
         // If not found in calendar_connections, try to get email from users table
         const user = await new Promise((resolve, reject) => {
-          db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [userId], (err, row) => {
+          db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [effectiveUserId], (err, row) => {
             if (err) reject(err);
             else resolve(row);
           });
         });
-        
+
         if (user && user.email) {
           sql += ` AND LOWER(m.calendar_account)=LOWER(?)`;
           params.push(user.email);
         } else {
-          // No email found, return empty result
+          // No email found for this user — return empty result rather than unfiltered data
           return [];
         }
       }
+    } else {
+      // No userId AND no currentUserId to fall back on — refuse to run unfiltered.
+      return [];
     }
 
     // Add date filters if provided
@@ -125,7 +103,7 @@ class MeetingRecordingsModel {
     // Fetch meeting_assets separately for these meetings
     const meetingIds = meetings.map(m => m.external_meeting_id).filter(Boolean);
     let assetsMap = {};
-    
+
     if (meetingIds.length > 0) {
       const placeholders = meetingIds.map(() => '?').join(',');
       const assetsSql = `
@@ -135,7 +113,7 @@ class MeetingRecordingsModel {
         FROM meeting_assets
         WHERE meeting_id IN (${placeholders})
       `;
-      
+
       const assets = await new Promise((resolve, reject) => {
         db.all(assetsSql, meetingIds, (err, rows) => {
           if (err) {
@@ -147,7 +125,6 @@ class MeetingRecordingsModel {
         });
       });
 
-      // Create a map for quick lookup
       assets.forEach(a => {
         assetsMap[a.meeting_id] = a;
       });
@@ -177,11 +154,11 @@ class MeetingRecordingsModel {
         (err, rows) => err ? reject(err) : resolve(rows || [])
       );
     });
-    
+
     let emails = instructors
       .filter(u => u.email)
       .map(u => u.email.toLowerCase());
-    
+
     // If no instructors found in users table, try calendar_connections as fallback
     if (emails.length === 0) {
       const conns = await CalendarUsersModel.getAllUsers({ createdBy: adminId, excludeSelf: true, adminId: adminId });
@@ -189,31 +166,45 @@ class MeetingRecordingsModel {
         .filter(c => c.email && c.connection_status === 'active')
         .map(c => c.email.toLowerCase());
     }
-    
+
     return emails;
   }
 
   /**
-   * Get recordings for admin - gets all instructors' meetings that are completed or past scheduled_end_time
+   * Get recordings for admin - gets admin's own meetings + all instructors' meetings
+   * that are completed or past scheduled_end_time
    * @param {number} adminId - Admin user ID
    * @param {number} limit - Max records to return
+   * @param {string|null} startDate - Start date filter (YYYY-MM-DD)
+   * @param {string|null} endDate - End date filter (YYYY-MM-DD)
    * @returns {Promise<Array>} List of meetings with session data
    */
-  static async getRecordingsForAdmin(adminId, limit = 50) {
+  static async getRecordingsForAdmin(adminId, limit = 50, startDate = null, endDate = null) {
     // Get all instructors created by this admin
     const instructorEmails = await this.getInstructorsByAdmin(adminId);
-    
-    if (instructorEmails.length === 0) {
+
+    // ALSO include the admin's own email, so admin sees their own meetings
+    // even if they haven't created any instructors yet.
+    const adminUser = await new Promise((resolve, reject) => {
+      db.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [adminId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    const emailSet = new Set(instructorEmails);
+    if (adminUser && adminUser.email) {
+      emailSet.add(adminUser.email.toLowerCase());
+    }
+    const allEmails = Array.from(emailSet);
+
+    if (allEmails.length === 0) {
       return [];
     }
 
-    const placeholders = instructorEmails.map(() => '?').join(',');
-    
-    // Get meetings that are either completed OR have scheduled_end_time in the past
-    // Query 1: Get meetings + latest session (no meeting_assets join)
-    // Use subquery to get only the latest session per meeting
-    // Note: meeting_sessions.meeting_id references meetings.id (internal ID), not external_meeting_id
-    const meetingsSql = `
+    const placeholders = allEmails.map(() => '?').join(',');
+
+    let meetingsSql = `
       SELECT m.id, m.external_meeting_id, m.title, m.description, m.scheduled_start_time, m.scheduled_end_time, 
              m.actual_start_time, m.actual_end_time, m.platform, m.calendar_account, m.meeting_link, 
              m.passcode, m.event_id, m.timezone, m.status as meeting_status, m.created_by, m.created_at, m.updated_at,
@@ -233,14 +224,29 @@ class MeetingRecordingsModel {
       AND (
         m.status = 'completed'
         OR m.scheduled_end_time < NOW()
+        OR ms.audio_file_name IS NOT NULL
+        OR EXISTS (
+          SELECT 1 FROM meeting_assets ma
+          WHERE ma.meeting_id = m.external_meeting_id
+          AND ma.audio_path IS NOT NULL
+        )
       )
-      ORDER BY m.scheduled_start_time DESC
-      LIMIT ?
     `;
 
-    const meetingsParams = [...instructorEmails, limit];
+    const meetingsParams = [...allEmails];
 
-    // Execute first query for meetings + sessions
+    if (startDate) {
+      meetingsSql += ` AND DATE(m.scheduled_start_time) >= ?`;
+      meetingsParams.push(startDate);
+    }
+    if (endDate) {
+      meetingsSql += ` AND DATE(m.scheduled_start_time) <= ?`;
+      meetingsParams.push(endDate);
+    }
+
+    meetingsSql += ` ORDER BY m.scheduled_start_time DESC LIMIT ?`;
+    meetingsParams.push(limit);
+
     const meetings = await new Promise((resolve, reject) => {
       db.all(meetingsSql, meetingsParams, (err, rows) => {
         if (err) {
@@ -252,10 +258,9 @@ class MeetingRecordingsModel {
       });
     });
 
-    // Query 2: Get meeting_assets separately
     const meetingIds = meetings.map(m => m.external_meeting_id).filter(Boolean);
     let assetsMap = {};
-    
+
     if (meetingIds.length > 0) {
       const assetsPlaceholders = meetingIds.map(() => '?').join(',');
       const assetsSql = `
@@ -265,7 +270,7 @@ class MeetingRecordingsModel {
         FROM meeting_assets
         WHERE meeting_id IN (${assetsPlaceholders})
       `;
-      
+
       const assets = await new Promise((resolve, reject) => {
         db.all(assetsSql, meetingIds, (err, rows) => {
           if (err) {
@@ -277,13 +282,11 @@ class MeetingRecordingsModel {
         });
       });
 
-      // Create a map for quick lookup
       assets.forEach(a => {
         assetsMap[a.meeting_id] = a;
       });
     }
 
-    // Merge meeting data with assets data
     return meetings.map(m => {
       const assets = assetsMap[m.external_meeting_id] || {};
       return { ...m, ...assets };
