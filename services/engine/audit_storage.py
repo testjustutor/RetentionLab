@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/audit_storage.py
+services/engine/audit_storage.py
 DATA-ACCESS + file persistence for the consolidated python_engine audit.
 """
 import json

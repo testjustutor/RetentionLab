@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/rubric_loader.py
+services/engine/rubric_loader.py
 
 DATA-ACCESS ONLY. Loads the rubric schema (categories + indicators) from the
 database. No business logic - just queries that hand back a clean structure.

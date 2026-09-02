@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/health_check.py
+services/engine/health_check.py
 
 STEP 6: diarization health check.
 

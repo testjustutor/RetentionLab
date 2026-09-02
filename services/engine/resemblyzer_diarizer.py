@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/resemblyzer_diarizer.py
+services/engine/resemblyzer_diarizer.py
 
 Speaker diarization using Resemblyzer (speaker embedding + clustering).
 

@@ -2,7 +2,7 @@
 services/engine/transcriber.py
 
 Main entry point, mirrors WhisperXEngine.transcribe_and_diarize() so it's a
-drop-in alternative backend for services/engine/python_engine/pipeline.py.
+drop-in alternative backend for services/engine/pipeline.py.
 
 Also exposes raw audio-intelligence fields (sentiment, entities, chapters,
 summary, topics, content_safety) for callers who want more than just the
@@ -33,7 +33,7 @@ def transcribe_and_diarize(
     """Returns {language, segments, words, backend, num_speakers_forced,
     plus optional: sentiment, entities, chapters, summary, topics, safety_labels}
     Segments/words shape matches whisperx_engine.py's output so it can slot
-    directly into services/python_engine/pipeline.py's transcript variable.
+    directly into services/engine/pipeline.py's transcript variable.
     """
     names = speaker_names or ["Speaker 1", "Speaker 2"]
     opts = {

@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/channel_transcriber.py
+services/engine/channel_transcriber.py
 
 STEP 5: per-participant channel transcription.
 

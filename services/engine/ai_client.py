@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/ai_client.py
+services/engine/ai_client.py
 
 AI provider client for the consolidated python_engine audit. Reads provider
 credentials from the environment (root .env via python-dotenv) and calls the

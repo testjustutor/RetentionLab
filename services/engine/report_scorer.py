@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/report_scorer.py
+services/engine/report_scorer.py
 
 Pure scoring logic for the observation report (matches the PDF). Each indicator
 rating maps to a weight; category marks = sum, overall total = sum of category

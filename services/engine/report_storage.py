@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/report_storage.py
+services/engine/report_storage.py
 
 Writes the scored observation report to
     <project>/storage/video_diarization/<audio_base>.report.json
@@ -15,7 +15,7 @@ from utils.logger_util import log_with_type
 
 
 def _default_output_dir() -> str:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     return os.path.join(project_root, "storage", "video_diarization")
 
 

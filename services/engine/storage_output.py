@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/storage_output.py
+services/engine/storage_output.py
 
 Writes the final diarization/transcript result to
     <project>/storage/video_diarization/
@@ -19,7 +19,7 @@ from utils.logger_util import log_with_type
 
 
 def default_output_dir() -> str:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     return os.path.join(project_root, "storage", "video_diarization")
 
 

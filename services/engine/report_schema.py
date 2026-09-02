@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/report_schema.py
+services/engine/report_schema.py
 
 Defines the full scored-observation structure that matches the PDF review
 report (categories, marks, indicators, ratings, descriptors, additional notes,

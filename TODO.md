@@ -99,8 +99,8 @@ structure" + file-location headers at top of each file.
 - [x] Verify: python -m compileall + import tests for all entry points + runner.js paths
 
 ## Flatten services/engine into 5 folders (this session)
-- [x] `services/engine` now has exactly 5 flat folders (no sub-sub-folders):
-      orchestrator/, task/, services/, python_engine/, assemblyai_engine/ + engine_main.py
+- [x] `services/engine` now has exactly THREE folders: orchestrator/, task/, services/
+      + engine_main.py and consolidated engine root files.
 - [x] Merged ai_api/ai_audit/ai_evaluation/summary/media/transcription/shared -> `services/`
       (renamed service.py -> ai_api.py, ai_audit.py, summary.py, media.py, transcription.py)
 - [x] Added `services/__init__.py` re-exports (MediaService, TranscriptionService, AuditService,
@@ -126,6 +126,30 @@ structure" + file-location headers at top of each file.
 - [x] Shim at `services/assemblyai_engine/runner.js` now forwards to `services/engine/runner`
 - [x] Verified: compileall exit 0; engine-root modules (`main`, `transcriber`, `client`),
       re-exports, and both node runners load cleanly.
+
+## Flatten services/engine/python_engine into engine root (this session)
+- [x] Moved all `services/engine/python_engine/*` files into `services/engine/` root.
+      Removed the python_engine sub-folder. Engine now has THREE folders: orchestrator/, task/, services/.
+- [x] Collision renames: `main.py` -> `python_main.py`, `runner.js` -> `python_runner.js`
+      (engine root already had main.py/runner.js for the assemblyai entry + runner).
+- [x] Merged python_engine `__init__` re-exports (run_pipeline, ResemblyzerDiarizer) into
+      `services/engine/__init__.py`.
+- [x] Updated `python_runner.js`: module paths `services.engine.python_main` /
+      `services.engine.video_convert`, fixed PROJECT_ROOT (..\..), header.
+- [x] Updated shim `services/python_engine/runner.js` -> forwards to `services/engine/python_runner`.
+- [x] Fixed path computations (one level shallower) in audio_preprocess/audit_service/pipeline/
+      report_storage/storage_output/whisper_engine, and stale docstring headers + CLI strings.
+- [x] Verified: compileall exit 0; all moved modules import; `python -m services.engine.python_main`,
+      `services.engine.video_convert`, and the node runners (python_runner, shim, assembly runner) all load.
+
+## Remove leftover shim folders (this session)
+- [x] `services/python_engine/` and `services/assemblyai_engine/` removed (they only held shim runner.js).
+- [x] Updated `videoProcessingController.js` + `deepgramProcessingController.js` to require
+      `services/engine/python_runner` directly (no longer the old shim path). Both pass `node --check`.
+- [x] Updated `utils/logger_util.py` comment to point at `services/engine/python_runner`.
+- [x] Verified: no code references the removed shim folders; python_runner/assembly runner load;
+      `python -m compileall services/engine` exit 0; engine_main + 5 registry tasks still work.
+      (Note: `services/socraticbot.js` diff is a pre-existing user change, intentionally left alone.)
 
 ## Fix: engine_main.py script-mode sys.path shadow (this session)
 - When Node bridge runs `python -u services/engine/engine_main.py` as a SCRIPT, Python prepends

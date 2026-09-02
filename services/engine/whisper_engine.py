@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/whisper_engine.py
+services/engine/whisper_engine.py
 
 Whisper speech-to-text, consolidated engine.
 Uses faster-whisper when available and falls back to openai-whisper.
@@ -161,7 +161,7 @@ def resolve_audio_path(raw_input: str) -> str:
     if not raw_input:
         return raw_input
 
-    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     leaf = os.path.basename(raw_input.replace("\\", "/"))
     candidates = [
         os.path.join(project_root, "storage", "recordings", leaf),

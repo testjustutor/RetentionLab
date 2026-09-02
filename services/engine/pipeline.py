@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/pipeline.py
+services/engine/pipeline.py
 
 Whisper + Resemblyzer end-to-end pipeline for a single audio file.
 Produces a JSON-serializable dict compatible with what a Node bridge expects:
@@ -21,7 +21,7 @@ import os
 import sys
 
 PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+    os.path.join(os.path.dirname(__file__), "..", "..")
 )
 
 if PROJECT_ROOT not in sys.path:

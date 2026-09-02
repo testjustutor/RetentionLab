@@ -1,12 +1,12 @@
 /**
- * services/engine/python_engine/runner.js
+ * services/engine/python_runner.js
  *
- * Node->Python caller for the consolidated python_engine (Whisper + Resemblyzer).
+ * Node->Python caller for the consolidated python engine (Whisper + Resemblyzer).
  *
  * This runner is the bridge the controllers use for the video-processing
  * "Process" action. It spawns:
  *
- *     python -m services.engine.python_engine.main <audio_path> [ai_settings_json]
+ *     python -m services.engine.python_main <audio_path> [ai_settings_json]
  *
  * and returns the parsed JSON payload.
  */
@@ -14,8 +14,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const ENGINE_DIR = __dirname;                 // services/engine/python_engine
-const PROJECT_ROOT = path.join(__dirname, '..', '..', '..');
+const ENGINE_DIR = __dirname;                 // services/engine
+const PROJECT_ROOT = path.join(__dirname, '..', '..');
 
 /** Resolve the Python executable: prefer the project venv, else system python. */
 function resolvePython() {
@@ -53,7 +53,7 @@ function runPythonEngine(audioInput, opts = {}, timeoutMs = 0) {
       ? opts.aiSettings
       : JSON.stringify(opts.aiSettings || {});
 
-    const args = ['-u', '-m', 'services.engine.python_engine.main', audioPath, aiSettings];
+    const args = ['-u', '-m', 'services.engine.python_main', audioPath, aiSettings];
     if (opts.model) args.push('--model', String(opts.model));
 
     let stdout = '';
@@ -167,12 +167,12 @@ function runPythonEngine(audioInput, opts = {}, timeoutMs = 0) {
 
 /**
  * Convert a video file to MP3 using MoviePy inside python_engine.
- * Spawns: python -m services.engine.python_engine.video_convert <video> <mp3>
+ * Spawns: python -m services.engine.video_convert <video> <mp3>
  */
 function convertVideoToMp3(videoPath, mp3Path, { timeoutMs = 30 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
     const args = [
-      '-m', 'services.engine.python_engine.video_convert',
+      '-m', 'services.engine.video_convert',
       path.resolve(videoPath),
       path.resolve(mp3Path),
     ];

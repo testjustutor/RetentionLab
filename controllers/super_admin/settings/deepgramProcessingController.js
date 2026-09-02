@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const DeepgramProcessingModel = require('../../../models/super_admin/settings/DeepgramProcessingModel');
-const { convertVideoToMp3 } = require('../../../services/python_engine/runner');
+const { convertVideoToMp3 } = require('../../../services/engine/python_runner');
 const { transcribeWithDeepgram, deepgramAvailable } = require('../../../services/python_deepgram/runner');
 
 const ROOT_DIR = path.join(__dirname, '..', '..', '..');

@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audio_preprocess.py
+services/engine/audio_preprocess.py
 
 Audio preprocessing before transcription/diarization (STEP 4):
     1. ffmpeg `loudnorm` - normalize volume so quiet speech is not missed.
@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from utils.logger_util import log_with_type
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 
 class AudioPreprocessor:

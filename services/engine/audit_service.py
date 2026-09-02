@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/audit/audit_service.py
+services/engine/audit_service.py
 
 AI audit orchestrator for the consolidated python_engine.
 
@@ -55,7 +55,7 @@ _AUDIT_SYSTEM_INSTRUCTION = (
 # fmt: on
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.abspath(os.path.join(_DIR, "..", "..", "..", ".."))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_DIR, "..", ".."))
 OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "storage", "cache_llm_prompts")
 
 # Prompt asking the AI for the full observation-report structure (matching PDF).

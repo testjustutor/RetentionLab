@@ -1,7 +1,7 @@
 """
 services/engine/main.py
 
-Standalone CLI entry, mirrors services/engine/python_engine/main.py's contract
+Standalone CLI entry, mirrors services/engine/main.py's contract
 so runner.js / other outer pages can call it the same way.
 
 Usage:

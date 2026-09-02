@@ -1,10 +1,10 @@
 """
-services/engine/python_engine/main.py
+services/engine/python_main.py
 
 Standalone CLI entry for the consolidated Whisper + Resemblyzer engine.
 
 Usage:
-    python -m services.engine.python_engine.main <audio_path> [ai_settings_json] [--output out.json]
+    python -m services.engine.python_main <audio_path> [ai_settings_json] [--output out.json]
 
 Prints a single UTF-8 JSON object (matching the Node bridge contract) so the
 output can be captured by spawn/exec from Node or directly on the CLI. Writes
@@ -43,7 +43,7 @@ def _json_default(o):
 def main(argv=None) -> int:
     _reconfigure_stdio()
 
-    parser = argparse.ArgumentParser(description="Whisper + Resemblyzer diarization (isolated engine)")
+    parser = argparse.ArgumentParser(description="Whisper + Resemblyzer diarization (consolidated engine)")
     parser.add_argument("input_file", help="Path or /storage/... handle to the audio file")
     parser.add_argument("ai_settings_json", nargs="?", default="", help="Optional JSON settings blob")
     parser.add_argument("--model", default="large-v3", help="Whisper model size (tiny/base/small/medium/large)")

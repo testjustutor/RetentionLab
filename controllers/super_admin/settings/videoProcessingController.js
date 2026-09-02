@@ -10,7 +10,7 @@
  */
 const VideoProcessingModel = require('../../../models/super_admin/settings/VideoProcessingModel');
 const SessionMetadataModel = require('../../../models/session-quality/SessionMetadataModel');
-const { runPythonEngine, convertVideoToMp3 } = require('../../../services/python_engine/runner');
+const { runPythonEngine, convertVideoToMp3 } = require('../../../services/engine/python_runner');
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');

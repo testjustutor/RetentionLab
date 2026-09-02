@@ -50,10 +50,10 @@ class SocraticBot {
     this.meetingDbId = config.meetingDbId ?? null; // internal meetings.id (auto-increment PK)
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
-    this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
+    this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingDbId);
 
     const screenStorageDir = path.resolve(__dirname, '..', 'storage', 'screen-recordings');
-    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingId);
+    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingDbId);
 
     this.transcriptionService = this.createTranscriptionService();
 
@@ -67,7 +67,7 @@ class SocraticBot {
   // -------------------------
   async run() {
     try {
-      const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
+      const safeId = String(this.meetingDbId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
       
       const uniqueProfileDir = path.resolve(
         __dirname,

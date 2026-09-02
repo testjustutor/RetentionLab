@@ -1,5 +1,5 @@
 """
-services/engine/python_engine/assemblyai_engine.py
+services/engine/assemblyai_engine.py
 
 Transcription + speaker diarization via AssemblyAI. Mirrors the
 WhisperXEngine interface so it slots into pipeline.run_pipeline as an
