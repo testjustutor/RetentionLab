@@ -1,5 +1,5 @@
 """
-services/engine/assemblyai_engine/transcriber.py
+services/engine/transcriber.py
 
 Main entry point, mirrors WhisperXEngine.transcribe_and_diarize() so it's a
 drop-in alternative backend for services/engine/python_engine/pipeline.py.

@@ -38,6 +38,19 @@ if project_root not in sys.path:
         project_root
     )
 
+# IMPORTANT: remove this script's own directory (services/engine) from
+# sys.path. When engine_main.py is executed as a script (as the Node bridge
+# does), Python prepends the script's folder to sys.path. That folder contains
+# a package named `services` (services/engine/services) which SHADOWS the
+# project-root `services` package (root services/ has no __init__.py, so the
+# nested `services` folder is treated as a regular package and wins). Removing
+# the script dir guarantees `import services...` always resolves to the project
+# root, which is required for `services.engine.services.*` imports to work.
+try:
+    sys.path.remove(current_dir)
+except ValueError:
+    pass
+
 # ==========================================
 # IMPORTS
 # ==========================================

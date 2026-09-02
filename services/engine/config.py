@@ -1,5 +1,5 @@
 """
-services/engine/assemblyai_engine/config.py
+services/engine/config.py
 
 Central place to configure the AssemblyAI SDK. Reads ASSEMBLYAI_API_KEY from
 the environment (root .env).

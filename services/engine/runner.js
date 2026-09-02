@@ -1,11 +1,11 @@
 /**
- * services/engine/assemblyai_engine/runner.js
- * Node->Python bridge for the AssemblyAI engine (consolidated).
+ * services/engine/runner.js
+ * Node->Python bridge for the AssemblyAI main (consolidated into engine).
  */
 const { spawn } = require('child_process');
 const path = require('path');
 
-const PROJECT_ROOT = path.join(__dirname, '..', '..', '..');
+const PROJECT_ROOT = path.join(__dirname, '..', '..');
 
 function resolvePython() {
   if (process.env.PYTHON_EXECUTABLE) return process.env.PYTHON_EXECUTABLE;
@@ -15,7 +15,7 @@ function resolvePython() {
 function runAssemblyAIEngine(audioPath, opts = {}, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const optsJson = JSON.stringify(opts || {});
-    const args = ['-u', '-m', 'services.engine.assemblyai_engine.main', audioPath, optsJson];
+    const args = ['-u', '-m', 'services.engine.main', audioPath, optsJson];
 
     let stdout = '', stderr = '', settled = false, timer = null;
     const proc = spawn(resolvePython(), args, {

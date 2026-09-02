@@ -115,6 +115,30 @@ structure" + file-location headers at top of each file.
 - [x] Verified: compileall exit 0, engine_main (with all 5 registry tasks), all services refs,
       python_engine + assemblyai CLI mains, and Node runner shims all import/load cleanly.
 
+## Flatten services/engine/assemblyai_engine into engine root (this session)
+- [x] Moved `services/engine/assemblyai_engine/{client,config,main,runner,transcriber}.py`
+      into `services/engine/` root. assemblyai_engine sub-folder removed.
+- [x] `services/engine` now has exactly FOUR folders: orchestrator/, task/, services/, python_engine/
+      + root files: engine_main.py, __init__.py, main.py, client.py, config.py, transcriber.py, runner.js
+- [x] Updated engine root `__init__.py` to re-export transcribe_and_diarize + AssemblyAIClient
+- [x] Updated runtime module path in `services/engine/runner.js` -> `services.engine.main`
+      (+ fixed PROJECT_ROOT path), and `diarization_engine.py` import -> `services.engine.transcriber`
+- [x] Shim at `services/assemblyai_engine/runner.js` now forwards to `services/engine/runner`
+- [x] Verified: compileall exit 0; engine-root modules (`main`, `transcriber`, `client`),
+      re-exports, and both node runners load cleanly.
+
+## Fix: engine_main.py script-mode sys.path shadow (this session)
+- When Node bridge runs `python -u services/engine/engine_main.py` as a SCRIPT, Python prepends
+  the script's dir (`services/engine`) to sys.path.
+- Root `services/` has NO `__init__.py` (namespace package), while `services/engine/services/`
+  DOES, so `services/engine/services` was treated as a regular package and SHADOWED the root
+  `services` package -> `ModuleNotFoundError: No module named 'services.engine'`.
+- Fix: `engine_main.py` now removes `current_dir` (its own folder) from `sys.path` after
+  inserting `project_root`, so `import services...` always resolves to the project root.
+- Verified via real runs:
+  - `python test_ai_evaluation.py 3`  -> SUCCESS (Gemini LLM, persisted 94 indicators/76 scores)
+  - `node test-engine.js 3`           -> SUCCESS (exit 0, full pipeline, assets synced to DB)
+
 # TODO — Remove pyannote from the whole project
 
 ## Context

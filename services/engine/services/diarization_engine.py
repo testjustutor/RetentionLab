@@ -103,9 +103,9 @@ class DiarizationEngine:
     # ASSEMBLYAI DIARIZATION
     # ==========================================
     def _try_assemblyai(self, audio_path):
-        """Run diarization via services/engine/assemblyai_engine if it is importable."""
+        """Run diarization via services/engine/transcriber if it is importable."""
         try:
-            from services.engine.assemblyai_engine.transcriber import (
+            from services.engine.transcriber import (
                 transcribe_and_diarize,
             )
 

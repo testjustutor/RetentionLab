@@ -1,5 +1,5 @@
 """
-services/engine/assemblyai_engine/client.py
+services/engine/client.py
 
 Thin, reusable wrapper around aai.Transcriber so callers never touch the
 raw SDK object directly.

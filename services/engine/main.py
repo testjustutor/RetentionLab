@@ -1,11 +1,11 @@
 """
-services/engine/assemblyai_engine/main.py
+services/engine/main.py
 
 Standalone CLI entry, mirrors services/engine/python_engine/main.py's contract
 so runner.js / other outer pages can call it the same way.
 
 Usage:
-    python -m services.engine.assemblyai_engine.main <audio_path> [opts_json] [--output out.json]
+    python -m services.engine.main <audio_path> [opts_json] [--output out.json]
 """
 from __future__ import annotations
 import argparse
