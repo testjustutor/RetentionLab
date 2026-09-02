@@ -57,36 +57,6 @@ def run_transcription_task(context):
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : Whisper output cached", "TASK")
 
-        JsonStore.save(
-            os.path.join(
-                context.storage_paths[
-                    "cache_chat_logs"
-                ],
-                f"CHAT_{context.base_id}.json"
-            ),
-            {
-                "messages": [],
-                "source": "offline_test_engine",
-                "status": "not_captured",
-                "reason": "node test-engine.js processes a recording file and does not join a live meeting chat."
-            }
-        )
-
-        JsonStore.save(
-            os.path.join(
-                context.storage_paths[
-                    "cache_screenshots"
-                ],
-                f"SCREENSHOTS_{context.base_id}.json"
-            ),
-            {
-                "screenshots": [],
-                "source": "offline_test_engine",
-                "status": "not_captured",
-                "reason": "node test-engine.js does not open a browser session, so no screenshots are produced."
-            }
-        )
-
         context.mark_task_completed(
             "transcription"
         )

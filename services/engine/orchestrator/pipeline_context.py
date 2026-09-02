@@ -293,31 +293,6 @@ class PipelineContext:
                 "cache_whisper"
             ),
 
-            "cache_voice_activity": os.path.join(
-                storage_base,
-                "cache_voice_activity"
-            ),
-
-            "cache_diarization": os.path.join(
-                storage_base,
-                "cache_diarization"
-            ),
-
-            "cache_captions_raw": os.path.join(
-                storage_base,
-                "cache_captions_raw"
-            ),
-
-            "cache_chat_logs": os.path.join(
-                storage_base,
-                "cache_chat_logs"
-            ),
-
-            "cache_screenshots": os.path.join(
-                storage_base,
-                "cache_screenshots"
-            ),
-
             "cache_audio_transcripts": os.path.join(
                 storage_base,
                 "cache_audio_transcripts"
