@@ -1,7 +1,7 @@
 /**
- * Decisions Insights Page
- * Displays dynamic decisions and recommendations from session evaluations
+ * public/js/admin/insights/decisions.js
  */
+
 let decisionsData = null;
 let dateFilter = null;
 let typeFilter = null;

@@ -1,7 +1,7 @@
 /**
- * root/public/js/admin/dashboard.js
+ * public/js/admin/dashboard.js
  */
-// Dashboard helpers
+
 const DashboardAPI = {
   base: '/dashboard',
   async getCounts() {

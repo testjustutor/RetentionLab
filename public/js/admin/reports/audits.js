@@ -1,4 +1,8 @@
-﻿let allAudits = [];
+﻿/**
+ * public/js/admin/reports/audits.js
+ */
+
+let allAudits = [];
 let stats = {};
 let passChart = null, catChart = null;
 let instructorFilter = null;
@@ -217,4 +221,3 @@ function exportCsv() {
 
 function formatDate(d) { if (!d) return 'N/A'; return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); }
 function escapeHtml(s) { if (!s) return ''; const div = document.createElement('div'); div.textContent = String(s); return div.innerHTML; }
-

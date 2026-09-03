@@ -1,3 +1,7 @@
+/**
+ * public/js/reviewer/sessions.js
+ */
+
 let currentFilter = 'all';
 let sessionsData = [];
 let selectedInstructorId = null;

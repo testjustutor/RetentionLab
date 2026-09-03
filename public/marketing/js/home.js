@@ -1,22 +1,6 @@
 /**
- * RetentionLab - Homepage JavaScript
- * ===================================
- * 
- * Dynamic content rendering with Replit-inspired animations
- * and interactive effects.
- * 
- * Sections:
- * 1. Metrics - Animated counters with hover effects
- * 2. Features - Interactive cards with 3D transforms
- * 3. Services - Detailed service cards
- * 4. Pricing - Animated pricing tables
- * 5. Testimonials - Auto-rotating carousel
- * 6. FAQ - Smooth accordion with animations
+ * public/marketing/js/home.js
  */
-
-// ==========================================
-// STATE MANAGEMENT
-// ==========================================
 
 let activeTestimonialIndex = 0;
 let testimonialInterval = null;

@@ -1,13 +1,6 @@
 /**
- * root/public/js/header.js
- * 
- * Merged header utilities:
- *  - Header config API
- *  - Header controller
- *  - Header role common (profile dropdown, logout)
+ * public/js/header.js
  */
-
-// ========== HEADER CONFIG API ==========
 
 const BASE = '/api/header-config';
 

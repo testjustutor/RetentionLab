@@ -1,6 +1,5 @@
 /**
- * root/public/js/super_admin/settings/header-management.js
- * Header Page Config Management - CRUD operations
+ * public/js/super_admin/settings/header-management.js
  */
 
 document.addEventListener('DOMContentLoaded', () => {

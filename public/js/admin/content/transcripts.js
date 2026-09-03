@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/content/transcripts.js
+ */
+
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
 var allTranscripts = [];
 var transcriptsTable = null;

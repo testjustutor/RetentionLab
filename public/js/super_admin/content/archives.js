@@ -1,5 +1,5 @@
 /**
- * root/public/js/super_admin/archives.js
+ * public/js/super_admin/content/archives.js
  */
 
 let meetingsData = [];

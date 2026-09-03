@@ -1,4 +1,7 @@
-// Super Admin - Google OAuth Credentials Management
+/**
+ * public/js/super_admin/integrations/google-credentials.js
+ */
+
 let allCredentials = [];
 
 async function loadCredentials() {

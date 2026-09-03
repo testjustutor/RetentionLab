@@ -1,8 +1,7 @@
 ﻿/**
- * Evaluation Reports dashboard (admin).
- * Light theme + scrollable tables; filter bar (From/To + Active + Instructor + Get Data).
- * No Chart.js - score trends render as a lightweight table.
+ * public/js/admin/reports/evaluations.js
  */
+
 let allScores = [];
 let allMeetings = [];
 let dateFilter = null;
@@ -266,4 +265,3 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
-

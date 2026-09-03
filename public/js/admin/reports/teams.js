@@ -1,8 +1,7 @@
 ﻿/**
- * Team Performance Report (admin).
- * Fetches server-side team aggregation from /api/admin/reports/teams/summary
- * with date + instructor filters. Renders a column/bar chart + team cards.
+ * public/js/admin/reports/teams.js
  */
+
 let teams = [];
 let teamStats = {};
 let dateFilter = null;
@@ -199,4 +198,3 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
-

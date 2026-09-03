@@ -1,12 +1,6 @@
 /**
- * root/public/js/sidebar.js
- * 
- * Merged sidebar utilities:
- *  - Sidebar controller
- *  - Sidebar config
+ * public/js/sidebar/sidebar.js
  */
-
-// ========== SIDEBAR CONFIG ==========
 
 const sidebarConfig = {
   version: '1.0',

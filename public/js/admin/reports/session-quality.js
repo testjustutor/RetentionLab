@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/reports/session-quality.js
+ */
+
 let currentMeetingId = new URLSearchParams(window.location.search).get('meeting_id');
 const reportSections = [
   { id: 'rubric', title: 'Rubric-Based Evaluation' },

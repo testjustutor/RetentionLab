@@ -1,14 +1,6 @@
 /**
- * root/public/js/auth.js
- * 
- * Merged auth utilities:
- *  - Auth API wrapper
- *  - User profile cache (sessionStorage)
- *  - Auth guard functions
- *  - User profile API with retry logic
+ * public/js/auth.js
  */
-
-// ========== USER PROFILE CACHE ==========
 
 const USER_CACHE_KEY = 'rl_user_profile';
 

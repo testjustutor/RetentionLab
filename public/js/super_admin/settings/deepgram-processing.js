@@ -1,9 +1,7 @@
 /**
  * public/js/super_admin/settings/deepgram-processing.js
- *
- * SEPARATE Deepgram pipeline page (parallel to video-processing).
- * API base: /api/super_admin/settings/deepgram-processing
  */
+
 const API_BASE = '/api/super_admin/settings/deepgram-processing';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -207,5 +205,4 @@ function closeTranscriptModal() {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-
 

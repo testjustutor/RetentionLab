@@ -1,6 +1,7 @@
 /**
- * root/public/js/super_admin/audit.js
+ * public/js/super_admin/monitoring/audit.js
  */
+
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('auditSearchInput');
     const levelSelect = document.getElementById('auditLevelSelect');

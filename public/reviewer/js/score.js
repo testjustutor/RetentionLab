@@ -1,6 +1,5 @@
 /**
  * public/reviewer/js/score.js
- * Frontend JS for the review scores page.
  */
 
 const saveStatusEl = document.getElementById('saveStatus');

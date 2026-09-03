@@ -1,10 +1,7 @@
 /**
- * public/js/common-ui.js
- * Shared UI utilities: modal open/close, toast notifications, escape-html.
- * Include this after tailwind in HTML pages that need modals/toasts.
+ * public/js/common-ui-super-admin.js
  */
 
-// ── Toast ──
 function showToast(msg, isErr) {
   let toast = document.getElementById('commonToast');
   if (!toast) {

@@ -1,7 +1,5 @@
 /**
- * Parent Summary Page
- * Plain-language version for parent-facing view
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/parent-summary.js
  */
 
 (async () => {

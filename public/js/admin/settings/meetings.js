@@ -1,8 +1,7 @@
 ﻿/**
- * Admin Settings - Meetings Page
- * Loads + saves meeting settings and shows meeting stats from the DB
- * via GET/PUT /api/admin/settings/meetings (route > controller > model > db).
+ * public/js/admin/settings/meetings.js
  */
+
 (async () => {
   await loadMeetings();
   bindSave();

@@ -1,6 +1,5 @@
 /**
- * Session Quality Dashboard
- * Professional overview with secure data handling, low-score alerts, and filtered views
+ * public/js/admin/session-quality/index.js
  */
 
 let scoreChart = null;

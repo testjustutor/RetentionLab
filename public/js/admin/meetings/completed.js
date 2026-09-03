@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/meetings/completed.js
+ */
+
 var COL = ['violet','emerald','amber','rose','sky'];
 var PLAT = { 'google-meet':'Google Meet', 'zoom':'Zoom', 'teams':'Teams' };
 

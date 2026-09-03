@@ -1,7 +1,5 @@
 /**
- * Final Evaluation Page
- * Displays aggregated ratings and QA team narrative summary
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/final-eval.js
  */
 
 (async () => {

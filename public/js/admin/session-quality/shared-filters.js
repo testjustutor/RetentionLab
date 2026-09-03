@@ -1,15 +1,5 @@
 /**
- * shared-filters.js
- * Cascading filter bar for session quality report pages.
- *
- * Filter dependency flow:
- *  1. Instructor (independent) + Board (independent) - both load on page load
- *  2. When Instructor selected → Board reloads with instructor_id, Meeting loads with instructor_id
- *  3. When Board selected → Class loads with instructor_id + board
- *  4. When Class selected → Subject loads with instructor_id + board + class
- *  5. When Subject selected → Meeting reloads with all filters
- *  6. When Meeting selected → Session loads with meeting_internal_id
- *  7. Get Data button enables when a meeting is selected (with or without other filters)
+ * public/js/admin/session-quality/shared-filters.js
  */
 
 const SessionQualityFilters = (() => {

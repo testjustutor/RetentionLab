@@ -1,9 +1,7 @@
 /**
- * root/public/js/super_admin/monitoring/server.js
- * Enhanced server monitoring with live charts and real system metrics
+ * public/js/super_admin/monitoring/server.js
  */
 
-// ─── Chart Data Buffers ───────────────────────────────────────────────────────
 const MAX_DATA_POINTS = 30; // Keep last 30 data points
 let cpuHistory = [];
 let memHistory = [];

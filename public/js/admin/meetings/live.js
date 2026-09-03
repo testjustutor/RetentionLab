@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/meetings/live.js
+ */
+
 window._liveMeetingData = {};
 
 async function startBot(btn, statusId, m) {

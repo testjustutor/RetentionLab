@@ -1,4 +1,7 @@
-﻿// Video Processing Page JS - Super Admin Settings
+﻿/**
+ * public/js/super_admin/settings/video-processing.js
+ */
+
 document.addEventListener('DOMContentLoaded', () => {
   const videosTableBody = document.getElementById('videosTableBody');
   const convertModal = document.getElementById('convertModal');

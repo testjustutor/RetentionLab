@@ -1,6 +1,7 @@
 /**
- * root/public/js/instructor/dashboard.js
+ * public/js/instructor/dashboard.js
  */
+
 (function () {
   const API_BASE = '/api/instructor-dashboard';
 

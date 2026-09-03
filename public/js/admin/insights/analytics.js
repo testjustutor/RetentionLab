@@ -1,7 +1,7 @@
 /**
- * Analytics Insights Page
- * Displays dynamic analytics from session quality and meeting data
+ * public/js/admin/insights/analytics.js
  */
+
 let dateFilter = null;
 
 (async () => {

@@ -1,8 +1,5 @@
 /**
- * root/public/js/sidebar-config-editor.js
- *
- * Provides a simple editor for the sidebar JSON stored in header_role_configs.nav_json.
- * This is intentionally minimal: load/save JSON for a selected role.
+ * public/js/sidebar/sidebar-config-editor.js
  */
 
 async function api(path, opts = {}) {

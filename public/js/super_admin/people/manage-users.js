@@ -1,10 +1,5 @@
 /**
- * root/public/js/super_admin/people/manage-users.js
- * User Directory - Super Admin
- *
- * Flow: HTML -> JS -> Routes(super_admin/people/manage-users) -> Controller ->
- *       Model(ManageUsersModel) -> DB
- * Table uses the centralized createTable (from common-ui-super-admin.js).
+ * public/js/super_admin/people/manage-users.js
  */
 
 let allUsers = [];
@@ -376,4 +371,3 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-

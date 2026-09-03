@@ -1,6 +1,5 @@
 ﻿/**
  * public/js/super_admin/dashboard/index.js
- * Super Admin Dashboard - Real-time platform intelligence
  */
 
 let meetingTrendsChartInstance = null;
@@ -308,6 +307,5 @@ document.addEventListener('change', (e) => {
     refreshDashboard();
   }
 });
-
 
 

@@ -1,6 +1,5 @@
 /**
- * Admin Profile Page
- * Handles profile viewing, editing, and password changes
+ * public/js/admin/profile.js
  */
 
 let currentUser = null;

@@ -1,7 +1,5 @@
 /**
- * Better Alternatives Page
- * Displays situation, current approach, better alternative, and purpose table
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/better-alternatives.js
  */
 
 (async () => {

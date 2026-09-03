@@ -1,7 +1,7 @@
 ﻿/**
- * Risks Insights Page
- * Displays dynamic risks and issues from session quality flags and low scores
+ * public/js/admin/insights/risks.js
  */
+
 let risksData = null;
 let dateFilter = null;
 let severityFilter = null;

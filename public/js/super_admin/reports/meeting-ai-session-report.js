@@ -1,8 +1,7 @@
 /**
  * public/js/super_admin/reports/meeting-ai-session-report.js
- * Displays the full AI-generated audit data for one session (ai_audit_results rows
- * plus meeting/session context). Reads session_id from the URL query string.
  */
+
 (function () {
   const params = new URLSearchParams(window.location.search);
   const sessionId = params.get('session_id');

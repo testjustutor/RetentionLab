@@ -1,9 +1,7 @@
 /**
- * Admin Settings - Integrations Page
- * Loads dynamic calendar provider status + per-provider connected accounts
- * via /api/calendar-integrations/* (route > controller > model > db).
- * Uses shared common-ui.js helpers (escHtml, showToast) + createTable.
+ * public/js/admin/settings/integrations.js
  */
+
 (function () {
   'use strict';
 
@@ -269,6 +267,5 @@
     loadIntegrations();
   });
 })();
-
 
 

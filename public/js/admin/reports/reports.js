@@ -1,6 +1,5 @@
 /**
- * Reports Dashboard JS
- * Loads summary stats for the reports landing page
+ * public/js/admin/reports/reports.js
  */
 
 (async () => {

@@ -1,17 +1,5 @@
 /**
- * root/public/js/page-metadata.js
-*/
-/**
- * page-metadata.js
- *
- * Reads standardized page metadata from <meta> tags.
- *
- * Contract (per page HTML):
- *  <meta name="dashboard-role" content="super_admin">
- *  <meta name="dashboard-page" content="dashboard">
- *
- * Output:
- *  { roleKey: string|null, pageId: string }
+ * public/js/sidebar/page-metadata.js
  */
 
 function getMeta(name) {
@@ -27,4 +15,3 @@ export function readPageMetadata() {
 
   return { roleKey, pageId };
 }
-

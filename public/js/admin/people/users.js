@@ -1,5 +1,7 @@
+/**
+ * public/js/admin/people/users.js
+ */
 
-// ── State ──
 let allUsers = [];
 let editingUserId = null;
 let currentUserId = null;

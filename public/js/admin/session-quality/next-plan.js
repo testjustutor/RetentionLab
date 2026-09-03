@@ -1,7 +1,5 @@
 /**
- * Next Session Plan Page
- * Displays time-blocked plan with priority focus and gaps to address
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/next-plan.js
  */
 
 (async () => {

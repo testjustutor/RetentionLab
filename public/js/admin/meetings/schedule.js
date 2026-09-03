@@ -1,4 +1,7 @@
-// ── Filter Helpers ──
+/**
+ * public/js/admin/meetings/schedule.js
+ */
+
 function getDateFilterParams() {
   // For Get Data: From Date, To Date, Instructor
   const fromDate = document.getElementById('filterFromDate')?.value || '';

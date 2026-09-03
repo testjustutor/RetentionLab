@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/meetings/calendar.js
+ */
+
 var COLORS = {};
 var LABELS = {};
 var allConnections = [];

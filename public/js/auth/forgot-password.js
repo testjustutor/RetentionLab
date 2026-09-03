@@ -1,6 +1,7 @@
 /**
- * root/public/js/auth/forgot-password.js
+ * public/js/auth/forgot-password.js
  */
+
 import AuthAPI from '../auth.js';
 
 const form = document.getElementById('forgotPasswordForm');

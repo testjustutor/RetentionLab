@@ -1,4 +1,7 @@
-// Fetch dashboard stats
+/**
+ * public/js/reviewer/dashboard.js
+ */
+
 async function loadDashboardData() {
   try {
     const res = await fetch('/api/reviewer-dashboard/stats', {

@@ -1,26 +1,7 @@
 /**
- * RetentionLab - Common Marketing Utilities
- * ==========================================
- * 
- * Shared utilities used across all marketing pages.
- * 
- * Features:
- * - Lucide icon initialization
- * - Smooth scroll for anchor links
- * - Common UI helpers
- * 
- * Usage:
- * Include this file on any marketing page that needs
- * common functionality.
+ * public/marketing/js/common.js
  */
 
-// ==========================================
-// INITIALIZATION
-// ==========================================
-
-/**
- * Initialize common functionality when DOM is ready
- */
 document.addEventListener("DOMContentLoaded", () => {
   initializeLucideIcons();
   setupSmoothScroll();

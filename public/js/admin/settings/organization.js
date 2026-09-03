@@ -1,8 +1,7 @@
 /**
- * Admin Settings - Organization Page
- * Loads company profile + org stats + departments dynamically from the DB
- * via GET/PUT /api/admin/settings/organization (route > controller > model > db).
+ * public/js/admin/settings/organization.js
  */
+
 let orgData = null;
 
 (async () => {

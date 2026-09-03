@@ -1,6 +1,5 @@
 /**
- * Admin Dashboard
- * Loads dashboard statistics and renders charts
+ * public/js/admin/index.js
  */
 
 let dashboardData = null;

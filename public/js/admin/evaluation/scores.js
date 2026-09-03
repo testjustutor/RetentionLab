@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/evaluation/scores.js
+ */
+
 let allCategories = [];
 let currentFilter = '';
 let filterState = {
@@ -329,4 +333,3 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
-

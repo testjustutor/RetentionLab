@@ -1,6 +1,5 @@
 /**
- * root/public/js/super_admin/configuration/platforms.js
- * Platforms Configuration - Dynamically loaded from database
+ * public/js/super_admin/settings/platforms.js
  */
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -1,23 +1,6 @@
 /**
- * RetentionLab - Marketing Site Data
- * ===================================
- * 
- * Comprehensive content data for the marketing homepage.
- * All data is exposed as window globals for easy access.
- * 
- * Data Structure:
- * - SERVICES: Detailed service offerings (6 items)
- * - ACHIEVEMENTS: Key metrics and statistics (8 items)
- * - TESTIMONIALS: Customer reviews (5 items)
- * - FEATURES: Platform capabilities (8 items)
- * - FAQS: Frequently asked questions (8 items)
- * - PLANS: Pricing plans (3 tiers)
- * - STATS: Additional statistics (4 items)
+ * public/marketing/data.js
  */
-
-// ==========================================
-// SERVICES / CAPABILITIES
-// ==========================================
 
 const SERVICES = [
   {

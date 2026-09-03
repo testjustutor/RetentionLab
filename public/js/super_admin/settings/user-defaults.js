@@ -1,7 +1,5 @@
 /**
- * root/public/js/super_admin/settings/user-defaults.js
- * User Defaults - Super Admin
- * Configure default settings applied to newly created users.
+ * public/js/super_admin/settings/user-defaults.js
  */
 
 let allRoles = [];
@@ -312,4 +310,3 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-

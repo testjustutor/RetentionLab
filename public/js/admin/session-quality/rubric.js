@@ -1,7 +1,5 @@
 /**
- * Rubric Evaluation Page
- * Displays full scored rubric table with domain groupings, criteria, ratings, and evidence
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/rubric.js
  */
 
 (async () => {

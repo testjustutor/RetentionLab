@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/people/roles.js
+ */
+
 let allRoleData = [];
 const COLORS = { reviewer: 'violet', instructor: 'emerald', admin: 'blue', super_admin: 'purple' };
 

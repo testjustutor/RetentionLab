@@ -1,4 +1,7 @@
-// Tailwind config for super admin pages (dark theme)
+/**
+ * public/js/super_admin/tailwind-config.js
+ */
+
 tailwind.config = {
   darkMode: 'class',
   theme: {

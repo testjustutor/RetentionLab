@@ -1,7 +1,5 @@
 /**
- * Quality Flags Page
- * Displays flagged issues with severity, evidence, and recommended fixes
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/flags.js
  */
 
 (async () => {

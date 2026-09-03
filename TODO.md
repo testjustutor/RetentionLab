@@ -209,3 +209,8 @@ no whisperx-pyannote diarization).
 - [x] Fix footers (`Â©` → `©`, `â€”` → `—`)
 - [x] Fix body text punctuation
 - [x] Verify: 0 mojibake hits in all `public/**/*.html`
+# TODO � Add file-location banner to public JS files (this session)
+
+- [x] Add `/** * public/... */` banner to all 101 JS files under public/
+- [x] Replace existing top comment headers so banner is the only top comment
+- [x] Verify banner present at top of every public JS file

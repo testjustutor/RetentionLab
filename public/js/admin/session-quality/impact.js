@@ -1,7 +1,5 @@
 /**
- * Learning Impact Page
- * Displays impact areas with evidence and learning level assessment
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/impact.js
  */
 
 (async () => {

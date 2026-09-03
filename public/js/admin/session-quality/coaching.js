@@ -1,7 +1,5 @@
 /**
- * Coaching Feedback Page
- * Displays strengths and areas to improve for tutor/coach audience
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/coaching.js
  */
 
 (async () => {

@@ -1,7 +1,7 @@
 /**
- * Engagement Insights Page
- * Displays dynamic engagement metrics from session quality data
+ * public/js/admin/insights/engagement.js
  */
+
 let engagementData = null;
 let dateFilter = null;
 let instructorFilter = null;

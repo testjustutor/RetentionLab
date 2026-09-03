@@ -1,6 +1,7 @@
 /**
- * root/public/js/auth/login.js
+ * public/js/auth/login.js
  */
+
 import AuthAPI from '../auth.js';
 import { setCachedUser, getCachedUser, clearCachedUser } from '../user-profile-cache.js';
 

@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/evaluation/performance.js
+ */
+
 let allUsers = [];
 let allInstructors = [];
 let allMeetings = [];
@@ -353,5 +357,4 @@ function escapeHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
-
 

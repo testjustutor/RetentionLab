@@ -1,4 +1,8 @@
-﻿let allMeetings = [];
+﻿/**
+ * public/js/admin/reports/meetings.js
+ */
+
+let allMeetings = [];
 let dateFilter = null;
 let instructorFilter = null;
 

@@ -1,8 +1,7 @@
 /**
- * Admin Settings - Notifications Page
- * Loads + saves notification preferences (role x channel) from the DB
- * via GET/PUT /api/admin/settings/notifications (route > controller > model > db).
+ * public/js/admin/settings/notifications.js
  */
+
 const ROLES = [
   { key: 'admin', label: 'Admin' },
   { key: 'instructor', label: 'Instructor' },
@@ -117,5 +116,4 @@ async function saveNotifications() {
 }
 
 function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = (v == null ? '-' : v); }
-
 

@@ -1,5 +1,6 @@
-// RetentionLab - Tailwind CSS Configuration
-// Replit-inspired dark theme with orange accent colors
+/**
+ * public/marketing/js/tailwind-config.js
+ */
 
 window.tailwind = window.tailwind || {};
 window.tailwind.config = {

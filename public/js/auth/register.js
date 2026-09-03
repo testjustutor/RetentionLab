@@ -1,6 +1,7 @@
 /**
- * root/public/js/auth/register.js
+ * public/js/auth/register.js
  */
+
 import AuthAPI from '../auth.js';
 
 const form = document.getElementById('registerForm');

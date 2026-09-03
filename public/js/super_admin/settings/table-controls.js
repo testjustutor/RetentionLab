@@ -1,8 +1,7 @@
 /**
  * public/js/super_admin/settings/table-controls.js
- * Super admin management of per-table controls
- * (Search, Entries per page, "Showing X-Y of Z", Pagination).
  */
+
 const KNOWN_TABLES = [
   { id: 'transcriptsContainer', label: 'Transcripts' },
   { id: 'recordingsContainer', label: 'Recordings' },

@@ -1,9 +1,7 @@
 /**
  * public/js/super_admin/reports/meeting-ai-evaluation-report.js
- * Super Admin Meeting AI Evaluation report dashboard.
- * Filters: From/To date + Instructor - lists every meeting session with an AI report link.
- * Light theme + scrollable table; no Chart.js dependency.
  */
+
 let allRecords = [];
 let dateFilter = null;
 let instructorFilter = null;

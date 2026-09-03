@@ -1,7 +1,5 @@
 /**
- * Session Analysis Page
- * Displays what worked well, needs improvement, and missed opportunities
- * Uses cascading filters for instructor, board, class, subject, and meeting selection.
+ * public/js/admin/session-quality/analysis.js
  */
 
 (async () => {

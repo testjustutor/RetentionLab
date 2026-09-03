@@ -1,7 +1,7 @@
 /**
- * Action Items Insights Page
- * Displays dynamic action items from coaching feedback and better alternatives
+ * public/js/admin/insights/actions.js
  */
+
 let actionsData = null;
 let dateFilter = null;
 let statusFilter = null;
