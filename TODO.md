@@ -151,6 +151,15 @@ structure" + file-location headers at top of each file.
       `python -m compileall services/engine` exit 0; engine_main + 5 registry tasks still work.
       (Note: `services/socraticbot.js` diff is a pre-existing user change, intentionally left alone.)
 
+## Fix: meeting_assets.audit_completed_at not stored (this session)
+- `services/shared/pythonBridge.js` line ~260 had `audit_completed_at : timestamp,` where `timestamp`
+  was an UNDEFINED variable -> the field silently stored NULL in meeting_assets.
+- Fix: `audit_completed_at: new Date()` (mysql2 converts the JS Date to a MySQL DATETIME).
+- Verified end-to-end with `node test-engine.js 4`: meeting_assets row for meeting 2/session 4 now
+  stores `oqi_score="66.67"` AND `audit_completed_at="2026-09-02T11:44:32.000Z"` (was NULL before).
+- `node --check services/shared/pythonBridge.js` passes.
+- (Note: models/meetings/assets/meetingAssetModel.js diff is a pre-existing user change, left alone.)
+
 ## Fix: engine_main.py script-mode sys.path shadow (this session)
 - When Node bridge runs `python -u services/engine/engine_main.py` as a SCRIPT, Python prepends
   the script's dir (`services/engine`) to sys.path.

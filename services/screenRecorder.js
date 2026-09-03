@@ -65,7 +65,7 @@ class ScreenRecorder {
       const msg = data.toString();
       const lines = msg.split(/\r?\n/);
 
-      logger.info(`DefaultAdapter(screenRecorder): FFMPEG: ${data.toString()}`);
+      // logger.info(`DefaultAdapter(screenRecorder): FFMPEG: ${data.toString()}`);
 
       lines.forEach((rawLine) => {
         const line = rawLine.trim();
