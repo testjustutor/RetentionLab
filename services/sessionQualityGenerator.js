@@ -327,13 +327,8 @@ function computeRubricSummary(evaluations, rubricRows) {
     categoryWeights[row.category_id] = row.category_weight;
   }
 
-  // Rating to numeric score mapping
-  const ratingScores = { 'Met': 1.0, 'Partial': 0.5, 'Not met': 0.0, 'N/A': null };
-
-  // Group evaluations by category
-  const categoryScores = {};
-  let totalWeightedScore = 0;
-  let totalWeight = 0;
+  // Group evaluations by category (count-based per category)
+  const categoryCounts = {};
   let allGatesPassed = true;
   let gateResults = [];
 
@@ -344,22 +339,24 @@ function computeRubricSummary(evaluations, rubricRows) {
       continue;
     }
 
-    const score = ratingScores[ev.rating];
-    if (score === null) continue; // Skip N/A
-
     const catId = meta.category_id;
-    if (!categoryScores[catId]) {
-      categoryScores[catId] = { totalScore: 0, totalWeight: 0, gatesPassed: true };
+    if (!categoryCounts[catId]) {
+      categoryCounts[catId] = { total: 0, met: 0, partial: 0, n_a: 0, gatesPassed: true };
     }
+    const cat = categoryCounts[catId];
+    cat.total += 1;
 
-    categoryScores[catId].totalScore += score * meta.indicator_weight;
-    categoryScores[catId].totalWeight += meta.indicator_weight;
+    // Count-based: Met = full credit, Partial = 0.5, Not met = 0, N/A = excluded
+    if (ev.rating === 'Met') cat.met += 1;
+    else if (ev.rating === 'Partial') cat.partial += 1;
+    else if (ev.rating === 'N/A') cat.n_a += 1;
+    // 'Not met' -> no credit
 
     // Check gate indicators
     if (meta.is_gate) {
       const gatePassed = ev.rating === 'Met';
       if (!gatePassed) {
-        categoryScores[catId].gatesPassed = false;
+        cat.gatesPassed = false;
         allGatesPassed = false;
         gateResults.push({ indicator: ev.indicator_id, passed: false, rating: ev.rating });
       } else {
@@ -368,18 +365,23 @@ function computeRubricSummary(evaluations, rubricRows) {
     }
   }
 
-  // Compute weighted score across categories
-  for (const [catId, data] of Object.entries(categoryScores)) {
-    const catWeight = categoryWeights[catId] || 0;
-    if (data.totalWeight > 0) {
-      const catPct = data.totalScore / data.totalWeight; // 0..1
-      totalWeightedScore += catPct * catWeight;
-      totalWeight += catWeight;
-    }
+  // Per-category %: (Met + 0.5*Partial) / (total - N/A) x100; all-N/A -> 100%
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+  for (const [catId, data] of Object.entries(categoryCounts)) {
+    const catWeight = Number(categoryWeights[catId]) || 0;
+    const eligible = data.total - data.n_a;
+    let catPct;
+    if (data.total > 0 && data.n_a === data.total) catPct = 100; // all N/A
+    else if (eligible > 0) catPct = Math.round(((data.met + 0.5 * data.partial) / eligible) * 10000) / 100;
+    else catPct = 0;
+
+    totalWeightedScore += catPct * catWeight;
+    totalWeight += catWeight;
   }
 
   const weightedScorePct = totalWeight > 0
-    ? Math.round((totalWeightedScore / totalWeight) * 10000) / 100
+    ? Math.round((totalWeightedScore / totalWeight) * 100) / 100
     : 0;
 
   // Gate status
@@ -392,7 +394,7 @@ function computeRubricSummary(evaluations, rubricRows) {
   else if (weightedScorePct >= 40) overallRating = 'Developing';
   else overallRating = 'Needs Improvement';
 
-  const confidenceLevel = 'Medium â€” transcript-based; video/audio not available';
+  const confidenceLevel = 'Medium — transcript-based; video/audio not available';
 
   return {
     weighted_score_pct: weightedScorePct,

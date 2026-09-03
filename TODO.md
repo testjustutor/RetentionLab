@@ -221,3 +221,12 @@ no whisperx-pyannote diarization).
 - [x] PY with `#` header or no header -> `# services/...` line comment
 - [x] PY with `"""` docstring -> keep docstring, correct the path inside it
 - [x] Verify every services `.js`/`.py` file has correct location at top (0 syntax fails; no `root/` left)
+
+- [x] Verify every services `.js`/`.py` file has correct location at top (0 syntax fails; no `root/` left)
+
+# TODO — Implement review_calculation_logic.txt in current project (this session)
+## Scorer alignment: per-category = (Met + 0.5*Partial)/(total - N/A) x100; all-N/A -> 100%; overall = weighted avg by category weight
+- [x] `services/engine/services/tutor_eval_worker.py` `_compute_percentages()` — count partial (0.5 credit); all-N/A -> 100%
+- [x] `services/sessionQualityGenerator.js` `computeRubricSummary()` — count-based formula + category-weight overall
+- [x] `database/seeders/011_session_quality.js` — same formula (dev consistency)
+- [x] Verify: node --check, py_compile, sample-run scoring

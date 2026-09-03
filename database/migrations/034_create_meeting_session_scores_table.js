@@ -17,7 +17,7 @@ const up = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       meeting_id INT NOT NULL,
       session_id INT NOT NULL,
-      indicator_id INT NULL,
+      indicator_id INT NOT NULL,
       reviewer_id INT NULL,
       score DECIMAL(5,2) NULL,
       score_type VARCHAR(50) DEFAULT 'AI',

@@ -384,42 +384,46 @@ async function computeSummary(sessionId) {
     });
   });
 
-  const ratingScores = { 'Met': 1.0, 'Partial': 0.5, 'Not met': 0.0, 'N/A': null };
-  const categoryScores = {};
+  const categoryCounts = {};
   const categoryWeights = {};
   let allGatesPassed = true;
 
   for (const row of rows) {
     const catId = row.category_id;
     categoryWeights[catId] = row.category_weight;
-    if (!categoryScores[catId]) {
-      categoryScores[catId] = { totalScore: 0, totalWeight: 0, gatesPassed: true };
+    if (!categoryCounts[catId]) {
+      categoryCounts[catId] = { total: 0, met: 0, partial: 0, n_a: 0, gatesPassed: true };
     }
+    const cat = categoryCounts[catId];
+    cat.total += 1;
 
-    const score = ratingScores[row.rating];
-    if (score !== null) {
-      categoryScores[catId].totalScore += score * (row.indicator_weight || 1);
-      categoryScores[catId].totalWeight += (row.indicator_weight || 1);
-    }
+    // Count-based: Met = full credit, Partial = 0.5, Not met = 0, N/A = excluded
+    if (row.rating === 'Met') cat.met += 1;
+    else if (row.rating === 'Partial') cat.partial += 1;
+    else if (row.rating === 'N/A') cat.n_a += 1;
 
     if (row.is_gate && row.rating !== 'Met') {
-      categoryScores[catId].gatesPassed = false;
+      cat.gatesPassed = false;
       allGatesPassed = false;
     }
   }
 
   let totalWeightedScore = 0;
   let totalWeight = 0;
-  for (const [catId, data] of Object.entries(categoryScores)) {
-    const catWeight = categoryWeights[catId] || 0;
-    if (data.totalWeight > 0) {
-      totalWeightedScore += (data.totalScore / data.totalWeight) * catWeight;
-      totalWeight += catWeight;
-    }
+  for (const [catId, data] of Object.entries(categoryCounts)) {
+    const catWeight = Number(categoryWeights[catId]) || 0;
+    const eligible = data.total - data.n_a;
+    let catPct;
+    if (data.total > 0 && data.n_a === data.total) catPct = 100; // all N/A
+    else if (eligible > 0) catPct = Math.round(((data.met + 0.5 * data.partial) / eligible) * 10000) / 100;
+    else catPct = 0;
+
+    totalWeightedScore += catPct * catWeight;
+    totalWeight += catWeight;
   }
 
   const weightedScorePct = totalWeight > 0
-    ? Math.round((totalWeightedScore / totalWeight) * 10000) / 100
+    ? Math.round((totalWeightedScore / totalWeight) * 100) / 100
     : 0;
 
   let overallRating;

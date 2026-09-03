@@ -220,8 +220,9 @@ class TutorEvaluationService:
     # ==========================================================
     def _compute_percentages(self, raw_rubric, parsed):
         """
-        category_percentage = Met / (total - Not Applicable) * 100
-        overall = weighted by category weight, else simple average.
+        Category percentage = (Met + 0.5 x Partial) / (total - Not Applicable) x 100
+        A category where ALL criteria are Not Applicable scores 100%.
+        Overall = weighted by category weight, else simple average.
         """
         cat_eval = parsed.get("category_evaluations") or {}
 
@@ -243,6 +244,7 @@ class TutorEvaluationService:
 
             total = len(inds)
             met = 0
+            partial = 0
             na = 0
             not_met = 0
             rated = []
@@ -251,9 +253,11 @@ class TutorEvaluationService:
             for ind in inds:
                 entry = ind_evals.get(ind["name"]) or {}
                 rating = (entry.get("rating") or "").strip().lower()
-                if rating in ("met", "not met", "not applicable"):
+                if rating in ("met", "not met", "not applicable", "partial"):
                     if rating == "met":
                         met += 1
+                    elif rating == "partial":
+                        partial += 1
                     elif rating == "not met":
                         not_met += 1
                     else:
@@ -266,8 +270,13 @@ class TutorEvaluationService:
                         "reason": entry.get("reason", ""),
                     })
 
-            eligible = total - na
-            pct = round((met / eligible * 100), 2) if eligible > 0 else 0.0
+            # If every criterion in the category is Not Applicable -> 100%.
+            if total > 0 and na == total:
+                pct = 100.0
+            else:
+                eligible = total - na
+                credit = met + (0.5 * partial)
+                pct = round((credit / eligible * 100), 2) if eligible > 0 else 0.0
 
             category_percentages[cat_name] = pct
             category_weights[cat_name] = weight
@@ -275,9 +284,10 @@ class TutorEvaluationService:
                 "category_id": cat_id,
                 "total": total,
                 "met": met,
+                "partial": partial,
                 "not_met": not_met,
                 "not_applicable": na,
-                "eligible": eligible,
+                "eligible": max(total - na, 0),
                 "percentage": pct,
                 "rated": rated,
             }
