@@ -1,0 +1,47 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin">
+  <meta name="header-page" content="tableControls">
+  <title>Table Controls â€” Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css" />
+</head>
+<body class="antialiased font-sans p-2 sm:p-0 bg-slate-100 text-slate-900">
+  <div id="sidebar-placeholder"></div>
+  <div class="mx-auto flex flex-col gap-2">
+    <div id="header-placeholder"></div>
+
+    <div class="p-3">
+      <div class="bg-gradient-to-b from-cyan-50 to-teal-100 rounded-lg border-2 border-cyan-400 shadow-md overflow-hidden">
+        <!-- Header -->
+        <div class="px-3 py-2 border-b-2 border-cyan-300 bg-cyan-100 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-cyan-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h18M3 10h18M3 14h18M3 18h18"/>
+            </svg>
+            <div>
+              <h2 class="text-sm font-bold text-cyan-950 uppercase tracking-wide">Table Controls</h2>
+              <p class="text-[10px] text-cyan-800">Configure which controls each table shows (Search, Entries per page, Showing X-Y of Z, Pagination).</p>
+            </div>
+          </div>
+          <button onclick="reloadControls()" class="px-2 py-1 bg-teal-600 hover:bg-teal-500 text-white text-xs rounded transition flex items-center gap-1 font-semibold">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8 8 0 0 0 4.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 0 1-15.357-2m15.357 2H15"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div id="controlsContainer" class="overflow-x-auto">
+          <div class="p-6 text-center text-cyan-800 text-xs">Loading table controls...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/auth.js"></script>
+  <script src="/js/load-components.js"></script>
+  <script src="/js/super_admin/settings/table-controls.js"></script>
+</body>
+</html>

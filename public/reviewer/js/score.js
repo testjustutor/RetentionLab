@@ -28,7 +28,7 @@ const apiGet = async (path) => {
 const setStatus = (message, success = true) => {
   if (!saveStatusEl) return;
   saveStatusEl.textContent = message;
-  saveStatusEl.className = success ? 'text-sm text-emerald-400' : 'text-sm text-amber-400';
+  saveStatusEl.className = success ? 'text-sm text-emerald-400' : 'text-sm text-amber-800';
 };
 
 const renderScores = (scores) => {

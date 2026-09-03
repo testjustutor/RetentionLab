@@ -1,0 +1,56 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="contentRecordings">
+  <title>Recordings | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+
+        <!-- Filter Bar -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">From Date</label>
+                <input type="date" id="filterFromDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">To Date</label>
+                <input type="date" id="filterToDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Instructor</label>
+                <div id="instructorFilterContainer"></div>
+              </div>
+              <button onclick="loadRecordings()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors shadow-sm flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                Get Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table Container (uses createTable from common-ui.js) -->
+        <div id="recordingsContainer"></div>
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/content/recordings.js"></script>
+</body></html>

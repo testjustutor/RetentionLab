@@ -1,0 +1,56 @@
+﻿<!-- root/public/super_admin/settings/platforms.html -->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="dashboard-role" content="super_admin">
+  <meta name="header-page" content="platforms">
+  <title>Platforms Configuration â€” RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+</head>
+<body class="antialiased font-sans p-2 sm:p-0 bg-slate-100 text-slate-900">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-2">
+        <!-- Header -->
+        <div id="header-placeholder"></div>
+
+        <!-- Page Header -->
+        <div class="px-4 py-2 bg-gradient-to-r from-blue-50 to-sky-100 border-b-2 border-blue-300">
+            <div class="flex items-center justify-between">
+               
+                <div class="flex gap-2">
+                    <button onclick="testAllPlatforms()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-medium transition">
+                        Test All
+                    </button>
+                    <button onclick="saveAllPlatforms()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded text-xs font-medium transition">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Platforms Grid -->
+        <div class="p-3">
+            <div id="platformsGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Dynamically loaded from database -->
+                <div class="col-span-full text-center py-8 text-blue-800 text-sm">Loading platforms...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="flex items-center gap-2">
+            <div id="toastIcon"></div>
+            <p id="toastMessage" class="text-sm font-medium"></p>
+        </div>
+    </div>
+
+    <script src="/js/common-ui-super-admin.js"></script>
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/settings/platforms.js"></script>
+</body>
+</html>

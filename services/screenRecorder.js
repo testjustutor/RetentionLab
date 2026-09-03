@@ -8,10 +8,10 @@ const { logger } = require('../utils/logger');
 const settings = require('../config/settings');
 
 class ScreenRecorder {
-  constructor(storageDir, sessionId, meetingId) {
+  constructor(storageDir, sessionId, meetingDbId) {
     this.storageDir = path.resolve(storageDir);
 
-    if (!meetingId) {
+    if (!meetingDbId) {
       throw new Error("ScreenRecorder requires a meetingId to generate the file name.");
     }
 
@@ -24,7 +24,7 @@ class ScreenRecorder {
                       now.getHours().toString().padStart(2, '0') + '-' +
                       now.getMinutes().toString().padStart(2, '0');
 
-    const fileName = `SCREEN_${meetingId}_Sess${sessionId}_${timestamp}.mp4`;
+    const fileName = `SCREEN_${meetingDbId}_Sess${sessionId}_${timestamp}.mp4`;
 
     this.videoPath = path.join(this.storageDir, fileName);
 
@@ -65,7 +65,7 @@ class ScreenRecorder {
       const msg = data.toString();
       const lines = msg.split(/\r?\n/);
 
-      logger.info(`DefaultAdapter(screenRecorder): FFMPEG: ${data.toString()}`);
+      // logger.info(`DefaultAdapter(screenRecorder): FFMPEG: ${data.toString()}`);
 
       lines.forEach((rawLine) => {
         const line = rawLine.trim();

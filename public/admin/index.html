@@ -1,165 +1,156 @@
-<!-- root/public/admin/index.html -->
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
-<head>
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="dashboard-role" content="admin">
-  <title>Dashboard</title>
+  <meta name="header-page" content="dashboard">
+  <title>Dashboard | MeetingVault</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <link rel="stylesheet" href="../css/shared.css">
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
-  <div class="mx-auto p-0">    
-    <div id="header-placeholder"></div>
-<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2 p-4">
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Active Schedules</p>
-        <h3 class="text-2xl font-bold text-white mt-1">1,248</h3>
-        <p class="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-          +12% vs last week
-        </p>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">System Load</p>
-        <h3 class="text-2xl font-bold text-violet-400 mt-1">24.2%</h3>
-        <div class="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden">
-          <div class="bg-violet-500 h-full w-[24.2%] rounded-full"></div>
-        </div>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">API Requests</p>
-        <h3 class="text-2xl font-bold text-white mt-1">42.1k</h3>
-        <p class="text-[10px] text-slate-500 mt-1">Measured within last 24h</p>
-      </div>
-      <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
-        <p class="text-xs text-slate-400 font-medium tracking-wide uppercase">Gateway Flags</p>
-        <h3 class="text-2xl font-bold text-amber-400 mt-1">2</h3>
-        <p class="text-[10px] text-amber-500 font-medium mt-1">Requires system validation</p>
-      </div>
-    </section>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-2 p-4">
-      
-      <div class="space-y-6 lg:col-span-1">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <h2 class="text-sm font-semibold tracking-tight text-white mb-3 flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Active Session
-          </h2>
-          <dl class="space-y-2.5 text-xs">
-            <div class="flex justify-between border-b border-slate-800/60 pb-2">
-              <dt class="text-slate-400">Identity Context</dt>
-              <dd id="userName" class="text-slate-200 font-medium"></dd>
-            </div>
-            <div class="flex justify-between border-b border-slate-800/60 pb-2">
-              <dt class="text-slate-400">Scope Routing</dt>
-              <dd id="userEmail" class="text-slate-200 font-mono text-[11px]"></dd>
-            </div>
-            <div class="flex justify-between pb-1">
-              <dt class="text-slate-400">Internal Role</dt>
-              <dd id="userRole" class="text-violet-400 font-semibold uppercase text-[10px] bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded"></dd>
-            </div>
-          </dl>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden" >
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <h1 class="text-md font-bold-600 text-slate-950">Comprehensive analytics and insights for meetings, quality scores, platform usage, and user engagement metrics</h1>
+          <span class="text-[12px] font-semibold text-cyan-700 bg-cyan-100 px-3 py-1.5 rounded-md border border-cyan-300" id="lastUpdated">Updated: --</span>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <h2 class="text-sm font-semibold tracking-tight text-white mb-3">Company Tools</h2>
-          <div class="flex flex-col gap-2.5 text-xs font-medium">
-            <a href="/dashboard" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
-              <span class="text-slate-200 group-hover:text-white">Platform Dashboard</span>
-              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
-            <a href="/admin/archives.html" class="flex items-center justify-between rounded-lg bg-slate-950 border border-slate-800/60 px-4 py-3 hover:border-violet-500/40 transition-colors group">
-              <span class="text-slate-200 group-hover:text-white">Archives Matrix</span>
-              <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
+        <!-- KPI Grid -->
+        <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 shadow-md">
+            <p class="text-[9px] text-blue-900 uppercase tracking-wide font-semibold">Today</p>
+            <h3 class="text-lg font-bold text-blue-950 mt-0.5" id="todayMeetings">--</h3>
+            <p class="text-[9px] text-blue-700 font-medium">Meetings</p>
+          </div>
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 shadow-md">
+            <p class="text-[9px] text-amber-900 uppercase tracking-wide font-semibold">Pending</p>
+            <h3 class="text-lg font-bold text-amber-950 mt-0.5" id="pendingReviews">--</h3>
+            <p class="text-[9px] text-amber-700 font-medium">Reviews</p>
+          </div>
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 shadow-md">
+            <p class="text-[9px] text-violet-900 uppercase tracking-wide font-semibold">Avg Score</p>
+            <h3 class="text-lg font-bold text-violet-950 mt-0.5" id="avgScore">--</h3>
+            <p class="text-[9px] text-violet-700 font-medium">Quality</p>
+          </div>
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 shadow-md">
+            <p class="text-[9px] text-emerald-900 uppercase tracking-wide font-semibold">Users</p>
+            <h3 class="text-lg font-bold text-emerald-950 mt-0.5" id="activeUsers">--</h3>
+            <p class="text-[9px] text-emerald-700 font-medium">Active</p>
+          </div>
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 shadow-md">
+            <p class="text-[9px] text-indigo-900 uppercase tracking-wide font-semibold">This Week</p>
+            <h3 class="text-lg font-bold text-indigo-950 mt-0.5" id="weekMeetings">--</h3>
+            <p class="text-[9px] text-indigo-700 font-medium">Meetings</p>
+          </div>
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-400 shadow-md">
+            <p class="text-[9px] text-rose-900 uppercase tracking-wide font-semibold">Completion</p>
+            <h3 class="text-lg font-bold text-rose-950 mt-0.5" id="completionRate">--</h3>
+            <p class="text-[9px] text-rose-700 font-medium">Rate</p>
+          </div>
+        </section>
+
+        <!-- Charts Row 1 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-2">
+          <div class="bg-gradient-to-br from-cyan-50 to-blue-100 border-2 border-cyan-400 rounded-lg p-3 shadow-md">
+            <h3 class="text-[12px] font-bold text-cyan-900 mb-2 uppercase tracking-wide">Meeting Trends (7 Days)</h3>
+            <div id="trendsChart" class="h-40"></div>
+          </div>
+          <div class="bg-gradient-to-br from-orange-50 to-amber-100 border-2 border-orange-400 rounded-lg p-3 shadow-md">
+            <h3 class="text-[12px] font-bold text-orange-900 mb-2 uppercase tracking-wide">Session Quality Distribution</h3>
+            <div id="scoreChart" class="h-40"></div>
+            <div class="mt-3 flex items-center justify-center gap-4 text-[10px] font-semibold text-orange-900">
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-emerald-500"></span>
+                Excellent (80-100)
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-yellow-500"></span>
+                Good (60-79)
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-orange-500"></span>
+                Average (40-59)
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded bg-red-500"></span>
+                Needs Improvement
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 shadow-sm">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-          <div>
-            <h2 class="text-sm font-semibold tracking-tight text-white">System Deployment Queue</h2>
-            <p class="text-[11px] text-slate-500">Live infrastructure records and build deployments</p>
+         <!-- Tables Row 2 -->
+         <div class="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
+           <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
+             <h3 class="text-[13px] font-bold text-emerald-900 mb-2 uppercase tracking-wide">Meeting Status</h3>
+             <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+               <table class="w-full text-left text-[11px]">
+                 <thead class="sticky top-0"><tr class="border-b-2 border-emerald-300 bg-emerald-200">
+                   <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase">Status</th>
+                   <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase text-right">Count</th>
+                   <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase text-right">Percentage</th>
+                 </tr></thead>
+                 <tbody class="divide-y divide-emerald-300" id="statusTable">
+                   <tr><td colspan="3" class="py-2 text-center text-emerald-800 font-medium">Loading...</td></tr>
+                 </tbody>
+               </table>
+             </div>
+           </div>
+           <div class="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
+             <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md">
+               <h3 class="text-[13px] font-bold text-violet-900 mb-2 uppercase tracking-wide">Platform Usage</h3>
+               <div id="platformChart" class="h-64"></div>
+             </div>
+             <div class="bg-gradient-to-br from-amber-50 to-yellow-100 border-2 border-amber-400 rounded-lg p-3 shadow-md">
+               <h3 class="text-[12px] font-bold text-amber-900 mb-2 uppercase tracking-wide">Quick Stats</h3>
+               <div class="space-y-1.5" id="quickStats">
+                 <p class="text-[12px] text-amber-700 font-medium">Loading...</p>
+               </div>
+             </div>
+           </div>
+         </div>
+
+        <!-- Bottom Row -->
+        <div class="grid grid-cols-1 gap-2">
+          <div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-300 rounded-lg p-3 shadow-md">
+            <h3 class="text-[12px] font-bold text-slate-800 mb-2 uppercase tracking-wide">Recent Activity</h3>
+            <div class="overflow-x-auto overflow-y-auto max-h-80 custom-scrollbar">
+              <table class="w-full text-left text-[12px]">
+                <thead class="sticky top-0"><tr class="border-b-2 border-slate-300 bg-slate-200">
+                  <th class="py-2 px-2 text-[10px] font-bold text-slate-900 uppercase">Time</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-slate-900 uppercase">Meeting</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-slate-900 uppercase">Platform</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-slate-900 uppercase">Status</th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-300" id="activityTable">
+                  <tr><td colspan="4" class="py-3 text-center text-slate-700 font-medium">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <button class="shrink-0 bg-violet-600 hover:bg-violet-500 transition-colors text-white text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-md shadow-violet-600/10">
-            Provision Cluster
-          </button>
         </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-slate-800 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
-                <th class="pb-2.5">Identifier</th>
-                <th class="pb-2.5">Environment</th>
-                <th class="pb-2.5">Data Metric</th>
-                <th class="pb-2.5 text-right">Routing Status</th>
-              </tr>
-            </thead>
-            <tbody class="text-slate-300 divide-y divide-slate-800/40">
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-prod-01a</td>
-                <td class="py-3">US-East Gateway</td>
-                <td class="py-3 text-slate-400">99.98% SLA</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Operational</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">srv-stage-04</td>
-                <td class="py-3">EU-Central Hub</td>
-                <td class="py-3 text-slate-400">84.1% Sync</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">Syncing</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">cron-intel-sync</td>
-                <td class="py-3">Virtual Cluster</td>
-                <td class="py-3 text-slate-400">Idle Pipeline</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">Suspended</span>
-                </td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-violet-400 text-[11px]">api-mesh-router</td>
-                <td class="py-3">Global Edge CDN</td>
-                <td class="py-3 text-slate-400">14.1k req/s</td>
-                <td class="py-3 text-right">
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+      </main>
     </div>
   </div>
-
+  <!-- Load common-ui.js FIRST (defines apiFetch) -->
+  <script src="../js/common-ui.js"></script>
+  <!-- Then load auth and components -->
   <script type="module" src="../js/auth.js"></script>
-<!-- 
-  <script>
-    function toggleProfileMenu() {
-        const menu = document.getElementById('profileMenu');
-        const chevron = document.getElementById('profileChevron');
-        const isOpen = !menu.classList.contains('hidden');
-        menu.classList.toggle('hidden', isOpen);
-        chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-    }
-
-    document.addEventListener('click', function(e) {
-        const wrap = document.getElementById('profileMenuWrap');
-        if (wrap && !wrap.contains(e.target)) {
-            document.getElementById('profileMenu').classList.add('hidden');
-            document.getElementById('profileChevron').style.transform = '';
-        }
-    });
-  </script> -->
   <script src="../js/load-components.js"></script>
+  <!-- Finally load page-specific scripts that depend on apiFetch -->
+  <script src="../js/admin/index.js"></script>
 </body>
 </html>
+
+
+
+
+
+
+

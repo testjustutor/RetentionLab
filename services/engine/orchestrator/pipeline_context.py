@@ -34,15 +34,14 @@ class PipelineContext:
         )
 
         # Backwards-compatibility aliases used by audit and other task handlers.
-        self.meeting_id = self.base_id
+        # NOTE: meeting_id is resolved to the REAL numeric meetings.id (via
+        # meeting_sessions) so ai_audit_results / meeting_assets store the FK id
+        # instead of the filename-derived base_id. base_id is still used for all
+        # file naming.
         self.session_id = self._resolve_session_id(filename_no_ext)
+        self.meeting_id = self._resolve_meeting_id(self.session_id) or self.base_id
 
         self.storage_paths = self._setup_directories()
-
-        self.db_path = os.path.join(
-            self.project_root,
-            "retention_lab.db"
-        )
 
         # ==========================================
         # PIPELINE FEATURE FLAGS
@@ -62,11 +61,6 @@ class PipelineContext:
             True
         )
 
-        self.enable_intel = self.str_to_bool(
-            features.get("intel_extraction"),
-            False
-        )
-
         self.enable_audit = self.str_to_bool(
             features.get("ai_audit"),
             False
@@ -77,9 +71,9 @@ class PipelineContext:
             False
         )
 
-        self.enable_topics = self.str_to_bool(
-            features.get("topic_clustering"),
-            False
+        self.enable_persist_results = self.str_to_bool(
+            features.get("persist_results"),
+            True
         )
 
         # ==========================================
@@ -87,8 +81,6 @@ class PipelineContext:
         # ==========================================
         self.audio_path = None
         self.transcript_path = None
-        self.sentiment_path = None
-        self.vector_path = None
         self.audit_json_path = None
         self.summary_path = None
 
@@ -98,11 +90,9 @@ class PipelineContext:
 
         self.audit_results = {}
 
-        self.intel = {
-            "sentiment": None,
-            "vectors": None,
-            "topics": None
-        }
+        # Structured outputs produced by the AI tasks and consumed by
+        # the persist_results task.
+        self.summary_data = {}
 
         # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
@@ -118,10 +108,9 @@ class PipelineContext:
         self.task_status = {
             "media": "pending",
             "transcription": "pending",
-            "intel": "pending",
             "audit": "pending",
             "summary": "pending",
-            "topics": "pending"
+            "persist_results": "pending"
         }
 
         # ==========================================
@@ -173,14 +162,105 @@ class PipelineContext:
             if os.path.exists(candidate):
                 return candidate
 
+        # Fuzzy fallback: match any TRANS_*.txt whose stem shares the meeting id +
+        # session, so a pre-existing transcript in storage/transcripts is found
+        # even when base_id and the stored filename differ (naming/date).
+        try:
+            # Derive a clean meeting key from the basename, dropping any REC_ prefix
+            # and path so "storage\\recordings\\REC_fkx-mkrk-mbq_Sess3..." -> "fkx-mkrk-mbq"
+            import re as _re
+            base = os.path.basename(self.base_id or "").lower()
+            if base.startswith("rec_"):
+                base = base[4:]
+            raw_key = _re.sub(r"(_sess\d+|_\d+|_20\d{2}.*)$", "", base).strip("_")
+            base_session = self._session_from_key(base)
+            for directory in search_dirs:
+                if not os.path.isdir(directory):
+                    continue
+                for candidate in sorted(os.listdir(directory)):
+                    low = candidate.lower()
+                    if not (low.startswith("trans_") and low.endswith(".txt")):
+                        continue
+                    stem = candidate[6:-4].lower()
+                    if not (raw_key and self._transcript_matches(stem, raw_key)):
+                        continue
+                    # Prefer a transcript whose session matches the current one,
+                    # so Sess3 doesn't pick up Sess2's file.
+                    cand_session = self._session_from_key(stem)
+                    if base_session is not None and cand_session is not None and cand_session != base_session:
+                        continue
+                    return os.path.join(directory, candidate)
+        except Exception:
+            pass
+
         # Not found — diarization will proceed with SPEAKER_XX labels
         return None
+
+    @staticmethod
+    def _session_from_key(key):
+        """Extract _Sess<N> (case-insensitive) from a filename/key, else None."""
+        import re as _re
+        m = _re.search(r"_sess(\d+)", key, re.IGNORECASE)
+        return int(m.group(1)) if m else None
+
+    def _transcript_matches(self, stem, meeting_key):
+        """True if a TRANS file stem and the meeting key share meet id + session."""
+        import re as _re
+        strip = lambda s: _re.sub(r"(_sess\d+|_\d+|_20\d{2}.*)$", "", s).strip("_")
+        return bool(strip(meeting_key)) and (
+            strip(stem).startswith(strip(meeting_key)) or strip(meeting_key) in strip(stem)
+        )
 
     def _resolve_session_id(self, filename_no_ext):
         match = re.search(r"_Sess(\d+)(?:_|$)", filename_no_ext)
         if match:
             return int(match.group(1))
         return None
+
+    def _resolve_meeting_id(self, session_id):
+        """
+        Resolve the REAL numeric meetings.id for a session — and if needed,
+        ensure the meeting/session rows exist — so ai_audit_results.meeting_id
+        is ALWAYS an integer (meetings.id) and never the filename string.
+
+        Resolution order:
+          1. meeting_sessions.meeting_id for the given session_id (fast path).
+          
+        Returns:
+            meetings.id (int) if resolvable/created, otherwise None (the caller
+            falls back to base_id so file writes never break).
+        """
+        if not session_id:
+            return None
+        try:
+            from database.python_db import fetch_one, execute, insert
+
+            # 1) Fast path: existing session row already maps to meetings.id
+            row = fetch_one(
+                "SELECT meeting_id FROM meeting_sessions WHERE id = %s LIMIT 1",
+                (int(session_id),)
+            )
+            if row and row.get("meeting_id"):
+                return row["meeting_id"]
+
+        except Exception as e:
+            print(
+                f"[PIPELINE CONTEXT] WARNING: Could not resolve meeting_id for "
+                f"session={session_id}: {e}",
+                flush=True
+            )
+        return None
+
+    def _ensure_session_row(self, session_id, meeting_id):
+        """Upsert a meeting_sessions row linking session_id -> meetings.id so
+        downstream resolution (ai_audit_results + Node bridge) sees the mapping."""
+        from database.python_db import execute
+        execute(
+            "INSERT INTO meeting_sessions (id, meeting_id, start_time, status) "
+            "VALUES (%s, %s, CURRENT_TIMESTAMP, 'completed') "
+            "ON DUPLICATE KEY UPDATE meeting_id = VALUES(meeting_id)",
+            (session_id, meeting_id)
+        )
 
     def _setup_directories(self):
         storage_base = os.path.join(
@@ -199,11 +279,6 @@ class PipelineContext:
                 "summaries"
             ),
 
-            "intel": os.path.join(
-                storage_base,
-                "intel"
-            ),
-
             # ==========================================
             # AUDIO + TRANSCRIPTION CACHE
             # ==========================================
@@ -218,31 +293,6 @@ class PipelineContext:
                 "cache_whisper"
             ),
 
-            "cache_voice_activity": os.path.join(
-                storage_base,
-                "cache_voice_activity"
-            ),
-
-            "cache_diarization": os.path.join(
-                storage_base,
-                "cache_diarization"
-            ),
-
-            "cache_captions_raw": os.path.join(
-                storage_base,
-                "cache_captions_raw"
-            ),
-
-            "cache_chat_logs": os.path.join(
-                storage_base,
-                "cache_chat_logs"
-            ),
-
-            "cache_screenshots": os.path.join(
-                storage_base,
-                "cache_screenshots"
-            ),
-
             "cache_audio_transcripts": os.path.join(
                 storage_base,
                 "cache_audio_transcripts"
@@ -252,24 +302,9 @@ class PipelineContext:
             # AI / NLP CACHE
             # ==========================================
 
-            "cache_embeddings": os.path.join(
-                storage_base,
-                "cache_embeddings"
-            ),
-
-            "cache_topic_trackers": os.path.join(
-                storage_base,
-                "cache_topic_trackers"
-            ),
-
             "cache_llm_prompts": os.path.join(
                 storage_base,
                 "cache_llm_prompts"
-            ),
-
-            "cache_voiceprints": os.path.join(
-                storage_base,
-                "cache_voiceprints"
             ),
 
             "audits": os.path.join(
@@ -317,8 +352,6 @@ class PipelineContext:
             "meeting_id": self.base_id,
             "audio_path": self.audio_path,
             "transcript_path": self.transcript_path,
-            "sentiment_path": self.sentiment_path,
-            "vector_path": self.vector_path,
             "audit_json_path": self.audit_json_path,
             "summary_path": self.summary_path,
             "oqi_score": self.audit_results.get("oqi_score", 0)

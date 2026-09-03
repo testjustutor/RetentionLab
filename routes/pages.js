@@ -42,109 +42,178 @@ function serveHTML(req, res, filename) {
   res.sendFile(path.join(__dirname, '../public', filename));
 }
 
+/**
+ * Redirect to the correct dashboard based on user role
+ */
+function redirectToDashboard(req, res) {
+  const role = req.user ? req.user.role_name : null;
+  if (role === 'super_admin') return res.redirect('/super_admin/index');
+  if (role === 'admin') return res.redirect('/admin/');
+  if (role === 'reviewer') return res.redirect('/reviewer/dashboard');
+  if (role === 'instructor' || role === 'solo_instructor') return res.redirect('/instructor/');
+  return res.redirect('/dashboard');
+}
+
 // ---------------------------------------------------------
 // PUBLIC ROUTES
 // ---------------------------------------------------------
 
 router.get('/login', (req, res) => {
-  // If already logged in, redirect to dashboard
+  // If already logged in, redirect to role-based dashboard
   const token = req.cookies?.auth_token;
-  if (token && verifyToken(token)) {
-    return res.redirect('/dashboard');
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      req.user = payload;
+      return redirectToDashboard(req, res);
+    }
   }
   serveHTML(req, res, 'login.html');
 });
 
+router.get('/login.html', (req, res) => {
+  res.redirect('/login');
+});
+
 router.get('/register', (req, res) => {
   const token = req.cookies?.auth_token;
-  if (token && verifyToken(token)) {
-    return res.redirect('/dashboard');
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      req.user = payload;
+      return redirectToDashboard(req, res);
+    }
   }
   serveHTML(req, res, 'register.html');
+});
+
+router.get('/register.html', (req, res) => {
+  res.redirect('/register');
+});
+
+// Backward-compatible aliases so legacy/cached scripts that load `/header`,
+// `/sidebar` or `/common_footer` (without .html) still resolve to the actual
+// component files instead of 404ing (which previously caused a "missing )"
+// SyntaxError in the console when the 404 HTML body was parsed as JS).
+router.get('/header', (req, res) => { serveHTML(req, res, 'header.html'); });
+router.get('/header.html', (req, res) => { serveHTML(req, res, 'header.html'); });
+router.get('/sidebar', (req, res) => { serveHTML(req, res, 'sidebar.html'); });
+router.get('/sidebar.html', (req, res) => { serveHTML(req, res, 'sidebar.html'); });
+
+router.get('/forgot-password', (req, res) => {
+  serveHTML(req, res, 'forgot-password.html');
+});
+
+router.get('/forgot-password.html', (req, res) => {
+  res.redirect('/forgot-password');
+});
+
+router.get('/reset-password', (req, res) => {
+  serveHTML(req, res, 'reset-password.html');
+});
+
+router.get('/reset-password.html', (req, res) => {
+  res.redirect('/reset-password');
+});
+
+router.get('/verify-email', (req, res) => {
+  serveHTML(req, res, 'verify-email.html');
+});
+
+router.get('/verify-email.html', (req, res) => {
+  res.redirect('/verify-email');
 });
 
 // ---------------------------------------------------------
 // PUBLIC MARKETING PAGES (UNPROTECTED)
 // ---------------------------------------------------------
-// IMPORTANT: These routes are intentionally outside auth/pageAuth
-// so the marketing site is accessible without logging in.
-router.get('/', (req, res) => {
-  serveHTML(req, res, 'marketing/index.html');
+router.get('/', (req, res) => { serveHTML(req, res, 'marketing/index.html'); });
+router.get('/about', (req, res) => { serveHTML(req, res, 'marketing/about.html'); });
+router.get('/services', (req, res) => { serveHTML(req, res, 'marketing/services.html'); });
+router.get('/blog', (req, res) => { serveHTML(req, res, 'marketing/blog.html'); });
+router.get('/faq', (req, res) => { serveHTML(req, res, 'marketing/faq.html'); });
+router.get('/contact', (req, res) => { serveHTML(req, res, 'marketing/contact.html'); });
+router.get('/privacy-policy', (req, res) => { serveHTML(req, res, 'marketing/privacy.html'); });
+router.get('/terms-conditions', (req, res) => { serveHTML(req, res, 'marketing/terms.html'); });
+router.get('/support', (req, res) => { serveHTML(req, res, 'marketing/support.html'); });
+router.get('/404', (req, res) => { serveHTML(req, res, 'marketing/404.html'); });
+
+// ---------------------------------------------------------
+// LOGOUT ROUTE (direct access for sidebar links)
+// ---------------------------------------------------------
+
+router.get('/logout', (req, res) => {
+  try {
+    // Clear the auth cookie
+    res.clearCookie('auth_token', { 
+      httpOnly: true, 
+      sameSite: 'lax', 
+      secure: process.env.NODE_ENV === 'production' 
+    });
+    
+    // Clear any other cookies if needed
+    res.clearCookie('connect.sid');
+    
+    // Redirect to login page
+    return res.redirect('/login');
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.redirect('/login');
+  }
 });
-
-router.get('/about', (req, res) => {
-  serveHTML(req, res, 'marketing/about.html');
-});
-
-router.get('/services', (req, res) => {
-  serveHTML(req, res, 'marketing/services.html');
-});
-
-router.get('/blog', (req, res) => {
-  serveHTML(req, res, 'marketing/blog.html');
-});
-
-router.get('/faq', (req, res) => {
-  serveHTML(req, res, 'marketing/faq.html');
-});
-
-router.get('/contact', (req, res) => {
-  serveHTML(req, res, 'marketing/contact.html');
-});
-
-router.get('/privacy-policy', (req, res) => {
-  serveHTML(req, res, 'marketing/privacy.html');
-});
-
-router.get('/terms-conditions', (req, res) => {
-  serveHTML(req, res, 'marketing/terms.html');
-});
-
-// Friendly marketing 404 page
-router.get('/404', (req, res) => {
-  serveHTML(req, res, 'marketing/404.html');
-});
-
-// Redirect root (fallback for legacy auth app landing)
-// Note: When user is logged in and wants app, they can navigate to /dashboard.
-// We keep the redirect logic only for the auth app; marketing home is now '/'.
-// router.get('/', (req, res) => res.redirect('/dashboard'));
-
 
 // ---------------------------------------------------------
 // PROTECTED DYNAMIC DASHBOARD ALIAS
+// Redirects /dashboard to role-based URL so /dashboard never shows in the browser
 // ---------------------------------------------------------
 
 router.get('/dashboard', pageAuth, (req, res) => {
-  const role = req.user.role_name;
-  if (role === 'super_admin') {
-    serveHTML(req, res, 'super_admin/index.html');
-  } else if (role === 'admin') {
-    serveHTML(req, res, 'admin/index.html');
-  } else if (role === 'reviewer') {
-    serveHTML(req, res, 'reviewer/index.html');
-  } else {
-    serveHTML(req, res, 'employee/index.html');
-  }
+  redirectToDashboard(req, res);
 });
 
 // ---------------------------------------------------------
 // PROTECTED CLEAN URL ROUTES
 // ---------------------------------------------------------
 
-// Admin pages
-router.get('/admin/:page?', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
+// Admin - index
+router.get('/admin', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'admin/index.html');
+});
+
+// Admin - single level pages (e.g., /admin/profile, /admin/archives)
+router.get('/admin/:page', pageAuth, requirePageRole('admin', 'super_admin'), (req, res, next) => {
+  let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
+  // If this looks like a section directory, skip to nested handler
+  const sections = ['people', 'meetings', 'content', 'evaluation', 'insights', 'reports', 'settings'];
+  if (sections.includes(page)) return next();
   serveHTML(req, res, `admin/${page}.html`);
 });
 
-// Super Admin pages
-router.get('/super_admin/:page?', pageAuth, requirePageRole('super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
+// Admin - nested pages (e.g., /admin/meetings/schedule, /admin/content/recordings)
+router.get('/admin/:section/:page', pageAuth, requirePageRole('admin', 'super_admin'), (req, res) => {
+  const section = req.params.section;
+  let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `super_admin/${page}.html`);
+  serveHTML(req, res, `admin/${section}/${page}.html`);
 });
+
+// Super Admin pages (nested module routes)
+router.get('/super_admin/:section/:page', pageAuth, requirePageRole('super_admin'), (req, res) => {
+  const section = req.params.section;
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `super_admin/${section}/${page}.html`);
+});
+
+// Super Admin pages (single-level)
+router.get('/super_admin/:page?', pageAuth, requirePageRole('super_admin'), (req, res) => {
+  let page = req.params.page || 'dashboard/index';
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  // Allow `/super_admin/dashboard/index` style fallbacks
+  return serveHTML(req, res, `super_admin/${page}.html`);
+});
+
 
 // Reviewer pages
 router.get('/reviewer/:page?', pageAuth, requirePageRole('reviewer', 'admin', 'super_admin'), (req, res) => {
@@ -153,11 +222,40 @@ router.get('/reviewer/:page?', pageAuth, requirePageRole('reviewer', 'admin', 's
   serveHTML(req, res, `reviewer/${page}.html`);
 });
 
-// Employee pages
-router.get('/employee/:page?', pageAuth, requirePageRole('employee', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+// instructor pages
+router.get('/instructor/:page?', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
   let page = req.params.page || 'index';
   if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `employee/${page}.html`);
+  serveHTML(req, res, `instructor/${page}.html`);
+});
+
+// Solo instructor shared routes (served from instructor folder to match side menu URLs)
+router.get('/meetings', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/meetings.html');
+});
+
+router.get('/evaluations', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/evaluations.html');
+});
+
+router.get('/reports', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/reports.html');
+});
+
+router.get('/profile', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  serveHTML(req, res, 'instructor/profile.html');
+});
+
+router.get('/content/:page', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `instructor/content/${page}.html`);
+});
+
+router.get('/insights/:page', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
+  let page = req.params.page;
+  if (page.endsWith('.html')) page = page.slice(0, -5);
+  serveHTML(req, res, `instructor/insights/${page}.html`);
 });
 
 // Marketing catch-all 404 for unknown public marketing paths
@@ -177,7 +275,7 @@ router.get('/:page', pageAuth, (req, res, next) => {
   if (page.startsWith('api') || page.startsWith('storage')) return next();
   
   // Safe list of root pages that need auth
-  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events', 'calendar-integrations', 'data-architecture'];
+  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events'];
   
   if (safeRootPages.includes(page)) {
     serveHTML(req, res, `${page}.html`);

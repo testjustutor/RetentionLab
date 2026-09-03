@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="peopleRoles">
+  <title>Roles | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+
+        <!-- Filter Section -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg shadow-md p-3 mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-violet-900">Roles Management</h2>
+            <p class="text-[11px] text-violet-700 mt-0.5">View and manage user roles and permissions</p>
+          </div>
+        </div>
+
+        <!-- Data Display Section -->
+        <div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-300 rounded-lg shadow-md overflow-hidden">
+          <div class="px-4 py-3 border-b-2 border-slate-300 bg-slate-200">
+            <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wide">Roles List</h3>
+          </div>
+          <div id="rolesContainer" class="p-4">
+            <div class="py-8 text-center text-slate-700 font-medium">Loading roles...</div>
+          </div>
+        </div>
+
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/people/roles.js"></script>
+</body>
+</html>
+
+
+
+
+
+

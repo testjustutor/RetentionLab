@@ -1,0 +1,220 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="super_admin">
+  <meta name="header-page" content="dashboard">
+  <title>Super Admin â€” Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased font-sans">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        
+        <!-- Page Header -->
+        <div class="flex items-center justify-between mb-4">
+          <div>
+                      <h1 class="text-xl font-bold text-slate-950">Platform Overview</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Real-time platform intelligence &amp; system health</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="timeRange" class="bg-white border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-900">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+            </select>
+            <button onclick="refreshDashboard()" class="px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors">Refresh</button>
+          </div>
+        </div>
+
+        <!-- ===== STATS CARDS ROW ===== -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+                    <!-- Companies -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 shadow-md">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest">Companies</p>
+              <span class="text-[10px] text-slate-600 font-medium" id="companyGrowth">+0</span>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900" id="statCompanies">-</h3>
+            <p class="text-[10px] text-slate-600 font-medium mt-0.5"><span id="statActiveCompanies">-</span> active</p>
+          </div>
+                    <!-- Users -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 shadow-md">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest">Total Users</p>
+              <span class="text-[10px] text-slate-600 font-medium" id="userGrowth">+0</span>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900" id="statUsers">-</h3>
+            <p class="text-[10px] text-slate-600 font-medium mt-0.5"><span id="statActiveUsers">-</span> active</p>
+          </div>
+                    <!-- Meetings -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 shadow-md">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest">Meetings</p>
+              <span class="inline-flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-700 animate-pulse" id="liveDot"></span>
+                <span class="text-[10px] text-slate-600 font-medium" id="statInProgress">0</span>
+              </span>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900" id="statMeetings">-</h3>
+            <p class="text-[10px] text-slate-600 font-medium mt-0.5"><span id="statCompletedMeetings">-</span> completed</p>
+          </div>
+                    <!-- Roles Distribution -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 shadow-md">
+            <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest mb-1">User Roles</p>
+            <div class="flex flex-wrap gap-1.5 mt-1" id="roleBadges">
+              <span class="text-[10px] text-slate-700 font-medium">Loading...</span>
+            </div>
+          </div>
+                    <!-- System Load -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-orange-50 to-amber-100 border-2 border-orange-400 shadow-md">
+            <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest mb-1">System</p>
+            <div class="flex items-baseline gap-1">
+              <span class="text-lg font-bold text-slate-900" id="statMemUsage">-</span>
+              <span class="text-[10px] text-slate-600 font-medium">mem</span>
+            </div>
+            <div class="w-full bg-orange-200 rounded-full h-1.5 mt-1.5">
+              <div class="bg-orange-500 h-1.5 rounded-full transition-all duration-500" id="memBar" style="width:0%"></div>
+            </div>
+            <p class="text-[10px] text-slate-600 font-medium mt-1">CPU: <span class="text-slate-900 font-bold" id="statCpuLoad">-</span></p>
+          </div>
+                    <!-- Uptime -->
+          <div class="p-2.5 rounded-lg bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-400 shadow-md">
+            <p class="text-[10px] text-slate-600 font-mono font-medium uppercase tracking-widest mb-1">Uptime</p>
+            <h3 class="text-lg font-bold text-slate-900" id="statUptime">-</h3>
+            <p class="text-[10px] text-slate-600 font-medium mt-1">Server online</p>
+          </div>
+        </div>
+
+        <!-- ===== QUICK ACTIONS ===== -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                    <a href="/super_admin/people/add-user" class="bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 rounded-lg p-3 shadow-md hover:from-indigo-100 hover:to-blue-200 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-slate-900">Add User</p>
+                <p class="text-[10px] text-slate-600">Create new account</p>
+              </div>
+            </div>
+          </a>
+                    <a href="/super_admin/people/access-control" class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md hover:from-emerald-100 hover:to-teal-200 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-slate-900">Access Control</p>
+                <p class="text-[10px] text-slate-600">Manage permissions</p>
+              </div>
+            </div>
+          </a>
+                    <a href="/super_admin/reports/audit" class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-3 shadow-md hover:from-amber-100 hover:to-orange-200 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-slate-900">Audit Logs</p>
+                <p class="text-[10px] text-slate-600">View activity</p>
+              </div>
+            </div>
+          </a>
+                    <a href="/super_admin/settings/sidebar-menu-management" class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md hover:from-violet-100 hover:to-purple-200 transition-colors group">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center group-hover:bg-violet-200 transition-colors">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-slate-900">Manage Menu</p>
+                <p class="text-[10px] text-slate-600">Sidebar settings</p>
+              </div>
+            </div>
+          </a>
+        </div>
+
+        <!-- ===== CHARTS ROW ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                    <div class="bg-gradient-to-br from-cyan-50 to-blue-100 border-2 border-cyan-400 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-[12px] font-bold text-slate-800 uppercase tracking-wide">Meeting Trends</h3>
+              <span class="text-[10px] text-slate-600" id="trendPeriod">Last 7 days</span>
+            </div>
+            <div class="h-48"><canvas id="meetingTrendsChart"></canvas></div>
+          </div>
+                    <div class="bg-gradient-to-br from-blue-50 to-indigo-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-[12px] font-bold text-slate-800 uppercase tracking-wide">User Signups</h3>
+              <span class="text-[10px] text-slate-600">Last 14 days</span>
+            </div>
+            <div class="h-48"><canvas id="userTrendsChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- ===== BOTTOM TABLES ROW ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                    <!-- Recent Users -->
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-[13px] font-bold text-slate-800 uppercase tracking-wide">Recent Users</h3>
+              <a href="/super_admin/people/manage-users" class="text-[11px] font-bold text-slate-600 hover:text-slate-800">View All</a>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+              <table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0"><tr class="border-b-2 border-emerald-300 bg-emerald-200">
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Name</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Role</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Company</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Status</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Joined</th>
+                </tr></thead>
+                <tbody class="divide-y divide-emerald-300" id="recentUsersBody">
+                  <tr><td colspan="5" class="py-6 text-center text-slate-700 font-medium">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+                    <!-- Recent Meetings -->
+          <div class="bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-[13px] font-bold text-slate-800 uppercase tracking-wide">Recent Meetings</h3>
+              <a href="/api/meetings" class="text-[11px] font-bold text-slate-600 hover:text-slate-800">View All</a>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+              <table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0"><tr class="border-b-2 border-indigo-300 bg-indigo-200">
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Title</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Status</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Owner</th>
+                  <th class="py-2 px-3 text-[10px] font-bold text-slate-900 uppercase">Date</th>
+                </tr></thead>
+                <tbody class="divide-y divide-indigo-300" id="recentMeetingsBody">
+                  <tr><td colspan="4" class="py-6 text-center text-slate-700 font-medium">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== ERROR / STATUS ===== -->
+                <div id="dashboardError" class="hidden bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-700"></div>
+      </main>
+    </div>
+  </div>
+    <!-- Load common-ui-super-admin.js FIRST (defines apiFetch, escHtml, etc.) -->
+  <script src="/js/common-ui-super-admin.js"></script>
+  <!-- Then load auth and components -->
+  <script type="module" src="/js/auth.js"></script>
+  <script src="/js/load-components.js"></script>
+  <!-- Finally load page-specific scripts that depend on apiFetch -->
+  <script src="/js/super_admin/dashboard/index.js"></script>
+</body>
+</html>
+

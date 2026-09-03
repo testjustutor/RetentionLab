@@ -1,168 +1,74 @@
-# services/engine/task/transcription_task.py
-import os
-import json
+# root/services/engine/task/transcription/transcription_task.py
 
-from services.engine.transcription_service import (
+from utils.logger_util import log_with_type
+
+import os
+
+from services.engine.services.json_store import (
+    JsonStore
+)
+
+from services.engine.task.cache_manager import (
+    TranscriptionCacheManager
+)
+
+from services.engine.services.transcription import (
     TranscriptionService
 )
 
 
 def run_transcription_task(context):
 
-    """
-    Handles:
-    - whisperx transcription
-    - diarization generation
-    - transcript caching
-    - talk ratio generation
-    """
-
     context.mark_task_started(
         "transcription"
     )
+    log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription task started", "TASK")
 
     try:
 
-        print(
-            "\n"
-            + "=" * 65,
-            flush=True
-        )
-
-        print(
-            "[TRANSCRIPTION TASK] Starting AI speech pipeline...",
-            flush=True
-        )
-
-        print(
-            "=" * 65 + "\n",
-            flush=True
-        )
-
-        # ==========================================
-        # TRANSCRIPTION EXECUTION
-        # ==========================================
-
         service = TranscriptionService(
-            hf_token=os.getenv(
-                "HF_TOKEN"
-            )
+            context
         )
 
-        (
-            labeled_transcript,
-            talk_ratio,
-            diarization_data
-        ) = service.process(
+        log_with_type("info", "Engine(task > transcription > transcription_task) : TranscriptionService initialized", "TASK")
+
+        result = service.transcribe(
             context.audio_path
         )
 
-        # ==========================================
-        # STORE CONTEXT
-        # ==========================================
-
-        context.labeled_transcript = (
-            labeled_transcript
-        )
-
-        context.talk_ratio = (
-            talk_ratio
-        )
-
-        context.diarization_data = (
-            diarization_data
-        )
-
-        # ==========================================
-        # TRANSCRIPT OUTPUT
-        # ==========================================
-
-        transcript_path = os.path.join(
-
-            context.storage_paths[
-                "transcripts"
-            ],
-
-            f"TRANS_{context.base_id}.txt"
-        )
-
-        with open(
-            transcript_path,
-            "w",
-            encoding="utf-8"
-        ) as file:
-
-            file.write(
-                labeled_transcript
-            )
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Whisper transcription completed", "TASK")
 
         context.transcript_path = (
-            transcript_path
+            result["transcript_path"]
         )
 
-        # ==========================================
-        # DIARIZATION CACHE
-        # ==========================================
-
-        diarization_path = os.path.join(
-
-            context.storage_paths[
-                "cache_diarization"
-            ],
-
-            f"DIAR_{context.base_id}.json"
+        context.labeled_transcript = (
+            result["transcript"]
         )
 
-        with open(
-            diarization_path,
-            "w",
-            encoding="utf-8"
-        ) as file:
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Context updated with plain transcript", "TASK")
 
-            json.dump(
-                diarization_data,
-                file,
-                indent=4
+        context.whisper_path = (
+            TranscriptionCacheManager.save_whisper_output(
+                context,
+                result["whisper_result"]
             )
-
-        # ==========================================
-        # TALK RATIO CACHE
-        # ==========================================
-
-        talk_ratio_path = os.path.join(
-
-            context.storage_paths[
-                "cache_voice_activity"
-            ],
-
-            f"TALK_RATIO_{context.base_id}.json"
         )
 
-        with open(
-            talk_ratio_path,
-            "w",
-            encoding="utf-8"
-        ) as file:
-
-            json.dump(
-                talk_ratio,
-                file,
-                indent=4
-            )
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Whisper output cached", "TASK")
 
         context.mark_task_completed(
             "transcription"
         )
 
-        print(
-            "[TRANSCRIPTION TASK] AI transcription completed.\n",
-            flush=True
-        )
+        log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription task completed", "TASK")
 
     except Exception:
 
         context.mark_task_failed(
             "transcription"
         )
+        
+        log_with_type("error", f"Engine(task > transcription > transcription_task) : Transcription failed error={str(e)}", "TASK")
 
         raise

@@ -1,0 +1,89 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="super_admin">
+    <meta name="header-page" content="archives">
+    <title>Archives & Transcripts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased font-sans p-2 sm:p-0">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-3">
+        <div id="header-placeholder"></div>
+
+        <div class="p-3">
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg shadow-md overflow-hidden">
+                <!-- Filters -->
+                <div class="px-3 py-2 border-b border-emerald-300 bg-emerald-100">
+                    <div class="flex flex-col lg:flex-row gap-2 items-center">
+                        <div class="flex gap-2 flex-1">
+                            <input id="fromDate" type="text" placeholder="From Date" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                            <input id="toDate" type="text" placeholder="To Date" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                        <select id="instructorFilter" class="w-full lg:w-60 bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="">All Instructors</option>
+                        </select>
+                        <input id="searchInput" type="text" placeholder="Search meetings..." class="w-full lg:w-60 bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <button onclick="applyFilters()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded transition">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Meetings Table (centralized createTable mounts here) -->
+                <div class="p-3">
+                    <div id="meetingsTableContainer"></div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="px-3 py-2 border-t border-emerald-300 bg-emerald-100 flex items-center justify-between">
+                    <div class="text-[10px] text-emerald-900">
+                        Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalMeetings">0</span> meetings
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="changePage(currentPage - 1)" id="prevBtn" class="px-2 py-1 bg-white hover:bg-emerald-200 text-emerald-900 text-[10px] rounded border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            Previous
+                        </button>
+                        <span id="pageInfo" class="px-2 py-1 text-[10px] text-emerald-900">Page 1 of 1</span>
+                        <button onclick="changePage(currentPage + 1)" id="nextBtn" class="px-2 py-1 bg-white hover:bg-emerald-200 text-emerald-900 text-[10px] rounded border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            Next
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meeting Detail Modal -->
+    <div id="meetingDetailModal" class="hidden fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-300 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div class="p-3 border-b border-slate-300 bg-slate-100 flex items-center justify-between shrink-0">
+                <h3 class="text-sm font-semibold text-slate-900">Meeting Details</h3>
+                <button onclick="closeMeetingDetailModal()" class="text-slate-500 hover:text-slate-700 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3">
+                <div id="meetingDetailContent">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load common-ui-super-admin.js FIRST (defines createTable, escHtml, apiFetch, etc.) -->
+    <script src="/js/common-ui-super-admin.js"></script>
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/load-components.js"></script>
+    <script src="/js/super_admin/content/archives.js"></script>
+</body>
+</html>
+
+

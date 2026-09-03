@@ -12,6 +12,15 @@ class TeamsJoiner {
     this.passcode = passcode;
 
     this.captionMonitor = null;
+    // FIX 2: allow socraticbot.js to inject a ParticipantTracker, matching
+    // how google-meet's joiner is wired (joiner.setParticipantTracker(...))
+    this.participantTracker = null;
+  }
+
+  // FIX 2: added — mirrors GoogleMeetJoiner's setParticipantTracker pattern
+  setParticipantTracker(participantTracker) {
+    this.participantTracker = participantTracker;
+    logger.info('TeamsAdapter(teamJoiner): Participant tracker attached');
   }
 
   // -----------------------------
@@ -22,7 +31,6 @@ class TeamsJoiner {
 
     try {
       await this.page.setRequestInterception(true);
-
       this.page.removeAllListeners('request');
 
       this.page.on('request', (request) => {
@@ -45,22 +53,13 @@ class TeamsJoiner {
     }
 
     await this.page.goto(this.meetingUrl, { waitUntil: 'networkidle2' });
-
     await this.page.keyboard.press('Escape').catch(() => {});
 
-    // STAGE 2: Click "Continue on this browser"
     await this.clickContinueOnBrowser();
-
-    // STAGE 3: Handle pre-join (mic/cam off)
     await this.handlePreJoin();
-
-    // STAGE 4: Dismiss audio/video popup HERE — right before touching name input
     await this.dismissAudioVideoPopup();
-
-    // STAGE 5: Enter name and join
     await this.enterLobby();
 
-    // STAGE 6: Wait for host to admit
     const wasAdmitted = await this.waitForJoinConfirmation();
 
     return wasAdmitted;
@@ -119,6 +118,8 @@ class TeamsJoiner {
 
   // -----------------------------
   // STAGE 3: PRE-JOIN (mic/cam)
+  // FIX 7: extracted the actual mute logic into muteMicAndCamera() so it can
+  // be re-run after passcode-modal recovery without duplicating code.
   // -----------------------------
   async handlePreJoin() {
     logger.info('TeamsAdapter(teamJoiner): Handling Teams pre-join screen...');
@@ -129,31 +130,29 @@ class TeamsJoiner {
       logger.info('TeamsAdapter(teamJoiner): Checking for Passcode Error Modal (Pre-join)...');
       await this.handlePasscodeModal();
 
-      // Turn off mic and camera
-      await this.page.evaluate(() => {
-        const mic = document.querySelector('[data-track-action-scenario="callMuteAudio"], [aria-label*="Mute mic"], [data-state="mic-volume-renderer"]');
-        if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
-
-        const cam = document.querySelector('[aria-label="Turn camera off"], [data-state="call-video"], [data-track-action-scenario="callStopVideo"], [data-track-module-name-new="videoOff"]');
-        if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
-      });
-    
-      // await this.muteMicWithRetry();  // retries 10× every 2s until confirmed muted
-      // await this.muteCamera();        // camera still single-shot (no retry needed)
-    
+      await this.muteMicAndCamera();
     } catch (e) {
       logger.error('TeamsAdapter(teamJoiner): Pre-join adjustments error: ' + e.message);
     }
   }
 
+  // FIX 7: reusable mic/cam mute helper (was inline in handlePreJoin before)
+  async muteMicAndCamera() {
+    await this.page.evaluate(() => {
+      const mic = document.querySelector('[data-track-action-scenario="callMuteAudio"], [aria-label*="Mute mic"], [data-state="mic-volume-renderer"]');
+      if (mic && mic.getAttribute('aria-pressed') === 'true') mic.click();
+
+      const cam = document.querySelector('[aria-label="Turn camera off"], [data-state="call-video"], [data-track-action-scenario="callStopVideo"], [data-track-module-name-new="videoOff"]');
+      if (cam && cam.getAttribute('aria-pressed') === 'true') cam.click();
+    });
+  }
+
   // -----------------------------
   // STAGE 4: DISMISS AUDIO/VIDEO POPUP
-  // ✅ Separated into its own method, called right before enterLobby
   // -----------------------------
   async dismissAudioVideoPopup() {
     logger.info('TeamsAdapter(teamJoiner): Checking for "Continue without audio or video" popup...');
 
-    // Poll for up to 10 seconds (20 × 500ms)
     for (let i = 0; i < 20; i++) {
       try {
         const dismissed = await this.page.evaluate(() => {
@@ -169,18 +168,14 @@ class TeamsJoiner {
 
         if (dismissed) {
           logger.info('TeamsAdapter(teamJoiner): Dismissed audio/video popup successfully');
-          // Wait for the popup to fully close before proceeding
           await new Promise(r => setTimeout(r, 1500));
           return;
         }
-      } catch (e) {
-        // page.evaluate can throw if page is mid-navigation — safe to ignore
-      }
+      } catch (e) {}
 
       await new Promise(r => setTimeout(r, 500));
     }
 
-    // Not an error — the popup may simply not appear on all meeting types
     logger.info('TeamsAdapter(teamJoiner): No audio/video popup found — continuing');
   }
 
@@ -193,18 +188,14 @@ class TeamsJoiner {
     try {
       const nameInputSelector = 'input[data-tid="prejoin-display-name-input"]';
 
-      // ✅ Wait for the name input — it must be visible and not obscured
-      logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...',nameInputSelector);
+      logger.info('TeamsAdapter(teamJoiner): Waiting for name input field...', nameInputSelector);
       await this.page.waitForSelector(nameInputSelector, { timeout: 15000 });
 
-      // ✅ Small settle delay — Teams re-renders after popup closes
       await new Promise(r => setTimeout(r, 1000));
 
-      // Clear the field properly
       await this.page.click(nameInputSelector, { clickCount: 3 });
       await this.page.keyboard.press('Backspace');
 
-      // Wait for it to actually be empty
       await this.page.waitForFunction(
         (sel) => document.querySelector(sel)?.value === '',
         {},
@@ -213,7 +204,6 @@ class TeamsJoiner {
 
       await this.page.type(nameInputSelector, this.botName, { delay: 60 });
 
-      // Verify final value, retry if mismatched
       const finalValue = await this.page.$eval(nameInputSelector, el => el.value);
       if (finalValue !== this.botName) {
         logger.info(`Name mismatch ("${finalValue}"), retrying with fill...`);
@@ -229,20 +219,17 @@ class TeamsJoiner {
       await new Promise(r => setTimeout(r, 1000));
       logger.info(`TeamsAdapter(teamJoiner): Set bot name to: ${this.botName}`);
 
-      // ✅ Wait for Join button to become enabled, then click
       logger.info('TeamsAdapter(teamJoiner): Waiting for Join Now button to become enabled...');
       await this.page.evaluate(async () => {
         const delay = ms => new Promise(r => setTimeout(r, ms));
 
         for (let i = 0; i < 20; i++) {
-          // Teams Enterprise
           const btnTid = document.querySelector('button[data-tid="prejoin-join-button"]');
           if (btnTid && !btnTid.disabled) {
             btnTid.click();
             return;
           }
 
-          // Teams Personal / Live
           const btnText = Array.from(document.querySelectorAll('button')).find(
             b => /join now/i.test(b.innerText || '') && !b.disabled
           );
@@ -267,53 +254,242 @@ class TeamsJoiner {
   // PASSCODE MODAL HANDLER
   // -----------------------------
   async handlePasscodeModal() {
-    const requiresPasscode = await this.page.evaluate(() => {
-      const body = document.body.innerText;
-      return (
-        body.includes("We couldn't find a meeting") ||
-        body.includes("Type a meeting passcode")
+    // 1) Detect the "can't find meeting / enter passcode" screen (searches all frames).
+    const state = await this.readPasscodeScreen();
+
+    if (!state.isPasscodeScreen) {
+      return false;
+    }
+
+    logger.info(
+      `TeamsAdapter(teamJoiner): Passcode screen detected. Displayed: "${state.text}"`
+    );
+
+    // 2) Resolve passcode value (config first, then URL params).
+    let pass = this.passcode;
+    if (!pass) {
+      try {
+        const cleanUrl = this.meetingUrl.replace(/[>\]"']+$/, '');
+        const urlObj = new URL(cleanUrl);
+        pass =
+          urlObj.searchParams.get('p') ||
+          urlObj.searchParams.get('passcode') ||
+          urlObj.searchParams.get('pwd');
+      } catch (e) {}
+    }
+
+    // 3) Locate the passcode field: selectors first, then Tab discovery.
+    const field = await this.findPasscodeField();
+
+    if (!field.found) {
+      logger.warn(
+        'TeamsAdapter(teamJoiner): Could not locate the passcode input even after Tab navigation. ' +
+          (pass
+            ? 'A passcode is available but NO field was found — aborting recovery (unexpected field/selector).'
+            : 'No passcode is configured (this.passcode / URL ?p=?passcode=?pwd=). The user MUST provide the meeting passcode.')
       );
-    });
+      return false;
+    }
 
-    if (requiresPasscode) {
-      logger.info('TeamsAdapter(teamJoiner): Meeting passcode modal detected! Attempting recovery.');
+    logger.info(
+      `TeamsAdapter(teamJoiner): Passcode input located via ${field.method} ` +
+        `(tag=${field.tag}, type=${field.type}, id=${field.id}, name=${field.name}, placeholder=${field.placeholder}, data-tid=${field.dataTid}, frame=${field.frameName}).`
+    );
 
-      let pass = this.passcode;
-      if (!pass) {
-        try {
-          const cleanUrl = this.meetingUrl.replace(/[>\])"']+$/, '');
-          const urlObj = new URL(cleanUrl);
-          pass =
-            urlObj.searchParams.get('p') ||
-            urlObj.searchParams.get('passcode') ||
-            urlObj.searchParams.get('pwd');
-        } catch (e) {}
+    // 4) If we have a passcode, type it and submit.
+    if (pass) {
+      const typed = await this.typeIntoPasscode(field, pass);
+      if (!typed) {
+        logger.warn('TeamsAdapter(teamJoiner): Passcode field located but typing failed.');
+        return false;
       }
+      logger.info('TeamsAdapter(teamJoiner): Passcode typed. Submitting...');
 
-      if (pass) {
-        logger.info(`TeamsAdapter(teamJoiner): Typing extracted passcode: ${pass}`);
-        const passInput = 'input[data-tid="meeting-passcode-input"]';
-        await this.page.waitForSelector(passInput, { timeout: 5000 }).catch(() => {});
-        await this.page.click(passInput, { clickCount: 3 }).catch(() => {});
-        await this.page.keyboard.press('Backspace');
-        await this.page.type(passInput, pass, { delay: 100 }).catch(() => {});
+      await field.frame.evaluate(() => {
+        const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
+          /rejoin|join|check|continue/i.test(b.innerText || '')
+        );
+        if (submitBtn) submitBtn.click();
+      });
+      // Enter as a fallback submit in case no visible button matched.
+      await this.page.keyboard.press('Enter').catch(() => {});
+      await new Promise(r => setTimeout(r, 2500));
+      return true;
+    }
 
-        await this.page.evaluate(async () => {
-          const delay = ms => new Promise(r => setTimeout(r, ms));
-          const submitBtn = Array.from(document.querySelectorAll('button')).find(b =>
-            /rejoin|join/i.test(b.innerText || '')
-          );
-          if (submitBtn) {
-            submitBtn.click();
-            await delay(4000);
+    // No passcode available — surface what is on screen so the operator can act.
+    logger.warn(
+      `TeamsAdapter(teamJoiner): Passcode is REQUIRED but was not provided. Currently displayed: "${state.text}"`
+    );
+    return false;
+  }
+
+  // -----------------------------
+  // READ THE PASSCODE ERROR SCREEN (across all frames)
+  // -----------------------------
+  async readPasscodeScreen() {
+    const frames = this.page.frames();
+    let text = '';
+    let isPasscodeScreen = false;
+
+    for (const frame of frames) {
+      const res = await frame
+        .evaluate(() => {
+          const t = document.body ? document.body.innerText || '' : '';
+          const low = t.toLowerCase();
+          const hit =
+            /we can'?t find this meeting/i.test(low) ||
+            /we couldn'?t find a meeting/i.test(low) ||
+            /meeting might have ended/i.test(low) ||
+            /type (a )?meeting passcode/i.test(low) ||
+            /enter (a )?meeting passcode/i.test(low) ||
+            /meeting passcode/i.test(low) ||
+            /rejoin call/i.test(low) ||
+            !!document.querySelector(
+              'input[data-tid*="passcode"], input[data-tid*="otp"]'
+            );
+          return { t: t.trim().slice(0, 400), hit };
+        })
+        .catch(() => ({ t: '', hit: false }));
+      if (res.hit) isPasscodeScreen = true;
+      if (res.t) text += (text ? ' | ' : '') + res.t;
+    }
+
+    return { isPasscodeScreen, text };
+  }
+// -----------------------------
+  // FIND THE PASSCODE INPUT — selectors first, then Tab+Enter discovery (all frames)
+  // -----------------------------
+  async findPasscodeField() {
+    const frames = this.page.frames();
+    const selectors = [
+      'input[data-tid="meeting-passcode-input"]',
+      'input[data-tid*="passcode"]',
+      'input[data-tid*="otp"]',
+      'input[type="password"]',
+      'input[inputmode="numeric"]',
+      'input[autocomplete="one-time-code"]',
+      'input[name*="passcode"]',
+      'input[placeholder*="passcode" i]',
+      'input[placeholder*="OTP" i]',
+      'input[aria-label*="passcode" i]',
+      'input[aria-label*="password" i]'
+    ];
+
+    // A) Selectors across ALL frames.
+    for (const frame of frames) {
+      const info = await frame
+        .evaluate((sels) => {
+          for (const s of sels) {
+            const el = document.querySelector(s);
+            if (el) {
+              return {
+                found: true,
+                tag: el.tagName,
+                type: el.type,
+                id: el.id,
+                name: el.name,
+                placeholder: el.placeholder,
+                dataTid: el.getAttribute('data-tid')
+              };
+            }
           }
-        });
-        return true;
-      } else {
-        logger.warn('TeamsAdapter(teamJoiner): Passcode required but not found in configuration or URL.');
+          return { found: false };
+        }, selectors)
+        .catch(() => ({ found: false }));
+
+      if (info.found) {
+        return {
+          ...info,
+          method: 'selector',
+          frame,
+          frameName: frame === this.page.mainFrame() ? 'main' : frame.name() || 'child'
+        };
       }
     }
-    return false;
+
+    // B) Real keyboard Tab navigation — logging each focused element until we
+    //    land on an editable (input/textarea) field.
+    logger.info(
+      'TeamsAdapter(teamJoiner): No passcode field by selector — using Tab navigation to discover it.'
+    );
+    const tabFrames = [this.page.mainFrame(), ...this.page.frames()];
+
+    for (let i = 0; i < 14; i++) {
+      await this.page.keyboard.press('Tab').catch(() => {});
+      await new Promise(r => setTimeout(r, 180));
+
+      for (const frame of tabFrames) {
+        const info = await frame
+          .evaluate(() => {
+            const ae = document.activeElement;
+            if (!ae || (ae.tagName !== 'INPUT' && ae.tagName !== 'TEXTAREA')) return null;
+            return {
+              found: true,
+              tag: ae.tagName,
+              type: ae.type,
+              id: ae.id,
+              name: ae.name,
+              placeholder: ae.placeholder,
+              dataTid: ae.getAttribute('data-tid')
+            };
+          })
+          .catch(() => null);
+
+        if (info && info.found) {
+          const fname = frame === this.page.mainFrame() ? 'main' : frame.name() || 'child';
+          logger.info(
+            `TeamsAdapter(teamJoiner): TAB ${i + 1} frame=${fname} → focused ${info.tag} ` +
+              `type=${info.type} id=${info.id} name=${info.name} data-tid=${info.dataTid} placeholder=${info.placeholder}`
+          );
+          return { ...info, method: 'tab-navigation', frame, frameName: fname };
+        }
+      }
+    }
+
+    return { found: false };
+  }
+
+  // -----------------------------
+  // TYPE THE PASSCODE INTO THE LOCATED FIELD
+  // -----------------------------
+  async typeIntoPasscode(field, pass) {
+    return field.frame.evaluate((code) => {
+      const candidates = [
+        'input[data-tid*="passcode"]',
+        'input[data-tid*="otp"]',
+        'input[type="password"]',
+        'input[inputmode="numeric"]',
+        'input[name*="passcode"]',
+        'input[placeholder*="passcode" i]',
+        'input[placeholder*="OTP" i]'
+      ];
+      let input = null;
+      for (const c of candidates) {
+        const e = document.querySelector(c);
+        if (e) { input = e; break; }
+      }
+      if (!input && document.activeElement && document.activeElement.tagName === 'INPUT') {
+        input = document.activeElement;
+      }
+      if (!input) return false;
+
+      input.focus();
+      const proto = window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) setter.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Best-effort real-typing simulation; React reliably recognizes execCommand.
+      try {
+        document.execCommand('insertText', false, code);
+      } catch (e) {
+        if (setter) setter.call(input, code);
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }, pass);
   }
 
   // -----------------------------
@@ -351,7 +527,12 @@ class TeamsJoiner {
 
         const needsPasscode =
           text.includes("We couldn't find a meeting") ||
-          text.includes("Type a meeting passcode");
+          text.includes("We can't find this meeting") ||
+          text.includes("Type a meeting passcode") ||
+          text.includes('meeting might have ended') ||
+          /type a meeting passcode/i.test(text) ||
+          /can'?t find this meeting/i.test(text) ||
+          /meeting passcode/i.test(text);
 
         return {
           isAdmitted,
@@ -361,15 +542,18 @@ class TeamsJoiner {
         };
       });
       
-      // 1. SUCCESS: Admitted
       if (sessionState.isAdmitted) {
         logger.info('TeamsAdapter(teamJoiner): SUCCESS: Host admitted the bot to the meeting');
         await new Promise(r => setTimeout(r, 2000));
         return true;
       }
-
-      // 2. PASSCODE: Still working
-      if (sessionState.needsPasscode) {
+
+      // Also check across ALL frames - the light experience may render the
+      // "can't find meeting / passcode" prompt inside an iframe that the
+      // top-frame text check above would miss.
+      const passcodeState = await this.readPasscodeScreen();
+
+      if (sessionState.needsPasscode || passcodeState.isPasscodeScreen) {
         logger.info('TeamsAdapter(teamJoiner): Passcode modal popped up while waiting!');
         const recovered = await this.handlePasscodeModal();
         if (recovered) {
@@ -377,6 +561,12 @@ class TeamsJoiner {
 
           logger.info('TeamsAdapter(teamJoiner): Re-clicked Join Now after passcode recovery');
           await this.dismissAudioVideoPopup();
+
+          // FIX 7: re-mute mic/cam after passcode recovery — previously this
+          // step was skipped, risking an unmuted rejoin if the modal
+          // interrupted before the original mute had settled.
+          await this.muteMicAndCamera();
+
           await this.clickJoinNowButton();
           continue;
         }
@@ -392,15 +582,12 @@ class TeamsJoiner {
     logger.warn('TeamsAdapter(teamJoiner): Admission timeout: Bot was never let into the meeting');
   }
 
-
   async clickJoinNowButton() {
     await this.page.evaluate(async () => {
       const delay = ms => new Promise(r => setTimeout(r, ms));
 
       for (let i = 0; i < 20; i++) {
-        const btnTid = document.querySelector(
-          'button[data-tid="prejoin-join-button"]'
-        );
+        const btnTid = document.querySelector('button[data-tid="prejoin-join-button"]');
 
         if (btnTid && !btnTid.disabled) {
           btnTid.click();
@@ -424,53 +611,25 @@ class TeamsJoiner {
   }
 
   // -----------------------------
-  // CAPTION MONITOR
+  // POST-JOIN SETUP
+  // FIX 1: startTranscriptMonitor() no longer runs its own caption-polling
+  // setInterval. captionMonitor.js (TeamsCaptionMonitor, instantiated in
+  // socraticbot.js) is now the SINGLE source of truth for caption capture
+  // and persistence. This method now only does post-join housekeeping:
+  // mute mic, enable captions in the UI so captionMonitor can read them.
   // -----------------------------
   async startTranscriptMonitor() {
-    logger.info('TeamsAdapter(teamJoiner): Admitted! Starting Teams transcript monitor...');
+    logger.info('TeamsAdapter(teamJoiner): Admitted! Running post-join setup (mute + enable captions)...');
 
-    // ✅ Mute mic right after joining
     await this.muteMicAfterJoin();
-
     await this.enableCaptionsIfPossible();
 
-    this.captionMonitor = setInterval(async () => {
-      try {
-
-        if (!this.page || this.page.isClosed()) {
-           this.stopTranscriptMonitor();
-
-          logger.info(
-            'TeamsAdapter(teamJoiner): Caption monitor stopped (page closed)'
-          );
-
-          return;
-        }
-
-        const captions = await this.page.evaluate(() => {
-          const captionContainer =
-            document.querySelector('.pt-captions-container') ||
-            document.querySelector('[data-tid="closed-captions-renderer"]');
-
-          if (captionContainer) return captionContainer.innerText;
-
-          const nodes = Array.from(
-            document.querySelectorAll('div[data-tid="caption-text"]')
-          );
-          return nodes.map(n => n.innerText).join('\n');
-        });
-
-        if (captions && captions.trim().length > 0) {
-          logger.info(`TeamsAdapter(teamJoiner): TEAMS CAPTION: ${captions.slice(-150)}`);
-        }
-      } catch (e) {
-        logger.error(
-          `TeamsAdapter(teamJoiner): Teams caption monitor error: ${e.message}`
-        );
-      }
-    }, 4000);
+    // NOTE: caption polling itself is handled entirely by
+    // TeamsCaptionMonitor (captionMonitor.js), started separately in
+    // socraticbot.js via this.captionMonitor.startPolling(). Do not add
+    // a second polling loop here.
   }
-  
+
   async muteMicAfterJoin() {
     await new Promise(r => setTimeout(r, 2000));
 
@@ -487,7 +646,6 @@ class TeamsJoiner {
       if (mic) mic.click();
     });
 
-    // Confirm mic is now muted
     await new Promise(r => setTimeout(r, 1000));
 
     const isMuted = await this.page.evaluate(() => {
@@ -505,15 +663,12 @@ class TeamsJoiner {
     }
   }
 
+  // FIX 1: stopTranscriptMonitor() no longer needs to clear an interval
+  // here since this class doesn't own a polling loop anymore. Kept as a
+  // no-op passthrough for API compatibility with socraticbot.js's
+  // `joiner.stopTranscriptMonitor()` call in stop().
   async stopTranscriptMonitor() {
-    if (this.captionMonitor) {
-      clearInterval(this.captionMonitor);
-      this.captionMonitor = null;
-
-      logger.info(
-        'TeamsAdapter(teamJoiner): Transcript monitor stopped'
-      );
-    }
+    logger.info('TeamsAdapter(teamJoiner): Post-join monitor cleanup (no-op; caption polling owned by CaptionMonitor)');
   }
 
   async enableCaptionsIfPossible() {
@@ -536,9 +691,6 @@ class TeamsJoiner {
       logger.warn('TeamsAdapter(teamJoiner): Captions not available or already enabled');
     }
   }
-
-
-
 }
 
 module.exports = TeamsJoiner;

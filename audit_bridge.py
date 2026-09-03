@@ -18,7 +18,6 @@ if current_dir not in sys.path:
 REQUIRED_PACKAGES = [
     "openai-whisper",
     "moviepy",
-    "pyannote.audio",
     "torch",
     "torchaudio",
     "requests",
@@ -43,9 +42,9 @@ install_missing_packages()
 # ==========================================================
 # 3. CORE ENGINE IMPORTS
 # ==========================================================
-from services.engine.media_service.service import MediaService
-from services.engine.transcription_service.service import TranscriptionService
-from services.engine.ai_audit_service.service import AuditService
+from services.engine.services.media import MediaService
+from services.engine.services.transcription import TranscriptionService
+from services.engine.services.ai_audit import AuditService
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 

@@ -1,41 +1,37 @@
 /**
  * root/routes/roles.js
+ * Thin route layer — delegates all logic to roleController.
  */
 const express = require('express');
 const router = express.Router();
-const RolesModel = require('../models/RolesModel');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const roleController = require('../controllers/roles/roleController');
 
-router.get('/', requireAuth, requireRole('super_admin'), async (req, res) => {
-  try {
-    const rows = await RolesModel.getAllRoles();
-    res.json({ count: rows.length, data: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+function handle(fn) {
+  return (req, res) => {
+    fn(req).then(result => {
+      const status = result.statusCode || (result.success === false ? 400 : 200);
+      res.status(status).json(result);
+    });
+  };
+}
 
-router.get('/:name', requireAuth, requireRole('super_admin', 'admin'), async (req, res) => {
-  try {
-    if (req.user.role_name === 'admin' && req.params.name !== 'reviewer') {
-      return res.status(403).json({ error: 'Forbidden: admin may only request reviewer role' });
-    }
-    const row = await RolesModel.getRoleByName(req.params.name);
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    res.json(row);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// GET /api/roles
+router.get('/', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
 
-router.post('/', requireAuth, requireRole('super_admin'), async (req, res) => {
-  try {
-    const { role_name, description } = req.body;
-    const created = await RolesModel.createRole(role_name, description);
-    res.status(201).json(created);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// GET /api/roles/list - Admin panel list endpoint
+router.get('/list', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
+
+// POST /api/roles/pages — must be before /:name
+router.post('/pages', requireAuth, requireRole('admin', 'super_admin'), handle(roleController.getPages));
+
+// GET /api/roles/:name
+router.get('/:name', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.getByName));
+
+// POST /api/roles
+router.post('/', requireAuth, requireRole('super_admin'), handle(roleController.create));
+
+// POST /api/roles/list - Admin panel list endpoint
+router.post('/list', requireAuth, requireRole('super_admin', 'admin'), handle(roleController.list));
 
 module.exports = router;

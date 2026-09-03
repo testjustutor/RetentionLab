@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang='en'>
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <meta name='dashboard-role' content='admin'>
+  <meta name='header-page' content='settingsOrganization'>
+  <title>Organization | RetentionLab</title>
+  <script src='https://cdn.tailwindcss.com'></script>
+  <link rel='stylesheet' href='../../css/shared.css'>
+  <script src='../../js/common-ui.js'></script>
+</head>
+<body class='min-h-screen bg-slate-100 text-slate-900 antialiased'>
+  <div class='flex h-screen'>
+    <div id='sidebar-placeholder'></div>
+    <div class='flex-1 flex flex-col overflow-hidden'>
+      <div id='header-placeholder'></div>
+      <main class='flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100'>
+        <div class='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
+          <div>
+            <h2 class='text-lg font-bold text-slate-900'>Organization Settings</h2>
+            <p class='text-xs text-slate-500'>Company profile and organization overview</p>
+          </div>
+        </div>
+
+        <!-- Organization Stats -->
+        <div class='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4'>
+          <div class='bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg px-3 py-2 shadow-md'>
+            <p class='text-[10px] font-bold text-blue-900 uppercase tracking-wide'>Total Users</p>
+            <p class='text-xl font-bold text-blue-950' id='statUsers'>-</p>
+          </div>
+          <div class='bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg px-3 py-2 shadow-md'>
+            <p class='text-[10px] font-bold text-violet-900 uppercase tracking-wide'>Active Instructors</p>
+            <p class='text-xl font-bold text-violet-950' id='statInstructors'>-</p>
+          </div>
+          <div class='bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg px-3 py-2 shadow-md'>
+            <p class='text-[10px] font-bold text-emerald-900 uppercase tracking-wide'>Departments</p>
+            <p class='text-xl font-bold text-emerald-950' id='statDepartments'>-</p>
+          </div>
+          <div class='bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-200 rounded-lg px-3 py-2 shadow-md'>
+            <p class='text-[10px] font-bold text-amber-900 uppercase tracking-wide'>Meetings</p>
+            <p class='text-xl font-bold text-amber-950' id='statMeetings'>-</p>
+          </div>
+          <div class='bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-200 rounded-lg px-3 py-2 shadow-md'>
+            <p class='text-[10px] font-bold text-rose-900 uppercase tracking-wide'>Scores</p>
+            <p class='text-xl font-bold text-rose-950' id='statScores'>-</p>
+          </div>
+        </div>
+
+        <!-- Company Profile (view-only) -->
+        <div class='bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg p-4 mb-4 shadow-md'>
+          <h3 class='text-[13px] font-bold text-blue-900 mb-3 uppercase tracking-wide'>Company Profile</h3>
+          <p class='text-[11px] text-slate-500 mb-3'>Company profile is managed by RetentionLab and is read-only.</p>
+          <div class='grid grid-cols-1 md:grid-cols-2 gap-3'>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Company Name</label>
+              <input type='text' id='companyName' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed'>
+            </div>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Company Code</label>
+              <input type='text' id='companyCode' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed'>
+            </div>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Domain</label>
+              <input type='text' id='domain' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed'>
+            </div>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Logo URL</label>
+              <input type='text' id='logoUrl' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed'>
+            </div>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Status</label>
+              <input type='text' id='status' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed capitalize'>
+            </div>
+            <div>
+              <label class='block text-[10px] font-bold text-blue-900 uppercase tracking-wide mb-1'>Created</label>
+              <input type='text' id='companyCreated' readonly class='w-full bg-slate-100 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none cursor-not-allowed'>
+            </div>
+          </div>
+        </div>
+
+        <!-- Departments -->
+        <div class='bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg p-3 shadow-md'>
+          <h3 class='text-[13px] font-bold text-violet-900 mb-2 uppercase tracking-wide'>Departments</h3>
+          <div class='overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar'>
+            <table class='w-full text-left text-[11px]'>
+              <thead class='sticky top-0'>
+                <tr class='border-b-2 border-violet-300 bg-violet-200'>
+                  <th class='py-2 px-2 text-[10px] font-bold text-violet-950 uppercase'>Department</th>
+                  <th class='py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right'>Members</th>
+                </tr>
+              </thead>
+              <tbody class='divide-y divide-violet-200' id='departmentBody'>
+                <tr><td colspan='2' class='py-2 text-center text-violet-800 font-medium'>Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type='module' src='../../js/auth.js'></script>
+  <script src='../../js/load-components.js'></script>
+  <script src='../../js/admin/settings/organization.js'></script>
+</body>
+</html>
+
+

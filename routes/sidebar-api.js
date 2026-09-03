@@ -1,37 +1,23 @@
 /**
  * root/routes/sidebar-api.js
- */
-/**
  * API route for dynamic sidebar navigation
- * GET /api/sidebar/menu - Returns menu structure based on user role
+ * POST /api/sidebar/menu - Returns menu structure based on user role + user overrides
+ *
+ * This module exports both:
+ *  - An Express Router for use with router.use('/api/sidebar', ...)
+ *  - A getMenu action for use with the centralized route registry (routes/registry.js)
  */
-const { HeaderConfigModel } = require('../models/HeaderConfigModel');
+const express = require('express');
+const router = express.Router();
+const { requireAuth } = require('../middleware/auth');
+const sidebarApiController = require('../controllers/sidebar/sidebarApiController');
 
-module.exports = async (req, res) => {
-  try {
-    const roleId = req.user?.role_id;
-    const userRole = req.user?.role_name || 'employee';
+// POST /menu - Get sidebar menu for current user (used when mounted at /api/sidebar)
+router.post('/menu', requireAuth, (req, res) => sidebarApiController.getMenu(req, res));
 
-    // Fetch menu from database
-    let menuItems = null;
-    if (roleId) {
-      try {
-        menuItems = await HeaderConfigModel.getMenuItemsByRoleId(roleId);
-      } catch (err) {
-        console.error('sidebar-api: failed to load menu from DB:', err);
-      }
-    }
+// Export router for direct mounting
+module.exports = router;
 
-    res.json({
-      success: true,
-      role: userRole,
-      menu: { menuItems: menuItems || [] }
-    });
-  } catch (error) {
-    console.error('Error fetching sidebar menu:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch menu'
-    });
-  }
-};
+// Also export the getMenu action for the route registry (routes/registry.js)
+// which does: POST /api/sidebar/menu => require('./sidebar-api').getMenu
+module.exports.getMenu = sidebarApiController.getMenu;

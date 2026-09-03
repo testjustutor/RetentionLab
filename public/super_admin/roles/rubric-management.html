@@ -1,0 +1,175 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="dashboard-role" content="super_admin">
+  <title>Rubric Management â€” Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/shared.css" />
+
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        <div class="max-w-6xl mx-auto">
+
+          <!-- Tab Navigation -->
+          <div class="flex gap-1.5 mb-2 border-b border-slate-800 pb-0 flex-wrap">
+            <button id="tabCategories" class="px-3 py-1.5 bg-indigo-600 text-white rounded-t-md text-xs font-medium" onclick="showTab('categories')">Categories</button>
+            <button id="tabIndicators" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-t-md text-xs font-medium hover:bg-slate-700" onclick="showTab('indicators')">Indicators</button>
+            <button id="tabAssignments" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-t-md text-xs font-medium hover:bg-slate-700" onclick="showTab('assignments')">Assign</button>
+            <button id="tabViewAssignments" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-t-md text-xs font-medium hover:bg-slate-700" onclick="showTab('viewAssignments')">View</button>
+            <button id="tabAuditLogs" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-t-md text-xs font-medium hover:bg-slate-700" onclick="showTab('auditLogs')">Audit</button>
+          </div>
+
+          <!-- Categories Tab -->
+          <div id="panelCategories" class="block">
+            <div class="flex justify-between items-center mb-2">
+ <h3 class="text-base font-semibold ">Rubric Categories</h3>
+              <button class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="showCategoryForm()">+ Add</button>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+              <div id="categoriesContainer">
+                <p class="text-slate-400">Loading categories...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Indicators Tab -->
+          <div id="panelIndicators" class="hidden">
+            <div class="flex justify-between items-center mb-2">
+ <h3 class="text-base font-semibold ">Rubric Indicators</h3>
+              <button class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="showIndicatorForm()">+ Add</button>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+              <div id="indicatorsContainer">
+                <p class="text-slate-400">Loading indicators...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Assign Tab -->
+          <div id="panelAssignments" class="hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+ <h3 class="text-base font-semibold mb-2">Assign Rubric to Admin</h3>
+              <form id="assignForm" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Select Category</label>
+ <select id="assignCategoryId" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" required>
+                    <option value="">Select a category</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Select Admin User</label>
+ <select id="assignAdminUserId" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" required>
+                    <option value="">Select an admin</option>
+                  </select>
+                </div>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors">Assign Category</button>
+              </form>
+              <div id="assignResult" class="mt-4"></div>
+            </div>
+          </div>
+
+          <!-- View Assignments Tab -->
+          <div id="panelViewAssignments" class="hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+ <h3 class="text-base font-semibold mb-2">Current Assignments</h3>
+              <div id="viewAssignmentsContainer">
+                <p class="text-slate-400">Loading assignments...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Audit Logs Tab -->
+          <div id="panelAuditLogs" class="hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+ <h3 class="text-base font-semibold mb-2">Audit Logs</h3>
+              <div class="mb-2 flex gap-4 flex-wrap">
+ <select id="auditEntityFilter" class="rounded-md bg-slate-800 border-transparent p-2" onchange="loadAuditLogs()">
+                  <option value="">All Entity Types</option>
+                  <option value="master_category">Master Category</option>
+                  <option value="master_indicator">Master Indicator</option>
+                  <option value="assignment">Assignment</option>
+                  <option value="admin_category">Admin Category</option>
+                  <option value="admin_indicator">Admin Indicator</option>
+                </select>
+                <button class="px-3 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-600" onclick="loadAuditLogs()">Refresh</button>
+              </div>
+              <div id="auditLogsContainer">
+                <p class="text-slate-400">Loading audit logs...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal overlay for add/edit forms -->
+          <div id="modalOverlay" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 w-full max-w-lg mx-4 shadow-2xl">
+ <h3 id="modalTitle" class="text-base font-bold mb-1.5">Add Category</h3>
+              <form id="modalForm" class="space-y-4">
+                <input type="hidden" id="modalMode" value="category" />
+                <input type="hidden" id="modalEditId" value="" />
+                
+                <div id="modalCategoryIdGroup">
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Category ID (unique slug)</label>
+ <input type="text" id="modalCategoryId" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" required />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Name</label>
+ <input type="text" id="modalName" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" required />
+                </div>
+
+                <div id="modalWeightGroup">
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Weight (0-100)</label>
+ <input type="number" id="modalWeight" min="0" max="100" step="0.1" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" />
+                </div>
+
+                <div id="modalValueGroup" class="hidden">
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Default Value / Weightage</label>
+ <input type="number" id="modalValue" min="0" max="100" step="0.1" value="1" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" />
+                  <p class="text-xs text-slate-500 mt-1">The default weight/score value for this indicator. Admins can override this in their assigned copy.</p>
+                </div>
+
+                <div id="modalCategorySelectGroup" class="hidden">
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Category</label>
+ <select id="modalCategorySelect" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2" required></select>
+                </div>
+
+                <div id="modalTypeGroup" class="hidden">
+                  <label class="block text-sm font-medium text-slate-300 mb-1">Type</label>
+ <select id="modalType" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-2">
+                    <option value="HUMAN">Human</option>
+                    <option value="AI">AI</option>
+                  </select>
+                </div>
+
+                <div id="modalGateGroup" class="hidden">
+                  <label class="inline-flex items-center">
+                    <input type="checkbox" id="modalIsGate" class="form-checkbox h-5 w-5 text-indigo-600 rounded" />
+                    <span class="ml-2 text-sm text-slate-300">Is Gate (critical indicator)</span>
+                  </label>
+                </div>
+
+                <div class="flex gap-3 justify-end pt-2">
+                  <button type="button" class="px-4 py-2 bg-slate-700 text-slate-300 font-semibold rounded-md hover:bg-slate-600 transition-colors" onclick="closeModal()">Cancel</button>
+                  <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/load-components.js"></script>
+  <script src="/js/super_admin/roles/rubric-management.js"></script>
+</body>
+</html>
+

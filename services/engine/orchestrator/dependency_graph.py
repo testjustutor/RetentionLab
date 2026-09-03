@@ -24,10 +24,8 @@ class DependencyGraph:
         ↓
     transcription
         ↓
-    ├── intel
-    ├── audit
-    ├── summary
-    └── topics
+    ├── audit ──────────────┐
+    └── summary ────────────┼──→ persist_results
     """
 
     def __init__(self, context):

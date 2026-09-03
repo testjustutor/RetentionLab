@@ -1,5 +1,10 @@
+"""
+/utils/logger_util.py
+
+"""
 import logging
 import os
+import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
@@ -22,15 +27,15 @@ date_format = '%Y-%m-%d %H:%M:%S'  # Kept the date to match your log type exampl
 class LogTypeInjectFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, 'type'):
-            # Automatically tag third-party library calls (Groq, OpenAI, httpx)
-            if any(pkg in record.name for pkg in ['openai', 'groq', 'httpx', 'httpcore']):
-                record.type = "GROQ_API"
+            # Automatically tag third-party library calls (Gemini, OpenAI, httpx)
+            if any(pkg in record.name for pkg in ['openai', 'Gemini', 'httpx', 'httpcore']):
+                record.type = "GEMINI_API"
             else:
                 record.type = "ENGINE"
         return True
 
 # 2. Setup the Logger instance
-logger = logging.getLogger() # Configures the Root logger so it intercepts Groq/OpenAI too
+logger = logging.getLogger() # Configures the Root logger so it intercepts Gemini/OpenAI too
 logger.setLevel(logging.INFO)
 
 # Clear existing handlers to prevent duplication errors
@@ -51,8 +56,10 @@ file_handler.setFormatter(file_formatter)
 file_handler.addFilter(LogTypeInjectFilter()) # Attach the safety filter
 logger.addHandler(file_handler)
 
-# 🖥️ Stream Handler (Terminal Console)
-stream_handler = logging.StreamHandler()
+# 🖥️ Stream Handler (Console) - writes to STDOUT so the Node runner
+# (services/engine/python_runner.js) relays every log line to the terminal.
+# NEVER use raw print() for messages; always log_with_type().
+stream_handler = logging.StreamHandler(sys.stdout)
 stream_formatter = logging.Formatter(fmt=log_format, datefmt=date_format)
 stream_handler.setFormatter(stream_formatter)
 stream_handler.addFilter(LogTypeInjectFilter()) # Attach the safety filter

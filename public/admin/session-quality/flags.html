@@ -1,0 +1,35 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="flags">
+  <title>Quality Flags | Session Quality Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+
+        <!-- Filters -->
+        <div id="filters-container"></div>
+
+        <div id="content" class="bg-white border border-slate-200 rounded-lg p-3">
+          <div class="loading">Loading quality flags...</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../../js/common-ui.js"></script>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="/js/admin/session-quality/shared-filters.js"></script>
+  <script src="/js/admin/session-quality/flags.js"></script>
+</body>
+</html>

@@ -1,0 +1,485 @@
+/* ============================================
+   RETENTIONLAB - CENTRALIZED COLOR SYSTEM
+   ============================================
+   
+   This file contains ALL color, typography, spacing,
+   radius, transition, and shadow tokens used throughout
+   the project. To change the project's theme, update
+   the variables here — shared.css should never contain
+   a hardcoded fallback value.
+   
+   Current Theme: Blue Brand Accent (#1f65c2)
+   + Blue Admin Accent (#1f65c2) on Pure White Base
+   ============================================ */
+
+:root {
+  /* ==========================================
+     TYPOGRAPHY
+     ========================================== */
+
+  --font-primary: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ==========================================
+     SPACING SCALE
+     ========================================== */
+
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* ==========================================
+     RADIUS SCALE
+     ========================================== */
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* ==========================================
+     TRANSITIONS & OPACITY
+     ========================================== */
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  --opacity-disabled: 0.55;
+
+  /* ==========================================
+     PRIMARY COLOR PALETTE (BRAND - BLUE)
+     ========================================== */
+  
+  --color-primary: #1b4f97;
+  --color-primary-hover: #1f65c2;
+  --color-primary-active: #16468d;
+  --color-primary-light: rgba(27, 79, 151, 0.12);
+  --color-primary-glow: rgba(27, 79, 151, 0.2);
+
+  /* ==========================================
+     ADMIN DASHBOARD ACCENT (BLUE)
+     ========================================== */
+
+  --color-accent-primary: #1f65c2;
+  --color-accent-hover: #1e56b8;
+  --color-accent-active: #1848a0;
+  --color-accent-light: rgba(31, 101, 194, 0.12);
+  --color-accent-glow: rgba(31, 101, 194, 0.18);
+
+  /* Semantic Colors */
+  --color-success: #0f766e;
+  --color-success-hover: #115e56;
+  --color-success-bg: rgba(15, 118, 110, 0.08);
+  
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-bg: rgba(220, 38, 38, 0.08);
+  
+  --color-warning: #ca8a04;
+  --color-warning-hover: #a16207;
+  --color-warning-bg: rgba(202, 138, 4, 0.08);
+  
+  --color-info: #1f65c2;
+  --color-info-hover: #1d4ed8;
+  --color-info-bg: rgba(31, 101, 194, 0.08);
+
+  /* ==========================================
+     NEUTRAL COLORS (GRAY SCALE)
+     ========================================== */
+  
+  --color-white: #ffffff;
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+
+  /* ==========================================
+     BACKGROUND & SURFACE COLORS
+     Body is now pure white. Tertiary/hover tiers
+     step down slightly to keep a visible scale.
+     ========================================== */
+  
+  --color-bg-primary: #f5f8fb;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #eef4fb;
+  --color-bg-hover: #e7eff8;
+  --color-bg-panel: #ffffff;
+  --color-bg-dark: #e2ecf9;
+
+  --card-bg: #ffffff;
+  --card-bg-hover: #f8fbff;
+
+  /* ==========================================
+     TEXT COLORS
+     ========================================== */
+  
+  --color-text-primary: #102a43;
+  --color-text-secondary: #334e68;
+  --color-text-muted: #627d98;
+  --color-text-heading: #102a43;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #1f65c2;
+  --color-text-link-hover: #16448d;
+
+  /* ==========================================
+     BORDER COLORS
+     Solid, subtle separation for light surfaces.
+     ========================================== */
+  
+  --color-border: #d8e2ef;
+  --color-border-subtle: #e2e8f0;
+  --color-border-focus: #1f65c2;
+  --color-border-hover: #cbd5e1;
+
+  /* ==========================================
+     BUTTON COLORS
+     ========================================== */
+  
+  /* Primary Button (Blue) */
+  --btn-primary-bg: #2563eb;
+  --btn-primary-bg-hover: #1d4ed8;
+  --btn-primary-bg-active: #1e40af;
+  --btn-primary-border: #2563eb;
+  --btn-primary-text: #ffffff;
+  --btn-primary-disabled-bg: #bfdbfe;
+  --btn-primary-disabled-text: #ffffff;
+
+  /* Secondary Button (Neutral) */
+  --btn-secondary-bg: #f1f5f9;
+  --btn-secondary-bg-hover: #e2e8f0;
+  --btn-secondary-bg-active: #dbeafe;
+  --btn-secondary-border: #d8e2ef;
+  --btn-secondary-text: #102a43;
+  --btn-secondary-disabled-bg: #edf2ff;
+  --btn-secondary-disabled-text: #94a3b8;
+
+  /* Outline Button */
+  --btn-outline-bg: transparent;
+  --btn-outline-bg-hover: rgba(37, 99, 235, 0.08);
+  --btn-outline-border: #2563eb;
+  --btn-outline-text: #2563eb;
+  --btn-outline-disabled-border: #dde3ea;
+  --btn-outline-disabled-text: #94a3b8;
+
+  /* Ghost Button */
+  --btn-ghost-bg: transparent;
+  --btn-ghost-bg-hover: #eef4fb;
+  --btn-ghost-text: #102a43;
+  --btn-ghost-text-hover: #1f65c2;
+
+  /* Navy Button (Alt Primary) */
+  --btn-navy-bg: #1f65c2;
+  --btn-navy-bg-hover: #16448d;
+  --btn-navy-border: #1f65c2;
+  --btn-navy-text: #ffffff;
+
+  /* Danger Button */
+  --btn-danger-bg: #dc2626;
+  --btn-danger-bg-hover: #b91c1c;
+  --btn-danger-border: #dc2626;
+  --btn-danger-text: #ffffff;
+
+  /* Success Button */
+  --btn-success-bg: #0f766e;
+  --btn-success-bg-hover: #115e56;
+  --btn-success-border: #0f766e;
+  --btn-success-text: #ffffff;
+
+  /* Link Button */
+  --btn-link-text: #1f65c2;
+  --btn-link-text-hover: #16448d;
+  --btn-link-underline: #1f65c2;
+
+  /* Warning Button (Amber/Orange) */
+  --btn-warning-bg: #ca8a04;
+  --btn-warning-bg-hover: #a16207;
+  --btn-warning-bg-active: #854d0e;
+  --btn-warning-border: #ca8a04;
+  --btn-warning-text: #ffffff;
+  --btn-warning-disabled-bg: #fde68a;
+  --btn-warning-disabled-text: #ffffff;
+
+  /* Info Button (Sky/Cyan) */
+  --btn-info-bg: #0284c7;
+  --btn-info-bg-hover: #0369a1;
+  --btn-info-bg-active: #075985;
+  --btn-info-border: #0284c7;
+  --btn-info-text: #ffffff;
+  --btn-info-disabled-bg: #bae6fd;
+  --btn-info-disabled-text: #ffffff;
+
+  /* Teal Button (secondary success-family accent) */
+  --btn-teal-bg: #0d9488;
+  --btn-teal-bg-hover: #0f766e;
+  --btn-teal-bg-active: #115e59;
+  --btn-teal-border: #0d9488;
+  --btn-teal-text: #ffffff;
+
+  /* Pink Button */
+  --btn-pink-bg: #db2777;
+  --btn-pink-bg-hover: #be185d;
+  --btn-pink-bg-active: #9d174d;
+  --btn-pink-border: #db2777;
+  --btn-pink-text: #ffffff;
+
+  /* Purple Button (violet/fuchsia family, distinct from primary) */
+  --btn-purple-bg: #7c3aed;
+  --btn-purple-bg-hover: #6d28d9;
+  --btn-purple-bg-active: #5b21b6;
+  --btn-purple-border: #7c3aed;
+  --btn-purple-text: #ffffff;
+
+  /* Dark / Solid Button (slate-900 style, distinct from --btn-navy) */
+  --btn-dark-bg: #0f172a;
+  --btn-dark-bg-hover: #020617;
+  --btn-dark-border: #0f172a;
+  --btn-dark-text: #ffffff;
+
+  /* ==========================================
+     BUTTON SHADOW RGB TRIPLETS
+     Used as: rgba(var(--btn-shadow-x), 0.1)
+     No rgba() wrapper stored here — just r, g, b
+     ========================================== */
+
+  --btn-shadow-primary: 31, 101, 194;   /* matches --color-accent-primary */
+  --btn-shadow-success: 15, 118, 110;   /* matches --color-success */
+  --btn-shadow-danger: 220, 38, 38;     /* matches --color-danger */
+  --btn-shadow-warning: 202, 138, 4;    /* matches --color-warning */
+  --btn-shadow-info: 2, 132, 199;
+  --btn-shadow-teal: 13, 148, 136;
+  --btn-shadow-pink: 219, 39, 119;
+  --btn-shadow-purple: 124, 58, 237;
+  --btn-shadow-dark: 15, 23, 42;
+
+  /* ==========================================
+     FORM ELEMENT COLORS
+     ========================================== */
+  
+  /* Text Input */
+  --input-text-bg: #ffffff;
+  --input-text-border: #dde3ea;
+  --input-text-border-hover: #c3ccd6;
+  --input-text-border-focus: #1f65c2;
+  --input-text-color: #102a43;
+  --input-text-disabled-bg: #f1f5f9;
+  --input-text-disabled-border: #d8e2ef;
+  --input-text-disabled-color: #94a3b8;
+  --input-text-error-border: #dc2626;
+  --input-text-error-bg: rgba(220, 38, 38, 0.08);
+  --input-text-success-border: #0f766e;
+  --input-text-success-bg: rgba(15, 118, 110, 0.08);
+  --input-focus-ring: rgba(31, 101, 194, 0.12);
+
+  /* Textarea */
+  --textarea-bg: #ffffff;
+  --textarea-border: #dde3ea;
+  --textarea-border-focus: #1f65c2;
+  --textarea-color: #102a43;
+  --textarea-placeholder: #94a3b8;
+  --textarea-resize-handle: #cbd5e1;
+
+  /* Select / Dropdown */
+  --select-bg: #ffffff;
+  --select-border: #dde3ea;
+  --select-border-hover: #c3ccd6;
+  --select-border-focus: #1f65c2;
+  --select-color: #102a43;
+  --select-arrow-color: #64748b;
+  --select-option-bg: #ffffff;
+  --select-option-hover-bg: #eef4fb;
+  --select-option-selected-bg: rgba(31, 101, 194, 0.12);
+  --select-option-selected-color: #1f65c2;
+  --select-disabled-bg: #f1f5f9;
+  --select-disabled-color: #94a3b8;
+
+  /* Checkbox */
+  --checkbox-bg: #ffffff;
+  --checkbox-border: #c3ccd6;
+  --checkbox-border-hover: #1f65c2;
+  --checkbox-checked-bg: #1f65c2;
+  --checkbox-checked-border: #1f65c2;
+  --checkbox-checked-icon: #ffffff;
+  --checkbox-disabled-bg: #f1f5f9;
+  --checkbox-disabled-border: #dde3ea;
+  --checkbox-focus-ring: rgba(31, 101, 194, 0.18);
+
+  /* Radio Button */
+  --radio-bg: #ffffff;
+  --radio-border: #c3ccd6;
+  --radio-border-hover: #1f65c2;
+  --radio-checked-border: #1f65c2;
+  --radio-checked-dot: #1f65c2;
+  --radio-disabled-bg: #f1f5f9;
+  --radio-disabled-border: #d8e2ef;
+  --radio-focus-ring: rgba(31, 101, 194, 0.18);
+
+  /* Toggle / Switch */
+  --toggle-bg-off: #dbeafe;
+  --toggle-bg-on: #1f65c2;
+  --toggle-knob: #ffffff;
+  --toggle-disabled-bg: #e2e8f0;
+
+  /* File Upload */
+  --file-upload-bg: #faf8f3;
+  --file-upload-border: #d8e2ef;
+  --file-upload-border-dashed: #1f65c2;
+  --file-upload-border-hover: #1f65c2;
+  --file-upload-icon: #64748b;
+  --file-upload-text: #334155;
+  --file-upload-drag-bg: rgba(31, 101, 194, 0.08);
+
+  /* Range / Slider */
+  --range-track-bg: #e2e8f0;
+  --range-track-fill: #1f65c2;
+  --range-thumb-bg: #ffffff;
+  --range-thumb-border: #1f65c2;
+  --range-thumb-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+
+  /* Date / Time Picker */
+  --date-input-bg: #ffffff;
+  --date-input-border: #dde3ea;
+  --date-input-focus-border: #1f65c2;
+  --date-calendar-bg: #ffffff;
+  --date-calendar-border: #d8e2ef;
+  --date-day-hover-bg: #eef4fb;
+  --date-day-selected-bg: #1f65c2;
+  --date-day-selected-color: #ffffff;
+  --date-day-today-border: #1f65c2;
+
+  /* ==========================================
+     FORM LAYOUT COLORS
+     ========================================== */
+  
+  --form-label-color: #334155;
+  --form-label-weight: 500;
+  --form-label-required-color: #ef4444;
+  
+  --form-group-gap: 1.25rem;
+  --form-fieldset-border: #dde3ea;
+  --form-fieldset-legend-color: #0f172a;
+  
+  --form-helper-text-color: #64748b;
+  --form-helper-text-size: 0.8125rem;
+  
+  --form-error-text-color: #ef4444;
+  --form-error-icon-color: #ef4444;
+  --form-error-bg: rgba(239, 68, 68, 0.04);
+  --form-error-border: #ef4444;
+  
+  --form-success-text-color: #10b981;
+  --form-success-icon-color: #10b981;
+  --form-success-border: #10b981;
+  
+  --form-divider-color: #f1ede2;
+  --form-section-bg: #faf8f3;
+
+  /* ==========================================
+     TABLE COLORS
+     ========================================== */
+  
+  --table-bg: #ffffff;
+  --table-border: #dde3ea;
+  --table-border-outer: #e7e0d0;
+  
+  --table-header-bg: #e2e8f0;
+  --table-header-text: #0f172a;
+  --table-header-border: #cbd5e1;
+  --table-header-font-weight: 600;
+  
+  --table-row-bg: #ffffff;
+  --table-row-bg-alt: #f8fafc;
+  --table-row-hover-bg: rgba(37, 99, 235, 0.08);
+  --table-row-selected-bg: rgba(37, 99, 235, 0.1);
+  --table-row-border: #e2e8f0;
+  
+  --table-cell-text: #0f172a;
+  --table-cell-text-muted: #64748b;
+  --table-cell-padding-y: 0.75rem;
+  --table-cell-padding-x: 1rem;
+  
+  --table-footer-bg: #eef4fb;
+  --table-footer-text: #334e68;
+  --table-footer-border: #d8e2ef;
+  
+  --table-sort-icon: #94a3b8;
+  --table-sort-icon-active: #2563eb;
+
+  /* ==========================================
+     SIDEBAR COLORS
+     ========================================== */
+  
+  --sidebar-bg: #edf4fd;
+  --sidebar-border: #d8e2ef;
+  --sidebar-text: #475569;
+  --sidebar-text-hover: #102a43;
+  --sidebar-active-bg: rgba(31, 101, 194, 0.1);
+  --sidebar-active-border: #1f65c2;
+
+  /* ==========================================
+     LIGHT THEME ADMIN COLORS
+     ========================================== */
+  
+  --dark-bg-primary: #eef4fb;
+  --dark-bg-secondary: #ffffff;
+  --dark-bg-tertiary: #e6eef8;
+  --dark-text-primary: #102a43;
+  --dark-text-secondary: #334e68;
+  --dark-text-muted: #627d98;
+  --dark-border: #d8e2ef;
+
+  /* ==========================================
+     SHADOW COLORS
+     Slightly stronger so surfaces separate from
+     the now pure-white background without relying
+     on a background tint.
+     ========================================== */
+  
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.06);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(31, 101, 194, 0.16);
+  --shadow-card: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --shadow-glow-accent: 0 4px 14px rgba(37, 99, 235, 0.18);
+
+  /* ==========================================
+     SCROLLBAR COLORS
+     ========================================== */
+  
+  --color-scrollbar-thumb: #cbd5e1;
+  --color-scrollbar-thumb-hover: #94a3b8;
+  --color-scrollbar-track: #f1f5f9;
+
+  /* ==========================================
+     GRADIENT COLORS
+     ========================================== */
+  
+  --gradient-accent: linear-gradient(90deg, transparent, #1f65c2, transparent);
+  --gradient-primary: linear-gradient(135deg, #1f65c2 0%, #16448d 100%);
+  --gradient-admin-header: linear-gradient(90deg, transparent, #1f65c2, transparent);
+}

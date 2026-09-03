@@ -1,0 +1,223 @@
+PAGES IMPROVEMENT PROMPT TEMPLATE
+======================================
+
+INSTRUCTIONS:
+Apply the same visual improvements made to the to the specified page. Follow these exact patterns:
+
+---
+
+1. COLOR SCHEME PATTERN
+
+For Cards/KPI Sections:
+<div class="bg-gradient-to-br from-[color1]-50 to-[color2]-100 border-2 border-[color]-400 rounded-lg p-3 shadow-md">
+  <h3 class="text-[12px] font-bold text-[color]-900 mb-2 uppercase tracking-wide">Section Title</h3>
+  <!-- Content here -->
+</div>
+
+Color Theme Options (use different colors for different sections):
+- Blue/Cyan: from-blue-50 to-cyan-100, border-blue-400, text-blue-900
+- Amber/Orange: from-amber-50 to-orange-100, border-amber-400, text-amber-900
+- Violet/Purple: from-violet-50 to-purple-100, border-violet-400, text-violet-900
+- Emerald/Teal: from-emerald-50 to-teal-100, border-emerald-400, text-emerald-900
+- Indigo/Blue: from-indigo-50 to-blue-100, border-indigo-400, text-indigo-900
+- Rose/Pink: from-rose-50 to-pink-100, border-rose-400, text-rose-900
+- Orange/Amber: from-orange-50 to-amber-100, border-orange-400, text-orange-900
+- Slate/Gray: from-slate-50 to-gray-100, border-slate-300, text-slate-800
+
+---
+
+2. TABLE IMPROVEMENTS
+
+Convert Charts to Tables (where applicable):
+Replace pie charts, bar charts, or any chart visualizations with data tables showing:
+- Column 1: Label/Name
+- Column 2: Count (absolute number)
+- Column 3: Percentage (calculated)
+
+Table Structure:
+<div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+  <table class="w-full text-left text-[11px]">
+    <thead class="sticky top-0">
+      <tr class="border-b-2 border-[color]-300 bg-[color]-200">
+        <th class="py-2 px-2 text-[10px] font-bold text-[color]-950 uppercase">Header 1</th>
+        <th class="py-2 px-2 text-[10px] font-bold text-[color]-950 uppercase text-right">Header 2</th>
+        <th class="py-2 px-2 text-[10px] font-bold text-[color]-950 uppercase text-right">Header 3</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-[color]-300" id="tableId">
+      <tr><td colspan="3" class="py-2 text-center text-[color]-800 font-medium">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+---
+
+3. JAVASCRIPT TABLE RENDERING FUNCTIONS
+
+Replace chart rendering functions with table rendering functions:
+
+function renderYourTable(data) {
+  const tbody = document.getElementById('tableId');
+  if (!tbody) return;
+
+  if (!data || !data.labels || !data.data) {
+    tbody.innerHTML = '<tr><td colspan="3" class="py-2 text-center text-[color]-800 font-medium">No data available</td></tr>';
+    return;
+  }
+
+  const total = data.data.reduce((sum, count) => sum + count, 0);
+  
+  tbody.innerHTML = data.labels.map((label, index) => {
+    const count = data.data[index] || 0;
+    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+    
+    return `
+      <tr class="border-b border-[color]-300 hover:bg-[color]-100 transition-colors">
+        <td class="py-2 px-2 text-[11px] font-bold text-[color]-950">${escapeHtml(label)}</td>
+        <td class="py-2 px-2 text-[11px] font-bold text-[color]-900 text-right">${count}</td>
+        <td class="py-2 px-2 text-[11px] font-semibold text-[color]-700 text-right">${percentage}%</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+---
+
+4. TYPOGRAPHY STANDARDS
+
+Headers:
+- Font size: text-[12px] or text-[13px]
+- Font weight: font-bold
+- Style: uppercase tracking-wide
+- Color: Use the darkest shade of your theme color (e.g., text-emerald-900)
+
+Body Text:
+- Font size: text-[11px]
+- Font weight: font-semibold or font-bold
+- Color: Use 950 for primary data, 900 for secondary, 700 for tertiary
+
+Table Headers:
+- Font size: text-[10px]
+- Font weight: font-bold
+- Style: uppercase
+- Color: text-[color]-950 (darkest shade)
+
+---
+
+5. SCROLLABLE IMPLEMENTATION
+
+For all table containers:
+<div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+  <!-- Table content -->
+</div>
+
+Max height options:
+- Small tables: max-h-64 (256px)
+- Medium tables: max-h-80 (320px)
+- Large tables: max-h-96 (384px)
+
+Sticky headers:
+<thead class="sticky top-0">
+  <!-- Header row -->
+</thead>
+
+---
+
+6. CUSTOM SCROLLBAR (Already in shared.css)
+
+The .custom-scrollbar class is already defined in public/css/shared.css. It provides:
+- 8px width scrollbar
+- Subtle gray colors
+- Rounded corners
+- Hover effects
+- Cross-browser support (Webkit + Firefox)
+
+---
+
+7. CHART TEXT COLOR FIXES (If keeping any charts)
+
+For donut/pie charts with visibility issues:
+{
+  legend: { position: 'bottom', labels: { colors: '#1e293b', fontSize: '10px', fontWeight: 600 } },
+  plotOptions: {
+    pie: {
+      donut: {
+        labels: {
+          show: true,
+          name: { color: '#1e293b', fontSize: '11px', fontWeight: 600 },
+          value: { color: '#c2410c', fontSize: '16px', fontWeight: 700 },
+          total: { show: true, label: 'Total', color: '#1e293b', fontSize: '12px', fontWeight: 700 }
+        }
+      }
+    }
+  }
+}
+
+---
+
+8. HOVER EFFECTS
+
+Add smooth transitions to all interactive elements:
+<tr class="border-b border-[color]-300 hover:bg-[color]-100 transition-colors">
+
+---
+
+9. SHADOW EFFECTS
+
+Add depth to cards:
+<div class="shadow-md">
+  <!-- Card content -->
+</div>
+
+---
+
+10. IMPLEMENTATION STEPS
+
+1. Read the current page to understand its structure
+2. Identify all sections that need improvement (cards, tables, charts)
+3. Apply color scheme to each section using the patterns above
+4. Convert charts to tables where data presentation is unclear
+5. Add scrollable containers to all tables with max-h-64 custom-scrollbar
+6. Update JavaScript functions to render tables instead of charts
+7. Add sticky headers to all scrollable tables
+8. Test the page to ensure all data displays correctly
+
+---
+
+EXAMPLE TRANSFORMATION
+
+Before:
+<div class="bg-white border border-slate-200 rounded-lg p-3">
+  <h3 class="text-[12px] font-semibold text-slate-900 mb-2">Meeting Status</h3>
+  <div id="statusChart" class="h-32"></div>
+</div>
+
+After:
+<div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
+  <h3 class="text-[13px] font-bold text-emerald-900 mb-2 uppercase tracking-wide">Meeting Status</h3>
+  <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+    <table class="w-full text-left text-[11px]">
+      <thead class="sticky top-0">
+        <tr class="border-b-2 border-emerald-300 bg-emerald-200">
+          <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase">Status</th>
+          <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase text-right">Count</th>
+          <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase text-right">Percentage</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-emerald-300" id="statusTable">
+        <tr><td colspan="3" class="py-2 text-center text-emerald-800 font-medium">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+---
+
+KEY PRINCIPLES
+
+1. Consistency: Use the same color scheme patterns across all sections
+2. Visibility: Use the darkest shade (950) for headers, 900/700 for body text
+3. Scrollability: All tables should be scrollable with max-height limits
+4. Professional: Add gradients, shadows, and smooth transitions
+5. Readability: Bold text, proper spacing, clear hierarchy
+6. Responsive: Horizontal scroll for small screens, vertical scroll for long content

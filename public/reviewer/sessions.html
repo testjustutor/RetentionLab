@@ -1,0 +1,148 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="reviewer">
+    <title>Sessions - Reviewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="../js/reviewer/tailwind-config.js"></script>
+    <link rel="stylesheet" href="../css/shared.css">
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <div id="header-placeholder"></div>
+    <div class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+        <div class="max-w-7xl mx-auto">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h1 class="text-xl font-bold ">Sessions</h1>
+                    <p class="text-slate-400 text-xs mt-0.5">Select an instructor to view sessions</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="relative">
+                        <input type="text" id="searchInput" placeholder="Search..."
+                            class="w-48 pl-8 pr-3 py-1.5 bg-slate-800/60 border border-slate-700/60 rounded-md text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-violet-500/60 transition-colors">
+                        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    </div>
+                    <button onclick="if(selectedInstructorId) loadSessions()" class="p-1.5 bg-slate-800/60 border border-slate-700/60 rounded-md hover:bg-slate-700/60 transition-colors" title="Refresh">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path d="M1 4v6h6M23 20v-6h-6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Instructor Dropdown -->
+            <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md p-3 mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <label for="instructorSelect" class="block text-[12px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Instructor</label>
+                        <div class="relative">
+                            <select id="instructorSelect" class="w-full sm:w-80 px-3 py-1.5 bg-slate-800/60 border border-slate-700/60 rounded-md text-xs text-slate-300 focus:outline-none focus:border-violet-500/60 transition-colors appearance-none cursor-pointer">
+                                <option value="">— Select —</option>
+                            </select>
+                            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-[12px] text-slate-500 pt-4" id="instructorInfo">
+                        <span>Waiting...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Filter Tabs (shown after instructor selected) -->
+            <div class="flex gap-1.5 mb-4 hidden" id="filterTabsWrapper">
+                <button data-status="all" class="filter-btn active px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600/20 text-violet-300 border border-violet-500/30 hover:bg-violet-600/30 transition-all">All</button>
+                <button data-status="completed" class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800/60 text-slate-400 border border-slate-700/60 hover:bg-slate-700/60 transition-all">Done</button>
+                <button data-status="in_progress" class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800/60 text-slate-400 border border-slate-700/60 hover:bg-slate-700/60 transition-all">Active</button>
+                <button data-status="scheduled" class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800/60 text-slate-400 border border-slate-700/60 hover:bg-slate-700/60 transition-all">Upcoming</button>
+            </div>
+
+            <!-- Summary Cards (shown after instructor selected) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 hidden" id="summaryCardsWrapper">
+                <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
+                    <p class="text-[12px] text-slate-500 uppercase tracking-wider">Total</p>
+ <p id="countTotal" class="text-lg font-bold mt-0.5">-</p>
+                </div>
+                <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
+                    <p class="text-[12px] text-slate-500 uppercase tracking-wider">Done</p>
+                    <p id="countCompleted" class="text-lg font-bold text-emerald-400 mt-0.5">-</p>
+                </div>
+                <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
+                    <p class="text-[12px] text-slate-500 uppercase tracking-wider">Active</p>
+                    <p id="countInProgress" class="text-lg font-bold text-blue-400 mt-0.5">-</p>
+                </div>
+                <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
+                    <p class="text-[12px] text-slate-500 uppercase tracking-wider">Upcoming</p>
+                    <p id="countScheduled" class="text-lg font-bold text-amber-800 mt-0.5">-</p>
+                </div>
+            </div>
+
+                <!-- Sessions Table (shown after instructor selected) -->
+                <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden" id="tableWrapper">
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-slate-800 bg-slate-900/40">
+                                    <th class="text-left px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Session</th>
+                                    <th class="text-left px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Platform</th>
+                                    <th class="text-left px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Date</th>
+                                    <th class="text-left px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Duration</th>
+                                    <th class="text-left px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Score</th>
+                                    <th class="text-right px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Files</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionsTableBody">
+                                <tr>
+                                    <td colspan="6" class="px-3 py-10 text-center">
+                                        <div class="flex flex-col items-center gap-2">
+                                            <svg class="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                                            </svg>
+                                            <p class="text-slate-500 text-xs">Select an instructor to view sessions</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Viewer Modal -->
+    <div id="contentModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-slate-800">
+ <h3 class="text-lg font-semibold " id="modalTitle">Content</h3>
+                <button onclick="closeContentModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-auto p-6" id="modalContent">
+                <div class="flex items-center justify-center py-12">
+                    <svg class="w-8 h-8 text-slate-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/auth.js"></script>
+    <script src="../js/load-components.js"></script>
+    <script src="../js/reviewer/sessions.js"></script>
+</body>
+</html>
+

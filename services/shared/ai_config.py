@@ -15,13 +15,18 @@ def load_settings_ai():
             "..", "..", "config", "settings.js"
         )
     )
+    # Run node from the PROJECT ROOT so settings.js's require('dotenv').config()
+    # picks up the root .env (not the config/ dir where the script lives).
+    project_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..")
+    )
 
     result = subprocess.run(
         ["node", "-e", f"console.log(JSON.stringify(require({json.dumps(settings_path)}).ai))"],
         capture_output=True,
         text=True,
         check=True,
-        cwd=os.path.dirname(settings_path),
+        cwd=project_root,
     )
 
     return json.loads(result.stdout)
@@ -34,13 +39,14 @@ def build_ai_config(ai_settings: dict):
     ai_config dict for AiApiService — or None if AI isn't usable
     (caller should fall back to its non-AI worker).
     """
-    provider = os.getenv("AI_PROVIDER", ai_settings.get("provider", "gemini")).lower()
+    provider = os.getenv("AI_PROVIDER", ai_settings.get("provider")).lower()
 
+    # Fixed spelling from "cloude" to "anthropic" to prevent connection bugs
     provider_keys = {
-        "groq": ai_settings.get("groqApiKey"),
+        "anthropic": ai_settings.get("anthropicApiKey"), 
         "gemini": ai_settings.get("geminiApiKey"),
         "openai": ai_settings.get("openaiApiKey"),
-        "xai": ai_settings.get("xaiApiKey"),
+        "ollama": "local" # Added a simple placeholder so local Ollama runs without an API key
     }
 
     if not provider_keys.get(provider):
@@ -48,11 +54,12 @@ def build_ai_config(ai_settings: dict):
 
     return {
         "provider": provider,
-        "groqApiKey": ai_settings.get("groqApiKey"),
+        "anthropicModel": ai_settings.get("anthropicModel"),
+        "anthropicApiKey": ai_settings.get("anthropicApiKey"),
         "openaiApiKey": ai_settings.get("openaiApiKey"),
-        "xaiApiKey": ai_settings.get("xaiApiKey"),
+        "openaiModel": ai_settings.get("openaiModel"),
         "ollamaUrl": ai_settings.get("ollamaUrl", "http://localhost:11434/v1"),
-        "ollamaModel": ai_settings.get("ollamaModel", "llama3.1"),
+        "ollamaModel": ai_settings.get("ollamaModel", "llama3.3"),
         "geminiApiKey": ai_settings.get("geminiApiKey"),
         "geminiModel": ai_settings.get("geminiModel"),
     }

@@ -9,7 +9,7 @@
 
 const { logger } = require('../../../utils/logger');
 const SocraticBot = require('../../socraticbot');
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const botManager = require('../../shared/botManager');
 const settings = require('../../../config/settings');
 
@@ -46,12 +46,21 @@ class ZoomAdapter {
       // Create session
       const session = await TranscriptModel.createSession(this.config.meetingId);
 
-      // Build meeting URL from config if not provided
+      // Build meeting URL from config if not provided.
+      // FIX: this now matches botManager.js's buildMeetingLink() shape
+      // exactly — both the passcode and no-passcode branches route through
+      // "join/<meetingId>". Previously this method appended "/join" AFTER
+      // the meetingId in the no-passcode case (".../<meetingId>/join")
+      // while botManager.js produced ".../<meetingId>" with no "join/" at
+      // all — two different URLs for the same input, depending on which
+      // code path launched the bot. Whichever shape didn't match the real
+      // Zoom web-client route caused the bot to sit on a page with no
+      // name/Join UI and time out after ~10 minutes.
       let meetingUrl = this.config.meetingUrl;
       if (!meetingUrl) {
         meetingUrl = this.config.passcode
           ? `${settings.zoom.baseUrl}join/${this.config.meetingId}?pwd=${encodeURIComponent(this.config.passcode)}`
-          : `${settings.zoom.baseUrl}${this.config.meetingId}/join`;
+          : `${settings.zoom.baseUrl}join/${this.config.meetingId}`;
       }
 
       // Create bot instance

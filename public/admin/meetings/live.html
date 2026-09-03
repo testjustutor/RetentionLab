@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="meetingsLive">
+  <title>Live Sessions | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div></div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 live-pulse px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span class="text-[12px] text-emerald-400 font-medium" id="liveCount">0 Live</span>
+            </span>
+            <button onclick="loadLive()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div id="liveContainer">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/3 mb-3"></div><div class="h-2.5 bg-slate-800 rounded w-2/3 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-1/2"></div></div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-800 rounded w-1/3 mb-3"></div><div class="h-2.5 bg-slate-800 rounded w-2/3 mb-2"></div><div class="h-2.5 bg-slate-800 rounded w-1/2"></div></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/meetings/live.js"></script>
+</body></html>
+
+
+
+
+
+

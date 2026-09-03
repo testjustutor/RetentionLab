@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="dashboard-role" content="solo_instructor">
+  <title>Meetings - Instructor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+  </head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+<div class="flex h-screen"><div id="sidebar-placeholder"></div>
+<div class="flex-1 flex flex-col overflow-hidden">
+<div id="header-placeholder"></div>
+<main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+<div class="flex items-center justify-between mb-4"><div>
+<h1 class="text-2xl font-bold ">Meetings</h1>
+<p class="text-sm text-slate-400">All meetings synced from your connected Google Calendar</p>
+</div></div>
+<div id="statsRow" class="grid grid-cols-3 gap-3 mb-4">
+<div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+<p class="text-[12px] text-slate-400 uppercase tracking-wide">Upcoming</p>
+<h3 class="text-2xl font-bold text-violet-400 mt-1" id="stat-upcoming">-</h3>
+</div>
+<div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+<p class="text-[12px] text-slate-400 uppercase tracking-wide">Live Now</p>
+<h3 class="text-2xl font-bold text-amber-800 mt-1" id="stat-live">-</h3>
+</div>
+<div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+<p class="text-[12px] text-slate-400 uppercase tracking-wide">Completed</p>
+<h3 class="text-2xl font-bold text-emerald-400 mt-1" id="stat-completed">-</h3>
+</div>
+</div>
+<div class="flex gap-2 mb-4">
+<button data-tab="upcoming" class="tab-btn active text-xs font-medium px-4 py-2 rounded-md transition-colors">Upcoming</button>
+<button data-tab="live" class="tab-btn text-xs font-medium px-4 py-2 rounded-md transition-colors">Live</button>
+<button data-tab="completed" class="tab-btn text-xs font-medium px-4 py-2 rounded-md transition-colors">Completed</button>
+</div>
+<div id="meetingsList" class="space-y-3"><p class="text-sm text-slate-500">Loading...</p></div>
+<div id="emptyState" class="hidden text-center py-12"><p class="text-slate-400 text-sm">No meetings found for this period.</p></div>
+</main></div></div>
+  <script type="module" src="/js/auth.js"></script>
+  <script src="../js/load-components.js"></script>
+  <script type="module">
+    import { getCachedUser } from '../js/auth.js';
+
+(function() {
+  var API = "/api/instructor-meetings";
+  var listEl = document.getElementById("meetingsList");
+  var emptyEl = document.getElementById("emptyState");
+  var statUpcoming = document.getElementById("stat-upcoming");
+  var statLive = document.getElementById("stat-live");
+  var statCompleted = document.getElementById("stat-completed");
+  var currentTab = "upcoming";
+
+  function api(p) { return fetch(API + p, { credentials: "include" }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+
+  function platformIcon(p) {
+    var m = {
+      zoom: '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-medium bg-blue-500\/10 text-blue-400 border border-blue-500\/20">Zoom</span>',
+      teams: '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-medium bg-indigo-500\/10 text-indigo-400 border border-indigo-500\/20">Teams</span>',
+      "google-meet": '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-medium bg-cyan-500\/10 text-cyan-400 border border-cyan-500\/20">Google Meet</span>'
+    };
+    return m[p] || '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-medium bg-slate-800 text-slate-300 border border-slate-700">' + (p || "Unknown") + "</span>";
+  }
+
+  function statusBadge(s) {
+    var m = {
+      queued: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-amber-500\/10 text-amber-800 border border-amber-500\/20">Queued</span>',
+      joining: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-blue-500\/10 text-blue-400 border border-blue-500\/20">Joining</span>',
+      active: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-emerald-500\/10 text-emerald-400 border border-emerald-500\/20">Active</span>',
+      completed: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-slate-500\/10 text-slate-300 border border-slate-600">Completed</span>',
+      cancelled: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-red-500\/10 text-red-400 border border-red-500\/20">Cancelled</span>',
+      failed: '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-red-500\/10 text-red-400 border border-red-500\/20">Failed</span>'
+    };
+    return m[s] || '<span class="px-2 py-0.5 rounded text-[12px] font-medium bg-slate-800 text-slate-300 border border-slate-700">' + s + "</span>";
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "\u2014";
+    var d = new Date(iso); if (isNaN(d)) return iso;
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function esc(s) { if (!s) return ""; var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+  function render(meetings) {
+    listEl.innerHTML = "";
+    if (!meetings.length) { emptyEl.classList.remove("hidden"); return; }
+    emptyEl.classList.add("hidden");
+    meetings.forEach(function(m) {
+      var card = document.createElement("div");
+      card.className = "rounded-xl bg-slate-900 border border-slate-800 p-4";
+      var lk = m.meetingLink
+        ? '<a href="' + esc(m.meetingLink) + '" target="_blank" rel="noopener" class="link-button text-xs">Join</a>'
+        : '<span class="text-xs text-slate-600">No link</span>';
+ card.innerHTML = '<div class="flex items-start justify-between gap-3"><div class="min-w-0 flex-1"><p class="text-sm font-medium truncate">' + esc(m.title || "Untitled Meeting") + "</p>" +
+        '<p class="text-xs text-slate-400 mt-1">' + fmtDate(m.startTime) + (m.endTime ? " \u2192 " + fmtDate(m.endTime) : "") + "</p>" +
+        '<div class="flex items-center gap-2 mt-2">' + platformIcon(m.platform) + statusBadge(m.status) + "</div>" +
+      "</div><div class=\"flex-shrink-0\">" + lk + "</div></div>";
+      listEl.appendChild(card);
+    });
+  }
+
+  function loadStats() {
+    api("/stats").then(function(d) {
+      if (d.success) {
+        statUpcoming.textContent = d.upcomingCount || 0;
+        statLive.textContent = d.liveCount || 0;
+        statCompleted.textContent = d.completedCount || 0;
+      }
+    }).catch(function() {});
+  }
+
+  function loadMeetings() {
+    api("/" + currentTab).then(function(d) { if (d.success) render(d.meetings || []); });
+  }
+
+  function refreshAll() { Promise.all([loadStats(), loadMeetings()]); }
+
+  document.querySelectorAll(".tab-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      document.querySelectorAll(".tab-btn").forEach(function(b) {
+        b.classList.remove("active");
+ b.className = b.className.replace(/bg-violet-600.*?rounded-md/g, "").replace(//g, "text-slate-300 hover: hover:bg-slate-800");
+      });
+      btn.classList.add("active");
+ btn.className = btn.className.replace(/text-slate-300 hover: hover:bg-slate-800/g, "") + " bg-violet-600 rounded-md";
+      currentTab = btn.dataset.tab;
+      loadMeetings();
+    });
+  });
+
+  var ia = document.querySelector(".tab-btn.active");
+ if (ia) ia.className = ia.className.replace("text-slate-300 hover: hover:bg-slate-800", "").replace("rounded-md", "") + " bg-violet-600 rounded-md";
+
+  // Initialize immediately with cached user data
+  refreshAll();
+})();
+  </script>
+</body>
+</html>
+
+

@@ -1,496 +1,1132 @@
-## This is full Architecture of project ##
-
-
-# These are mandatory 
-# Python version 3.10.11
-# Python Library (torch,openai-whisper,whisperx,huggingface_hub)
-# database sqlite
-# Using ffmpeg
-
-# node version v22.19.0
-  Using (node puppeteer)
-Verified project folder/file structure with file names.
-
-
-```text
 project_root/
-|-- config
-|   `-- settings.js
-|-- database
-|   |-- adminUserSeeder.js
-|   |-- companiesSeeder.js
-|   |-- db-header-config.js
-|   |-- db.js
-|   |-- headerMenuItemsSeeder.js
-|   |-- headerPageConfigsSeeder.js
-|   |-- headerRoleConfigSeeder.js
-|   |-- index.js
-|   |-- roles.js
-|   |-- rubricSeeder.js
-|   |-- seeder.js
-|   |-- seedHelpers.js
-|   |-- settingsSeeder.js
-|   `-- superAdmin.js
-|-- logs
-|   |-- image
-|-- middleware
-|   |-- adminRubricAuth.js
-|   |-- auth.js
-|-- models
-|   |-- AdminModel.js
-|   |-- ArchivesModel.js
-|   |-- AuthModel.js
-|   |-- CalendarUsersModel.js
-|   |-- CalendarVerificationModel.js
-|   |-- CompaniesModel.js
-|   |-- HeaderConfigModel.js
-|   |-- MeetingAssetsModel.js
-|   |-- MeetingModel.js
-|   |-- MeetingParticipantSessionModel.js
-|   |-- MeetingReviewersModel.js
-|   |-- MeetingScoresModel.js
-|   |-- MeetingSessionScoresModel.js
-|   |-- ParticipantModel.js
-|   |-- RolesModel.js
-|   |-- RubricModel.js
-|   |-- SystemSettingsModel.js
-|   |-- transcriptModel.js
-|   |-- UserSettingsModel.js
-|   `-- UsersModel.js
-|-- public
-|   |-- admin
-|   |   |-- add-user.html
-|   |   |-- archives.html
-|   |   |-- calendar-accounts.html
-|   |   |-- calendar-events.html
-|   |   |-- index.html
-|   |   |-- profile.html
-|   |   |-- rubric-management.html
-|   |   |-- settings.html
-|   |-- css
-|   |   |-- admin.css
-|   |   |-- archives.css
-|   |   |-- assets.css
-|   |   |-- audit.css
-|   |   |-- bot.css
-|   |   |-- calendar.css
-|   |   |-- shared.css
-|   |   |-- sidebar.css
-|   |-- employee
-|   |   |-- index.html
-|   |-- marketing
-|   |   |-- css
-|   |   |   |-- 
-|   |   |-- js
-|   |   |   |-- common.js
-|   |   |-- partials
-|   |   |   |-- footer.html
-|   |   |   |-- header.html
-|   |   |-- 404.html
-|   |   |-- about.html
-|   |   |-- blog.html
-|   |   |-- contact.html
-|   |   |-- data.js
-|   |   |-- faq.html
-|   |   |-- index.html
-|   |   |-- privacy.html
-|   |   |-- services.html
-|   |   |-- terms.html
-|   |-- js
-|   |   |-- admin.js
-|   |   |-- admin.react.js
-|   |   |-- archives.js
-|   |   |-- assets.bundle.js
-|   |   |-- assets.js
-|   |   |-- audit.js
-|   |   |-- auth.js
-|   |   |-- bot.js
-|   |   |-- calendar.js
-|   |   |-- dashboard.js
-|   |   |-- db-admin.js
-|   |   |-- header-config-api.js
-|   |   |-- header-controller.js
-|   |   |-- header-role-common.js
-|   |   |-- load-components.js
-|   |   |-- login.js
-|   |   |-- page-metadata.js
-|   |   |-- register.js
-|   |   |-- sidebar-config.js
-|   |   |-- sidebar-config-editor.js
-|   |   |-- sidebar-controller.js
-|   |   |-- super_admin_ui.js
-|   |   |-- user-profile-api.js
-|   |   |-- users.js
-|   |-- reviewer
-|   |   |-- index.html
-|   |   |-- score.html
-|   |-- super_admin
-|   |   |-- add-user.html
-|   |   |-- archives.html
-|   |   |-- assets.html
-|   |   |-- audit.html
-|   |   |-- bot.html
-|   |   |-- calendar-accounts.html
-|   |   |-- calendar-events.html
-|   |   |-- data-architecture.html
-|   |   |-- index.html
-|   |   |-- manage-users.html
-|   |   |-- profile.html
-|   |   |-- roles-access.html
-|   |   |-- rubric-management.html
-|   |   |-- settings.html
-|   |   |-- sidebar-menu-management.html
-|   |   |-- user-settings.html
-|   |-- header.html
-|   |-- index.html
-|   |-- login.html
-|   |-- register.html
-|   |-- sidebar.html
-|   |-- favicon.ico
-|-- routes
-|   |-- archives.js
-|   |-- assets.js
-|   |-- audit.js
-|   |-- auth.js
-|   |-- bot.js
-|   |-- calendar.js
-|   |-- dashboard.js
-|   |-- db-admin.js
-|   |-- header-config.js
-|   |-- index.js
-|   |-- meetings.js
-|   |-- pages.js
-|   |-- reviewers.js
-|   |-- roles.js
-|   |-- scores.js
-|   |-- sidebar-api.js
-|   |-- users.js
-|   `-- transcripts.js
-|-- scripts
-|   |-- patch_shared_header.js
-|   |-- verify_shared_header.js
-|-- services
-|   |-- calendar
-|   |   |-- auth
-|   |   |   |-- credentialsResolver.js
-|   |   |   `-- tokenManager.js
-|   |   |-- config
-|   |   |   `-- paths.js
-|   |   |-- events
-|   |   |   `-- EventService.js
-|   |   |-- CalendarService.js
-|   |   |-- index.js
-|   |   `-- MultiUserCalendarService.js
-|   |-- engine
-|   |   |-- ai_api_service
-|   |   |   |-- __init__.py
-|   |   |   |-- api_worker.py
-|   |   |   `-- service.py
-|   |   |-- ai_audit_service
-|   |   |   |-- __init__.py
-|   |   |   |-- audit_worker.py
-|   |   |   `-- service.py
-|   |   |-- cache
-|   |   |   |-- cache_expiration_manager.py
-|   |   |   |-- cache_indexer.py
-|   |   |   |-- cache_integrity_checker.py
-|   |   |   `-- cache_size_controller.py
-|   |   |-- dashboard
-|   |   |   |-- health_endpoint.py
-|   |   |   |-- metrics_exporter.py
-|   |   |   `-- runtime_dashboard.py
-|   |   |-- database
-|   |   |   |-- analytics_writer.py
-|   |   |   |-- audit_writer.py
-|   |   |   |-- summary_writer.py
-|   |   |   `-- transcript_writer.py
-|   |   |-- distributed
-|   |   |   |-- distributed_scheduler.py
-|   |   |   |-- redis_runtime.py
-|   |   |   |-- task_queue_manager.py
-|   |   |   `-- worker_node_manager.py
-|   |   |-- intelligence
-|   |   |   |-- action_tracker.py
-|   |   |   |-- compliance_checker.py
-|   |   |   |-- deadline_detector.py
-|   |   |   |-- decision_extractor.py
-|   |   |   |-- engagement_analyzer.py
-|   |   |   |-- interruption_detector.py
-|   |   |   |-- meeting_intelligence_builder.py
-|   |   |   |-- meeting_score_engine.py
-|   |   |   |-- participant_statistics.py
-|   |   |   `-- risk_detector.pyrisk_detector.py
-|   |   |-- live
-|   |   |   |-- live_transcriber.py
-|   |   |   |-- realtime_caption_merger.py
-|   |   |   |-- realtime_diarizer.py
-|   |   |   `-- websocket_streamer.py
-|   |   |-- logging
-|   |   |   |-- performance_logger.py
-|   |   |   |-- pipeline_audit_logger.py
-|   |   |   `-- structured_logger.py
-|   |   |-- media_service
-|   |   |   |-- __init__.py
-|   |   |   |-- audio_chunker.py
-|   |   |   |-- audio_duration_reader.py
-|   |   |   |-- audio_extractor.py
-|   |   |   |-- audio_merger.py
-|   |   |   |-- audio_normalizer.py
-|   |   |   |-- audio_validator.py
-|   |   |   |-- audio_waveform_generator.py
-|   |   |   |-- browser_audio_optimizer.py
-|   |   |   |-- browser_recording_validator.py
-|   |   |   |-- browser_session_cleaner.py
-|   |   |   |-- chrome_profile_manager.py
-|   |   |   |-- ffmpeg_converter.py
-|   |   |   |-- file_validator.py
-|   |   |   |-- media_hash_generator.py
-|   |   |   |-- media_metadata_reader.py
-|   |   |   |-- path_formatter.py
-|   |   |   |-- service.py
-|   |   |   `-- silence_detector.py
-|   |   |-- orchestrator
-|   |   |   |-- __init__.py
-|   |   |   |-- dependency_graph.py
-|   |   |   |-- engine_main.py
-|   |   |   |-- execution_graph.py
-|   |   |   |-- execution_manager.py
-|   |   |   |-- MIGRATION_GUIDE.md
-|   |   |   |-- pipeline_bootstrap.py
-|   |   |   |-- pipeline_context.py
-|   |   |   |-- pipeline_runner.py
-|   |   |   |-- pipeline_runtime.py
-|   |   |   |-- README.md
-|   |   |   |-- runtime_manager.py
-|   |   |   |-- runtime_state_manager.py
-|   |   |   `-- task_registry.py
-|   |   |-- prompts
-|   |   |   |-- audit_prompts.py
-|   |   |   |-- rubric_prompts.py
-|   |   |   |-- summary_prompts.py
-|   |   |   `-- topic_prompts.py
-|   |   |-- quality
-|   |   |   |-- confidence_reviewer.py
-|   |   |   |-- hallucination_detector.py
-|   |   |   |-- transcript_repair_engine.py
-|   |   |   `-- transcript_validator.py
-|   |   |-- runtime
-|   |   |   |-- gpu_allocator.py
-|   |   |   |-- gpu_memory_cleaner.py
-|   |   |   |-- model_pool_manager.py
-|   |   |   |-- pipeline_debugger.py
-|   |   |   `-- runtime_dashboard.py
-|   |   |-- shared
-|   |   |   |-- __init__.py
-|   |   |   |-- cache_manager.py
-|   |   |   |-- file_store.py
-|   |   |   |-- json_store.py
-|   |   |   |-- path_resolver.py
-|   |   |   |-- result_objects.py
-|   |   |   |-- runtime_constants.py
-|   |   |   |-- runtime_environment.py
-|   |   |   |-- runtime_logger.py
-|   |   |   `-- task_status.py
-|   |   |-- summary_service
-|   |   |   |-- __init__.py
-|   |   |   |-- service.py
-|   |   |   `-- summary_worker.py
-|   |   |-- task
-|   |   |   |-- audit
-|   |   |   |   |-- __init__.py
-|   |   |   |   `-- audit_task.py
-|   |   |   |-- cache
-|   |   |   |   |-- __init__.py
-|   |   |   |   |-- cache_cleanup_task.py
-|   |   |   |   |-- cache_health_monitor.py
-|   |   |   |   |-- cache_metrics.py
-|   |   |   |   `-- cache_rotation_task.py
-|   |   |   |-- intel
-|   |   |   |   |-- __init__.py
-|   |   |   |   `-- intel_task.py
-|   |   |   |-- media
-|   |   |   |   |-- __init__.py
-|   |   |   |   `-- media_task.py
-|   |   |   |-- runtime
-|   |   |   |   |-- __init__.py
-|   |   |   |   |-- parallel_task_manager.py
-|   |   |   |   |-- runtime_cleanup_task.py
-|   |   |   |   |-- runtime_gpu_monitor.py
-|   |   |   |   |-- runtime_health_report.py
-|   |   |   |   |-- runtime_memory_monitor.py
-|   |   |   |   |-- runtime_metrics_collector.py
-|   |   |   |   `-- task_logger.py
-|   |   |   |-- summary
-|   |   |   |   |-- __init__.py
-|   |   |   |   `-- summary_task.py
-|   |   |   |-- system
-|   |   |   |   |-- __init__.py
-|   |   |   |   |-- pipeline_validator.py
-|   |   |   |   |-- system_diagnostics_task.py
-|   |   |   |   |-- task_dependency_resolver.py
-|   |   |   |   `-- task_result_builder.py
-|   |   |   |-- topics
-|   |   |   |   |-- __init__.py
-|   |   |   |   `-- topics_task.py
-|   |   |   |-- transcription
-|   |   |   |   |-- __init__.py
-|   |   |   |   |-- cache_manager.py
-|   |   |   |   `-- transcription_task.py
-|   |   |   |-- __init__.py
-|   |   |   |-- cache_cleanup_task.py
-|   |   |   |-- cache_health_monitor.py
-|   |   |   |-- media_task.py
-|   |   |   |-- parallel_task_manager.py
-|   |   |   |-- README.md
-|   |   |   |-- runtime_metrics_collector.py
-|   |   |   |-- task_dependency_resolver.py
-|   |   |   |-- task_logger.py
-|   |   |   |-- task_result_builder.py
-|   |   |   |-- TESTING.md
-|   |   |   `-- transcription_task.py
-|   |   |-- topic_service
-|   |   |   |-- __init__.py
-|   |   |   |-- service.py
-|   |   |   `-- topic_worker.py
-|   |   |-- transcription_service
-|   |   |   |-- __init__.py
-|   |   |   |-- action_item_detector.py
-|   |   |   |-- analytics_engine.py
-|   |   |   |-- audio_fingerprint.py
-|   |   |   |-- confidence_scorer.py
-|   |   |   |-- diarization_engine.py
-|   |   |   |-- embedding_engine.py
-|   |   |   |-- entity_extractor.py
-|   |   |   |-- filter_worker.py
-|   |   |   |-- formatter.py
-|   |   |   |-- language_detector.py
-|   |   |   |-- meeting_classifier.py
-|   |   |   |-- model_manager.py
-|   |   |   |-- pyannote_diarizer.py
-|   |   |   |-- question_detector.py
-|   |   |   |-- segment_merger.py
-|   |   |   |-- sentiment_analyzer.py
-|   |   |   |-- service.py
-|   |   |   |-- speaker_mapper.py
-|   |   |   |-- speaker_overlap_detector.py
-|   |   |   |-- speaker_timeline_builder.py
-|   |   |   |-- timestamp_aligner.py
-|   |   |   |-- token_processor.py
-|   |   |   |-- topic_tracker.py
-|   |   |   |-- transcript_builder.py
-|   |   |   |-- transcript_chunker.py
-|   |   |   |-- transcript_cleaner.py
-|   |   |   |-- transcript_exporter.py
-|   |   |   |-- transcript_search_index.py
-|   |   |   |-- transcript_statistics.py
-|   |   |   |-- vad_engine.py
-|   |   |   |-- whisper_cache_manager.py
-|   |   |   |-- whisper_loader.py
-|   |   |   |-- whisper_runner.py
-|   |   |   |-- whisperx_aligner.py
-|   |   |   `-- whisperx_runner.py
-|   |   |-- voiceprints
-|   |   |   |-- speaker_matcher.py
-|   |   |   |-- speaker_memory.py
-|   |   |   `-- voiceprint_builder.py
-|   |   |-- __init__.py
-|   |   `-- engine_main.py
-|   |-- platforms
-|   |   |-- google-meet
-|   |   |   |-- meetJoiner
-|   |   |   |	|-- captionManager.js
-|   |   |   |	|-- index.js
-|   |   |   |	|-- meetingNavigation.js
-|   |   |   |	|-- preJoinMedia.js
-|   |   |   |	|-- transcriptEngine.js
-|   |   |   |-- audioRecorderBot.js
-|   |   |   |-- captionMonitor.js
-|   |   |   |-- GoogleMeetAdapter.js
-|   |   |   |-- monitor.js
-|   |   |   |-- participantTracker.js
-|   |   |-- teams
-|   |   |   |-- audioRecorderBot.js
-|   |   |   |-- captionListener.js
-|   |   |   |-- captionMonitor.js
-|   |   |   |-- monitor.js
-|   |   |   |-- participantCapture.js
-|   |   |   |-- participantTracker.js
-|   |   |   |-- reactiveJoinFlow.js
-|   |   |   |-- TeamsAdapter.js
-|   |   |   `-- teamsJoiner.js
-|   |   |-- zoom
-|   |   |   |-- audioRecorderBot.js
-|   |   |   |-- captionListener.js
-|   |   |   |-- captionMonitor.js
-|   |   |   |-- monitor.js
-|   |   |   |-- participantCapture.js
-|   |   |   |-- participantTracker.js
-|   |   |   |-- reactiveJoinFlow.js
-|   |   |   |-- ZoomAdapter.js
-|   |   |   `-- zoomJoiner.js
-|   |   `-- platformFactory.js
-|   |-- shared
-|   |   |-- config
-|   |   |   |-- __init__.py
-|   |   |   |-- database_config.py
-|   |   |-- database
-|   |   |   |-- __init__.py
-|   |   |   |-- connection_manager.py
-|   |   |   |-- session_scores_repository.py
-|   |   |-- ai_config.py
-|   |   |-- botManager.js
-|   |   |-- browserManager.js
-|   |   `-- pythonBridge.js
-|   |-- __init__.py
-|   |-- audioRecorder.js
-|   `-- socraticbot.js
-|-- storage
-|   |-- cache_audio_transcripts
-|   |-- cache_audits
-|   |-- cache_captions_raw
-|   |-- cache_chat_logs
-|   |-- cache_diarization
-|   |-- cache_embeddings
-|   |-- cache_llm_prompts
-|   |-- cache_screenshots
-|   |-- cache_topic_trackers
-|   |-- cache_voice_activity
-|   |-- cache_voiceprints
-|   |-- cache_wav_audio
-|   |-- cache_whisper
-|   |-- chrome-profiles
-|   |-- intel
-|   |-- recordings
-|   |-- screen-recordings
-|   |-- summaries
-|   |-- transcripts
-|-- uploads
-|	|-- google-calendar-json
-|	|	|-- credentials_multi.json
-|-- utils
-|   |-- __init__.py
-|   |-- calendarLinkToken.js
-|   |-- export.js
-|   |-- logger.js
-|   |-- logger_util.py
-|   |-- mailer.py
-|   `-- transcriptUtils.js
+|-- .clinerules
 |-- .env
 |-- .env.example
 |-- .gitignore
+|-- _test_detached.py
+|-- app.py
+|-- audit_bridge.py
+|-- check_db.js
+|-- DASHBOARD_IMPROVEMENT_PROMPT_TEMPLATE.txt
+|-- generate_structure.ps1
 |-- index.js
 |-- package.json
 |-- package-lock.json
-|-- project_process_documentation.txt
 |-- project_structure_only.txt
 |-- README.md
 |-- requirements.txt
-|-- retention_lab.db
+|-- RetentionLab
 |-- server.js
+|-- test_diarization.py
 |-- test-engine.js
-`-- TODO.md
-```
-
-Notes:
-- Generated dependency/cache folders such as `node_modules`, `.venv`, `.git`, `.vscode`, `__pycache__`, logs, and storage runtime outputs are excluded.
-- This file is structure-only. It lists folder and file names without code content.
+|-- tmp_alerts.txt
+|-- tmp_verify_ai.js
+|-- TODO.md
+|-- .github
+    |-- prompts
+        |-- academic-quality-analysis.prompt.md
+    |-- skills
+        |-- create-skill
+            |-- SKILL.md
+|-- config
+    |-- settings.js
+|-- controllers
+    |-- auditReportController.js
+    |-- evaluationReportController.js
+    |-- admin
+        |-- adminController.js
+        |-- adminRubricController.js
+    |-- archives
+        |-- archivesController.js
+    |-- assets
+        |-- assetsController.js
+    |-- audit
+        |-- auditController.js
+    |-- auth
+        |-- authController.js
+    |-- bot
+        |-- botController.js
+    |-- calendar
+        |-- calendarController.js
+        |-- CalendarEventController.js
+        |-- calendarIntegrationController.js
+        |-- CalendarSyncController.js
+        |-- instructorCalendarController.js
+    |-- companies
+        |-- companiesController.js
+    |-- dashboard
+        |-- dashboardController.js
+    |-- db-admin
+        |-- dbAdminController.js
+    |-- departments
+        |-- departmentController.js
+    |-- google
+        |-- googleCredentialsController.js
+    |-- insights
+        |-- actionsController.js
+        |-- analyticsController.js
+        |-- decisionsController.js
+        |-- engagementController.js
+        |-- risksController.js
+    |-- instructor-dashboard
+        |-- instructorDashboardController.js
+    |-- meetings
+        |-- BotPollingController.js
+        |-- instructorMeetingsController.js
+        |-- meetingReportController.js
+        |-- meetingScheduleController.js
+        |-- meetingsController.js
+        |-- assets
+            |-- meetingAssetController.js
+        |-- meeting-session
+            |-- meetingSessionController.js
+    |-- menu
+        |-- menuController.js
+    |-- participants
+        |-- participantsController.js
+    |-- python
+        |-- python_session_scores_controller.py
+    |-- recordings
+        |-- recordingsController.js
+        |-- videoRecordingsController.js
+    |-- registry
+        |-- registryController.js
+    |-- reports
+        |-- auditReportController.js
+        |-- evaluationReportController.js
+        |-- meetingReportController.js
+        |-- teamReportController.js
+    |-- reviewer-dashboard
+        |-- reviewerDashboardController.js
+    |-- reviewers
+        |-- reviewerReviewsController.js
+        |-- reviewersController.js
+        |-- reviewerSessionsController.js
+    |-- reviews
+        |-- reviewController.js
+    |-- roles
+        |-- roleController.js
+    |-- rubric-admin
+        |-- rubricAdminController.js
+    |-- rubrics
+        |-- masterRubricController.js
+        |-- rubricController.js
+    |-- scores
+        |-- scoresController.js
+    |-- session-quality
+        |-- sessionQualityController.js
+        |-- sessionQualityFilterController.js
+    |-- settings
+        |-- meetingSettingsController.js
+        |-- notificationSettingsController.js
+        |-- organizationController.js
+        |-- settingsController.js
+        |-- tableControlsController.js
+    |-- sidebar
+        |-- headerConfigController.js
+        |-- sidebarApiController.js
+        |-- sidebarMenuAdminController.js
+    |-- super_admin
+        |-- superAdminController.js
+        |-- superAdminPageController.js
+        |-- archives
+            |-- archivesController.js
+        |-- companies
+            |-- companiesController.js
+        |-- content
+            |-- archives
+                |-- manageArchivesController.js
+            |-- assets
+                |-- manageAssetsController.js
+        |-- dashboard
+            |-- dashboardController.js
+        |-- google
+            |-- googleCredentialsController.js
+        |-- menu
+            |-- menuController.js
+        |-- monitoring
+            |-- auditController.js
+            |-- serverController.js
+        |-- people
+            |-- access-control
+                |-- accessControlController.js
+            |-- add-user
+                |-- addUserController.js
+            |-- manage-rubrics
+                |-- manageRubricsController.js
+            |-- manage-users
+                |-- manageUsersController.js
+        |-- profile
+            |-- profileController.js
+        |-- reports
+            |-- MeetingAiEvaluationReportController.js
+        |-- roles
+            |-- roleController.js
+        |-- rubrics
+            |-- masterRubricController.js
+        |-- settings
+            |-- settingsController.js
+            |-- tableControlsController.js
+            |-- videoProcessingController.js
+            |-- ai-providers
+                |-- aiProvidersController.js
+            |-- bot-configuration
+                |-- botConfigController.js
+            |-- platforms
+                |-- platformsController.js
+        |-- sidebar
+            |-- sidebarMenuAdminController.js
+        |-- users
+            |-- usersController.js
+    |-- transcripts
+        |-- transcriptsController.js
+    |-- users
+        |-- usersController.js
+        |-- usersController.js.backup
+|-- database
+    |-- db.js
+    |-- index.js
+    |-- python_db.py
+    |-- reset-db.js
+    |-- retentionlab.db
+    |-- run-manual-seeders.js
+    |-- seedHelpers.js
+    |-- setup-mysql.js
+    |-- manual-seeder
+        |-- 01_seed_departments.js
+        |-- 02_seed_users.js
+        |-- 03_seed_calendar_verifications.js
+        |-- 04_seed_calendar_integrations.js
+        |-- 06_seed_meetings.js
+        |-- 07_seed_meeting_sessions.js
+        |-- 08_seed_participants.js
+        |-- 09_seed_meeting_assets.js
+        |-- 10_seed_transcripts.js
+        |-- 11_seed_meeting_reviewers.js
+        |-- 12_seed_meeting_scores.js
+        |-- 13_seed_meeting_session_scores.js
+        |-- 14_seed_session_quality_reports.js
+        |-- 15_seed_session_analysis.js
+        |-- 16_seed_session_learning_impact.js
+        |-- 17_seed_session_coaching_feedback.js
+        |-- 18_seed_session_better_alternatives.js
+        |-- 19_seed_session_quality_flags.js
+        |-- 20_seed_session_final_evaluation.js
+        |-- 21_seed_ai_audit_results.js
+        |-- 22_seed_department_members.js
+        |-- 23_seed_teacher_actions.js
+        |-- 24_seed_sa_reports_menu.js
+        |-- 25_seed_sa_reports_header_pages.js
+        |-- 26_seed_sa_more_page_headers.js
+        |-- 27_backfill_ai_audit_meeting_id.js
+    |-- migrations
+        |-- 001_create_roles_table.js
+        |-- 002_create_companies_table.js
+        |-- 003_create_permissions_table.js
+        |-- 004_create_calendar_providers_table.js
+        |-- 005_create_email_logs_table.js
+        |-- 006_create_header_configs_table.js
+        |-- 007_create_rubric_categories_table.js
+        |-- 008_create_users_table.js
+        |-- 009_create_departments_table.js
+        |-- 010_create_rubric_indicators_table.js
+        |-- 011_create_role_permissions_table.js
+        |-- 012_create_user_permissions_table.js
+        |-- 013_create_department_members_table.js
+        |-- 014_create_meetings_table.js
+        |-- 015_create_user_settings_table.js
+        |-- 016_create_header_role_configs_table.js
+        |-- 017_create_header_page_configs_table.js
+        |-- 018_create_header_menu_items_table.js
+        |-- 019_create_calendar_integrations_table.js
+        |-- 020_create_calendar_verifications_table.js
+        |-- 022_create_google_oauth_credentials_table.js
+        |-- 023_create_user_invitations_table.js
+        |-- 024_create_subscriptions_table.js
+        |-- 025_create_system_settings_table.js
+        |-- 026_add_is_editable_to_system_settings.js
+        |-- 026_create_admin_rubric_categories_table.js
+        |-- 027_create_menu_items_table.js
+        |-- 027_create_rubric_assignments_table.js
+        |-- 028_create_role_menu_permissions_table.js
+        |-- 028_create_rubric_audit_log_table.js
+        |-- 029_create_meeting_sessions_table.js
+        |-- 030_create_participants_table.js
+        |-- 031_create_meeting_assets_table.js
+        |-- 032_create_meeting_reviewers_table.js
+        |-- 033_create_meeting_scores_table.js
+        |-- 034_create_meeting_session_scores_table.js
+        |-- 035_create_session_metadata_table.js
+        |-- 036_create_transcripts_table.js
+        |-- 037_create_next_session_plan_table.js
+        |-- 038_create_session_quality_reports_table.js
+        |-- 039_create_student_learning_impact_table.js
+        |-- 040_create_teacher_coaching_feedback_table.js
+        |-- 041_create_teacher_better_alternatives_table.js
+        |-- 042_create_archives_table.js
+        |-- 043_create_admin_rubric_indicators_table.js
+        |-- 044_create_participant_sessions_table.js
+        |-- 045_create_participant_attendance_sessions_table.js
+        |-- 046_create_session_snapshot_table.js
+        |-- 047_create_session_analysis_table.js
+        |-- 048_create_session_learning_impact_table.js
+        |-- 049_create_session_parent_summary_table.js
+        |-- 050_create_session_coaching_feedback_table.js
+        |-- 051_create_session_better_alternatives_table.js
+        |-- 052_create_session_next_plan_table.js
+        |-- 053_create_session_quality_flags_table.js
+        |-- 054_create_session_final_evaluation_table.js
+        |-- 055_create_ai_audit_results_table.js
+        |-- 056_create_session_rubric_evaluations_table.js
+        |-- 057_create_session_rubric_summary_table.js
+        |-- 058_create_calendar_connections_table.js
+        |-- 059_create_ai_providers_table.js
+        |-- 060_create_video_processing_table.js
+        |-- 061_add_rubric_detail_columns_to_ai_audit_results.js
+        |-- 062_create_session_diarization_table.js
+    |-- seeders
+        |-- 001_roles.js
+        |-- 002_companies.js
+        |-- 003_permissions.js
+        |-- 004_super_admin.js
+        |-- 005_admin_user.js
+        |-- 006_rubric.js
+        |-- 006_test_users.js
+        |-- 007_settings.js
+        |-- 008_header_role_configs.js
+        |-- 009_header_menu_items.js
+        |-- 010_header_page_configs.js
+        |-- 011_session_quality.js
+        |-- 013_user_permissions.js
+        |-- 014_subscriptions.js
+        |-- 015_header_configs.js
+        |-- 016_calendar_providers.js
+        |-- 017_menu_items.js
+        |-- 018_role_menu_permissions.js
+        |-- 019_seed_ai_providers.js
+        |-- README.md
+|-- logs
+    |-- critical-2026-08-20.log
+    |-- error-2026-08-20.log
+    |-- info-2026-08-20.log
+    |-- python_engine-2026-08-20.log
+    |-- warn-2026-08-20.log
+    |-- image
+        |-- blocker_check_1786544889543.png
+|-- middleware
+    |-- adminRubricAuth.js
+    |-- auth.js
+|-- models
+    |-- admin
+        |-- AdminModel.js
+    |-- archives
+        |-- ArchivesModel.js
+    |-- audit
+        |-- AIAuditResultsModel.js
+        |-- AuditReportModel.js
+    |-- auth
+        |-- AuthModel.js
+    |-- bot
+        |-- BotModel.js
+    |-- calendar
+        |-- CalendarAuthModel.js
+        |-- CalendarProvidersModel.js
+        |-- CalendarUsersModel.js
+        |-- CalendarVerificationModel.js
+        |-- GoogleOAuthCredentialsModel.js
+        |-- MeetingModel.js
+    |-- companies
+        |-- CompaniesModel.js
+    |-- dashboard
+        |-- DashboardModel.js
+    |-- departments
+        |-- DepartmentsModel.js
+    |-- email
+        |-- EmailLogModel.js
+    |-- header
+        |-- HeaderConfigModel.js
+        |-- HeaderMenuItemsModel.js
+        |-- HeaderPageConfigsModel.js
+        |-- HeaderRoleConfigsModel.js
+    |-- insights
+        |-- ActionsModel.js
+        |-- AnalyticsModel.js
+        |-- DecisionsModel.js
+        |-- EngagementModel.js
+        |-- RisksModel.js
+    |-- instructor-dashboard
+        |-- InstructorDashboardModel.js
+    |-- meetings
+        |-- MeetingModel.js
+        |-- MeetingParticipantSessionModel.js
+        |-- MeetingReportModel.js
+        |-- MeetingSessionScoresModel.js
+        |-- NextSessionPlanModel.js
+        |-- assets
+            |-- meetingAssetModel.js
+        |-- meeting-session
+            |-- meetingSessionModel.js
+    |-- menu
+        |-- MenuModel.js
+    |-- participants
+        |-- ParticipantAttendanceSessionsModel.js
+        |-- ParticipantModel.js
+        |-- ParticipantSessionsModel.js
+        |-- ParticipantsModel.js
+    |-- python
+        |-- python_session_scores_model.py
+    |-- recordings
+        |-- MeetingAssetsModel.js
+        |-- MeetingRecordingsModel.js
+        |-- SummariesModel.js
+        |-- VideoRecordingsModel.js
+    |-- reports
+        |-- AuditReportModel.js
+        |-- EvaluationReportModel.js
+        |-- MeetingModel.js
+        |-- MeetingReportModel.js
+        |-- TeamReportModel.js
+    |-- reviewers
+        |-- MeetingReviewersModel.js
+        |-- ReviewerDashboardModel.js
+        |-- ReviewerReviewsModel.js
+        |-- ReviewerSessionsModel.js
+    |-- reviews
+        |-- MeetingScoresModel.js
+        |-- ReviewsModel.js
+    |-- roles
+        |-- RolesModel.js
+    |-- rubrics
+        |-- MasterRubricModel.js
+        |-- RubricAdminModel.js
+        |-- RubricEvaluationModel.js
+        |-- RubricModel.js
+        |-- RubricSummaryModel.js
+    |-- scores
+        |-- ScoresModel.js
+    |-- session-quality
+        |-- SessionAnalysisBlockModel.js
+        |-- SessionAnalysisModel.js
+        |-- SessionBetterAlternativesModel.js
+        |-- SessionCoachingFeedbackModel.js
+        |-- SessionFinalEvaluationModel.js
+        |-- SessionLearningImpactModel.js
+        |-- SessionMetadataModel.js
+        |-- SessionNextPlanModel.js
+        |-- SessionParentSummaryModel.js
+        |-- SessionQualityFilterModel.js
+        |-- SessionQualityFlagsModel.js
+        |-- SessionQualityReportModel.js
+        |-- SessionQualityReportsModel.js
+        |-- SessionSnapshotModel.js
+        |-- StudentLearningImpactModel.js
+        |-- TeacherBetterAlternativesModel.js
+        |-- TeacherCoachingFeedbackModel.js
+    |-- settings
+        |-- MeetingSettingsModel.js
+        |-- NotificationSettingsModel.js
+        |-- OrganizationModel.js
+        |-- SystemSettingsModel.js
+        |-- UserSettingsModel.js
+    |-- super_admin
+        |-- SuperAdminModel.js
+        |-- SuperAdminPageModel.js
+        |-- admin
+            |-- AdminModel.js
+        |-- archives
+            |-- ArchivesModel.js
+        |-- auth
+            |-- AuthModel.js
+        |-- calendar
+            |-- GoogleOAuthCredentialsModel.js
+        |-- companies
+            |-- CompaniesModel.js
+        |-- content
+            |-- archives
+                |-- ManageArchivesModel.js
+            |-- assets
+                |-- ManageAssetsModel.js
+        |-- dashboard
+            |-- DashboardModel.js
+        |-- header
+            |-- HeaderConfigModel.js
+        |-- menu
+            |-- MenuModel.js
+        |-- people
+            |-- access-control
+                |-- AccessControlModel.js
+            |-- add-user
+                |-- AddUserModel.js
+            |-- manage-rubrics
+                |-- ManageRubricsModel.js
+            |-- manage-users
+                |-- ManageUsersModel.js
+        |-- reports
+            |-- MeetingAiEvaluationReportModel.js
+        |-- roles
+            |-- RolesModel.js
+        |-- rubrics
+            |-- MasterRubricModel.js
+        |-- settings
+            |-- SystemSettingsModel.js
+            |-- UserSettingsModel.js
+            |-- VideoProcessingModel.js
+            |-- ai-providers
+                |-- AiProvidersModel.js
+            |-- bot-configuration
+                |-- BotConfigModel.js
+            |-- platforms
+                |-- PlatformsModel.js
+        |-- users
+            |-- UsersModel.js
+    |-- transcripts
+        |-- transcriptModel.js
+    |-- users
+        |-- UsersModel.js
+|-- public
+    |-- favicon.ico
+    |-- forgot-password.html
+    |-- header.html
+    |-- login.html
+    |-- register.html
+    |-- reset-password.html
+    |-- sidebar.html
+    |-- verify-email.html
+    |-- admin
+        |-- index.html
+        |-- profile.html
+        |-- content
+            |-- recordings.html
+            |-- summaries.html
+            |-- transcripts.html
+            |-- videos.html
+        |-- evaluation
+            |-- performance.html
+            |-- reviews.html
+            |-- rubrics.html
+            |-- scores.html
+        |-- insights
+            |-- actions.html
+            |-- analytics.html
+            |-- decisions.html
+            |-- engagement.html
+            |-- risks.html
+        |-- meetings
+            |-- calendar.html
+            |-- completed.html
+            |-- live.html
+            |-- schedule.html
+        |-- people
+            |-- departments.html
+            |-- roles.html
+            |-- users.html
+        |-- reports
+            |-- audits.html
+            |-- evaluations.html
+            |-- meetings.html
+            |-- reports.html
+            |-- teams.html
+        |-- session-quality
+            |-- analysis.html
+            |-- better-alternatives.html
+            |-- coaching.html
+            |-- final-eval.html
+            |-- flags.html
+            |-- impact.html
+            |-- index.html
+            |-- next-plan.html
+            |-- parent-summary.html
+            |-- rubric.html
+        |-- settings
+            |-- integrations.html
+            |-- meetings.html
+            |-- notifications.html
+            |-- organization.html
+    |-- css
+        |-- colors.css
+        |-- shared.css
+        |-- tailwind-config.js
+    |-- instructor
+        |-- dashboard.html
+        |-- evaluations.html
+        |-- index.html
+        |-- meetings.html
+        |-- profile.html
+        |-- reports.html
+        |-- content
+            |-- recordings.html
+            |-- recordings.html.bak
+            |-- summaries.html
+            |-- summaries.html.bak
+            |-- transcripts.html
+            |-- transcripts.html.bak
+        |-- insights
+            |-- action-items.html
+            |-- action-items.html.bak
+            |-- analytics.html
+            |-- analytics.html.bak
+            |-- decisions.html
+            |-- decisions.html.bak
+            |-- engagement.html
+            |-- engagement.html.bak
+    |-- js
+        |-- auth.js
+        |-- calendar.js
+        |-- common-ui.js
+        |-- common-ui-super-admin.js
+        |-- header.js
+        |-- load-components.js
+        |-- user-profile-cache.js
+        |-- users.js
+        |-- admin
+            |-- dashboard.js
+            |-- index.js
+            |-- profile.js
+            |-- content
+                |-- recordings.js
+                |-- summaries.js
+                |-- transcripts.js
+                |-- videos.js
+            |-- evaluation
+                |-- performance.js
+                |-- reviews.js
+                |-- rubrics.js
+                |-- scores.js
+            |-- insights
+                |-- actions.js
+                |-- analytics.js
+                |-- decisions.js
+                |-- engagement.js
+                |-- risks.js
+            |-- meetings
+                |-- calendar.js
+                |-- completed.js
+                |-- live.js
+                |-- schedule.js
+            |-- people
+                |-- departments.js
+                |-- roles.js
+                |-- users.js
+                |-- users.js.backup
+            |-- reports
+                |-- audits.js
+                |-- evaluations.js
+                |-- meetings.js
+                |-- reports.js
+                |-- session-quality.js
+                |-- teams.js
+            |-- session-quality
+                |-- analysis.js
+                |-- better-alternatives.js
+                |-- coaching.js
+                |-- final-eval.js
+                |-- flags.js
+                |-- impact.js
+                |-- index.js
+                |-- next-plan.js
+                |-- parent-summary.js
+                |-- rubric.js
+                |-- shared-filters.js
+            |-- settings
+                |-- integrations.js
+                |-- meetings.js
+                |-- notifications.js
+                |-- organization.js
+        |-- auth
+            |-- forgot-password.js
+            |-- login.js
+            |-- register.js
+            |-- reset-password.js
+            |-- verify-email.js
+        |-- instructor
+            |-- dashboard.js
+            |-- tailwind-config.js
+        |-- reviewer
+            |-- dashboard.js
+            |-- reviews.js
+            |-- sessions.js
+            |-- tailwind-config.js
+        |-- sidebar
+            |-- page-metadata.js
+            |-- sidebar.js
+            |-- sidebar-config-editor.js
+        |-- super_admin
+            |-- profile.js
+            |-- sidebar-menu-management.js
+            |-- tailwind-config.js
+            |-- content
+                |-- archives.js
+                |-- assets.bundle.js
+                |-- assets.js
+            |-- dashboard
+                |-- index.js
+            |-- integrations
+                |-- google-credentials.js
+            |-- monitoring
+                |-- audit.js
+                |-- server.js
+            |-- people
+                |-- access-control.js
+                |-- add-user.js
+                |-- manage-rubrics.js
+                |-- manage-users.js
+                |-- user-settings.js
+            |-- reports
+                |-- meeting-ai-evaluation-report.js
+                |-- meeting-ai-session-report.js
+            |-- roles
+                |-- roles-access.js
+                |-- rubric-management.js
+            |-- settings
+                |-- ai-providers.js
+                |-- bot-configuration.js
+                |-- header-management.js
+                |-- platforms.js
+                |-- sidebar-menu-management.js
+                |-- table-controls.js
+                |-- user-defaults.js
+                |-- video-processing.js
+    |-- marketing
+        |-- data.js
+        |-- index.html
+        |-- css
+            |-- marketing.css
+        |-- js
+            |-- common.js
+            |-- home.js
+            |-- marketing-nav.js
+            |-- tailwind-config.js
+    |-- reviewer
+        |-- analytics.html
+        |-- dashboard.html
+        |-- evaluations.html
+        |-- index.html
+        |-- reviews.html
+        |-- score.html
+        |-- sessions.html
+        |-- js
+            |-- score.js
+        |-- people
+            |-- profile.html
+    |-- super_admin
+        |-- profile.html
+        |-- sidebar-menu-management.html
+        |-- content
+            |-- archives.html
+            |-- assets.html
+        |-- dashboard
+            |-- index.html
+        |-- monitoring
+            |-- audit.html
+            |-- server.html
+        |-- people
+            |-- access-control.html
+            |-- add-user.html
+            |-- manage-rubrics.html
+            |-- manage-users.html
+            |-- profile.html
+            |-- user-settings.html
+        |-- reports
+            |-- meeting-ai-evaluation-report.html
+            |-- meeting-ai-session-report.html
+        |-- roles
+            |-- roles-access.html
+            |-- rubric-management.html
+        |-- settings
+            |-- ai-providers.html
+            |-- bot-configuration.html
+            |-- header-management.html
+            |-- platforms.html
+            |-- sidebar-menu-management.html
+            |-- table-controls.html
+            |-- user-defaults.html
+            |-- video-processing.html
+|-- routes
+    |-- archives.js
+    |-- assets.js
+    |-- audit.js
+    |-- audit-reports.js
+    |-- auth.js
+    |-- bot.js
+    |-- calendar.js
+    |-- calendar-integrations.js
+    |-- companies.js
+    |-- configuration.js
+    |-- content-dashboard.js
+    |-- dashboard.js
+    |-- db-admin.js
+    |-- departments.js
+    |-- evaluation-reports.js
+    |-- google-credentials.js
+    |-- header-config.js
+    |-- index.js
+    |-- insights.js
+    |-- instructor-calendar.js
+    |-- instructor-dashboard.js
+    |-- instructor-meetings.js
+    |-- meeting-reports.js
+    |-- meetings.js
+    |-- meetings-calendar.js
+    |-- meeting-schedule.js
+    |-- menu.js
+    |-- monitoring.js
+    |-- pages.js
+    |-- participants.js
+    |-- registry.js
+    |-- reviewer-dashboard.js
+    |-- reviewer-reviews.js
+    |-- reviewers.js
+    |-- reviewer-sessions.js
+    |-- reviews.js
+    |-- roles.js
+    |-- rubric-admin.js
+    |-- rubrics.js
+    |-- scores.js
+    |-- session_scores.py
+    |-- session-quality.js
+    |-- settings.js
+    |-- sidebar-api.js
+    |-- sidebar-menu-admin.js
+    |-- table-controls.js
+    |-- team-reports.js
+    |-- transcripts.js
+    |-- tutoring.js
+    |-- users.js
+    |-- services_api
+    |-- super_admin
+        |-- index.js
+        |-- pages.js
+        |-- profile.js
+        |-- registry.js
+        |-- sidebar-menu-management.js
+        |-- content
+            |-- archives.js
+            |-- assets.js
+        |-- monitoring
+            |-- audit.js
+            |-- server.js
+            |-- server_track.js
+        |-- people
+            |-- access-control.js
+            |-- add-user.js
+            |-- manage-rubrics.js
+            |-- manage-users.js
+        |-- reports
+            |-- meeting-ai-evaluation.js
+        |-- settings
+            |-- ai-providers.js
+            |-- bot-configuration.js
+            |-- platforms.js
+            |-- table-controls.js
+            |-- user-defaults.js
+            |-- video-processing.js
+|-- services
+    |-- audioRecorder.js
+    |-- calendarSyncService.js
+    |-- screenRecorder.js
+    |-- sessionQualityGenerator.js
+    |-- socraticbot.js
+    |-- engine
+        |-- __init__.py
+        |-- engine_main.py
+        |-- ai_api_service
+            |-- __init__.py
+            |-- api_worker.py
+            |-- service.py
+        |-- ai_audit_service
+            |-- __init__.py
+            |-- audit_worker.py
+            |-- rubric_loader.py
+            |-- service.py
+        |-- cache
+            |-- cache_expiration_manager.py
+            |-- cache_indexer.py
+            |-- cache_integrity_checker.py
+            |-- cache_size_controller.py
+        |-- dashboard
+            |-- health_endpoint.py
+            |-- metrics_exporter.py
+            |-- runtime_dashboard.py
+        |-- distributed
+            |-- distributed_scheduler.py
+            |-- redis_runtime.py
+            |-- task_queue_manager.py
+            |-- worker_node_manager.py
+        |-- intelligence
+            |-- action_tracker.py
+            |-- compliance_checker.py
+            |-- deadline_detector.py
+            |-- decision_extractor.py
+            |-- engagement_analyzer.py
+            |-- interruption_detector.py
+            |-- meeting_intelligence_builder.py
+            |-- meeting_score_engine.py
+            |-- participant_statistics.py
+            |-- risk_detector.pyrisk_detector.py
+        |-- live
+            |-- live_transcriber.py
+            |-- realtime_caption_merger.py
+            |-- realtime_diarizer.py
+            |-- websocket_streamer.py
+        |-- logging
+            |-- performance_logger.py
+            |-- pipeline_audit_logger.py
+            |-- structured_logger.py
+        |-- media_service
+            |-- __init__.py
+            |-- audio_chunker.py
+            |-- audio_duration_reader.py
+            |-- audio_extractor.py
+            |-- audio_merger.py
+            |-- audio_normalizer.py
+            |-- audio_validator.py
+            |-- audio_waveform_generator.py
+            |-- browser_audio_optimizer.py
+            |-- browser_recording_validator.py
+            |-- browser_session_cleaner.py
+            |-- chrome_profile_manager.py
+            |-- ffmpeg_converter.py
+            |-- file_validator.py
+            |-- media_hash_generator.py
+            |-- media_metadata_reader.py
+            |-- path_formatter.py
+            |-- service.py
+            |-- silence_detector.py
+        |-- orchestrator
+            |-- __init__.py
+            |-- dependency_graph.py
+            |-- engine_main.py
+            |-- execution_graph.py
+            |-- execution_manager.py
+            |-- pipeline_bootstrap.py
+            |-- pipeline_context.py
+            |-- pipeline_runner.py
+            |-- pipeline_runtime.py
+            |-- runtime_manager.py
+            |-- runtime_state_manager.py
+            |-- task_registry.py
+        |-- prompts
+            |-- audit_prompts.py
+            |-- rubric_prompts.py
+            |-- summary_prompts.py
+            |-- topic_prompts.py
+        |-- quality
+            |-- confidence_reviewer.py
+            |-- hallucination_detector.py
+            |-- transcript_repair_engine.py
+            |-- transcript_validator.py
+        |-- runtime
+            |-- gpu_allocator.py
+            |-- gpu_memory_cleaner.py
+            |-- model_pool_manager.py
+            |-- pipeline_debugger.py
+            |-- runtime_dashboard.py
+        |-- shared
+            |-- __init__.py
+            |-- cache_manager.py
+            |-- file_store.py
+            |-- json_store.py
+            |-- path_resolver.py
+            |-- result_objects.py
+            |-- runtime_constants.py
+            |-- runtime_environment.py
+            |-- runtime_logger.py
+            |-- task_status.py
+        |-- summary_service
+            |-- __init__.py
+            |-- service.py
+            |-- summary_worker.py
+        |-- task
+            |-- __init__.py
+            |-- cache_cleanup_task.py
+            |-- cache_health_monitor.py
+            |-- media_task.py
+            |-- parallel_task_manager.py
+            |-- README.md
+            |-- runtime_metrics_collector.py
+            |-- task_dependency_resolver.py
+            |-- task_logger.py
+            |-- task_result_builder.py
+            |-- TESTING.md
+            |-- transcription_task.py
+            |-- audit
+                |-- __init__.py
+                |-- audit_task.py
+            |-- cache
+                |-- __init__.py
+                |-- cache_cleanup_task.py
+                |-- cache_health_monitor.py
+                |-- cache_metrics.py
+                |-- cache_rotation_task.py
+            |-- media
+                |-- __init__.py
+                |-- media_task.py
+            |-- persist
+                |-- __init__.py
+                |-- persist_diarization_task.py
+                |-- persist_results_task.py
+            |-- runtime
+                |-- __init__.py
+                |-- parallel_task_manager.py
+                |-- runtime_cleanup_task.py
+                |-- runtime_gpu_monitor.py
+                |-- runtime_health_report.py
+                |-- runtime_memory_monitor.py
+                |-- runtime_metrics_collector.py
+                |-- task_logger.py
+            |-- summary
+                |-- __init__.py
+                |-- summary_task.py
+            |-- system
+                |-- __init__.py
+                |-- pipeline_validator.py
+                |-- system_diagnostics_task.py
+                |-- task_dependency_resolver.py
+                |-- task_result_builder.py
+            |-- topics
+                |-- __init__.py
+                |-- topics_task.py
+            |-- transcription
+                |-- __init__.py
+                |-- cache_manager.py
+                |-- diarization_task.py
+                |-- transcription_task.py
+        |-- topic_service
+            |-- __init__.py
+            |-- service.py
+            |-- topic_worker.py
+        |-- transcription_service
+            |-- __init__.py
+            |-- action_item_detector.py
+            |-- analytics_engine.py
+            |-- audio_fingerprint.py
+            |-- confidence_scorer.py
+            |-- diarization_engine.py
+            |-- entity_extractor.py
+            |-- filter_worker.py
+            |-- formatter.py
+            |-- language_detector.py
+            |-- meeting_classifier.py
+            |-- model_manager.py
+            |-- question_detector.py
+            |-- segment_merger.py
+            |-- sentiment_analyzer.py
+            |-- service.py
+            |-- speaker_mapper.py
+            |-- speaker_overlap_detector.py
+            |-- speaker_resolver.py
+            |-- speaker_timeline_builder.py
+            |-- timestamp_aligner.py
+            |-- token_processor.py
+            |-- topic_tracker.py
+            |-- transcript_builder.py
+            |-- transcript_chunker.py
+            |-- transcript_cleaner.py
+            |-- transcript_exporter.py
+            |-- transcript_search_index.py
+            |-- transcript_statistics.py
+            |-- vad_engine.py
+            |-- whisper_cache_manager.py
+            |-- whisper_loader.py
+            |-- whisper_runner.py
+            |-- whisperx_aligner.py
+            |-- whisperx_runner.py
+    |-- platforms
+        |-- platformFactory.js
+        |-- google-meet
+            |-- audioRecorderBot.js
+            |-- captionMonitor.js
+            |-- GoogleMeetAdapter.js
+            |-- monitor.js
+            |-- participantTracker.js
+            |-- meetJoiner
+                |-- captionManager.js
+                |-- index.js
+                |-- meetingNavigation.js
+                |-- preJoinMedia.js
+                |-- transcriptEngine.js
+        |-- teams
+            |-- audioRecorderBot.js
+            |-- captionListener.js
+            |-- captionMonitor.js
+            |-- monitor.js
+            |-- participantCapture.js
+            |-- participantTracker.js
+            |-- reactiveJoinFlow.js
+            |-- TeamsAdapter.js
+            |-- teamsJoiner.js
+        |-- zoom
+            |-- audioRecorderBot.js
+            |-- captionListener.js
+            |-- captionMonitor.js
+            |-- monitor.js
+            |-- participantCapture.js
+            |-- participantTracker.js
+            |-- reactiveJoinFlow.js
+            |-- ZoomAdapter.js
+            |-- zoomJoiner.js
+    |-- shared
+        |-- ai_config.py
+        |-- botManager.js
+        |-- browserManager.js
+        |-- pythonBridge.js
+        |-- STRUCTURE.md
+|-- storage
+    |-- cache_audio_transcripts
+        |-- AUDIO_TRANS_82014705313_Sess159_2026-08-12_19-57.txt
+        |-- AUDIO_TRANS_ebn-cmyx-wwa_Sess1_2026-07-27_14-57.txt
+        |-- AUDIO_TRANS_qeg-tqit-ofz_Sess169_2026-08-12_12-22.txt
+    |-- cache_audits
+        |-- AUDIT_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_captions_raw
+        |-- CAPTIONS_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_chat_logs
+        |-- CHAT_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_diarization
+        |-- DIAR_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_llm_prompts
+        |-- PROMPT_AUDIT_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_screenshots
+        |-- SCREENSHOTS_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_topic_trackers
+        |-- TOPICS_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_voice_activity
+        |-- RATIO_82014705313_Sess159_2026-08-12_19-57.json
+    |-- cache_wav_audio
+        |-- WAV_82014705313_Sess159_2026-08-12_19-57.wav
+        |-- WAV_Regular_Sess248879_2026_08_17_09-00.wav
+        |-- _diar_chunks
+            |-- chunk_43.wav
+    |-- cache_whisper
+        |-- WHISPER_82014705313_Sess159_2026-08-12_19-57.json
+    |-- chrome-profiles
+    |-- recordings
+        |-- REC_82014705313_Sess159_2026-08-12_19-57.mp3
+        |-- REC_czw-cfqc-pza_Sess2_2026-07-28_14-14.mp3
+        |-- REC_Regular_Sess248879_2026_08_17_09-00.mp3
+    |-- screen-recordings
+        |-- 1012_Shivani_Arora_Regular_248879_General_Discussion_2026_08_17_08715cb3.mp4
+        |-- SCREEN_82014705313_Sess159_2026-08-12_19-57.mp4
+        |-- SCREEN_czw-cfqc-pza_Sess1_2026-07-28_13-57.mp4
+        |-- SCREEN_czw-cfqc-pza_Sess2_2026-07-28_14-14.mp4
+        |-- SCREEN_ebn-cmyx-wwa_Sess1_2026-07-27_14-57.mp4
+        |-- SCREEN_qeg-tqit-ofz_Sess169_2026-08-12_12-22.mp4
+    |-- summaries
+        |-- SUMMARY_82014705313_Sess159_2026-08-12_19-57.txt
+    |-- transcripts
+|-- storage_test
+    |-- cache_captions_raw
+    |-- cache_chat_logs
+    |-- cache_diarization
+    |-- cache_screenshots
+    |-- cache_voice_activity
+    |-- cache_whisper
+|-- utils
+    |-- __init__.py
+    |-- calendarHelper.js
+    |-- calendarLinkToken.js
+    |-- export.js
+    |-- logger.js
+    |-- logger_util.py
+    |-- mailer.js
+    |-- transcriptUtils.js

@@ -29,15 +29,15 @@ const GoogleParticipantTracker = require('./platforms/google-meet/participantTra
 const AudioRecorder = require('./audioRecorder');
 const ScreenRecorder = require('./screenRecorder');
 
-const MeetingAssetsModel = require('../models/MeetingAssetsModel');
-const MeetingModel = require('../models/MeetingModel');
+const MeetingSessionController = require('../controllers/meetings/meeting-session/meetingSessionController');
+const MeetingAssetController = require('../controllers/meetings/assets/meetingAssetController');
 
 const PythonBridge = require('./shared/pythonBridge');
 
 const fs = require('fs');
 const path = require('path');
-const TranscriptModel = require('../models/transcriptModel');
 const { logger } = require('../utils/logger');
+const { resolveStoragePath } = require('../utils/storagePaths');
 
 class SocraticBot {
   constructor(config = {}) {
@@ -47,20 +47,19 @@ class SocraticBot {
     this.sessionId = config.sessionId;
     this.platform = config.platform;
     this.meetingId = config.meetingId;
+    this.meetingDbId = config.meetingDbId ?? null; // internal meetings.id (auto-increment PK)
 
     const storageDir = path.resolve(__dirname, '..', 'storage', 'recordings');
-    this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingId);
+    this.audioRecorder = new AudioRecorder(storageDir, this.sessionId, this.meetingDbId);
 
     const screenStorageDir = path.resolve(__dirname, '..', 'storage', 'screen-recordings');
-    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingId);
+    this.screenRecorder = new ScreenRecorder(screenStorageDir, this.sessionId, this.meetingDbId);
 
-    // Initialize platform-specific transcription service
     this.transcriptionService = this.createTranscriptionService();
 
     this.browserManager = null;
-    this.ZoomCaptionMonitor = null;
-    this.TeamsCaptionMonitor = null;
-    this.GoogleMeetCaptionMonitor = null;
+    this.captionMonitor = null;
+    this.participantTracker = null;
   }
 
   // -------------------------
@@ -68,10 +67,7 @@ class SocraticBot {
   // -------------------------
   async run() {
     try {
-      
-      // this.browserManager = await new BrowserManager().init();
-
-      const safeId = String(this.meetingId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
+      const safeId = String(this.meetingDbId || this.sessionId).replace(/[<>:"/\\|?*]/g, '_');
       
       const uniqueProfileDir = path.resolve(
         __dirname,
@@ -174,7 +170,7 @@ class SocraticBot {
         this.captionMonitor = new ZoomCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -183,9 +179,10 @@ class SocraticBot {
         this.captionMonitor.startPolling();
 
         const participantTracker = new ZoomParticipantTracker(
-          this.meetingId,
+          this.meetingDbId,
           this.sessionId
         );
+        this.participantTracker = participantTracker;
 
         if (joiner.setParticipantTracker) {
           joiner.setParticipantTracker(participantTracker);
@@ -203,7 +200,7 @@ class SocraticBot {
 
         ZoomMonitor.monitorMeeting(
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.botName,
           this.sessionId,
           participantTracker
@@ -224,7 +221,7 @@ class SocraticBot {
         this.captionMonitor = new GoogleMeetCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -233,11 +230,11 @@ class SocraticBot {
         this.captionMonitor.startPolling();
 
         const participantTracker = new GoogleParticipantTracker(
-          this.meetingId,
+          this.meetingDbId,
           this.sessionId
         );
+        this.participantTracker = participantTracker;
 
-        // Inject dependencies using setters for proper state initialization
         joiner.setCaptionMonitor(this.captionMonitor);
         joiner.setParticipantTracker(participantTracker);
 
@@ -245,10 +242,9 @@ class SocraticBot {
           await joiner.startTranscriptMonitor();
         }
 
-        // Start the Google Meet monitor loop (handles "bot alone" exit condition).
         GoogleMeetMonitor.monitorMeeting(
             this.browserManager.page,
-            this.meetingId,
+            this.meetingDbId,
             this.botName,
             this.sessionId,
             participantTracker
@@ -267,10 +263,15 @@ class SocraticBot {
       // ---------------- TEAMS ----------------
       case 'teams': {
 
+        // FIX 1: TeamsCaptionMonitor is now the SINGLE source of truth for
+        // caption capture/persistence on Teams. teamsJoiner.js's
+        // startTranscriptMonitor() no longer runs its own polling loop —
+        // it only does post-join setup (mute mic, enable captions), so
+        // there is no more double-polling here.
         this.captionMonitor = new TeamsCaptionMonitor(
           this.sessionId,
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.platform,
           joiner,
           this.stop.bind(this)
@@ -282,14 +283,21 @@ class SocraticBot {
           await joiner.enableCaptionsIfPossible();
         }
 
-        // const participantTracker = new TeamsParticipantTracker(
-        //   this.meetingId,
-        //   this.sessionId
-        // );
+        // FIX 2: participant tracker now created here (matching zoom/meet),
+        // stored on `this.participantTracker` so stop() can reset it, and
+        // passed both to the joiner (for future use, e.g. in-lobby events)
+        // and into TeamsMonitor.monitorMeeting so attendance tracking uses
+        // the SAME instance instead of an invisible one created internally
+        // inside monitor.js.
+        const participantTracker = new TeamsParticipantTracker(
+          this.meetingDbId,
+          this.sessionId
+        );
+        this.participantTracker = participantTracker;
 
-        // if (joiner.setParticipantTracker) {
-        //   joiner.setParticipantTracker(participantTracker);
-        // }
+        if (joiner.setParticipantTracker) {
+          joiner.setParticipantTracker(participantTracker);
+        }
 
         if (joiner.startTranscriptMonitor) {
           await joiner.startTranscriptMonitor();
@@ -297,9 +305,10 @@ class SocraticBot {
 
         TeamsMonitor.monitorMeeting(
           this.browserManager.page,
-          this.meetingId,
+          this.meetingDbId,
           this.botName,
-          this.sessionId
+          this.sessionId,
+          participantTracker
         )
           .then(() => this.stop())
           .catch(err =>
@@ -331,17 +340,23 @@ class SocraticBot {
       await this.joiner.stopTranscriptMonitor();
     }
 
-    // // ✅ Mark all still-active participants as left
-    // if (this.participantTracker) {
-    //   await this.participantTracker.reset(new Date());
-    // }
+    // FIX 2: this now works for ALL platforms (zoom, google-meet, teams)
+    // since this.participantTracker is consistently populated in
+    // handlePlatformFeatures() above. Previously this was commented out
+    // and Teams participants never got marked "left" on shutdown.
+    if (this.participantTracker) {
+      try {
+        await this.participantTracker.reset(new Date());
+      } catch (err) {
+        logger.error('DefaultAdapter(SocraticBot): Error resetting participant tracker:', err);
+      }
+    }
 
     // stop recording + transcribe
     if (this.audioRecorder) {
       this.audioRecorder.stop();
       await this.screenRecorder.stop();
 
-      // ADD at the end of stop(), after the catch block
       try {
         if (this.browserManager) {
           await this.browserManager.close();
@@ -349,9 +364,6 @@ class SocraticBot {
         }
       } catch (err) {
         logger.error('DefaultAdapter(SocraticBot): Browser close failed:', err);
-      } finally {
-        // logger.info('DefaultAdapter(SocraticBot): Bot fully stopped');
-        // process.exit(0);
       }
       
       try {
@@ -366,32 +378,30 @@ class SocraticBot {
 
           logger.info(`DefaultAdapter(SocraticBot) - Line:223 : Processing final transcription: ${finalAudioPath}`);
           
-          // 1. Save audio path to DB
-          await TranscriptModel.saveAudioFile(this.sessionId, finalAudioPath);
+          await MeetingSessionController.updateMeetingSessionAudioPath(this.meetingDbId, this.sessionId, finalAudioPath);
           
-          // 2. MATCHING: Get the speaker-labeled transcript file from Database
-          const session = await TranscriptModel.getSessionById(this.sessionId);
+          const session = await MeetingSessionController.getMeetingSessionById(this.sessionId);
           
           if (session && session.transcript_file_name) {
 
-            const transcriptPath = path.join(__dirname, '../storage/transcripts', session.transcript_file_name);
+            const transcriptPath = resolveStoragePath(
+              path.resolve(__dirname, '..'),
+              session.transcript_file_name,
+              'transcript'
+            );
             
             if (fs.existsSync(transcriptPath)) {
               logger.info(`DefaultAdapter(SocraticBot) - Line:236 : detected: Audio and Transcript (${session.transcript_file_name})`);
               
-              // ONLY RUNNING THE FINAL ANALYSIS BRIDGE
-              // engine_main.py expects an input like REC_<id>.mp3 (relative to storage/recordings),
-              // but `finalAudioPath` is an absolute Windows path. Pass only the filename.
+              await MeetingSessionController.updateMeetingSessionStatus(this.meetingDbId, this.sessionId, 'completed');
 
-              await MeetingAssetsModel.initializeAssets(this.meetingId, finalAudioPath);
+              await MeetingAssetController.initializeAssets(this.meetingDbId, this.sessionId, finalAudioPath, transcriptPath);
 
               const finalAudioFileName = path.basename(finalAudioPath);
-              const auditResults = await PythonBridge.runFullAudioPipeline(finalAudioFileName);
-
+              const auditResults = await PythonBridge.runFullAudioPipeline(this.meetingDbId, this.sessionId, finalAudioFileName);
 
               if (auditResults) {
-                await MeetingModel.updateMeetingStatus(this.meetingId, 'completed');
-                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.oqi}`);
+                logger.info(`DefaultAdapter(SocraticBot): Audit analysis complete. Score: ${auditResults.auditResult?.oqi_score}`);
               }
             }
           }

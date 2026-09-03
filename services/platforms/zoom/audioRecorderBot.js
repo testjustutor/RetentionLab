@@ -48,7 +48,7 @@ class ProfessionalMeetingBot {
         }
 
         // 1. Define your backup order
-        const priorityList = [settings.ai.provider, 'openai', 'groq'];
+        const priorityList = [settings.ai.provider, 'openai', 'cloude'];
         const providers = [...new Set(priorityList)].filter(p => p);
 
         // 2. Loop through each one
@@ -66,9 +66,9 @@ class ProfessionalMeetingBot {
                     apiUrl = 'https://api.openai.com/v1/audio/transcriptions';
                     apiKey = settings.ai.openaiApiKey;
                     modelName = 'whisper-1';
-                } else if (provider === 'groq') {
-                    apiUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-                    apiKey = settings.ai.groqApiKey;
+                } else if (provider === 'cloude') {
+                    apiUrl = 'https://api.cloude.com/openai/v1/audio/transcriptions';
+                    apiKey = settings.ai.cloudeApiKey;
                     modelName = 'whisper-large-v3';
                 } else {
                     continue; // Skip if unknown
@@ -103,7 +103,7 @@ class ProfessionalMeetingBot {
     }
 
     async generateSummary(audioText, labeledText) {
-        const providers = [...new Set([settings.ai.provider, 'groq', 'openai'])].filter(p => p);
+        const providers = [...new Set([settings.ai.provider, 'cloude', 'openai'])].filter(p => p);
 
         for (const provider of providers) {
             try {
@@ -113,11 +113,11 @@ class ProfessionalMeetingBot {
                 if (provider === 'openai') {
                     apiUrl = 'https://api.openai.com/v1/chat/completions';
                     apiKey = settings.ai.openaiApiKey;
-                    model = 'gpt-4o'; // or gpt-3.5-turbo
+                    model = settings.ai.openaiModel;
                 } else {
-                    apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-                    apiKey = settings.ai.groqApiKey;
-                    model = 'llama3-8b-8192';
+                    apiUrl = 'https://api.cloude.com/openai/v1/chat/completions';
+                    apiKey = settings.ai.cloudeApiKey;
+                    model = settings.ai.anthropicModel;
                 }
 
                 const response = await axios.post(apiUrl, {

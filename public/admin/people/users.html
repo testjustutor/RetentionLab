@@ -1,0 +1,110 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="peopleUsers">
+  <title>Users | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+
+        <!-- Filter Section: Date filter on left, Search + Add User on right -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-3">
+          <div class="flex flex-wrap items-end gap-3">
+            <!-- Left side: Date filter -->
+            <div class="flex items-end gap-2">
+              <div>
+                <label for="filterFromDate" class="block text-[11px] text-violet-900 mb-1 font-semibold">From Date</label>
+                <input type="date" id="filterFromDate"
+                       class="bg-white border-2 border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-950 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label for="filterToDate" class="block text-[11px] text-violet-900 mb-1 font-semibold">To Date</label>
+                <input type="date" id="filterToDate"
+                       class="bg-white border-2 border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-950 focus:outline-none focus:border-violet-500">
+              </div>
+              <button id="getDataBtn" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-4 py-1.5 rounded-md transition-colors shadow-sm">Get Data</button>
+            </div>
+
+            <!-- Right side: Add User (pushed to far right) -->
+            <div class="flex items-end gap-2 justify-end ml-auto">
+              <button id="openUserModalBtn" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-4 py-1.5 rounded-md transition-colors shadow-sm">
+                + Add User
+              </button>
+            </div>
+        </div>
+
+        <!-- Add / Edit User Modal -->
+        <div id="userModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div class="bg-white border-2 border-violet-300 rounded-xl p-4 w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-bold text-violet-950" id="modalTitle">Add User</h2>
+              <button id="closeUserModalBtn" class="text-violet-500 hover:text-violet-900 text-lg leading-none">&times;</button>
+            </div>
+            <form id="userForm" class="space-y-2">
+              <input type="hidden" id="editUserId">
+              
+              <div><label for="formRole" class="block text-xs text-violet-900 mb-1 font-semibold">Role <span class="text-red-500">*</span></label>
+                <select id="formRole" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 focus:border-violet-500 outline-none">
+                  <option value="">Select a role...</option>
+                </select>
+              </div>
+
+              <div id="reviewerFields" class="hidden space-y-2">
+                <div><label for="formFirstName" class="block text-xs text-violet-900 mb-1 font-semibold">Full Name <span class="text-red-500">*</span></label>
+                  <input id="formFirstName" type="text" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="e.g. Jane Doe">
+                </div>
+                <div><label for="formEmail" class="block text-xs text-violet-900 mb-1 font-semibold">Email <span class="text-red-500">*</span></label>
+                  <input id="formEmail" type="email" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="user@company.com">
+                </div>
+                <div id="passwordField"><label for="formPassword" class="block text-xs text-violet-900 mb-1 font-semibold">Password <span class="text-red-500">*</span></label>
+                  <input id="formPassword" type="password" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="Choose a strong password">
+                </div>
+              </div>
+
+              <div id="instructorFields" class="hidden space-y-2">
+                <div class="bg-violet-100 border-2 border-violet-300 rounded-md px-3 py-2">
+                  <p class="text-xs text-violet-800 font-medium">For instructors, a name and email are required. A password can be set later.</p>
+                </div>
+                <div><label for="instFirstName" class="block text-xs text-violet-900 mb-1 font-semibold">Full Name <span class="text-red-500">*</span></label>
+                  <input id="instFirstName" type="text" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="e.g. Jane Doe">
+                </div>
+                <div><label for="instEmail" class="block text-xs text-violet-900 mb-1 font-semibold">Email <span class="text-red-500">*</span></label>
+                  <input id="instEmail" type="email" class="w-full rounded-md bg-violet-50 border-2 border-violet-300 px-3 py-1.5 text-xs text-slate-950 placeholder-slate-500 focus:border-violet-500 outline-none" placeholder="instructor@company.com">
+                </div>
+              </div>
+
+              <div id="formMessage" class="text-xs min-h-[1.25rem]"></div>
+              <div class="flex justify-end gap-2">
+                <button type="button" id="cancelUserModalBtn" class="px-3 py-1.5 rounded-md bg-slate-100 border-2 border-slate-300 text-xs text-slate-700 hover:text-slate-900 transition-colors">Cancel</button>
+                <button type="submit" id="submitBtn" class="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold transition-colors shadow-sm">Create User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-300 rounded-lg shadow-md">
+          <div id="usersTableContainer"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/people/users.js"></script>
+</body>
+</html>
+
+

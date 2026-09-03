@@ -1,46 +1,48 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
-<head>
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sidebar Menu Management — Super Admin</title>
+  <meta name="dashboard-role" content="super_admin">
+  <title>Sidebar Menu Management â€” Super Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="../css/shared.css" />
+  <link rel="stylesheet" href="/css/shared.css" />
+
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
   <div class="flex h-screen">
     <div id="sidebar-placeholder"></div>
     <div class="flex-1 flex flex-col overflow-hidden">
       <div id="header-placeholder"></div>
-      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
         <div class="max-w-6xl mx-auto">
-          <p class="text-slate-400 mb-2">Create, edit, and delete sidebar menu items for all roles. Changes take effect immediately.</p>
+          <p class="text-xs text-slate-400 mb-2">Create, edit, and delete sidebar menu items for all roles. Changes take effect immediately.</p>
 
-          <!-- Role Selector -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-            <div class="flex items-end gap-4">
+          <!-- Role/User Selector -->
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-2">
+            <div class="flex items-end gap-3">
               <div class="flex-1">
-                <label class="block text-sm font-medium text-slate-300 mb-1">Select Role</label>
-                <select id="roleSelector" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" onchange="loadMenuItems()">
+                <label class="block text-xs font-medium text-slate-300 mb-1">Select Role</label>
+  <select id="roleSelector" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 p-1.5 text-xs">
                   <option value="">Loading roles...</option>
                 </select>
               </div>
-              <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="addMenuItem()">+ Add Menu Item</button>
-              <button class="px-4 py-2 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-500 transition-colors" onclick="reseedMenu()">Reset to Defaults</button>
+                <button class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-500 transition-colors" onclick="showAddForm()">+ Add</button>
+              <button class="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-500 transition-colors" onclick="reseedMenu()">Reset</button>
             </div>
           </div>
 
           <!-- Tree View -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-            <h3 class="text-xl font-semibold text-white mb-2">Menu Structure (Tree View)</h3>
-            <div id="treeContainer" class="text-slate-400">Select a role to view menu items.</div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-2">
+ <h3 class="text-sm font-semibold mb-1.5">Menu Structure (Tree View)</h3>
+            <div id="treeContainer" class="text-slate-400 text-xs">Select a role to view menu items.</div>
           </div>
 
           <!-- Flat Table View -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 class="text-xl font-semibold text-white mb-2">All Menu Items (Flat)</h3>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+ <h3 class="text-sm font-semibold mb-1.5">All Menu Items (Flat)</h3>
             <div id="flatTableContainer">
-              <p class="text-slate-400">Select a role to view menu items.</p>
+              <p class="text-slate-400 text-xs">Select a role to view menu items.</p>
             </div>
           </div>
         </div>
@@ -49,380 +51,172 @@
   </div>
 
   <!-- Modal -->
-  <div id="modalOverlay" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-lg mx-4 shadow-2xl">
-      <h3 id="modalTitle" class="text-xl font-bold text-white mb-2">Add Menu Item</h3>
-      <form id="modalForm" class="space-y-4">
-        <input type="hidden" id="modalEditId" value="" />
-        
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Menu ID (unique slug)</label>
-          <input type="text" id="modalMenuId" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" required />
+  <div id="modalOverlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-white/10 rounded-lg">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+          </div>
+          <div>
+            <h3 id="modalTitle" class="text-lg font-bold text-white">Add Menu Item</h3>
+            <p class="text-xs text-violet-100">Configure sidebar menu item properties</p>
+          </div>
         </div>
+        <button onclick="closeModal()" class="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Label (visible text)</label>
-          <input type="text" id="modalLabel" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" required />
-        </div>
+      <!-- Modal Body -->
+      <div class="p-6">
+        <form id="modalForm" class="space-y-5">
+          <input type="hidden" id="modalEditId" value="" />
+          
+          <!-- Two Column Layout -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Menu ID -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Menu ID <span class="text-rose-400">*</span>
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                  </svg>
+                </div>
+                <input type="text" id="modalMenuId" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 placeholder-slate-500 transition-all" placeholder="unique-slug-here" required />
+              </div>
+              <p class="text-[10px] text-slate-500">Unique identifier (no spaces, use hyphens)</p>
+            </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Parent Item (for submenus)</label>
-          <select id="modalParentId" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2">
-            <option value="">None (top-level item)</option>
-          </select>
-        </div>
+            <!-- Label -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Label <span class="text-rose-400">*</span>
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                  </svg>
+                </div>
+                <input type="text" id="modalLabel" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 placeholder-slate-500 transition-all" placeholder="Display name" required />
+              </div>
+              <p class="text-[10px] text-slate-500">Visible text in the sidebar</p>
+            </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Icon</label>
-          <input type="text" id="modalIcon" placeholder="e.g. grid, user, settings" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" />
-        </div>
+            <!-- Parent Item -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Parent Item
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                  </svg>
+                </div>
+                <select id="modalParentId" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 transition-all">
+                  <option value="">None (top-level item)</option>
+                </select>
+              </div>
+              <p class="text-[10px] text-slate-500">Select parent for submenu items</p>
+            </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Link URL (href)</label>
-          <input type="text" id="modalHref" placeholder="/super_admin/page.html" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" />
-        </div>
+            <!-- Icon -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Icon Name
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <input type="text" id="modalIcon" placeholder="e.g. grid, user, settings" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 placeholder-slate-500 transition-all" />
+              </div>
+              <p class="text-[10px] text-slate-500">Icon identifier from icon library</p>
+            </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1">Display Order</label>
-          <input type="number" id="modalDisplayOrder" min="0" value="0" class="w-full rounded-md bg-slate-800 border-transparent focus:border-indigo-500 focus:ring-indigo-500 text-white p-2" />
-        </div>
+            <!-- Link URL -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Link URL
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                  </svg>
+                </div>
+                <input type="text" id="modalHref" placeholder="/super_admin/page" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 placeholder-slate-500 transition-all" />
+              </div>
+              <p class="text-[10px] text-slate-500">Page path or external URL</p>
+            </div>
 
-        <div>
-          <label class="inline-flex items-center">
-            <input type="checkbox" id="modalIsActive" class="form-checkbox h-5 w-5 text-indigo-600 rounded" checked />
-            <span class="ml-2 text-sm text-slate-300">Active</span>
-          </label>
-        </div>
+            <!-- Display Order -->
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Display Order
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/>
+                  </svg>
+                </div>
+                <input type="number" id="modalDisplayOrder" min="0" value="0" class="w-full pl-9 rounded-lg bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 p-2.5 text-sm text-slate-200 transition-all" />
+              </div>
+              <p class="text-[10px] text-slate-500">Sort order (0 = first)</p>
+            </div>
+          </div>
 
-        <div class="flex gap-3 justify-end pt-2">
-          <button type="button" class="px-4 py-2 bg-slate-700 text-slate-300 font-semibold rounded-md hover:bg-slate-600 transition-colors" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-500 transition-colors">Save</button>
-        </div>
-      </form>
+          <!-- Active Status -->
+          <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-emerald-500/10 rounded-lg">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-200">Active Status</label>
+                <p class="text-xs text-slate-400">Enable or disable this menu item</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="modalIsActive" class="sr-only peer" checked />
+              <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex gap-3 justify-end pt-2">
+            <button type="button" class="px-5 py-2.5 bg-slate-800 text-slate-300 font-semibold rounded-lg hover:bg-slate-700 border border-slate-700 transition-all text-sm" onclick="closeModal()">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500 shadow-lg shadow-indigo-500/30 transition-all text-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
-  <script src="../js/load-components.js"></script>
-  <script>
-    let currentRoleId = null;
-    let currentFlatItems = [];
-    let currentTreeItems = [];
-    let allRoles = [];
-
-    // Load roles on page load
-    async function loadRoles() {
-      try {
-        const resp = await fetch('/api/sidebar-menu-admin/roles');
-        const result = await resp.json();
-        allRoles = result.data || [];
-        const select = document.getElementById('roleSelector');
-        select.innerHTML = '<option value="">-- Select a role --</option>';
-        allRoles.forEach(r => {
-          select.innerHTML += '<option value="' + r.id + '">' + r.role_name + ' (' + (r.description || 'no desc') + ')</option>';
-        });
-      } catch (err) {
-        document.getElementById('treeContainer').innerHTML = '<p class="text-red-400">Error loading roles: ' + err.message + '</p>';
-      }
-    }
-
-    // Load menu items for selected role
-    async function loadMenuItems() {
-      const select = document.getElementById('roleSelector');
-      currentRoleId = parseInt(select.value);
-      if (!currentRoleId) {
-        document.getElementById('treeContainer').innerHTML = '<p class="text-slate-400">Select a role to view menu items.</p>';
-        document.getElementById('flatTableContainer').innerHTML = '<p class="text-slate-400">Select a role to view menu items.</p>';
-        return;
-      }
-      try {
-        const resp = await fetch('/api/sidebar-menu-admin/items/' + currentRoleId);
-        const result = await resp.json();
-        currentFlatItems = result.flat || [];
-        currentTreeItems = result.tree || [];
-        renderTreeView();
-        renderFlatTable();
-      } catch (err) {
-        document.getElementById('treeContainer').innerHTML = '<p class="text-red-400">Error: ' + err.message + '</p>';
-      }
-    }
-
-    function renderTreeView() {
-      const container = document.getElementById('treeContainer');
-      if (currentTreeItems.length === 0) {
-        container.innerHTML = '<p class="text-slate-400">No menu items for this role.</p>';
-        return;
-      }
-      let html = '<ul class="space-y-2">';
-      currentTreeItems.forEach(item => {
-        html += buildTreeHtml(item, 0);
-      });
-      html += '</ul>';
-      container.innerHTML = html;
-    }
-
-    function buildTreeHtml(item, depth) {
-      const indent = depth * 20;
-      const icon = item.icon ? '[' + item.icon + ']' : '';
-      const active = item.isActive !== false ? '' : ' (inactive)';
-      let html = '<li style="margin-left: ' + indent + 'px" class="py-1">';
-      html += '<span class="text-white font-medium">' + icon + ' ' + item.label + '</span>';
-      html += ' <span class="text-slate-500 text-xs">' + (item.href || 'no link') + '</span>';
-      html += active;
-      html += ' <button class="text-indigo-400 hover:text-indigo-600 text-xs ml-2" onclick="editMenuItem(\'' + item.id + '\')">Edit</button>';
-      html += ' <button class="text-red-400 hover:text-red-600 text-xs" onclick="deleteMenuItem(\'' + item.id + '\')">Delete</button>';
-      if (item.submenu && item.submenu.length > 0) {
-        html += '<ul class="mt-1">';
-        item.submenu.forEach(sub => {
-          html += buildTreeHtml(sub, depth + 1);
-        });
-        html += '</ul>';
-      }
-      html += '</li>';
-      return html;
-    }
-
-    function renderFlatTable() {
-      const container = document.getElementById('flatTableContainer');
-      if (currentFlatItems.length === 0) {
-        container.innerHTML = '<p class="text-slate-400">No menu items for this role.</p>';
-        return;
-      }
-      let html = '<table class="min-w-full divide-y divide-slate-700"><thead><tr>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">ID</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Menu ID</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Parent</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Label</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Icon</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Href</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Order</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Active</th>';
-      html += '<th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>';
-      html += '</tr></thead><tbody class="divide-y divide-slate-800">';
-      currentFlatItems.forEach(item => {
-        html += '<tr>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + item.id + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-white font-medium">' + item.menu_id + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + (item.parent_id || '-') + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + item.label + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + (item.icon || '-') + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + (item.href || '-') + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + item.display_order + '</td>';
-        html += '<td class="px-4 py-3 text-sm text-slate-300">' + (item.is_active ? 'Yes' : 'No') + '</td>';
-        html += '<td class="px-4 py-3 text-sm">';
-        html += '<button class="text-indigo-400 hover:text-indigo-600 mr-2" onclick="editMenuItemById(' + item.id + ')">Edit</button>';
-        html += '<button class="text-red-400 hover:text-red-600" onclick="deleteMenuItemById(' + item.id + ')">Delete</button>';
-        html += '</td></tr>';
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
-    }
-
-    // ─── Add / Edit ───────────────────────────────────────────────────────
-    function addMenuItem() {
-      if (!currentRoleId) { alert('Please select a role first.'); return; }
-      document.getElementById('modalTitle').textContent = 'Add Menu Item';
-      document.getElementById('modalEditId').value = '';
-      document.getElementById('modalMenuId').value = '';
-      document.getElementById('modalLabel').value = '';
-      document.getElementById('modalIcon').value = '';
-      document.getElementById('modalHref').value = '';
-      document.getElementById('modalDisplayOrder').value = currentFlatItems.length;
-      document.getElementById('modalIsActive').checked = true;
-      populateParentDropdown();
-      document.getElementById('modalOverlay').classList.remove('hidden');
-    }
-
-    function editMenuItem(menuId) {
-      const item = currentFlatItems.find(i => i.menu_id === menuId);
-      if (!item) { alert('Item not found'); return; }
-      editMenuItemById(item.id);
-    }
-
-    function editMenuItemById(id) {
-      const item = currentFlatItems.find(i => i.id === id);
-      if (!item) { alert('Item not found'); return; }
-      document.getElementById('modalTitle').textContent = 'Edit Menu Item';
-      document.getElementById('modalEditId').value = id;
-      document.getElementById('modalMenuId').value = item.menu_id;
-      document.getElementById('modalLabel').value = item.label;
-      document.getElementById('modalIcon').value = item.icon || '';
-      document.getElementById('modalHref').value = item.href || '';
-      document.getElementById('modalDisplayOrder').value = item.display_order || 0;
-      document.getElementById('modalIsActive').checked = item.is_active !== 0;
-      populateParentDropdown(item.menu_id);
-      document.getElementById('modalOverlay').classList.remove('hidden');
-    }
-
-    function populateParentDropdown(excludeMenuId) {
-      const select = document.getElementById('modalParentId');
-      select.innerHTML = '<option value="">None (top-level item)</option>';
-      currentFlatItems.forEach(item => {
-        if (item.menu_id !== excludeMenuId) {
-          select.innerHTML += '<option value="' + item.menu_id + '">' + item.label + ' (' + item.menu_id + ')</option>';
-        }
-      });
-    }
-
-    // ─── Modal Submit ─────────────────────────────────────────────────────
-    document.getElementById('modalForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const editId = document.getElementById('modalEditId').value;
-      const menuId = document.getElementById('modalMenuId').value.trim();
-      const label = document.getElementById('modalLabel').value.trim();
-      const parentId = document.getElementById('modalParentId').value || null;
-      const icon = document.getElementById('modalIcon').value.trim() || null;
-      const href = document.getElementById('modalHref').value.trim() || null;
-      const displayOrder = parseInt(document.getElementById('modalDisplayOrder').value) || 0;
-      const isActive = document.getElementById('modalIsActive').checked;
-
-      try {
-        if (editId) {
-          // Update
-          const resp = await fetch('/api/sidebar-menu-admin/items/' + editId, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label, icon, href, parent_id: parentId, display_order: displayOrder, is_active: isActive })
-          });
-          if (!resp.ok) throw new Error('Update failed');
-          alert('Menu item updated!');
-        } else {
-          // Create
-          const resp = await fetch('/api/sidebar-menu-admin/items/' + currentRoleId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ menu_id: menuId, parent_id: parentId, label, icon, href, display_order: displayOrder, is_active: isActive })
-          });
-          if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.error || 'Create failed');
-          }
-          alert('Menu item created!');
-        }
-        closeModal();
-        loadMenuItems();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    });
-
-    // ─── Delete ───────────────────────────────────────────────────────────
-    function deleteMenuItem(menuId) {
-      const item = currentFlatItems.find(i => i.menu_id === menuId);
-      if (item) deleteMenuItemById(item.id);
-    }
-
-    async function deleteMenuItemById(id) {
-      if (!confirm('Delete this menu item? Children will also be removed.')) return;
-      try {
-        const resp = await fetch('/api/sidebar-menu-admin/items/' + id, { method: 'DELETE' });
-        if (!resp.ok) throw new Error('Delete failed');
-        alert('Menu item deleted!');
-        loadMenuItems();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    }
-
-    // ─── Reseed ───────────────────────────────────────────────────────────
-    async function reseedMenu() {
-      if (!currentRoleId) { alert('Select a role first.'); return; }
-      if (!confirm('This will replace ALL menu items for this role with the default structure. Continue?')) return;
-      
-      // Find the role name
-      const role = allRoles.find(r => r.id === currentRoleId);
-      if (!role) { alert('Role not found'); return; }
-      
-      // Build default menu items based on role name
-      const defaultMenus = {
-        super_admin: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/super_admin/index.html', submenu: null },
-          { id: 'rubric-management', label: 'Rubric Management', icon: 'clipboard', href: '/super_admin/rubric-management.html', submenu: null },
-          { id: 'sidebar-menu-management', label: 'Sidebar Menu', icon: 'list', href: '/super_admin/sidebar-menu-management.html', submenu: null },
-          { id: 'operations', label: 'Operations', icon: 'settings', href: null, submenu: [
-            { id: 'calendar-accounts', label: 'Calendar Accounts', href: '/super_admin/calendar-accounts.html' },
-            { id: 'calendar-events', label: 'Calendar Events', href: '/super_admin/calendar-events.html' },
-            { id: 'data-architecture', label: 'Data Architecture', href: '/super_admin/data-architecture.html' }
-          ]},
-          { id: 'content', label: 'Content Management', icon: 'folder', href: null, submenu: [
-            { id: 'archives', label: 'Archives', href: '/super_admin/archives.html' },
-            { id: 'assets', label: 'Assets', href: '/super_admin/assets.html' },
-            { id: 'audit', label: 'Audit Log', href: '/super_admin/audit.html' }
-          ]},
-          { id: 'user-management', label: 'User Management', icon: 'user', href: null, submenu: [
-            { id: 'add-user', label: 'Add User', href: '/super_admin/add-user.html' },
-            { id: 'manage-users', label: 'Manage Users', href: '/super_admin/manage-users.html' },
-            { id: 'roles-access', label: 'Roles & Access', href: '/super_admin/roles-access.html' }
-          ]},
-          { id: 'system', label: 'System', icon: 'shield', href: null, submenu: [
-            { id: 'bot-management', label: 'Bot Management', href: '/super_admin/bot.html' },
-            { id: 'settings', label: 'Settings', href: '/super_admin/settings.html' },
-            { id: 'profile', label: 'Profile', href: '/super_admin/profile.html' },
-            { id: 'user-settings', label: 'User Settings', href: '/super_admin/user-settings.html' }
-          ]}
-        ],
-        admin: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/admin/index.html', submenu: null },
-          { id: 'rubric-management', label: 'My Rubric', icon: 'clipboard', href: '/admin/rubric-management.html', submenu: null },
-          { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-            { id: 'calendar-accounts', label: 'Accounts', href: '/admin/calendar-accounts.html' },
-            { id: 'calendar-events', label: 'Events', href: '/admin/calendar-events.html' }
-          ]},
-          { id: 'content', label: 'Content', icon: 'folder', href: null, submenu: [
-            { id: 'archives', label: 'Archives', href: '/admin/archives.html' }
-          ]},
-          { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-            { id: 'profile', label: 'Profile', href: '/admin/profile.html' },
-            { id: 'settings', label: 'Settings', href: '/admin/settings.html' }
-          ]}
-        ],
-        reviewer: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/reviewer/index.html', submenu: null },
-          { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-            { id: 'calendar-accounts', label: 'Accounts', href: '/reviewer/calendar-accounts.html' },
-            { id: 'calendar-events', label: 'Events', href: '/reviewer/calendar-events.html' }
-          ]},
-          { id: 'content', label: 'Archives', icon: 'folder', href: '/reviewer/archives.html', submenu: null },
-          { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-            { id: 'profile', label: 'Profile', href: '/reviewer/profile.html' },
-            { id: 'settings', label: 'Settings', href: '/reviewer/settings.html' }
-          ]}
-        ],
-        employee: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/employee/index.html', submenu: null },
-          { id: 'schedules', label: 'Schedules', icon: 'calendar', href: null, submenu: [
-            { id: 'calendar-accounts', label: 'My Calendar', href: '/employee/calendar-accounts.html' },
-            { id: 'calendar-events', label: 'Events', href: '/employee/calendar-events.html' }
-          ]},
-          { id: 'content', label: 'Archives', icon: 'folder', href: '/employee/archives.html', submenu: null },
-          { id: 'account', label: 'Account', icon: 'user', href: null, submenu: [
-            { id: 'profile', label: 'Profile', href: '/employee/profile.html' },
-            { id: 'settings', label: 'Settings', href: '/employee/settings.html' }
-          ]}
-        ]
-      };
-
-      const menuItems = defaultMenus[role.role_name] || defaultMenus.employee;
-      
-      try {
-        const resp = await fetch('/api/sidebar-menu-admin/reseed/' + currentRoleId, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ menuItems })
-        });
-        if (!resp.ok) throw new Error('Reseed failed');
-        alert('Menu reset to defaults!');
-        loadMenuItems();
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    }
-
-    // ─── Helpers ──────────────────────────────────────────────────────────
-    function closeModal() {
-      document.getElementById('modalOverlay').classList.add('hidden');
-    }
-
-    loadRoles();
-  </script>
+  <script src="/js/load-components.js"></script>
+  <script src="/js/super_admin/settings/sidebar-menu-management.js"></script>
 </body>
 </html>
+

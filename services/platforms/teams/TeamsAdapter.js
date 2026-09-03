@@ -9,7 +9,7 @@
 
 const puppeteer = require('puppeteer');
 const { logger } = require('../../../utils/logger');
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const botManager = require('../../shared/botManager');
 
 class TeamsAdapter {

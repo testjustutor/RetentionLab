@@ -1,0 +1,70 @@
+﻿<!doctype html>
+<html lang='en'>
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <meta name='dashboard-role' content='admin'>
+  <meta name='header-page' content='settingsIntegrations'>
+  <title>Integrations | RetentionLab</title>
+  <script src='https://cdn.tailwindcss.com'></script>
+  <link rel='stylesheet' href='../../css/shared.css'>
+  <script src='../../js/common-ui.js'></script>
+</head>
+<body class='min-h-screen bg-slate-100 text-slate-900 antialiased'>
+  <div class='flex h-screen'>
+    <div id='sidebar-placeholder'></div>
+    <div class='flex-1 flex flex-col overflow-hidden'>
+      <div id='header-placeholder'></div>
+      <main class='flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100'>
+        <div class='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
+          <div>
+            <h2 class='text-lg font-bold text-slate-900'>Calendar Integrations</h2>
+            <p class='text-xs text-slate-500'>Connected accounts and provider status across your company</p>
+          </div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class='grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4'>
+          <div class='bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg px-3 py-2 shadow-md'><p class='text-[10px] font-bold text-blue-900 uppercase tracking-wide'>Active Providers</p><p class='text-xl font-bold text-blue-950' id='statActiveProviders'>-</p></div>
+          <div class='bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg px-3 py-2 shadow-md'><p class='text-[10px] font-bold text-emerald-900 uppercase tracking-wide'>Connected Accounts</p><p class='text-xl font-bold text-emerald-950' id='statConnected'>-</p></div>
+          <div class='bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg px-3 py-2 shadow-md'><p class='text-[10px] font-bold text-violet-900 uppercase tracking-wide'>Verified</p><p class='text-xl font-bold text-violet-950' id='statVerified'>-</p></div>
+          <div class='bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-200 rounded-lg px-3 py-2 shadow-md'><p class='text-[10px] font-bold text-amber-900 uppercase tracking-wide'>Active Connections</p><p class='text-xl font-bold text-amber-950' id='statActiveConnections'>-</p></div>
+        </div>
+
+        <!-- Provider cards (rendered dynamically) -->
+        <div class='mb-4'>
+          <h3 class='text-[13px] font-bold text-slate-900 mb-2 uppercase tracking-wide'>Providers</h3>
+          <div id='provider-cards' class='grid grid-cols-1 md:grid-cols-3 gap-3'>
+            <!-- Dynamic provider cards loaded here -->
+          </div>
+        </div>
+
+        <!-- Connected accounts per provider -->
+        <div class='bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 rounded-lg p-4 shadow-md'>
+          <div class='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3'>
+            <div>
+              <h3 class='text-[13px] font-bold text-blue-900 uppercase tracking-wide'>Connected Accounts</h3>
+              <p class='text-[11px] text-slate-500' id='accounts-subtitle'>Select a provider to view its connected accounts</p>
+            </div>
+            <div class='flex items-center gap-2'>
+              <label class='text-[10px] font-bold text-blue-900 uppercase tracking-wide'>Status</label>
+              <select id='accountStatusFilter' class='bg-white border border-blue-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500'>
+                <option value='all'>All</option>
+                <option value='active'>Active</option>
+                <option value='disconnected'>Disconnected</option>
+              </select>
+            </div>
+          </div>
+          <div id='connectedAccountsContainer'>
+            <!-- shared createTable mounts here -->
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script type='module' src='../../js/auth.js'></script>
+  <script src='../../js/load-components.js'></script>
+  <script src='../../js/admin/settings/integrations.js'></script>
+</body>
+</html>
+

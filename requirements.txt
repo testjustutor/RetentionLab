@@ -1,24 +1,22 @@
 # Python dependencies used by this project
+#
+# Install with:  python -m pip install -r requirements.txt
 # NOTE: ffmpeg must also be installed on PATH separately.
 # On Windows, install CPU PyTorch wheels directly if needed:
-# python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#     python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# NOTE: `webrtcvad` (a Resemblyzer dependency) builds a C++ extension that
+# requires "Microsoft C++ Build Tools". If it fails to install, apply the
+# lightweight `webrtcvad.py` stub that lives in the Python site-packages, or
+# install Resemblyzer with:  python -m pip install --no-deps resemblyzer
 
-torch 
-torchaudio
-openai-whisper
-openai
-pyannote.audio
-ffmpeg-python
-transformers 
-accelerate
-huggingface_hub 
-python-dotenv
-
-pip install torch==2.3.1+cpu torchvision==0.18.1+cpu torchaudio==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu
-
-pip install faster-whisper==1.0.3
-pip install whisperx==3.1.1
-
-pip install pyannote.audio==2.1.1
-pip install onnxruntime
-pip install transformers huggingface_hub
+# ---- Python Core Libraries -------------------------------------------------
+python -m pip install -U openai-whisper
+python -m pip install -U openai
+python -m pip install mysql-connector-python
+python -m pip install -U google-genai
+python -m pip install -U moviepy
+python -m pip install -U soundfile
+python -m pip install -U deepgram-sdk
+python -m pip install noisereduce
+python -m pip install resemblyzer

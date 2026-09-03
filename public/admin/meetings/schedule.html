@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang="en">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="dashboard-role" content="admin">
+  <meta name="header-page" content="meetingsSchedule">
+  <title>Meeting Schedule | RetentionLab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="../../css/shared.css">
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="../../js/common-ui.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-screen">
+    <div id="sidebar-placeholder"></div>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div id="header-placeholder"></div>
+      <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-100">
+        
+        <!-- Filter Bar -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg shadow-md p-3 mb-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <!-- Left Side: Date & Instructor Filters (for Get Data) -->
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">From Date</label>
+                <input type="date" id="filterFromDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">To Date</label>
+                <input type="date" id="filterToDate" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Instructor</label>
+                <div id="instructorFilterContainer"></div>
+              </div>
+              <button onclick="loadFromDB()" class="px-4 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors shadow-sm flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                Get Data
+              </button>
+            </div>
+
+            <!-- Right Side: Range Filter (for Sync) -->
+            <div class="flex items-end gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-violet-900 uppercase tracking-wide mb-1">Sync Duration</label>
+                <select id="hoursSelect" class="bg-white border border-violet-300 rounded-md px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-violet-500">
+                  <option value="6">Next 6 Hours</option>
+                  <option value="12">Next 12 Hours</option>
+                  <option value="24" selected>Next 24 Hours</option>
+                  <option value="48">Next 48 Hours</option>
+                  <option value="168">Next 7 Days</option>
+                </select>
+              </div>
+              <button onclick="doSync()" class="px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shadow-sm flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                Sync Calendar Meetings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div id="statsBar" class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-200 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-violet-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                </div>
+                <p class="text-[11px] font-bold text-violet-900 uppercase tracking-wider truncate">Connected Instructors</p>
+              </div>
+              <p class="text-xl font-bold text-violet-950 flex-shrink-0" id="statUsers">-</p>
+            </div>
+          </div>
+          <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-200 rounded-lg p-3 shadow-md">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <p class="text-[11px] font-bold text-emerald-900 uppercase tracking-wider truncate">Total Meetings</p>
+              </div>
+              <p class="text-xl font-bold text-emerald-950 flex-shrink-0" id="statMeetings">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedule Container -->
+        <div id="scheduleContainer">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
+            <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse"><div class="h-3 bg-slate-200 rounded w-1/2 mb-2"></div><div class="h-2.5 bg-slate-200 rounded w-3/4 mb-1.5"></div><div class="h-2.5 bg-slate-200 rounded w-2/3"></div></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script type="module" src="../../js/auth.js"></script>
+  <script src="../../js/load-components.js"></script>
+  <script src="../../js/admin/meetings/schedule.js"></script>
+</body>
+</html>

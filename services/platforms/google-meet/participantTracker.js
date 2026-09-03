@@ -3,7 +3,7 @@
  *
  */
 const { logger } = require('../../../utils/logger');
-const ParticipantModel = require('../../../models/ParticipantModel');
+const ParticipantModel = require('../../../models/participants/ParticipantModel');
 
 /**
  * ParticipantTracker - Service for managing participant attendance
@@ -20,17 +20,25 @@ class ParticipantTracker {
    * Handle a participant joining the meeting
    * First join → creates main participant record
    * Subsequent joins → creates rejoin session (if not already tracked)
+   *
+   * FIX: participantName is now trimmed up front and used consistently as
+   * both the map key and the value written to the DB. Previously the map
+   * key here was untrimmed while handleParticipantLeave() trimmed before
+   * lookup — a name with stray whitespace on join could never be found
+   * again on leave.
    */
   async handleParticipantJoin(participantName, joinTime = new Date()) {
     try {
+      const key = (participantName || '').trim();
+
       // Check if participant already being tracked
-      if (this.trackedParticipants.has(participantName)) {
-        const tracked = this.trackedParticipants.get(participantName);
+      if (this.trackedParticipants.has(key)) {
+        const tracked = this.trackedParticipants.get(key);
 
         // If was previously left, handle as rejoin
         if (tracked.status === 'left') {
           logger.info(
-            `GoogleMeetAdapter(participantTracker): Participant rejoining - ${participantName}`
+            `GoogleMeetAdapter(participantTracker): Participant rejoining - ${key}`
           );
 
           // Create rejoin session
@@ -51,7 +59,7 @@ class ParticipantTracker {
 
           return {
             success: true,
-            participantName,
+            participantName: key,
             event: 'rejoin',
             participantId: tracked.id,
             sessionId: rejoinResult.id
@@ -59,11 +67,11 @@ class ParticipantTracker {
         } else {
           // Already joined, no action needed
           logger.debug(
-            `GoogleMeetAdapter(participantTracker): Participant already joined - ${participantName}`
+            `GoogleMeetAdapter(participantTracker): Participant already joined - ${key}`
           );
           return {
             success: true,
-            participantName,
+            participantName: key,
             event: 'already_joined',
             participantId: tracked.id
           };
@@ -72,18 +80,18 @@ class ParticipantTracker {
 
       // First join - create participant record
       logger.info(
-        `GoogleMeetAdapter(participantTracker): Participant first join - ${participantName}`
+        `GoogleMeetAdapter(participantTracker): Participant first join - ${key}`
       );
 
       const joinResult = await ParticipantModel.recordParticipantJoin(
         this.meetingId,
         this.sessionId,
-        participantName,
+        key,
         joinTime
       );
 
       // Track locally
-      this.trackedParticipants.set(participantName, {
+      this.trackedParticipants.set(key, {
         id: joinResult.id,
         status: 'joined',
         joinTime,
@@ -98,7 +106,7 @@ class ParticipantTracker {
 
       return {
         success: true,
-        participantName,
+        participantName: key,
         event: 'first_join',
         participantId: joinResult.id
       };
@@ -211,12 +219,27 @@ class ParticipantTracker {
           leaveTime
         );
       } else {
-        // Update main participant record
+        // FIX: sessionId is now passed through so recordParticipantLeave
+        // scopes its lookup/update to THIS meeting session, not just this
+        // meeting. This was previously missing and, after the sessionId
+        // parameter was added to ParticipantModel.recordParticipantLeave,
+        // was silently mis-binding arguments (name -> sessionId slot,
+        // leaveTime -> name slot), breaking every Google Meet leave event.
         leaveResult = await ParticipantModel.recordParticipantLeave(
           this.meetingId,
+          this.sessionId,
           participantName,
           leaveTime
         );
+      }
+
+      // Guard: ParticipantModel returned { success:false } (e.g. the DB row was deleted
+      // out from under us) — do not report a successful leave that was never persisted.
+      if (leaveResult && leaveResult.success === false) {
+        logger.warn(
+          `GoogleMeetAdapter(participantTracker): Leave not persisted for ${participantName}: ${leaveResult.message || 'unknown reason'}`
+        );
+        return { success: false, participantName, message: leaveResult.message || 'Leave not persisted' };
       }
 
       tracked.status = 'left';
@@ -264,7 +287,7 @@ class ParticipantTracker {
    * Get participant by name
    */
   getParticipant(participantName) {
-    return this.trackedParticipants.get(participantName);
+    return this.trackedParticipants.get((participantName || '').trim());
   }
 
   /**
@@ -297,6 +320,14 @@ class ParticipantTracker {
 
   /**
    * Reset tracker (e.g., at meeting end)
+   *
+   * NOTE: this still does NOT persist a leave event to the DB for
+   * participants who are still "joined" in-memory when the meeting ends
+   * (e.g. bot force-closed, meeting ended by host with no per-participant
+   * leave detected first). Those rows stay attendance_status='active' /
+   * leave_time=NULL forever. Teams' tracker persists on reset(); this one
+   * doesn't. Flagging rather than changing silently — see chat for whether
+   * you want this ported over.
    */
   reset() {
     this.trackedParticipants.clear();

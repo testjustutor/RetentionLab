@@ -1,0 +1,79 @@
+﻿<!-- root/public/super_admin/monitoring/audit.html -->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-role" content="super_admin">
+    <meta name="header-page" content="audit">
+    <title>System Audit Logs</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script src="/js/super_admin/tailwind-config.js"></script>
+  <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="/js/common-ui-super-admin.js"></script>
+    <script src="/js/super_admin/monitoring/audit.js"></script>
+</head>
+<body class="antialiased font-sans p-2 sm:p-0 bg-slate-100 text-slate-900">
+    <div id="sidebar-placeholder"></div>
+    <div class="mx-auto flex flex-col gap-3">
+        <!-- Header -->    <div id="header-placeholder"></div>
+<!-- Main View -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg shadow-md h-[450px] lg:h-[calc(100vh-100px)] flex flex-col overflow-hidden p-4">
+            
+            <!-- Toolbar -->
+            <div class="px-3 py-2 border-b-2 border-violet-300 bg-violet-100 rounded-t flex flex-col sm:flex-row gap-2 justify-between items-center shrink-0">
+                <div class="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+                    <input id="auditSearchInput" type="text" placeholder="Search..." class="bg-white border border-violet-300 rounded-md px-2 py-1 text-[12px] focus:outline-none focus:border-violet-500 transition-colors w-full sm:w-48">
+                    <input id="auditFromDate" type="date" class="bg-white border border-violet-300 text-slate-800 rounded-md px-2 py-1 text-[12px] focus:outline-none focus:border-violet-500 transition-colors w-full sm:w-32" title="From">
+                    <input id="auditToDate" type="date" class="bg-white border border-violet-300 text-slate-800 rounded-md px-2 py-1 text-[12px] focus:outline-none focus:border-violet-500 transition-colors w-full sm:w-32" title="To">
+                    <select id="auditLevelSelect" class="bg-white border border-violet-300 text-slate-800 rounded-md px-2 flex-1 py-1 text-[12px] focus:outline-none focus:border-violet-500">
+                        <option value="ALL">All</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 text-violet-700">
+                    <span id="auditCountSummary" class="text-[12px] font-mono tracking-wider uppercase font-bold">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="flex-1 overflow-auto custom-scrollbar relative">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead class="sticky top-0 bg-violet-200 backdrop-blur-sm z-10">
+                        <tr class="text-[12px] font-mono uppercase tracking-wider text-violet-950 border-b-2 border-violet-300">
+                            <th class="px-3 py-2 font-bold w-32">Timestamp</th>
+                            <th class="px-3 py-2 font-bold w-20">Level</th>
+                            <th class="px-3 py-2 font-bold w-28">Module</th>
+                            <th class="px-3 py-2 font-bold">Event</th>
+                            <th class="px-3 py-2 font-bold w-24">User</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-violet-200 text-violet-900 font-mono text-[12px]" id="logTableBody">
+                        <!-- Populated by audit.js -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination block -->
+            <div class="px-3 py-1.5 border-t-2 border-violet-300 bg-violet-100 rounded-b flex flex-col sm:flex-row justify-between items-center gap-1.5 shrink-0">
+                <span id="auditBottomSummary" class="text-[12px] text-violet-800 font-mono font-semibold">Showing all logs</span>
+                <div class="flex items-center gap-1.5">
+                    <button id="auditPrevBtn" class="px-2 py-1 bg-violet-600 text-white rounded hover:bg-violet-500 transition text-[12px] font-semibold">Prev</button>
+                    <button id="auditNextBtn" class="px-2 py-1 bg-violet-600 text-white rounded hover:bg-violet-500 transition text-[12px] font-semibold">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<script type="module" src="/js/auth.js"></script>
+  <script src="/js/load-components.js"></script>
+</body>
+</html>
+

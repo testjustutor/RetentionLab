@@ -4,7 +4,7 @@
  */
 const { logger } = require('../../../utils/logger');
 const { exportBoth } = require('../../../utils/export');
-const TranscriptModel = require('../../../models/transcriptModel');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
 const ParticipantTracker = require('./participantTracker');
 
 // ─────────────────────────────────────────────
@@ -55,7 +55,6 @@ async function getCurrentParticipantNames(page, botName) {
         return true;
       };
 
-      // WITH THIS — only click if roster is not already visible:
       const rosterAlreadyOpen = !!document.querySelector('[data-cid="roster-participant"], [data-tid^="participantsInCall-"]');
       if (!rosterAlreadyOpen) {
         const peopleButton = Array.from(document.querySelectorAll('button,[role="button"]')).find((button) => {
@@ -66,7 +65,6 @@ async function getCurrentParticipantNames(page, botName) {
         if (peopleButton) peopleButton.click();
       }
 
-      // PASS 1 (BEST SOURCE): Actual roster participants
       const rosterParticipants = document.querySelectorAll('[data-cid="roster-participant"]');
       rosterParticipants.forEach((node) => {
         let name = '';
@@ -86,7 +84,6 @@ async function getCurrentParticipantNames(page, botName) {
         if (isValidParticipantName(name)) participants.add(name);
       });
 
-      // PASS 2 (Fallback): If Teams changes markup
       if (participants.size === 0) {
         const fallbackNodes = document.querySelectorAll(
           '[data-tid^="participantsInCall-"],[id^="roster-avatar-img"],[data-cid="roster-participant"]'
@@ -208,12 +205,17 @@ async function exportMeetingTranscript(meetingId) {
 
 // ─────────────────────────────────────────────
 // MAIN MONITOR LOOP
+// FIX 2: now accepts an externally-created participantTracker (optional).
+// If the caller (socraticbot.js) passes one in, we use it — matching the
+// Zoom/Google Meet pattern — instead of always creating a brand new one
+// that's invisible outside this function. Falls back to creating one
+// internally only if the caller doesn't supply it, for backwards compat.
 // ─────────────────────────────────────────────
 
-async function monitorMeeting(page, meetingId, botName, sessionId) {
+async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker = null) {
   logger.info('TeamsAdapter (Monitor): Stay-Alive loop started');
 
-  const participantTracker = new ParticipantTracker(meetingId, sessionId);
+  const tracker = participantTracker || new ParticipantTracker(meetingId, sessionId);
   let previousParticipants = [];
   let lastParticipantCheckTime = Date.now();
   const PARTICIPANT_CHECK_INTERVAL = 5000;
@@ -221,14 +223,12 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
 
   while (true) {
 
-    // 1. Page closed
     if (page.isClosed()) {
       logger.info("TeamsAdapter (Monitor): EXIT: Page closed → Exporting");
       await exportMeetingTranscript(meetingId);
       break;
     }
 
-    // 2. Left Teams meeting
     const url = page.url();
     if (!url.includes('teams.live.com') && !url.includes('teams.microsoft.com')) {
       logger.info("TeamsAdapter (Monitor): EXIT: Navigated away from Teams → Exporting");
@@ -236,7 +236,6 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
       break;
     }
 
-    // 3. Detect meeting end / removal
     const meetingEnded = await checkMeetingEnded(page);
     if (meetingEnded) {
       logger.info("TeamsAdapter (Monitor): EXIT: Meeting ended detected → Exporting");
@@ -244,24 +243,21 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
       break;
     }
 
-    // 4. Lobby detection
     const waitingRoom = await checkWaitingRoom(page);
     if (waitingRoom) {
       logger.info("TeamsAdapter (Monitor): Lobby detected");
     }
 
-    // 5. Attendance tracking
     const now = Date.now();
     if (now - lastParticipantCheckTime >= PARTICIPANT_CHECK_INTERVAL) {
       try {
-        previousParticipants = await trackAttendanceChanges(page, botName, participantTracker, previousParticipants);
+        previousParticipants = await trackAttendanceChanges(page, botName, tracker, previousParticipants);
         lastParticipantCheckTime = now;
       } catch (err) {
         logger.error(`TeamsAdapter (Monitor): Error in attendance tracking: ${err.message}`);
       }
     }
 
-    // 6. Participant count (best effort)
     const participantCount = await getParticipantCount(page);
     if (participantCount <= 1) {
       logger.warn("TeamsAdapter (Monitor): EXIT: Only bot left → Exporting");
@@ -271,7 +267,6 @@ async function monitorMeeting(page, meetingId, botName, sessionId) {
 
     logger.info(`TeamsAdapter (Monitor): participants ≈ ${participantCount}`);
 
-    // 7. Loop delay
     await new Promise(r => setTimeout(r, 10000));
 
     loopCount++;

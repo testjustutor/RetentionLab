@@ -4,39 +4,33 @@ from utils.logger_util import log_with_type
 
 def run_media_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_media_task dispatched", "TASK")
-    from services.engine.task.media.media_task import run_media_task as handler
+    from services.engine.task.media_task import run_media_task as handler
     return handler(context)
 
 
 def run_transcription_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_transcription_task dispatched", "TASK")
-    from services.engine.task.transcription.transcription_task import (
+    from services.engine.task.transcription_task import (
         run_transcription_task as handler
     )
     return handler(context)
 
 
-def run_intel_task(context):
-    log_with_type("info", "Engine(orchestrator > task_registry) : run_intel_task dispatched", "TASK")
-    from services.engine.task.intel.intel_task import run_intel_task as handler
-    return handler(context)
-
-
 def run_audit_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_audit_task dispatched", "TASK")
-    from services.engine.task.audit.audit_task import run_audit_task as handler
+    from services.engine.task.audit_task import run_audit_task as handler
     return handler(context)
 
 
 def run_summary_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_summary_task dispatched", "TASK")
-    from services.engine.task.summary.summary_task import run_summary_task as handler
+    from services.engine.task.summary_task import run_summary_task as handler
     return handler(context)
 
 
-def run_topics_task(context):
-    log_with_type("info", "Engine(orchestrator > task_registry) : run_topics_task dispatched", "TASK")
-    from services.engine.task.topics.topics_task import run_topics_task as handler
+def run_persist_results_task(context):
+    log_with_type("info", "Engine(orchestrator > task_registry) : run_persist_results_task dispatched", "TASK")
+    from services.engine.task.persist_results_task import run_persist_results_task as handler
     return handler(context)
 
 
@@ -73,21 +67,6 @@ TASK_REGISTRY = {
     },
 
     # ==========================================
-    # INTEL
-    # ==========================================
-
-    "intel": {
-        "handler": run_intel_task,
-        "dependencies": [
-            "transcription"
-        ],
-        "parallel": True,
-        "feature_flag": (
-            "enable_intel"
-        )
-    },
-
-    # ==========================================
     # AUDIT
     # ==========================================
 
@@ -120,19 +99,23 @@ TASK_REGISTRY = {
     },
 
     # ==========================================
-    # TOPICS
+    # PERSIST RESULTS
+    # Runs after summary/audit have all
+    # produced their outputs. Persists structured
+    # results (summary + rubric + metrics) to MySQL.
     # ==========================================
 
-    "topics": {
+    "persist_results": {
         "handler": (
-            run_topics_task
+            run_persist_results_task
         ),
         "dependencies": [
-            "transcription"
+            "summary",
+            "audit"
         ],
-        "parallel": True,
+        "parallel": False,
         "feature_flag": (
-            "enable_topics"
+            "enable_persist_results"
         )
     }
 }

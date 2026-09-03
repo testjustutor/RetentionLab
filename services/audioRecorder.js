@@ -9,9 +9,9 @@ const { logger } = require('../utils/logger');
 const settings = require('../config/settings');
 
 class AudioRecorder {
-  constructor(storageDir, sessionId, meetingId) {
+  constructor(storageDir, sessionId, meetingDbId) {
     this.storageDir = path.resolve(storageDir);
-    if (!meetingId) {
+    if (!meetingDbId) {
       throw new Error("AudioRecorder requires a meetingId to generate the file name.");
     }
 
@@ -25,7 +25,7 @@ class AudioRecorder {
                       now.getHours().toString().padStart(2, '0') + '-' + 
                       now.getMinutes().toString().padStart(2, '0');
 
-    const fileName = `REC_${meetingId}_Sess${sessionId}_${timestamp}.mp3`;
+    const fileName = `REC_${meetingDbId}_Sess${sessionId}_${timestamp}.mp3`;
     // ------------------------------
 
     this.audioPath = path.join(this.storageDir, fileName);

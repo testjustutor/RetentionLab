@@ -3,7 +3,7 @@
  *
  */
 const { logger } = require('../../../utils/logger');
-const ParticipantModel = require('../../../models/ParticipantModel');
+const ParticipantModel = require('../../../models/participants/ParticipantModel');
 
 /**
  * ParticipantTracker - Service for managing participant attendance
@@ -61,33 +61,62 @@ class ParticipantTracker {
     return { success: true, participantName, event: 'rejoin', participantId: tracked.id, sessionId: rejoinResult.id };
   }
 
+  // Auto-recover a participant whose join event was never observed (e.g. missed by
+  // the monitor). Creates the participant record so the leave can still be recorded.
+  async _autoRecoverParticipant(participantName) {
+    const originalName = participantName.trim();
+    const joinTime = new Date(Date.now() - 60000); // assume joined ~1 minute ago
+
+    logger.warn(
+      `TeamsAdapter(participantTracker): Missing join state, auto-creating participant record - ${originalName}`
+    );
+
+    const joinResult = await ParticipantModel.recordParticipantJoin(
+      this.meetingId,
+      this.sessionId,
+      originalName,
+      joinTime
+    );
+
+    const tracked = this._buildTrackedRecord(joinResult.id, joinTime, 'auto-recovered');
+    this.trackedParticipants.set(this._key(originalName), tracked);
+    return tracked;
+  }
+
+  // FIX: trim participantName once before it's used both as the map key
+  // source and the value written to the DB. Previously the raw (possibly
+  // whitespace-padded) participantName was passed straight into
+  // recordParticipantJoin while handleParticipantLeave()/reset() always
+  // matched against a .trim()'d name — a mismatch could leave the DB row
+  // unfindable on leave.
   async handleParticipantJoin(participantName, joinTime = new Date()) {
     try {
-      const key = this._key(participantName);
+      const originalName = participantName.trim();
+      const key = this._key(originalName);
 
       // Already tracked
       if (this.trackedParticipants.has(key)) {
         const tracked = this.trackedParticipants.get(key);
 
-        if (tracked.status === 'left') return this._handleRejoin(tracked, participantName, joinTime);
+        if (tracked.status === 'left') return this._handleRejoin(tracked, originalName, joinTime);
 
-        logger.debug(`TeamsAdapter(participantTracker): Participant already joined - ${participantName}`);
-        return { success: true, participantName, event: 'already_joined', participantId: tracked.id };
+        logger.debug(`TeamsAdapter(participantTracker): Participant already joined - ${originalName}`);
+        return { success: true, participantName: originalName, event: 'already_joined', participantId: tracked.id };
       }
 
       // First join
-      logger.info(`TeamsAdapter(participantTracker): Participant first join - ${participantName}`);
+      logger.info(`TeamsAdapter(participantTracker): Participant first join - ${originalName}`);
 
       const joinResult = await ParticipantModel.recordParticipantJoin(
         this.meetingId,
         this.sessionId,
-        participantName,
+        originalName,
         joinTime
       );
 
       this.trackedParticipants.set(key, this._buildTrackedRecord(joinResult.id, joinTime, 'initial'));
 
-      return { success: true, participantName, event: 'first_join', participantId: joinResult.id };
+      return { success: true, participantName: originalName, event: 'first_join', participantId: joinResult.id };
 
     } catch (err) {
       logger.error(`TeamsAdapter(participantTracker): Error handling participant join - ${participantName}:`, err);
@@ -130,9 +159,22 @@ class ParticipantTracker {
 
       logger.info(`TeamsAdapter(participantTracker): Participant leaving - ${originalName} (rejoin: ${isRejoin})`);
 
+      // FIX: sessionId is now passed through — see note in
+      // google-meet/participantTracker.js. Previously missing here too,
+      // which meant every Teams leave was mis-binding arguments once
+      // ParticipantModel.recordParticipantLeave required sessionId.
       const leaveResult = isRejoin && tracked.currentSessionId
         ? await ParticipantModel.recordRejoinLeave(tracked.currentSessionId, leaveTime)
-        : await ParticipantModel.recordParticipantLeave(this.meetingId, originalName, leaveTime);
+        : await ParticipantModel.recordParticipantLeave(this.meetingId, this.sessionId, originalName, leaveTime);
+
+      // Guard: ParticipantModel returned { success:false } (e.g. the DB row was deleted
+      // out from under us) — do not report a successful leave that was never persisted.
+      if (leaveResult && leaveResult.success === false) {
+        logger.warn(
+          `TeamsAdapter(participantTracker): Leave not persisted for ${originalName}: ${leaveResult.message || 'unknown reason'}`
+        );
+        return { success: false, participantName: originalName, message: leaveResult.message || 'Leave not persisted' };
+      }
 
       tracked.status = 'left';
       tracked.leaveTime = leaveTime;
@@ -189,10 +231,15 @@ class ParticipantTracker {
   // RESET
   // ─────────────────────────────────────────────
 
+  // FIX: sessionId now passed to recordParticipantLeave here too. This is
+  // the meeting-end cleanup path — without this fix, EVERY dangling
+  // "joined" participant would fail to be closed out when the bot shuts
+  // down, since the DB call was mis-binding arguments the same way as
+  // handleParticipantLeave() was.
   reset(meetingEndTime = new Date()) {
     for (const [name, data] of this.trackedParticipants.entries()) {
       if (data.status === 'joined') {
-        ParticipantModel.recordParticipantLeave(this.meetingId, name, meetingEndTime)
+        ParticipantModel.recordParticipantLeave(this.meetingId, this.sessionId, name, meetingEndTime)
           .catch(err => logger.error(`Cleanup leave failed for ${name}:`, err));
       }
     }

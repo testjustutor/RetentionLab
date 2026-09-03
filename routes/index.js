@@ -86,7 +86,27 @@ router.get('/auth/google/callback', async (req, res) => {
 });
 
 // API Routes
+
+// Intercept /api/calendar/callback for instructor-calendar JWT tokens
+// (Google Console only approves /api/calendar/callback, so we intercept here)
+router.get('/api/calendar/callback', (req, res, next) => {
+  const { state } = req.query;
+  if (state && state.startsWith('eyJ')) {
+    try {
+      const jwt = require('jsonwebtoken');
+      const VERIFY_SECRET = process.env.INSTRUCTOR_CALENDAR_SECRET || process.env.JWT_SECRET || 'instructor_cal_secure_key_change_me';
+      const payload = jwt.verify(state, VERIFY_SECRET);
+      if (payload?.purpose === 'instructor-calendar-verify') {
+        const ctrl = require('../controllers/calendar/instructorCalendarController');
+        return ctrl.handleCallback(req, res);
+      }
+    } catch { /* not our JWT, pass through */ }
+  }
+  next(); // pass to calendar.js for normal handling
+});
+
 router.use('/api/bot', require('./bot'));
+router.use('/api/monitoring', require('./monitoring'));
 router.use('/api/calendar', require('./calendar'));
 router.use('/api/meetings', require('./meetings'));
 router.use('/api/db', require('./db-admin'));
@@ -96,33 +116,48 @@ router.use('/api/companies', require('./companies'));
 router.use('/api/roles', require('./roles'));
 router.use('/api/users', require('./users'));
 router.use('/api/reviewers', require('./reviewers'));
+router.use('/api/reviews', require('./reviews'));
+router.use('/api/reviewer-dashboard', requireAuth, require('../routes/reviewer-dashboard'));
+router.use('/api/reviewer-sessions', requireAuth, require('../routes/reviewer-sessions'));
+router.use('/api/reviewer-reviews', requireAuth, require('../routes/reviewer-reviews'));
 router.use('/api/settings', require('./settings'));
 router.use('/api/scores', require('./scores'));
 router.use('/api/auth', require('./auth'));
 router.use('/api/dashboard', require('./dashboard'));
-
-// Sidebar navigation API
-router.get('/api/sidebar/menu', requireAuth, require('./sidebar-api'));
+router.use('/api/instructor-dashboard', require('./instructor-dashboard'));
 
 // Header config API
 router.use('/api/header-config', require('./header-config'));
 
 router.use('/api/transcripts', require('./transcripts'));
 router.use('/api/audit', require('./audit'));
+router.use('/api/audit-reports', require('./audit-reports'));
 router.use('/api/assets', require('./assets'));
 router.use('/api/archives', require('./archives'));
 
 // Rubric management (super admin)
+router.use('/api/evaluation/rubrics', require('./rubrics'));
 router.use('/api/rubric-admin', require('./rubric-admin'));
 
 // Sidebar menu management (super admin)
 router.use('/api/sidebar-menu-admin', require('./sidebar-menu-admin'));
 
-// Tutoring/session-quality endpoints
-router.use('/api/tutoring', require('./tutoring'));
-router.use('/api/participants', require('./participants'));
+// Google OAuth credentials management (super admin) - legacy (kept for backward compatibility)
+router.use('/api/google-credentials', require('./google-credentials'));
 
-// Serve page routes (must be after API routes to avoid intercepting API calls)
-router.use('/', require('./pages'));
+// Calendar providers (new schema)
+router.use('/api/calendar-integrations', require('./calendar-integrations'));
+
+// Menu management
+router.use('/api/menu', require('./menu'));
+
+// Sidebar API (dynamic menu for frontend)
+router.use('/api/sidebar', require('./sidebar-api'));
+
+// Configuration pages (super admin)
+router.use('/super_admin/configuration', require('./configuration'));
+
+// NOTE: This file is deprecated. All routes are now registered via routes/registry.js
+// This file is kept for reference only and is NOT used by server.js
 
 module.exports = router;

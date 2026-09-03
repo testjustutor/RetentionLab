@@ -9,7 +9,11 @@
     "api": "node api-server.js",
     "dev:api": "nodemon api-server.js",
     "db:init": "node -e \"require('./database/db').initDB()\"",
-    "db:seed": "node database/seeder.js",
+    "db:seed": "node database/setup-mysql.js",
+    "db:reset": "node database/reset-db.js --force",
+    "db:migrate": "node database/reset-db.js --migrate-only",
+    "db:manual-seed": "node database/run-manual-seeders.js",
+    "structure:update": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\generate_structure.ps1",
     "build": "npm run db:init && npm run db:seed && echo 'Build Complete: Database synced and environment verified.'"
   },
   "keywords": [
@@ -28,18 +32,18 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.3.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "form-data": "^4.0.5",
     "google-auth-library": "^9.0.0",
     "googleapis": "^129.0.0",
     "jsonwebtoken": "^9.0.1",
+    "mysql2": "^3.22.5",
     "nodemailer": "^8.0.10",
     "openai": "^6.38.0",
     "puppeteer": "^23.5.3",
     "puppeteer-stream": "^3.0.4",
     "socket.io": "^4.8.3",
-    "sqlite3": "^5.1.7",
     "winston": "^3.14.2"
   },
   "devDependencies": {
