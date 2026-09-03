@@ -1,5 +1,5 @@
 /**
- * root/services/audioRecorder.js
+ * services/audioRecorder.js
  *
  */
 const path = require('path');

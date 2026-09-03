@@ -1,5 +1,5 @@
 /**
- * root/services/screenRecorder.js
+ * services/screenRecorder.js
  */
 const path = require('path');
 const { spawn } = require('child_process');

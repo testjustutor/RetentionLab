@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/meetingNavigation.js
+ * services/platforms/google-meet/meetingNavigation.js
  *
  */
 const { logger } = require('../../../utils/logger');

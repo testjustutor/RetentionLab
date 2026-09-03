@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/monitor.js
+ * services/platforms/teams/monitor.js
  *
  */
 const { logger } = require('../../../utils/logger');

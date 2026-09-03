@@ -1,4 +1,4 @@
-# root/services/engine/task/summary/summary_task.py
+# services/engine/task/summary_task.py
 
 from utils.logger_util import log_with_type
 

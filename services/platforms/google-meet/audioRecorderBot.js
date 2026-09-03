@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/audioRecorderBot.js
+ * services/platforms/google-meet/audioRecorderBot.js
  *
  */
 const axios = require('axios');

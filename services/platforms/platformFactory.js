@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/platformFactory.js
+ * services/platforms/platformFactory.js
  *
  */
 /**

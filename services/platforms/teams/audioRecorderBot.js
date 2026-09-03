@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/audioRecorderBot.js
+ * services/platforms/teams/audioRecorderBot.js
  *
  */
 const puppeteer = require('puppeteer');

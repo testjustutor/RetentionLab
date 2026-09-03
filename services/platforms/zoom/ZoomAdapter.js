@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/ZoomAdapter.js
+ * services/platforms/zoom/ZoomAdapter.js
  *
  */
 /**

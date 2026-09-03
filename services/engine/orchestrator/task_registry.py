@@ -1,4 +1,4 @@
-# root/services/engine/orchestrator/task_registry.py
+# services/engine/orchestrator/task_registry.py
 
 from utils.logger_util import log_with_type
 

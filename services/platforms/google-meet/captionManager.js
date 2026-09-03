@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/captionManager.js
+ * services/platforms/google-meet/captionManager.js
  *
  */
 const { logger } = require('../../../utils/logger');

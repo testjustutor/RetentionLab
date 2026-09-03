@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/monitor.js
+ * services/platforms/google-meet/monitor.js
  *
  */
 const { logger } = require('../../../utils/logger');

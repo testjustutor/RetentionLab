@@ -1,5 +1,5 @@
 /**
- * root/services/shared/botManager.js
+ * services/shared/botManager.js
  *
  */
 const { logger } = require('../../utils/logger');

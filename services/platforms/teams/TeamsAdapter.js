@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/TeamsAdapter.js
+ * services/platforms/teams/TeamsAdapter.js
  *
  */
  /**

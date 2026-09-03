@@ -1,5 +1,5 @@
 """
-services/engine/services
+services/engine/services/__init__.py
 =========================
 Consolidated engine services package (AI, media, transcription, summary, shared
 helpers) flattened into a single folder.

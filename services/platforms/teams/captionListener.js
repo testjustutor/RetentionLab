@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/captionListener.js
+ * services/platforms/teams/captionListener.js
  *
  */
 const TranscriptModel = require('../../../models/transcripts/transcriptModel');

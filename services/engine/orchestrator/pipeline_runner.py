@@ -1,4 +1,4 @@
-# root/services/engine/orchestrator/pipeline_runner.py
+# services/engine/orchestrator/pipeline_runner.py
 
 from utils.logger_util import log_with_type
 

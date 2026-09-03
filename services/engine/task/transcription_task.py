@@ -1,4 +1,4 @@
-# root/services/engine/task/transcription/transcription_task.py
+# services/engine/task/transcription_task.py
 
 from utils.logger_util import log_with_type
 

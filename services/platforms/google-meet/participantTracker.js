@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/participanTracker.js
+ * services/platforms/google-meet/participanTracker.js
  *
  */
 const { logger } = require('../../../utils/logger');

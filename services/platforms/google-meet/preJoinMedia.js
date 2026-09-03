@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/preJoinMedia.js
+ * services/platforms/google-meet/preJoinMedia.js
  *
  */
 const { logger } = require('../../../utils/logger');

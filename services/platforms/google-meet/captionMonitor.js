@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/captionMonitor.js
+ * services/platforms/google-meet/captionMonitor.js
  *
  */
 const TranscriptModel = require('../../../models/transcripts/transcriptModel.js');

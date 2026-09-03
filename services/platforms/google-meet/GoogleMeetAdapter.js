@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/captionMonitor.js
+ * services/platforms/google-meet/captionMonitor.js
  * Google Meet Platform Adapter
  * Basic implementation using Puppeteer for Google Meet
  */

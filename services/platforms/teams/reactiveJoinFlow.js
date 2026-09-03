@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/reactiveJoinFlow.js
+ * services/platforms/teams/reactiveJoinFlow.js
  *
  */
 const path = require('path');

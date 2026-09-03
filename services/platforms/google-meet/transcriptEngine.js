@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/transcriptEngine.js
+ * services/platforms/google-meet/transcriptEngine.js
  *
  * Merged transcript engine: caption extraction, validation, processing,
  * participant event handling, storage, and real-time monitoring.

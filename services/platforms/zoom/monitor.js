@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/monitor.js
+ * services/platforms/zoom/monitor.js
  *
  */
 const { logger } = require('../../../utils/logger');

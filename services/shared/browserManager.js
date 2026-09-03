@@ -1,5 +1,5 @@
 /**
- * root/services/shared/browserManager.js
+ * services/shared/browserManager.js
  *
  */
 const path = require('path');

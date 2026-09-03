@@ -1,5 +1,5 @@
 /**
- * root/services/sessionQualityGenerator.js
+ * services/sessionQualityGenerator.js
  *
  * Generation pipeline for the Session Quality & Impact Report.
  *

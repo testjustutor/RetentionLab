@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/captionMonitor.js
+ * services/platforms/zoom/captionMonitor.js
  *
  */
 const TranscriptModel = require('../../../models/transcripts/transcriptModel.js');

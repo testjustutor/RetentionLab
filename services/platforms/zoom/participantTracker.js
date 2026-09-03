@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/participantTracker.js
+ * services/platforms/zoom/participantTracker.js
  *
  */
 const { logger } = require('../../../utils/logger');

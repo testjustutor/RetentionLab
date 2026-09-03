@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/participantTracker.js
+ * services/platforms/teams/participantTracker.js
  *
  */
 const { logger } = require('../../../utils/logger');

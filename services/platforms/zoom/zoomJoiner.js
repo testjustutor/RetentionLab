@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/zoomJoiner.js
+ * services/platforms/zoom/zoomJoiner.js
  *
  */
 const { logger } = require('../../../utils/logger');

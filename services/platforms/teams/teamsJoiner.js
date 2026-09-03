@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/teams/teamsJoiner.js
+ * services/platforms/teams/teamsJoiner.js
  *
  */
 const { logger } = require('../../../utils/logger');
@@ -547,12 +547,18 @@ class TeamsJoiner {
         await new Promise(r => setTimeout(r, 2000));
         return true;
       }
-
-      // Also check across ALL frames - the light experience may render the
-      // "can't find meeting / passcode" prompt inside an iframe that the
-      // top-frame text check above would miss.
-      const passcodeState = await this.readPasscodeScreen();
-
+
+
+      // Also check across ALL frames - the light experience may render the
+
+      // "can't find meeting / passcode" prompt inside an iframe that the
+
+      // top-frame text check above would miss.
+
+      const passcodeState = await this.readPasscodeScreen();
+
+
+
       if (sessionState.needsPasscode || passcodeState.isPasscodeScreen) {
         logger.info('TeamsAdapter(teamJoiner): Passcode modal popped up while waiting!');
         const recovered = await this.handlePasscodeModal();

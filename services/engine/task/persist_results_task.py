@@ -1,4 +1,5 @@
-# root/services/engine/task/persist/persist_results_task.py
+# services/engine/task/persist_results_task.py
+
 """
 Persist results task.
 

@@ -214,3 +214,10 @@ no whisperx-pyannote diarization).
 - [x] Add `/** * public/... */` banner to all 101 JS files under public/
 - [x] Replace existing top comment headers so banner is the only top comment
 - [x] Verify banner present at top of every public JS file
+- [x] Verify banner present at top of every public JS file
+
+# TODO — Add/verify file-location headers in services folder (this session)
+- [x] JS -> `/** * services/... */` banner; normalize `root/services` -> `services`
+- [x] PY with `#` header or no header -> `# services/...` line comment
+- [x] PY with `"""` docstring -> keep docstring, correct the path inside it
+- [x] Verify every services `.js`/`.py` file has correct location at top (0 syntax fails; no `root/` left)

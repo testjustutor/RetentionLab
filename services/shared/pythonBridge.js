@@ -1,5 +1,5 @@
 /**
- * root/services/shared/pythonBridge.js
+ * services/shared/pythonBridge.js
  *
  */
 const appSettings = require('../../config/settings');

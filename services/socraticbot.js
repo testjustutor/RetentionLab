@@ -1,5 +1,5 @@
 /**
- * root/services/socraticbot.js
+ * services/socraticbot.js
  *
  */
 const BrowserManager = require('./shared/browserManager');

@@ -1,4 +1,4 @@
-# root/services/engine/task/audit/audit_task.py
+# services/engine/task/audit_task.py
 
 from utils.logger_util import log_with_type
 

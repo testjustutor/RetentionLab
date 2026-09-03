@@ -1,4 +1,4 @@
-# root/services/engine/task/media/media_task.py
+# services/engine/task/media_task.py
 
 from utils.logger_util import log_with_type
 

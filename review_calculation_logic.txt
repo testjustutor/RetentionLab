@@ -1,0 +1,64 @@
+REVIEW CALCULATION LOGIC
+========================
+
+OVERVIEW
+Reviewers evaluate a tutor session by marking each criterion within each
+category. The marks are rolled up into a per-category score and a final
+(overall) score, including category weightage.
+
+------------------------------------------------------------------
+1. STATUS VALUES
+------------------------------------------------------------------
+Each criterion is marked with one of three statuses:
+
+    Met              (code 1)
+    Not Met          (code 2)
+    Not Applicable   (code 3)
+
+------------------------------------------------------------------
+2. PER-CATEGORY SCORE
+------------------------------------------------------------------
+For each category, count how many criteria are Met, Not Met, and
+Not Applicable.
+
+    Category Score = ( Met / (Criteria excluding Not Met) ) x 100
+
+Rules:
+    - If ALL criteria in the category are "Not Applicable",
+      the category score is 100%.
+    - If the denominator is 0, the category score is 0%.
+    - Otherwise: Met / (criteria that are not Not Met) x 100.
+
+------------------------------------------------------------------
+3. CATEGORY WEIGHTAGE
+------------------------------------------------------------------
+Each category has its own weightage value (cat_score). A category can also
+have a type (cat_type). Criteria belong to a category via cat_idFK.
+
+    Category Weightage = cat_score
+
+A category with a higher cat_score contributes more to the final score.
+
+------------------------------------------------------------------
+4. FINAL (OVERALL) SCORE
+------------------------------------------------------------------
+The final score is the weighted average of the category scores, where each
+category is weighted by its weightage (cat_score).
+
+    Weighted sum = Sum( category score x category weightage )
+    Final score  = Weighted sum / Sum( category weightage )
+
+Categories with higher weightage influence the final score the most.
+
+------------------------------------------------------------------
+5. RED FLAG
+------------------------------------------------------------------
+A reviewer may raise a red flag on a review. The flag is stored alongside
+the overall result (red_flag field).
+
+NOTE (implementation detail)
+---------------------------
+As of the current implementation the final score is weighted by the number
+of criteria in each category, NOT by the cat_score field. If the intended
+behavior is to weight by cat_score (as described above), the calculation
+must be changed to use each category's cat_score value.
