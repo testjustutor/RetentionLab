@@ -194,3 +194,18 @@ no whisperx-pyannote diarization).
       `services/python_engine/__init__.py`, `TODO.md`
 - [x] Verified: no `pyannote` references remain project-wide; `compileall` exit 0;
       `diarization_engine`, `service`, `whisperx_engine`, and `pipeline` all import.
+# TODO — Fix all mojibake in public HTML pages (this session)
+
+## Phase A — Replace emoji (Layer A) with inline Lucide SVG icons
+- [x] `public/login.html` — replace 📅/🔒 emoji with `calendar`/`lock` SVG icons
+- [x] `public/register.html` — replace ⭐/📈/🛡 emoji with `star`/`trending-up`/`shield-check` SVG icons
+- [x] `public/forgot-password.html` — replace ⏳/📧/✅ emoji with `hourglass`/`mail`/`check-circle` SVG icons
+- [x] `public/reset-password.html` — replace 🔑/🧠/🚀 emoji with `key`/`brain`/`rocket` SVG icons
+- [x] `public/verify-email.html` — replace ✅/📌/🧩 emoji with `check-circle`/`pin`/`puzzle` SVG icons
+- [x] `public/super_admin/people/user-settings.html` — replace 👤 emoji with `user` SVG icon
+
+## Phase B — Decode punctuation mojibake (©, —, ’, …) across all public HTML pages
+- [x] Fix `<title>` strings in super_admin/admin pages
+- [x] Fix footers (`Â©` → `©`, `â€”` → `—`)
+- [x] Fix body text punctuation
+- [x] Verify: 0 mojibake hits in all `public/**/*.html`

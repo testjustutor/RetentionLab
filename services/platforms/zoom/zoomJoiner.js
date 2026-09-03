@@ -224,47 +224,47 @@ class ZoomJoiner {
   // PRE-JOIN MIC MUTE
   // ─────────────────────────────────────────────
 
-async _muteMicPreJoin(frame) {
-  await new Promise(r => setTimeout(r, 1000)); // wait for pre-join UI to render
+  async _muteMicPreJoin(frame) {
+    await new Promise(r => setTimeout(r, 1000)); // wait for pre-join UI to render
 
-  await frame.evaluate(() => {
-    const getVisible = () =>
-      Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
-        .filter(el => {
-          const s = window.getComputedStyle(el);
-          return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0;
-        });
+    await frame.evaluate(() => {
+      const getVisible = () =>
+        Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
+          .filter(el => {
+            const s = window.getComputedStyle(el);
+            return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0;
+          });
 
-    const findAndClick = (regex) =>
-      getVisible().find(el => regex.test((el.innerText || el.ariaLabel || '').trim()));
+      const findAndClick = (regex) =>
+        getVisible().find(el => regex.test((el.innerText || el.ariaLabel || '').trim()));
 
-    // Mic — only click if currently unmuted
-    const micBtn = findAndClick(/^Mute$|Mute my mic|mute microphone|turn off mic/i);
-    if (micBtn) micBtn.click();
+      // Mic — only click if currently unmuted
+      const micBtn = findAndClick(/^Mute$|Mute my mic|mute microphone|turn off mic/i);
+      if (micBtn) micBtn.click();
 
-    // Camera — only click if currently on
-    const camBtn = findAndClick(/^Stop Video$|turn off camera|stop my video|stop camera/i);
-    if (camBtn) camBtn.click();
-  });
+      // Camera — only click if currently on
+      const camBtn = findAndClick(/^Stop Video$|turn off camera|stop my video|stop camera/i);
+      if (camBtn) camBtn.click();
+    });
 
-  await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 1000));
 
-  // Confirm both
-  const { micMuted, camOff } = await frame.evaluate(() => {
-    const text = (el) => (el?.innerText || el?.getAttribute('aria-label') || '').trim();
-    const allBtns = Array.from(document.querySelectorAll('button'));
+    // Confirm both
+    const { micMuted, camOff } = await frame.evaluate(() => {
+      const text = (el) => (el?.innerText || el?.getAttribute('aria-label') || '').trim();
+      const allBtns = Array.from(document.querySelectorAll('button'));
 
-    const micMuted = allBtns.some(b => /^Unmute$|unmute my mic|unmute microphone/i.test(text(b)));
-    const camOff   = allBtns.some(b => /^Start Video$|start my video|turn on camera/i.test(text(b)));
+      const micMuted = allBtns.some(b => /^Unmute$|unmute my mic|unmute microphone/i.test(text(b)));
+      const camOff   = allBtns.some(b => /^Start Video$|start my video|turn on camera/i.test(text(b)));
 
-    return { micMuted, camOff };
-  });
+      return { micMuted, camOff };
+    });
 
-  logger.info(`ZoomAdapter(zoomJoiner): Pre-join mic muted: ${micMuted}, camera off: ${camOff}`);
+    logger.info(`ZoomAdapter(zoomJoiner): Pre-join mic muted: ${micMuted}, camera off: ${camOff}`);
 
-  if (!micMuted) logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted on pre-join.');
-  if (!camOff)   logger.warn('ZoomAdapter(zoomJoiner): Could not confirm camera off on pre-join.');
-}
+    if (!micMuted) logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted on pre-join.');
+    if (!camOff)   logger.warn('ZoomAdapter(zoomJoiner): Could not confirm camera off on pre-join.');
+  }
 
   // ─────────────────────────────────────────────
   // FILL PASSCODE
@@ -331,43 +331,36 @@ async _muteMicPreJoin(frame) {
   // CAPTIONS: CHECK IF ENABLED
   // ─────────────────────────────────────────────
   //
-  // FIX (was: checkCaptionsEnabled): the previous version treated a page
-  // containing the literal word "Captions" or "Transcript" ANYWHERE in
-  // body.innerText as proof that captions were already ON. Zoom's own
-  // footer button is labeled "Captions" whether the feature is off, on,
-  // host-controlled, or unsupported — so `hasText` was true on almost
-  // every call regardless of actual state. That made this function report
-  // ENABLED nearly 100% of the time, which meant sendChatRequest() (the
-  // fallback that asks the host to turn captions on) never fired even when
-  // captions were genuinely off.
-  //
-  // This version instead looks for state that can only be true when
-  // captions/transcript are ACTUALLY active: a toggled/pressed caption
+  // Looks for state that can only be true when captions/transcript are
+  // ACTUALLY active: a "Hide Captions" button (current Zoom UI's own
+  // on-state indicator — see screenshot), a toggled/pressed caption
   // button, a live caption bubble on screen, or existing transcript rows
-  // in the sidebar. Anything else is treated as "not yet confirmed on",
-  // which is a safer default — it just means we may send an extra chat
-  // nudge, not that we miss turning captions on.
+  // in the sidebar. Anything else is treated as "not yet confirmed on".
   async checkCaptionsEnabled() {
     logger.info('ZoomAdapter(zoomJoiner): CHECK: Verifying if captions/transcript are actually active...');
     const frame = this.page.frames().find(f => f.url().includes('zoom.us')) || this.page;
 
     const status = await frame.evaluate(() => {
-      // 1. Caption/CC button reporting an "on"/"pressed" state
+      // 1. Current Zoom UI's clearest on-state signal: the toolbar button
+      // itself is labeled "Hide Captions" once captions are running.
+      const hideCaptionsBtn = document.querySelector('button[aria-label*="Hide Captions" i]');
+
+      // 2. Caption/CC button reporting an "on"/"pressed" state (older UI)
       const ccButton = document.querySelector(
         'button[aria-label*="caption" i][aria-pressed="true"], ' +
         'button[aria-label*="caption" i][aria-checked="true"], ' +
         '.cc-button[aria-pressed="true"]'
       );
 
-      // 2. Live caption bubble actually rendering text on screen
+      // 3. Live caption bubble actually rendering text on screen
       const liveCaptionBubble = document.querySelector(
         '.live-transcription-subtitle, .caption-bubble, [class*="live-caption"]'
       );
 
-      // 3. Transcript sidebar already has content rows
+      // 4. Transcript sidebar already has content rows
       const transcriptRows = document.querySelectorAll('.lt-full-transcript__item');
 
-      if (ccButton || liveCaptionBubble || transcriptRows.length > 0) {
+      if (hideCaptionsBtn || ccButton || liveCaptionBubble || transcriptRows.length > 0) {
         return 'ENABLED';
       }
 
@@ -422,6 +415,15 @@ async _muteMicPreJoin(frame) {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // MAIN TRANSCRIPT ACTIVATION LOOP
+  // ─────────────────────────────────────────────
+  //
+  // Current Zoom UI exposes "Show Captions" directly via the "More" (...)
+  // menu, followed by a one-time "Set the caption language" modal, then
+  // a persistent "Hide Captions" toolbar button + caret dropdown that
+  // exposes "View full transcript". See enableLiveCaptions() for the full
+  // 6-step sequence this drives.
   async startTranscriptMonitor(captionMonitor, maxRetries = 6) {
     logger.info('ZoomAdapter(zoomJoiner): Starting Transcript Activation...');
 
@@ -435,30 +437,23 @@ async _muteMicPreJoin(frame) {
         await this.page.keyboard.press('Escape').catch(() => {});
         await new Promise(r => setTimeout(r, 500));
 
-        const result = await this.executeNavigationSequence(frame);
-        result.logs.forEach(l => logger.info(l));
-
-        if (result.status !== 'SUCCESS') {
-          logger.warn(`ZoomAdapter(zoomJoiner): Attempt ${attempt} failed at ${result.failedAt || 'unknown step'} — retrying...`);
+        const sequenceOk = await this.enableLiveCaptions(frame);
+        if (!sequenceOk) {
+          logger.warn(`ZoomAdapter(zoomJoiner): Attempt ${attempt}: caption/transcript sequence failed — retrying...`);
           await new Promise(r => setTimeout(r, 1500));
           continue;
         }
-
-        await this.handleHostPermissionPopup(frame);
 
         const isVisible = await this.verifySidebarVisibility(frame);
         logger.info(`ZoomAdapter(zoomJoiner): sidebarVisible: ${isVisible}`);
 
         if (!isVisible) {
-          logger.warn(`ZoomAdapter(zoomJoiner): Attempt ${attempt}: sidebar did not open — retrying...`);
+          logger.warn(`ZoomAdapter(zoomJoiner): Attempt ${attempt}: transcript sidebar did not open — retrying...`);
           await this.page.screenshot({ path: `./logs/image/blocker_check_attempt${attempt}_${Date.now()}.png` }).catch(() => {});
           continue;
         }
 
         logger.info('ZoomAdapter(zoomJoiner): SUCCESS: Sidebar opened.');
-
-        const captionsToggled = await this.enableLiveCaptions(frame);
-        logger.info(`ZoomAdapter(zoomJoiner): Live captions toggle result: ${captionsToggled}`);
 
         const confirmed = await this.verifyCaptionsProducingOutput(frame);
         if (!confirmed) {
@@ -485,9 +480,9 @@ async _muteMicPreJoin(frame) {
   // ─────────────────────────────────────────────
   //
   // Polls briefly (up to ~10s) for either populated transcript rows in the
-  // sidebar or a live caption bubble on screen. This is the missing
-  // "did it actually work" check — everything before this only confirms a
-  // click happened, not that captions ended up in the ON state.
+  // sidebar or a live caption bubble on screen. This is the "did it
+  // actually work" check — everything before this only confirms a click
+  // happened, not that captions ended up in the ON state.
   async verifyCaptionsProducingOutput(frame, timeoutMs = 10000, intervalMs = 1000) {
     const attempts = Math.ceil(timeoutMs / intervalMs);
 
@@ -500,7 +495,8 @@ async _muteMicPreJoin(frame) {
         const ccPressed = !!document.querySelector(
           'button[aria-label*="caption" i][aria-pressed="true"], .cc-button[aria-pressed="true"]'
         );
-        return hasRows || hasBubble || ccPressed;
+        const hideCaptionsBtn = !!document.querySelector('button[aria-label*="Hide Captions" i]');
+        return hasRows || hasBubble || ccPressed || hideCaptionsBtn;
       }).catch(() => false);
 
       if (active) return true;
@@ -511,150 +507,427 @@ async _muteMicPreJoin(frame) {
   }
 
   // ─────────────────────────────────────────────
-  // ENABLE LIVE CAPTIONS (post-sidebar toggle)
+  // DIAGNOSTIC: dump every visible interactive element's identifying
+  // info (text, aria-label, tag, id, class, and — critically — its
+  // *position in the DOM relative to a reference element* when one is
+  // given). This is what actually replaces guessing: instead of assuming
+  // a selector, the first failure on a given selector logs the real
+  // candidates so the exact selector can be locked in from the log
+  // output rather than inferred from a screenshot a second time.
   // ─────────────────────────────────────────────
-  async enableLiveCaptions(frame) {
-    // Preferred path: once the transcript sidebar is open, Zoom often
-    // exposes a dedicated Closed-Caption ("CC") toggle directly in the
-    // main toolbar. This is far more reliable than re-walking the "More"
-    // menu, whose structure/labels can differ now that the sidebar is
-    // showing.
-    //
-    // FIX: attribute selectors like [aria-label*="Turn On Captions"] are
-    // CASE-SENSITIVE. Zoom's real labels vary in casing/wording across
-    // versions/locales (e.g. "closed caption", "cc", "Captions"), so any
-    // selector using the wrong case silently never matches and always
-    // fell through to the slower "More" menu fallback. All caption-related
-    // attribute selectors below now use the `i` (case-insensitive) flag.
-    const direct = await frame.evaluate(() => {
-      // Toolbar-style button match (pinned CC icon)
-      const toolbarBtn =
-        document.querySelector('button[aria-label*="Show Captions" i]') ||
-        document.querySelector('button[aria-label*="Enable Captions" i]') ||
-        document.querySelector('button[aria-label*="Turn On Captions" i]') ||
-        document.querySelector('button[aria-label*="Closed Caption" i]') ||
-        document.querySelector('button[aria-label*="caption" i]') ||
-        document.querySelector('.cc-button');
-
-      if (toolbarBtn) {
-        toolbarBtn.click();
-        return toolbarBtn.getAttribute('aria-label') || toolbarBtn.innerText.trim();
-      }
-
-      // "Show Captions" can also render as a non-<button> row inside an
-      // ALREADY-OPEN "More" popup menu (icon + label stacked in a div/li/
-      // role=menuitem). The toolbar-only selectors above never match this
-      // shape, so scan visible menu-item-like elements for a label match
-      // before falling back to the full re-open-the-menu sequence below.
+  async _dumpInteractiveElements(frame, label, referenceSelector = null) {
+    const dump = await frame.evaluate((refSel) => {
       const isVisible = (el) => {
         const s = window.getComputedStyle(el);
         return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0 && el.offsetHeight > 0;
       };
+      const els = Array.from(document.querySelectorAll('button, [role="menuitem"], a, div[tabindex]'))
+        .filter(isVisible)
+        .map(el => ({
+          tag: el.tagName.toLowerCase(),
+          text: (el.innerText || '').trim().substring(0, 40),
+          ariaLabel: el.getAttribute('aria-label') || '',
+          ariaHaspopup: el.getAttribute('aria-haspopup') || '',
+          id: el.id || '',
+          cls: (el.className || '').toString().substring(0, 60),
+        }));
 
-      const menuItemCandidates = Array.from(
-        document.querySelectorAll('[role="menuitem"], .dropdown-item, li, div[class*="menu-item" i]')
-      ).filter(isVisible);
-
-      const showCaptionsItem = menuItemCandidates.find(el =>
-        /^show captions$|^turn on captions$|^enable captions$/i.test((el.innerText || '').trim())
-      );
-
-      if (showCaptionsItem) {
-        showCaptionsItem.click();
-        return showCaptionsItem.innerText.trim();
+      let refInfo = null;
+      if (refSel) {
+        const ref = document.querySelector(refSel);
+        if (ref) {
+          const parent = ref.parentElement;
+          refInfo = {
+            refFound: true,
+            parentTag: parent ? parent.tagName.toLowerCase() : null,
+            parentCls: parent ? (parent.className || '').toString().substring(0, 80) : null,
+            siblingCount: parent ? parent.children.length : 0,
+            siblings: parent ? Array.from(parent.children).map(c => ({
+              tag: c.tagName.toLowerCase(),
+              text: (c.innerText || '').trim().substring(0, 30),
+              ariaLabel: c.getAttribute('aria-label') || '',
+              cls: (c.className || '').toString().substring(0, 60),
+            })) : [],
+          };
+        } else {
+          refInfo = { refFound: false };
+        }
       }
 
-      return null;
-    });
+      return { els, refInfo };
+    }, referenceSelector).catch(() => null);
 
-    if (direct) {
-      logger.info(`ZoomAdapter(zoomJoiner): Captions enabled via direct toolbar control ("${direct}")`);
-      return true;
+    if (dump) {
+      logger.warn(`ZoomAdapter(zoomJoiner): DIAGNOSTIC_DUMP[${label}] interactiveElements=${JSON.stringify(dump.els)}`);
+      if (dump.refInfo) {
+        logger.warn(`ZoomAdapter(zoomJoiner): DIAGNOSTIC_DUMP[${label}] referenceContext=${JSON.stringify(dump.refInfo)}`);
+      }
     }
-
-    // Fallback: walk the "More" menu again, but this time explicitly
-    // EXCLUDE anything inside the transcript sidebar from candidate
-    // matches, and require an exact (not substring) label match so
-    // sidebar headers like "Transcript" can no longer be picked up by
-    // accident.
-    return frame.evaluate(async () => {
-      const delay = ms => new Promise(r => setTimeout(r, ms));
-
-      const inSidebar = (el) =>
-        !!el.closest('.transcript-item-area, .zm-transcript-viewer, .zm-sidebar-pane, [class*="sidebar"], [id*="transcript"]');
-
-      const getCandidates = (regex) =>
-        Array.from(document.querySelectorAll('button, .dropdown-item, li, div[role="menuitem"]'))
-          .filter(el => {
-            if (inSidebar(el)) return false;
-            const s = window.getComputedStyle(el);
-            if (s.display === 'none' || s.visibility === 'hidden' || el.offsetWidth === 0) return false;
-            return regex.test((el.innerText || el.ariaLabel || '').trim());
-          });
-
-      const clickFirst = (regex) => {
-        const el = getCandidates(regex)[0];
-        if (el) { el.click(); return (el.innerText || el.ariaLabel || '').trim(); }
-        return null;
-      };
-
-      clickFirst(/^More$/i);
-      await delay(1500);
-      clickFirst(/^more options$/i);
-      await delay(1500);
-      // Exact match on the menu item label, not a substring — avoids
-      // matching "View Full Transcript" or sidebar text that also
-      // contains the word "Captions"/"Transcript".
-      clickFirst(/^Captions$/i);
-      await delay(1500);
-
-      const toggled =
-        clickFirst(/^Show Captions$/i) ||
-        clickFirst(/^Enable Captions$/i) ||
-        clickFirst(/^Turn On Captions$/i);
-
-      return !!toggled;
-    });
   }
 
+  // ─────────────────────────────────────────────
+  // NATIVE CLICK (root-cause fix)
+  // ─────────────────────────────────────────────
+  //
+  // WHY THIS EXISTS: every previous version of this method called
+  // `el.click()` from *inside* `frame.evaluate()`. That's a purely
+  // synthetic DOM API call — it does NOT dispatch real mousedown/mouseup/
+  // pointerdown events, and it does not set `event.isTrusted = true`.
+  // Zoom's web client (like most modern React/Vue apps) frequently wires
+  // its actual interaction handlers to pointer/mouse events rather than
+  // the high-level "click" DOM event, and some of that wiring silently
+  // ignores untrusted synthetic events. Net effect: the element gets
+  // focused/highlighted (you can literally see the outline appear, as in
+  // your screenshot), but the app's own click handler never fires — which
+  // matches "it can focus on that but not click" exactly.
+  //
+  // FIX: use `frame.evaluateHandle()` to get a live handle to the actual
+  // DOM node, convert it to a Puppeteer `ElementHandle`, and call
+  // `elementHandle.click()`. That goes through the CDP `Input.dispatchMouseEvent`
+  // pipeline — a REAL, trusted mouse click at the element's real screen
+  // coordinates — which is what actually triggers pointer/mouse-based
+  // handlers.
+  //
+  // `finderFn` must be a function that RETURNS the element (not a
+  // boolean) when run in the page, e.g. `() => document.querySelector(...)`.
+  async _pollAndClickNative(frame, finderFn, timeoutMs = 5000, intervalMs = 300) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      let handle = null;
+      try {
+        handle = await frame.evaluateHandle(finderFn);
+        const el = handle.asElement ? handle.asElement() : null;
+        if (el) {
+          // Scroll into view defensively — click() does this internally
+          // too, but doing it explicitly avoids edge cases with elements
+          // partially behind other floating panels.
+          await el.evaluate(node => node.scrollIntoView({ block: 'center', inline: 'center' })).catch(() => {});
+          await el.click({ delay: 50 });
+          await handle.dispose().catch(() => {});
+          return true;
+        }
+      } catch (e) {
+        // Element may have detached/re-rendered mid-click (common right
+        // after a menu opens) — just retry on the next poll tick.
+      }
+      if (handle) await handle.dispose().catch(() => {});
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return false;
+  }
+
+  // Boolean-condition poll (no click) — used where we only need to WAIT
+  // for something to become true, e.g. confirming a label swapped.
+  async _pollUntilTrue(frame, conditionFn, timeoutMs = 4000, intervalMs = 300) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const ok = await frame.evaluate(conditionFn).catch(() => false);
+      if (ok) return true;
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return false;
+  }
+
+  // ─────────────────────────────────────────────
+  // KEYBOARD TAB-SCAN + ACTIVATE (primary strategy)
+  // ─────────────────────────────────────────────
+  //
+  // This replicates, exactly, the manual workflow that's confirmed to
+  // work: press Tab repeatedly, read whatever the browser's native focus
+  // order lands on (document.activeElement), and once its visible text /
+  // aria-label matches what we're looking for, press Enter to activate
+  // it. This sidesteps DOM-selector guessing entirely — the browser's own
+  // accessibility/focus order does the finding, and Tab/Enter sent via
+  // Puppeteer's `page.keyboard` are real, trusted key events (keydown →
+  // keypress → keyup), so whatever handler a genuine keypress would
+  // trigger, this triggers too. No synthetic-event trust issues.
+  //
+  // `matchFn(label, info)` receives the focused element's label (its
+  // aria-label if present, else its innerText) and the raw info object
+  // `{tag, text, ariaLabel}`, and returns true when this is the target
+  // element. Every tab stop is logged so a failed scan still gives full
+  // visibility into what the real focus order actually was.
+  async _tabScanAndActivate(frame, matchFn, { maxTabs = 25, tabDelayMs = 200, label = 'TAB_SCAN' } = {}) {
+    const page = this.page;
+
+    for (let i = 1; i <= maxTabs; i++) {
+      await page.keyboard.press('Tab');
+      await new Promise(r => setTimeout(r, tabDelayMs));
+
+      const focused = await frame.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body || el === document.documentElement) return null;
+        return {
+          tag: el.tagName ? el.tagName.toLowerCase() : '',
+          text: (el.innerText || '').trim(),
+          ariaLabel: el.getAttribute ? (el.getAttribute('aria-label') || '') : '',
+        };
+      }).catch(() => null);
+
+      if (!focused) continue;
+
+      const candidateLabel = (focused.ariaLabel || focused.text || '').trim();
+      logger.info(`ZoomAdapter(zoomJoiner): [${label}] tab ${i}/${maxTabs}: focused="${candidateLabel}" (tag=${focused.tag})`);
+
+      if (candidateLabel && matchFn(candidateLabel, focused)) {
+        logger.info(`ZoomAdapter(zoomJoiner): [${label}] MATCH on tab ${i} ("${candidateLabel}") — pressing Enter`);
+        await page.keyboard.press('Enter');
+        await new Promise(r => setTimeout(r, 400));
+        return true;
+      }
+    }
+
+    logger.warn(`ZoomAdapter(zoomJoiner): [${label}] no match found within ${maxTabs} tab presses`);
+    return false;
+  }
+
+  // Press Tab exactly `count` times without any text matching, then
+  // Enter. Used where the target is a fixed number of tab-stops away
+  // from wherever focus currently sits (e.g. the caret directly after
+  // "Show Captions"), rather than something to search for by label.
+  async _tabNTimesThenEnter(frame, count, { tabDelayMs = 200 } = {}) {
+    const page = this.page;
+    let lastFocused = null;
+
+    for (let i = 1; i <= count; i++) {
+      await page.keyboard.press('Tab');
+      await new Promise(r => setTimeout(r, tabDelayMs));
+
+      lastFocused = await frame.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        return {
+          tag: el.tagName ? el.tagName.toLowerCase() : '',
+          text: (el.innerText || '').trim(),
+          ariaLabel: el.getAttribute ? (el.getAttribute('aria-label') || '') : '',
+        };
+      }).catch(() => null);
+    }
+
+    const label = lastFocused ? (lastFocused.ariaLabel || lastFocused.text || '(unlabeled)') : '(none)';
+    logger.info(`ZoomAdapter(zoomJoiner): TAB_N: pressed Tab ${count}x — landed on "${label}" — pressing Enter`);
+    await page.keyboard.press('Enter');
+    await new Promise(r => setTimeout(r, 400));
+    return !!lastFocused;
+  }
+
+  // ─────────────────────────────────────────────
+  // ENABLE LIVE CAPTIONS + OPEN TRANSCRIPT SIDEBAR
+  // ─────────────────────────────────────────────
+  //
+  // Follows the CONFIRMED-WORKING manual keyboard workflow:
+  //
+  //   STEP 1: Tab-scan until focus lands on "More" (...) — press Enter
+  //           (opens the toolbar panel)
+  //   STEP 2: Tab repeatedly until focus lands on an element whose label
+  //           contains "captions" (Show/Hide/View Captions) — press Enter
+  //   STEP 3: A "Set the caption language" modal may appear — Tab-scan
+  //           for "Save" and press Enter
+  //   STEP 4: Confirm the toolbar button now reads "Hide Captions"
+  //   STEP 5: Press Tab exactly once more (lands on the caret next to
+  //           Hide Captions) — press Enter
+  //   STEP 6: Tab repeatedly until focus lands on "View full transcript"
+  //           — press Enter
+  //
+  // If captions are already ON (e.g. a retry after a partial failure),
+  // steps 1–4 are skipped and we go straight to STEP 5.
+  async enableLiveCaptions(frame) {
+    const delay = ms => new Promise(r => setTimeout(r, ms));
+
+    const alreadyOn = await frame.evaluate(() => {
+      return !!document.querySelector('button[aria-label*="Hide Captions" i]');
+    });
+
+    if (!alreadyOn) {
+      // ── STEP 1: Tab-scan until focus lands on the "More" button, then
+      // Enter. This is its own dedicated loop — it ONLY looks for "More"
+      // and does nothing else until that specific match is found and
+      // activated. Only once STEP 1 succeeds does control move on to the
+      // STEP 2 loop (which scans for "captions" instead).
+      //
+      // NOTE: this replaces the previous native-mouse-click approach for
+      // STEP1. Trade-off to be aware of: if a native browser-chrome
+      // element (e.g. Chrome's own "Restore pages?" infobar from an
+      // unclean profile shutdown) has OS-level focus when this starts,
+      // Tab presses will cycle through ITS buttons first, not the page's,
+      // and this loop can run out its maxTabs without ever reaching
+      // "More". If that becomes a problem in practice, the fix is to
+      // ensure the page/frame has focus before this loop starts (e.g.
+      // `await this.page.bringToFront()` or an initial click into the
+      // page body) rather than reverting to the native-click approach.
+      const step1 = await this._tabScanAndActivate(
+        frame,
+        (label) => /^more$/i.test(label) || /more meeting control/i.test(label),
+        { maxTabs: 25, tabDelayMs: 200, label: 'STEP1_FIND_MORE' }
+      );
+
+      if (!step1) {
+        logger.warn('ZoomAdapter(zoomJoiner): STEP1 failed — could not find "More" button while tabbing.');
+        await this._dumpInteractiveElements(frame, 'STEP1_MORE_BUTTON');
+        return false;
+      }
+      logger.info('ZoomAdapter(zoomJoiner): STEP1 OK — activated "More" via Tab + Enter.');
+      await delay(800);
+
+      // ── STEP 2: Tab-scan for "captions" in the focused element's
+      // label, then Enter. Matches "Show Captions" / "Captions" / any
+      // label containing the word, exactly like the manual process.
+      // This loop only starts once STEP 1 above has completed.
+      const step2 = await this._tabScanAndActivate(
+        frame,
+        (label) => /caption/i.test(label),
+        { maxTabs: 25, tabDelayMs: 200, label: 'STEP2_FIND_CAPTIONS' }
+      );
+
+      if (!step2) {
+        logger.warn('ZoomAdapter(zoomJoiner): STEP2 failed — no "captions" label found while tabbing.');
+        await this._dumpInteractiveElements(frame, 'STEP2_SHOW_CAPTIONS');
+        return false;
+      }
+      logger.info('ZoomAdapter(zoomJoiner): STEP2 OK — activated "Captions" via Tab + Enter.');
+      await delay(1000);
+
+      // ── STEP 3: "Set the caption language" modal → Tab-scan for
+      // "Save" and press Enter. Only appears the first time captions are
+      // enabled in a meeting; absence is non-fatal.
+      const modalPresent = await frame.evaluate(() => {
+        const bodyText = (document.body.innerText || '').toLowerCase();
+        return bodyText.includes('caption language') || bodyText.includes('set the caption language');
+      });
+
+      if (modalPresent) {
+        const saved = await this._tabScanAndActivate(
+          frame,
+          (label) => /^save$/i.test(label),
+          { maxTabs: 10, tabDelayMs: 200, label: 'STEP3_FIND_SAVE' }
+        );
+        logger.info(`ZoomAdapter(zoomJoiner): STEP3 (caption language modal): ${saved ? 'saved via Tab+Enter' : 'save_not_activated'}`);
+      } else {
+        logger.info('ZoomAdapter(zoomJoiner): STEP3 (caption language modal): no_modal');
+      }
+      await delay(1000);
+
+      // Some accounts show a separate consent modal ("This meeting is
+      // being transcribed... OK") instead of / in addition to the
+      // language modal — sweep for it too before checking final state.
+      await this.handleHostPermissionPopup(frame);
+
+      // ── STEP 4: confirm captions are actually ON now.
+      const confirmedOn = await this._pollUntilTrue(frame, () => {
+        return !!document.querySelector('button[aria-label*="Hide Captions" i]');
+      }, 4000);
+
+      if (!confirmedOn) {
+        logger.warn('ZoomAdapter(zoomJoiner): STEP4 failed — "Hide Captions" button not found after Save.');
+        await this._dumpInteractiveElements(frame, 'STEP4_HIDE_CAPTIONS_CONFIRM');
+        return false;
+      }
+      logger.info('ZoomAdapter(zoomJoiner): STEP4 OK — captions confirmed ON ("Hide Captions" button present).');
+
+      // ── STEP 5: exactly one more Tab from wherever we are now lands
+      // on the caret next to "Hide Captions" — press Enter to open the
+      // Captions dropdown, matching the manual process precisely.
+      const step5 = await this._tabNTimesThenEnter(frame, 1);
+
+      if (!step5) {
+        logger.warn('ZoomAdapter(zoomJoiner): STEP5 failed — Tab did not land on a focusable element.');
+        await this._dumpInteractiveElements(frame, 'STEP5_CAPTIONS_CARET', 'button[aria-label*="Hide Captions" i]');
+        return false;
+      }
+      logger.info('ZoomAdapter(zoomJoiner): STEP5 OK — opened Captions dropdown via Tab + Enter.');
+      await delay(800);
+    } else {
+      logger.info('ZoomAdapter(zoomJoiner): Captions already ON — skipping STEP1–4.');
+
+      // Still need to open the Captions dropdown — Tab-scan directly for
+      // its trigger since we don't know how many tabs away it is from
+      // wherever focus currently sits on a retry.
+      const step5 = await this._tabScanAndActivate(
+        frame,
+        (label) => /caption/i.test(label) && /more|option|setting/i.test(label),
+        { maxTabs: 25, tabDelayMs: 200, label: 'STEP5_FIND_CARET_RETRY' }
+      );
+
+      if (!step5) {
+        logger.warn('ZoomAdapter(zoomJoiner): STEP5 (retry path) failed — could not find Captions dropdown trigger.');
+        await this._dumpInteractiveElements(frame, 'STEP5_CAPTIONS_CARET_RETRY');
+        return false;
+      }
+      logger.info('ZoomAdapter(zoomJoiner): STEP5 (retry path) OK — opened Captions dropdown via Tab + Enter.');
+      await delay(800);
+    }
+
+    // ── STEP 6: Tab-scan for "full transcript" in the focused element's
+    // label, then Enter — exactly like the manual process.
+    const step6 = await this._tabScanAndActivate(
+      frame,
+      (label) => /full transcript/i.test(label) || /show transcript/i.test(label),
+      { maxTabs: 15, tabDelayMs: 200, label: 'STEP6_FIND_TRANSCRIPT' }
+    );
+
+    if (!step6) {
+      logger.warn('ZoomAdapter(zoomJoiner): STEP6 failed — no "full transcript" label found while tabbing.');
+      await this._dumpInteractiveElements(frame, 'STEP6_VIEW_FULL_TRANSCRIPT');
+      return false;
+    }
+    logger.info('ZoomAdapter(zoomJoiner): STEP6 OK — activated "View full transcript" via Tab + Enter.');
+    await delay(800);
+
+    return true;
+  }
+
+  // ─────────────────────────────────────────────
+  // HANDLE MODALS (caption language / transcription consent)
+  // ─────────────────────────────────────────────
+  //
+  // FIX: previously only matched buttons containing "save"/"confirm"/
+  // "done" and modal text containing "Language"/"Captions". That missed
+  // the "This meeting is being transcribed" consent modal, whose only
+  // action button is "OK". Both button text and modal-body matching are
+  // widened below to catch that case.
   async handleHostPermissionPopup(frame) {
     logger.info('ZoomAdapter(zoomJoiner): Checking for Zoom modals...');
 
     try {
-      let result = { status: 'not_found' };
+      const isModalVisible = await frame.evaluate(() => {
+        const bodyText = document.body.innerText || '';
+        return (
+          bodyText.includes('Language') ||
+          bodyText.includes('Captions') ||
+          bodyText.includes('being transcribed') ||
+          bodyText.includes('transcript')
+        );
+      });
 
-      for (let i = 0; i < 2; i++) {
-        result = await frame.evaluate(async () => {
-          const buttons = Array.from(document.querySelectorAll('button'));
-          const saveBtn = buttons.find(btn => {
-            const text = (btn.innerText || '').toLowerCase();
-            return text.includes('save') || text.includes('confirm') || text.includes('done');
-          });
-
-          const bodyText = document.body.innerText;
-          const isModalVisible = bodyText.includes('Language') || bodyText.includes('Captions');
-
-          if (saveBtn && isModalVisible) {
-            saveBtn.click();
-            return { status: 'success', type: 'Caption Language Modal', btn: saveBtn.innerText };
-          }
-
-          return { status: 'not_found' };
-        });
-
-        if (result.status === 'success') break;
-        await new Promise(r => setTimeout(r, 500));
+      if (!isModalVisible) {
+        logger.info('ZoomAdapter(zoomJoiner): No caption modals found');
+        return;
       }
 
-      if (result.status === 'success') {
-        logger.info(`ZoomAdapter(zoomJoiner): Dismissed modal: ${result.type} via "${result.btn}"`);
+      // Native click (see _pollAndClickNative comment) — a synthetic
+      // el.click() here previously risked the same "focuses but doesn't
+      // activate" issue on the modal's Save/OK button.
+      const clicked = await this._pollAndClickNative(frame, () => {
+        return Array.from(document.querySelectorAll('button')).find(btn => {
+          const text = (btn.innerText || '').trim().toLowerCase();
+          return text === 'save' || text === 'confirm' || text === 'done' || text === 'ok';
+        }) || null;
+      }, 2500);
+
+      if (clicked) {
+        logger.info('ZoomAdapter(zoomJoiner): Dismissed modal (native click on Save/Confirm/Done/OK).');
       } else {
-        logger.info('ZoomAdapter(zoomJoiner): No caption modals found');
+        logger.warn('ZoomAdapter(zoomJoiner): Modal text detected but could not click its action button.');
+        await this._dumpInteractiveElements(frame, 'MODAL_ACTION_BUTTON');
       }
     } catch (err) {
       logger.error('ZoomAdapter(zoomJoiner): EXCEPTION in handleHostPermissionPopup: ' + err.message);
     }
   }
+
+  // ─────────────────────────────────────────────
+  // VERIFY TRANSCRIPT SIDEBAR VISIBLE
+  // ─────────────────────────────────────────────
 
   async verifySidebarVisibility(frame) {
     logger.info('ZoomAdapter(zoomJoiner): Waiting for Sidebar...');
@@ -692,103 +965,6 @@ async _muteMicPreJoin(frame) {
     }
 
     return false;
-  }
-
-  async executeNavigationSequence(frame) {
-    // FIX: this sequence now ONLY opens the transcript sidebar (steps
-    // 1-4). The old steps 5+ that tried to also toggle "Show Captions" by
-    // re-walking the "More" menu have been removed from here and moved
-    // into enableLiveCaptions(), which is called separately (and only)
-    // once we've confirmed the sidebar is actually visible. See
-    // startTranscriptMonitor() and enableLiveCaptions() for why.
-    return await frame.evaluate(async () => {
-      const delay = ms => new Promise(r => setTimeout(r, ms));
-      const logs = [];
-      const log = (varName, value) =>
-        logs.push(`[STEP-LOG] ${new Date().toLocaleTimeString()} | ${varName}: ${JSON.stringify(value)}`);
-
-      const getVisibleElements = () =>
-        Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
-          .filter(el => {
-            const s = window.getComputedStyle(el);
-            return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetWidth > 0;
-          });
-
-      // DIAGNOSTIC: dump every visible button's aria-label/text + id/class
-      // so if STEP1 still misses, we see the REAL selector for the
-      // toolbar "More" button in this Zoom web client version instead of
-      // guessing regexes blind.
-      const toolbarDump = Array.from(document.querySelectorAll('button'))
-        .filter(b => {
-          const s = window.getComputedStyle(b);
-          return s.display !== 'none' && s.visibility !== 'hidden' && b.offsetWidth > 0;
-        })
-        .map(b => ({
-          text: (b.innerText || '').trim(),
-          ariaLabel: b.getAttribute('aria-label') || '',
-          id: b.id || '',
-          cls: (b.className || '').toString().substring(0, 60)
-        }));
-      log('TOOLBAR_BUTTON_DUMP', toolbarDump);
-
-      // POLL instead of fixed delay: wait up to `timeoutMs` for a
-      // matching element to actually appear/render before clicking it,
-      // re-checking every 300ms. Fixed delays fire the click regardless
-      // of whether the menu has rendered yet, so on a slow frame the
-      // click can land before the target exists.
-      const waitAndClick = async (regex, label, timeoutMs = 4000) => {
-        const start = Date.now();
-        while (Date.now() - start < timeoutMs) {
-          const target = getVisibleElements().find(
-            el => regex.test((el.innerText || el.ariaLabel || '').trim())
-          );
-          if (target) {
-            log(`${label}_CLICKING`, { text: (target.innerText || target.ariaLabel).trim(), waitedMs: Date.now() - start });
-            target.click();
-            return true;
-          }
-          await delay(300);
-        }
-        log(`${label}_NOT_FOUND`, { waitedMs: timeoutMs });
-        return false;
-      };
-
-      const moreToolbarBtn = document.querySelector(
-        '#moreButton button, [aria-label*="More meeting control" i], button[aria-label="More"]'
-      );
-      let step1Ok;
-      if (moreToolbarBtn) {
-        log('STEP1_MORE_CLICKING', { text: moreToolbarBtn.getAttribute('aria-label') || moreToolbarBtn.innerText });
-        moreToolbarBtn.click();
-        step1Ok = true;
-      } else {
-        step1Ok = await waitAndClick(/^More$/i, 'STEP1_MORE');
-      }
-      if (!step1Ok) return { status: 'FAIL', logs, failedAt: 'STEP1' };
-
-      const directCaptionsBtn = document.querySelector(
-        'button[aria-label*="Show Captions" i], button[aria-label*="Enable Captions" i], .new-lt-button'
-      );
-      if (directCaptionsBtn) {
-        log('STEP_DIRECT_CAPTIONS_CLICK', { text: directCaptionsBtn.innerText || directCaptionsBtn.getAttribute('aria-label') });
-        directCaptionsBtn.click();
-        await delay(1500);
-        
-        await this.handleHostPermissionPopup(frame);
-        return { status: 'SUCCESS', logs, failedAt: null };
-      }
-
-      await waitAndClick(/^more options$|^More$/i, 'STEP2_NESTED', 2500);
-
-      const step3Ok = await waitAndClick(/^Captions$/i, 'STEP3_CAPTIONS_MENU');
-      if (!step3Ok) return { status: 'FAIL', logs, failedAt: 'STEP3' };
-
-      const hasView = await waitAndClick(/View Full Transcript|Show Transcript/i, 'STEP4_OPEN_SIDEBAR');
-      await delay(1500);
-
-      return { status: hasView ? 'SUCCESS' : 'FAIL', logs, failedAt: hasView ? null : 'STEP4' };
-
-    });
   }
 }
 
