@@ -45,8 +45,27 @@ class MeetingAiEvaluationReportModel {
   }
 
   /**
-   * Get meetings for a given instructor (or all) with their sessions and an audit summary.
-   * Each row = one session under a meeting; ai_* cols summarize the session's AI audit existence.
+   * Get meetings for a given instructor (or all) with their sessions, each annotated with
+   * an AI audit summary (indicator count, avg score %, latest scored_at).
+   *
+   * The audit summary is computed via a LEFT JOIN to a pre-aggregated subquery instead of
+   * a separate unfiltered query over the whole ai_audit_results table (previously
+   * getSessionAuditSummary() ran with no filters on every call and the controller merged
+   * it in JS). This keeps the aggregate scoped to what the join actually touches and avoids
+   * a second full scan+group-by that mostly gets thrown away.
+   *
+   * Score averaging: a row with ai_score = NULL is an EXCLUDED indicator (e.g. video-gated,
+   * not scorable from a transcript) and must not contribute to the average. A row with
+   * ai_score set but ai_max_score = 0/NULL is scored-but-malformed and should contribute 0,
+   * not be dropped. This mirrors the per-row logic used in getSessionAuditResults/the
+   * controller's getSessionReport average calc, so summary and detail numbers agree.
+   *
+   * NOTE (unchanged behavior, flagged for review): date filters apply to
+   * meetings.scheduled_start_time, not meeting_sessions.start_time — if a session can run on
+   * a different day than its meeting is scheduled, this may include/exclude unexpectedly.
+   * Also, "instructor" is resolved via meetings.created_by, which may not always be the
+   * instructor who ran the session (e.g. meetings created by an admin/coordinator).
+   *
    * @param {object} filters - { from_date, to_date, instructor_id }
    * @returns {Promise<Array>}
    */
@@ -68,10 +87,38 @@ class MeetingAiEvaluationReportModel {
           ms.end_time AS session_end,
           ms.status AS session_status,
           ms.transcript_file_name,
-          ms.audio_file_name
+          ms.audio_file_name,
+          COALESCE(audit.ai_indicator_count, 0) AS ai_indicator_count,
+          COALESCE(audit.ai_scored_count, 0) AS ai_scored_count,
+          COALESCE(audit.ai_avg_score_pct, 0) AS ai_avg_score_pct,
+          audit.ai_scored_at AS ai_scored_at,
+          COALESCE(audit.ai_max_oqi_score, 0) AS ai_oqi_score
         FROM meetings m
         LEFT JOIN users ui ON ui.id = m.created_by
         JOIN meeting_sessions ms ON ms.meeting_id = m.id
+        LEFT JOIN (
+          SELECT
+            aar.session_id,
+            COUNT(aar.id) AS ai_indicator_count,
+            SUM(CASE WHEN aar.ai_score IS NOT NULL THEN 1 ELSE 0 END) AS ai_scored_count,
+            ROUND(
+              COALESCE(
+                AVG(
+                  CASE
+                    WHEN aar.ai_score IS NULL THEN NULL
+                    ELSE COALESCE(aar.ai_score * 100.0 / NULLIF(aar.ai_max_score, 0), 0)
+                  END
+                ),
+                0
+              ),
+              1
+            ) AS ai_avg_score_pct,
+            MAX(aar.scored_at) AS ai_scored_at,
+            MAX(aar.oqi_score) AS ai_max_oqi_score
+          FROM ai_audit_results aar
+          WHERE aar.session_id IS NOT NULL
+          GROUP BY aar.session_id
+        ) audit ON audit.session_id = ms.id
         WHERE 1=1
       `;
       const params = [];
@@ -98,32 +145,8 @@ class MeetingAiEvaluationReportModel {
       });
     });
   }
-/**
-   * Aggregate AI audit stats per session (indicator count + average score pct + latest scored_at).
-   * @returns {Promise<Array>} [{ session_id, ai_indicator_count, ai_avg_score_pct, ai_scored_at }]
-   */
-  static getSessionAuditSummary() {
-    return new Promise((resolve, reject) => {
-      const sql = `
-        SELECT
-          aar.session_id,
-          COUNT(aar.id) AS ai_indicator_count,
-          ROUND(COALESCE(AVG(aar.ai_score * 100.0 / NULLIF(aar.ai_max_score, 0)), 0), 1) AS ai_avg_score_pct,
-          MAX(aar.scored_at) AS ai_scored_at
-        FROM ai_audit_results aar
-        WHERE aar.session_id IS NOT NULL
-        GROUP BY aar.session_id
-      `;
-      db.all(sql, [], (err, rows) => {
-        if (err) {
-          logger.error('Model(MeetingAiEvaluationReportModel): Error fetching session audit summary:', err);
-          return reject(err);
-        }
-        resolve(rows || []);
-      });
-    });
-  }
-/**
+
+  /**
    * Get a single session's metadata (with meeting + instructor info).
    * @param {number} sessionId - meeting_sessions.id
    * @returns {Promise<object|null>}

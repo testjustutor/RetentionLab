@@ -42,12 +42,16 @@ async function loadRecords() {
     const { fromDate, toDate } = dateFilter.getDates();
     const instructorId = instructorFilter ? instructorFilter.getValue() : null;
 
-    const params = new URLSearchParams();
-    if (fromDate) params.append('from_date', fromDate);
-    if (toDate) params.append('to_date', toDate);
-    if (instructorId) params.append('instructor_id', instructorId);
+    const payload = {};
+    if (fromDate) payload.from_date = fromDate;
+    if (toDate) payload.to_date = toDate;
+    if (instructorId) payload.instructor_id = instructorId;
 
-    const data = await apiFetch('/api/super_admin/reports/meeting-ai-evaluation/summary?' + params.toString());
+    const data = await apiFetch('/api/super_admin/reports/meeting-ai-evaluation/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
     allRecords = data.records || [];
     updateStats(data.stats || {});
     renderTable();

@@ -19,7 +19,7 @@ from utils.logger_util import log_with_type
 
 import json
 
-from database.python_db import execute
+from database.python_db import execute, fetch_one
 
 from services.engine.services.rubric_loader import RubricLoader
 
@@ -30,8 +30,28 @@ def run_persist_results_task(context):
     log_with_type("info", "Engine(task > persist > persist_results_task) : Persist results task started", "TASK")
 
     try:
-        meeting_id = context.meeting_id or context.base_id
+        # IMPORTANT: only use the REAL resolved meetings.id (context.meeting_id,
+        # set in pipeline_context.py via _resolve_meeting_id() from
+        # meeting_sessions.meeting_id). Do NOT fall back to context.base_id -
+        # base_id is a filename-derived string (e.g. "82014705313_Sess159_...")
+        # and is never a valid meetings.id. Using it here used to pass a
+        # non-existent/garbage value straight into meeting_assets.meeting_id /
+        # ai_audit_results.meeting_id, both FK'd to meetings(id), which blew up
+        # with a 1452 constraint error and crashed the whole pipeline.
+        meeting_id = context.meeting_id
         session_id = context.session_id
+
+        if not _meeting_exists(meeting_id):
+            log_with_type(
+                "warning",
+                f"Engine(task > persist > persist_results_task) : "
+                f"meeting_id={meeting_id!r} is missing or not found in meetings table - "
+                f"skipping DB persistence (summary/audit results were still "
+                f"computed and are present in the JSON response).",
+                "TASK",
+            )
+            context.mark_task_completed("persist_results")
+            return
 
         # 1. PERSIST SUMMARY (structured)
         summary_data = getattr(context, "summary_data", None) or {}
@@ -50,6 +70,35 @@ def run_persist_results_task(context):
         context.mark_task_failed("persist_results")
         log_with_type("error", f"Engine(task > persist > persist_results_task) : Persist results task failed error={str(e)}", "TASK")
         raise
+
+
+def _meeting_exists(meeting_id):
+    """Return True only if meeting_id is a real, existing row in `meetings`.
+
+    Never raises: a DB lookup failure here should not itself crash the
+    pipeline - it just means we can't confirm existence, so we treat it
+    as "not found" and let the caller skip persistence safely.
+    """
+    if meeting_id is None:
+        return False
+    try:
+        meeting_id_int = int(meeting_id)
+    except (TypeError, ValueError):
+        # Non-numeric (e.g. a filename/base_id string) can never be a
+        # valid meetings.id - fail fast without hitting the DB.
+        return False
+
+    try:
+        row = fetch_one("SELECT id FROM meetings WHERE id = %s LIMIT 1", (meeting_id_int,))
+        return bool(row)
+    except Exception as e:
+        log_with_type(
+            "warning",
+            f"Engine(task > persist > persist_results_task) : "
+            f"could not verify meeting_id={meeting_id_int} existence ({e}) - treating as missing",
+            "TASK",
+        )
+        return False
 
 
 def _persist_summary(context, meeting_id, session_id, summary_data):

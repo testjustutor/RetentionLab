@@ -23,37 +23,37 @@ const controller = {
   },
 
   /**
-   * GET /api/super_admin/reports/meeting-ai-evaluation/summary
-   * Accepts: from_date, to_date, instructor_id
+   * POST /api/super_admin/reports/meeting-ai-evaluation/summary
+   * Accepts: from_date, to_date, instructor_id (in request body)
    * Returns meetings with their sessions, each session annotated with AI audit availability.
+   *
+   * getMeetingSessions() now does the audit aggregation itself (single query, joined subquery)
+   * instead of a separate unfiltered getSessionAuditSummary() call merged here in JS — see the
+   * model for details. This method just shapes the already-merged rows for the response.
+   *
+   * has_ai_report means "at least one ai_audit_results row exists for this session" — that
+   * includes excluded indicators (ai_score IS NULL). A session where every indicator is
+   * excluded will show has_ai_report: true with ai_avg_score_pct: 0, which can look the same
+   * in the UI as "scored and got 0%". ai_scored_count is exposed alongside ai_indicator_count
+   * so the UI can distinguish "no indicators evaluated" from "genuinely scored 0%" if needed.
    */
   async getSummary(req) {
     try {
-      const { from_date, to_date, instructor_id } = req.query;
+      const { from_date, to_date, instructor_id } = req.body;
       const rows = await MeetingAiEvaluationReportModel.getMeetingSessions({
         from_date,
         to_date,
         instructor_id
       });
-      const summary = await MeetingAiEvaluationReportModel.getSessionAuditSummary();
 
-      // Index audit summary by session id.
-      const summaryBySession = {};
-      (summary || []).forEach((s) => {
-        summaryBySession[String(s.session_id)] = s;
-      });
-
-      // Merge meeting + session + audit summary into enriched records.
-      const records = (rows || []).map((r) => {
-        const audit = summaryBySession[String(r.session_id)] || {};
-        return {
-          ...r,
-          ai_indicator_count: Number(audit.ai_indicator_count) || 0,
-          ai_avg_score_pct: audit.ai_avg_score_pct ? Number(audit.ai_avg_score_pct) : 0,
-          ai_scored_at: audit.ai_scored_at || null,
-          has_ai_report: Number(audit.ai_indicator_count) > 0
-        };
-      });
+      const records = (rows || []).map((r) => ({
+        ...r,
+        ai_indicator_count: Number(r.ai_indicator_count) || 0,
+        ai_scored_count: Number(r.ai_scored_count) || 0,
+        ai_avg_score_pct: r.ai_avg_score_pct ? Number(r.ai_avg_score_pct) : 0,
+        ai_scored_at: r.ai_scored_at || null,
+        has_ai_report: Number(r.ai_indicator_count) > 0
+      }));
 
       const totalMeetings = new Set(records.map((r) => r.meeting_id)).size;
       const totalSessions = records.length;
@@ -92,6 +92,8 @@ const controller = {
       // A row with ai_score null is an EXCLUDED indicator (e.g. video-gated and
       // not scorable from a transcript). Excluded rows must not contribute to the
       // average nor count as gate failures — otherwise they'd be double-penalized.
+      // A row with ai_score set but ai_max_score 0/null contributes 0 rather than being
+      // dropped — this matches the summary query's per-row CASE logic so the two pages agree.
       const scored = results.filter(
         (r) => r.ai_score !== null && r.ai_score !== undefined
       );
@@ -105,13 +107,21 @@ const controller = {
         r.ai_score !== null && r.ai_score !== undefined &&
         (Number(r.ai_score) || 0) < (Number(r.ai_max_score) || 0)).length;
 
+      // oqi_score is expected to be a session-level value duplicated across every indicator
+      // row. Rather than trusting results[0] (results is ordered alphabetically by
+      // category/indicator name, not meaningfully for this purpose), take the max across
+      // all rows so a null/0 first row can't silently zero out the session's OQI score.
+      const oqiScore = results.length
+        ? Math.round(Math.max(...results.map((r) => Number(r.oqi_score) || 0)))
+        : 0;
+
       return ok({
         session: meta,
         results,
         stats: {
           indicatorCount: results.length,
           avgScorePct: scored.length ? Math.round(avgPct * 10) / 10 : 0,
-          oqiScore: results.length ? Math.round(results[0].oqi_score || 0) : 0,
+          oqiScore,
           gateFailed,
           evidenceCount: results.filter((r) => r.ai_evidence || r.evidence_quote).length
         }
