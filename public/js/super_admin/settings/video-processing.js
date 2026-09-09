@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const processMp3Status = document.getElementById('processMp3Status');
   const convertBtn = document.getElementById('convertBtn');
   const processBtn = document.getElementById('processBtn');
+  const uploadModal = document.getElementById('uploadModal');
+  const uploadFileInput = document.getElementById('uploadFileInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const uploadHint = document.getElementById('uploadHint');
   let videosCache = {};   // filename -> video meta (for modal state checks)
 
   // Load videos from the API
@@ -241,6 +245,90 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => processModal.classList.add('opacity-100'), 10);
   }
 
+  // Open upload modal
+  function openUploadModal() {
+    resetUploadModal();
+    uploadBtn.onclick = () => uploadVideo();
+    uploadModal.classList.remove('hidden');
+    setTimeout(() => uploadModal.classList.add('opacity-100'), 10);
+  }
+
+  // Reset upload modal state
+  function resetUploadModal() {
+    if (!uploadFileInput) return;
+    uploadFileInput.value = '';
+    uploadHint.textContent = 'Select an MP4 video — it will be saved to storage/screen-recordings.';
+    uploadHint.className = 'text-xs text-slate-500';
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('opacity-50');
+    uploadBtn.textContent = 'Upload Video';
+  }
+
+  // Validate the file chosen in the upload modal
+  function onUploadFileSelected() {
+    const file = uploadFileInput.files && uploadFileInput.files[0];
+    if (!file) { resetUploadModal(); return; }
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('opacity-50');
+    uploadBtn.textContent = 'Upload Video';
+    if (!/\.mp4$/i.test(file.name)) {
+      uploadHint.textContent = 'Only .mp4 files are supported. Please choose an MP4 video.';
+      uploadHint.className = 'text-xs text-red-600';
+      return;
+    }
+    if (videosCache[file.name]) {
+      uploadHint.textContent = 'A video named "' + file.name + '" already exists in storage/screen-recordings. Rename the file or choose another.';
+      uploadHint.className = 'text-xs text-amber-600';
+      return;
+    }
+    uploadHint.textContent = 'Ready to upload: ' + file.name + ' (' + (file.size / (1024 * 1024)).toFixed(2) + ' MB)';
+    uploadHint.className = 'text-xs text-emerald-600';
+    uploadBtn.disabled = false;
+    uploadBtn.classList.remove('opacity-50');
+  }
+
+  // Upload the selected video to storage/screen-recordings then refresh the table
+  async function uploadVideo() {
+    if (!uploadBtn || uploadBtn.disabled) return;
+    const file = uploadFileInput.files && uploadFileInput.files[0];
+    if (!file || !/\.mp4$/i.test(file.name)) return;
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('opacity-50');
+    uploadBtn.textContent = 'Uploading...';
+    uploadHint.textContent = 'Uploading ' + file.name + ' — please wait...';
+    uploadHint.className = 'text-xs text-blue-600';
+    try {
+      const response = await fetch('/api/super_admin/settings/video-processing/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-File-Name': encodeURIComponent(file.name),
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+      let result = {};
+      try { result = await response.json(); } catch (e) { /* non-JSON body */ }
+      if (result.success) {
+        showToast('Video uploaded: ' + file.name, 'success');
+        closeModals();
+        loadVideos();
+      } else {
+        uploadHint.textContent = result.error || 'Upload failed.';
+        uploadHint.className = 'text-xs text-red-600';
+        showToast('Upload failed: ' + (result.error || 'unknown error'), 'error');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      uploadHint.textContent = 'Upload failed: ' + err.message;
+      uploadHint.className = 'text-xs text-red-600';
+      showToast('Upload failed', 'error');
+    } finally {
+      uploadBtn.textContent = 'Upload Video';
+      onUploadFileSelected();
+    }
+  }
+
   // Convert to audio
   async function convertAudio(fileName) {
     if (convertBtn.disabled) return;             // guard against duplicate clicks
@@ -329,11 +417,16 @@ document.addEventListener('DOMContentLoaded', () => {
     convertModal.classList.remove('opacity-100');
     processModal.classList.add('hidden');
     processModal.classList.remove('opacity-100');
+    if (uploadModal) {
+      uploadModal.classList.add('hidden');
+      uploadModal.classList.remove('opacity-100');
+    }
   }
 
   // Click outside to close
   convertModal.addEventListener('click', (e) => { if (e.target === convertModal) closeModals(); });
   processModal.addEventListener('click', (e) => { if (e.target === processModal) closeModals(); });
+  if (uploadModal) uploadModal.addEventListener('click', (e) => { if (e.target === uploadModal) closeModals(); });
 
   // Close buttons (data-close)
   document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', closeModals));
@@ -356,6 +449,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Refresh button
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn) refreshBtn.addEventListener('click', loadVideos);
+
+  // Upload video button + file input listener
+  const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+  if (uploadVideoBtn) uploadVideoBtn.addEventListener('click', openUploadModal);
+  if (uploadFileInput) uploadFileInput.addEventListener('change', onUploadFileSelected);
 
   // Initialize
   loadVideos();

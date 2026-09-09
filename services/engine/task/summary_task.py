@@ -79,7 +79,9 @@ def run_summary_task(context):
 
         log_with_type("info", "Engine(task > summary > summary_task) : Summary task completed", "TASK")
 
-    except Exception:
+    # FIX: was `except Exception:` with `str(e)` in the log line below -
+    # `e` was never bound, masking the real summary-generation failure.
+    except Exception as e:
 
         context.mark_task_failed(
             "summary"

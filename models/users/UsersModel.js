@@ -93,12 +93,12 @@ class UsersModel {
         if (user?.role_name === 'super_admin') {
           // Super admin can create any role — no restriction
         }
-        // Admin can only create reviewer and instructor accounts
-        else if (user?.role_name === 'admin' && !['reviewer', 'instructor'].includes(roleRow.role_name)) {
-          throw new Error('Admin may only create reviewer and instructor accounts');
+        // Admin can only create reviewer, instructor and student accounts
+        else if (user?.role_name === 'admin' && !['reviewer', 'instructor', 'student'].includes(roleRow.role_name)) {
+          throw new Error('Admin may only create reviewer, instructor and student accounts');
         }
         // Require company_id for roles that need it
-        if (['admin', 'reviewer', 'instructor'].includes(roleRow.role_name) && !insertData.company_id) {
+        if (['admin', 'reviewer', 'instructor', 'student'].includes(roleRow.role_name) && !insertData.company_id) {
           throw new Error(`${roleRow.role_name} users must be associated with a company (company_id required)`);
         }
       }

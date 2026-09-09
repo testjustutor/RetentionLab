@@ -1,6 +1,6 @@
 /**
  * root/database/seeders/006_test_users.js
- * Seeds test users (instructor, solo_instructor, reviewer) for the manage-users page
+ * Seeds test users (instructor, reviewer, student) for the manage-users page
  */
 const crypto = require('crypto');
 const { runAsync, getAsync, allAsync, hashPassword } = require('../seedHelpers');
@@ -23,12 +23,13 @@ const seedTestUsers = async () => {
     console.log(`[Seed] Found admin user (ID: ${adminUser.id}, Company ID: ${adminUser.company_id})`);
 
     const roles = await allAsync(
-        `SELECT id, role_name FROM roles WHERE role_name IN ('instructor', 'reviewer')`
+        `SELECT id, role_name FROM roles WHERE role_name IN ('instructor', 'reviewer', 'student')`
     );
 
     const testUsers = [
         { first_name: 'John', last_name: 'Instructor', email: 'instructor@automationbot.com', role_name: 'instructor' },
-        { first_name: 'Bob', last_name: 'Reviewer', email: 'reviewer@automationbot.com', role_name: 'reviewer' }
+        { first_name: 'Bob', last_name: 'Reviewer', email: 'reviewer@automationbot.com', role_name: 'reviewer' },
+        { first_name: 'Peter', last_name: 'Student', email: 'student@automationbot.com', role_name: 'student' }
     ];
 
     for (const user of testUsers) {
@@ -63,7 +64,7 @@ const seedTestUsers = async () => {
         );
         console.log(`[Seed] Created test user: ${user.email} (created_by: ${adminUser ? adminUser.id : 'NULL'})`);
     }
-    console.log('[Seed] ✓ Test users seeded successfully (2 users)');
+    console.log('[Seed] ✓ Test users seeded successfully (3 users)');
 };
 
 module.exports = { seedTestUsers };

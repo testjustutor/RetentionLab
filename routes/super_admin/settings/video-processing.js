@@ -5,6 +5,7 @@ const controller = require('../../../controllers/super_admin/settings/videoProce
 router.get('/', controller.getAllVideos);
 router.post('/convert', controller.convertAudio);
 router.post('/process', controller.processAudio);
+router.post('/upload', controller.uploadVideo);
 router.get('/history', controller.getProcessingHistory);
 
 module.exports = router;

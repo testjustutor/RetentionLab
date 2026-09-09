@@ -90,10 +90,10 @@ function renderTable() {
       </td></tr>`;
     }
 
-    const statusColor = r.session_status === 'completed' ? 'bg-emerald-100 text-emerald-700'
-      : r.session_status === 'active' || r.session_status === 'joining' ? 'bg-blue-100 text-blue-700'
-      : r.session_status === 'scheduled' ? 'bg-amber-100 text-amber-700'
-      : 'bg-slate-100 text-slate-600';
+    // Display status follows AI report availability: has_ai_report true -> "completed",
+    // otherwise -> "pending". All other row values come straight from the API.
+    const reportStatusLabel = r.has_ai_report ? 'completed' : 'pending';
+    const statusColor = r.has_ai_report ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
 
     let scoreCell = '<span class="text-slate-400">--</span>';
     if (r.has_ai_report) {
@@ -114,7 +114,7 @@ function renderTable() {
       <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">
         #${escHtml(r.session_id)}<br><span class="text-[10px] text-blue-600">${formatDateTime(r.session_start)} &rarr; ${formatTime(r.session_end)}</span>
       </td>
-      <td class="py-2 px-2 text-[11px] text-right"><span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${statusColor}">${escHtml(r.session_status || 'unknown')}</span></td>
+      <td class="py-2 px-2 text-[11px] text-right"><span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${statusColor}">${escHtml(reportStatusLabel)}</span></td>
       <td class="py-2 px-2 text-[11px] text-right">${scoreCell}</td>
       <td class="py-2 px-2 text-[11px]">${reportCell}</td>
     </tr>`;
@@ -133,7 +133,7 @@ function exportCsv() {
     r.session_id,
     csvEscape(formatDateTime(r.session_start)),
     csvEscape(formatDateTime(r.session_end)),
-    csvEscape(r.session_status || ''),
+    csvEscape(r.has_ai_report ? 'completed' : 'pending'),
     r.ai_avg_score_pct || 0,
     r.ai_indicator_count || 0,
     r.has_ai_report ? `/super_admin/reports/meeting-ai-session-report?session_id=${encodeURIComponent(r.session_id)}` : ''

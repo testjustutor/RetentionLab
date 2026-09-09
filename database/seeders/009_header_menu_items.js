@@ -71,40 +71,40 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'admin-performance', label: 'Performance', href: '/admin/evaluation/performance' }
     ]},
 
-    { id: 'admin-insights', label: 'Insights', icon: 'lightbulb', href: null, submenu: [
-      { id: 'admin-engagement', label: 'Engagement', href: '/admin/insights/engagement' },
-      { id: 'admin-actions', label: 'Actions', href: '/admin/insights/actions' },
-      { id: 'admin-decisions', label: 'Decisions', href: '/admin/insights/decisions' },
-      { id: 'admin-risks', label: 'Risks', href: '/admin/insights/risks' },
-      { id: 'admin-analytics', label: 'Analytics', href: '/admin/insights/analytics' }
-    ]},
+    // { id: 'admin-insights', label: 'Insights', icon: 'lightbulb', href: null, submenu: [
+    //   { id: 'admin-engagement', label: 'Engagement', href: '/admin/insights/engagement' },
+    //   { id: 'admin-actions', label: 'Actions', href: '/admin/insights/actions' },
+    //   { id: 'admin-decisions', label: 'Decisions', href: '/admin/insights/decisions' },
+    //   { id: 'admin-risks', label: 'Risks', href: '/admin/insights/risks' },
+    //   { id: 'admin-analytics', label: 'Analytics', href: '/admin/insights/analytics' }
+    // ]},
 
-    { id: 'admin-reports', label: 'Reports', icon: 'bar-chart', href: null, submenu: [
-      { id: 'admin-meeting-reports', label: 'Meeting Reports', href: '/admin/reports/meetings' },
-      { id: 'admin-evaluation-reports', label: 'Evaluation Reports', href: '/admin/reports/evaluations' },
-      { id: 'admin-team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
-      { id: 'admin-audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
-    ]},
+    // { id: 'admin-reports', label: 'Reports', icon: 'bar-chart', href: null, submenu: [
+    //   { id: 'admin-meeting-reports', label: 'Meeting Reports', href: '/admin/reports/meetings' },
+    //   { id: 'admin-evaluation-reports', label: 'Evaluation Reports', href: '/admin/reports/evaluations' },
+    //   { id: 'admin-team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
+    //   { id: 'admin-audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
+    // ]},
 
-    { id: 'admin-session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
-      { id: 'admin-sq-hub', label: 'SQ Hub', href: '/admin/session-quality/index' },
-      { id: 'admin-sq-rubric', label: 'SQ Rubric', href: '/admin/session-quality/rubric' },
-      { id: 'admin-sq-analysis', label: 'SQ Analysis', href: '/admin/session-quality/analysis' },
-      { id: 'admin-sq-impact', label: 'SQ Impact', href: '/admin/session-quality/impact' },
-      { id: 'admin-sq-parent-summary', label: 'SQ Parent Summary', href: '/admin/session-quality/parent-summary' },
-      { id: 'admin-sq-coaching', label: 'SQ Coaching', href: '/admin/session-quality/coaching' },
-      { id: 'admin-sq-better-alt', label: 'SQ Better Alternatives', href: '/admin/session-quality/better-alternatives' },
-      { id: 'admin-sq-next-plan', label: 'SQ Next Plan', href: '/admin/session-quality/next-plan' },
-      { id: 'admin-sq-flags', label: 'SQ Flags', href: '/admin/session-quality/flags' },
-      { id: 'admin-sq-final-eval', label: 'SQ Final Evaluation', href: '/admin/session-quality/final-eval' }
-    ]},
+    // { id: 'admin-session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
+    //   { id: 'admin-sq-hub', label: 'SQ Hub', href: '/admin/session-quality/index' },
+    //   { id: 'admin-sq-rubric', label: 'SQ Rubric', href: '/admin/session-quality/rubric' },
+    //   { id: 'admin-sq-analysis', label: 'SQ Analysis', href: '/admin/session-quality/analysis' },
+    //   { id: 'admin-sq-impact', label: 'SQ Impact', href: '/admin/session-quality/impact' },
+    //   { id: 'admin-sq-parent-summary', label: 'SQ Parent Summary', href: '/admin/session-quality/parent-summary' },
+    //   { id: 'admin-sq-coaching', label: 'SQ Coaching', href: '/admin/session-quality/coaching' },
+    //   { id: 'admin-sq-better-alt', label: 'SQ Better Alternatives', href: '/admin/session-quality/better-alternatives' },
+    //   { id: 'admin-sq-next-plan', label: 'SQ Next Plan', href: '/admin/session-quality/next-plan' },
+    //   { id: 'admin-sq-flags', label: 'SQ Flags', href: '/admin/session-quality/flags' },
+    //   { id: 'admin-sq-final-eval', label: 'SQ Final Evaluation', href: '/admin/session-quality/final-eval' }
+    // ]},
 
-    { id: 'admin-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
-      { id: 'admin-organization', label: 'Organization', href: '/admin/settings/organization' },
-      { id: 'admin-notifications', label: 'Notifications', href: '/admin/settings/notifications' },
-      { id: 'admin-meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
-      { id: 'admin-integrations', label: 'Integrations', href: '/admin/settings/integrations' }
-    ]},
+    // { id: 'admin-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
+    //   { id: 'admin-organization', label: 'Organization', href: '/admin/settings/organization' },
+    //   { id: 'admin-notifications', label: 'Notifications', href: '/admin/settings/notifications' },
+    //   { id: 'admin-meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
+    //   { id: 'admin-integrations', label: 'Integrations', href: '/admin/settings/integrations' }
+    // ]},
 
     { id: 'admin-profile', label: 'Profile', icon: 'user', href: '/admin/profile', submenu: null },
     { id: 'admin-logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
@@ -120,17 +120,15 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
   instructor: [
-    { id: 'instructor-dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor', color: 'violet', section: 'main', submenu: null },
-    { id: 'upcoming-meetings', label: 'Upcoming Meetings', icon: 'calendar', href: '/meetings?tab=upcoming', color: 'blue', section: 'main', submenu: null },
-    { id: 'completed-meetings', label: 'Completed Meetings', icon: 'check', href: '/meetings?tab=completed', color: 'blue', section: 'main', submenu: null },
-    { id: 'evaluations', label: 'Evaluations', icon: 'check-circle', href: '/evaluations', color: 'emerald', section: 'main', submenu: null },
-    { id: 'action-items', label: 'Action Items', icon: 'list', href: '/insights/action-items', color: 'cyan', section: 'main', submenu: null },
+    { id: 'instructor-dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'instructor-upcoming-meetings', label: 'Upcoming Meetings', icon: 'calendar', href: '/instructor/meetings?tab=upcoming', color: 'blue', section: 'main', submenu: null },
+    { id: 'instructor-completed-meetings', label: 'Completed Meetings', icon: 'check', href: '/instructor/meetings?tab=completed', color: 'blue', section: 'main', submenu: null },
+    { id: 'instructor-evaluations', label: 'Evaluations', icon: 'check-circle', href: '/instructor/evaluations', color: 'emerald', section: 'main', submenu: null },
+    { id: 'instructor-action-items', label: 'Action Items', icon: 'list', href: '/instructor/insights/action-items', color: 'cyan', section: 'main', submenu: null },
     { id: 'instructor-reports', label: 'Reports', icon: 'bar-chart', href: '/instructor/reports', color: 'indigo', section: 'main', submenu: null },
     { id: 'instructor-profile', label: 'Profile', icon: 'user', href: '/instructor/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ],
-  // NOTE: solo_instructor has no role_id in 017_menu_items.js and is left as-is.
-  // Confirm whether this role still exists before relying on this block.
   solo_instructor: [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/instructor/', color: 'violet', section: 'main', submenu: null },
     { id: 'meetings', label: 'Meetings', icon: 'calendar', href: '/meetings', color: 'emerald', section: 'meetings', submenu: [
@@ -151,6 +149,12 @@ const DEFAULT_MENU_BY_ROLE = {
     ]},
     { id: 'reports', label: 'Reports', icon: 'bar-chart', href: '/reports', color: 'indigo', section: 'reports', submenu: null },
     { id: 'profile', label: 'Profile', icon: 'user', href: '/profile', color: 'slate', section: 'account', submenu: null },
+    { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
+  ],
+  student: [
+    { id: 'student-dashboard', label: 'Dashboard', icon: 'grid', href: '/student/dashboard', color: 'violet', section: 'main', submenu: null },
+    { id: 'student-reports', label: 'Reports', icon: 'bar-chart', href: '/student/reports', color: 'indigo', section: 'reports', submenu: null },
+    { id: 'student-profile', label: 'Profile', icon: 'user', href: '/student/profile', color: 'slate', section: 'account', submenu: null },
     { id: 'logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }
   ]
 };

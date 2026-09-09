@@ -9,9 +9,14 @@
  * real DB ids).
  */
 const VideoProcessingModel = require('../../../models/super_admin/settings/VideoProcessingModel');
-const SessionMetadataModel = require('../../../models/session-quality/SessionMetadataModel');
-const { runPythonEngine, convertVideoToMp3 } = require('../../../services/engine/python_runner');
-const { exec } = require('child_process');
+const { convertVideoToMp3 } = require('../../../services/engine/python_runner');
+// Same audio-processing pipeline Flow 1 (the meeting bot, services/socraticbot.js)
+// uses: Whisper transcription -> AI rubric audit -> tutor eval -> summary ->
+// DB persistence. The admin video-processing flow now converges onto this
+// SAME pipeline after video -> mp3 conversion instead of running its own
+// separate pipeline.py-based engine (see processAudio() below).
+const PythonBridge = require('../../../services/shared/pythonBridge');
+const { exec, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -19,9 +24,54 @@ const crypto = require('crypto');
 const ROOT_DIR = path.resolve(__dirname, '../../..');
 const RECORDINGS_DIR = path.join(ROOT_DIR, 'storage', 'screen-recordings');
 const CONVERTED_DIR = path.join(ROOT_DIR, 'storage', 'recordings');
-const DIARIZATION_DIR = path.join(ROOT_DIR, 'storage', 'video_diarization');
+// Same established cache folders the python_engine pipeline now writes into
+// (see services/engine/pipeline.py + orchestrator/pipeline_context.py) -
+// storage/video_diarization is no longer used/written by the engine.
+const TRANSCRIPTS_DIR = path.join(ROOT_DIR, 'storage', 'cache_audio_transcripts');
+const AUDITS_DIR = path.join(ROOT_DIR, 'storage', 'cache_audits');
 
 const SAFE_NAME_RE = /^[A-Za-z0-9_.\-\s]+\.mp4$/i;
+
+// video_processing.mp3_path is stored relative to the project root (e.g.
+// "storage\recordings\REC_Meet1_Sess1_....mp3"), not an absolute filesystem
+// path - the absolute path is still what's used for actual fs/ffmpeg work,
+// this only affects what gets written to the DB tracking row.
+function toRelativeStoragePath(absPath) {
+  if (!absPath) return null;
+  return path.isAbsolute(absPath) ? path.relative(ROOT_DIR, absPath) : absPath;
+}
+
+// ------------------------------------------------------------------
+// Response / metadata caches (per-process, TTL'd) - keeps repeated
+// page loads (including 304 not-modified checks) fast without any DB writes.
+// ------------------------------------------------------------------
+const RESPONSE_TTL_MS = 15000;          // how long a GET response stays valid
+const FFPROBE_TTL_MS = 30000;           // how long ffprobe metadata is reused
+let cachedGetResponse = null;           // { at, data } for the assembled JSON
+const fileMetaCache = new Map();        // fileName -> { at, mtimeMs, size, meta }
+
+function invalidateCaches() {
+  cachedGetResponse = null;
+  fileMetaCache.clear();
+}
+
+/** Run `items` through `fn` with at most `limit` concurrent workers, preserving order. */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const idx = next++;
+      if (idx >= items.length) return;
+      results[idx] = await fn(items[idx], idx);
+    }
+  };
+  const workers = [];
+  const n = Math.max(1, Math.min(limit, items.length));
+  for (let i = 0; i < n; i++) workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
 
 // ------------------------------------------------------------------
 // Filename + formatting helpers (pure logic)
@@ -124,14 +174,38 @@ function scheduleTimes(parsed) {
   return { start, end };
 }
 
-function toMp3Name(fileName) {
+/**
+ * Build the converted-audio filename for a source video.
+ *
+ * Naming pattern: REC_Meet<meetingId>_Sess<sessionId>_<YYYY>_<MM>_<DD>_<HH-MM>.mp3
+ * using the REAL database ids (meetings.id / meeting_sessions.id) - NOT the
+ * external/file-embedded meeting id or the session number parsed out of the
+ * original filename, which are arbitrary and not guaranteed unique.
+ *
+ * meetingId/sessionId must be resolved first via resolveVideoIds(fileName) or
+ * seedConvertVideo(fileName) (both return the real DB ids) and passed in here.
+ * When they aren't available yet (unrecognized filename format, or the
+ * meeting/session hasn't been seeded/resolved at this call site), falls back
+ * to a name derived purely from the source filename so this never throws -
+ * callers that need the FINAL real-id name must resolve ids first.
+ */
+function toMp3Name(fileName, meetingId, sessionId) {
   const parsed = parseNamedVideoName(fileName);
+  let Y, M, D, HM;
   if (parsed) {
     const { start } = scheduleTimes(parsed);
     const [ymd, hms] = start.split(' ');
-    const [Y, M, D] = ymd.split('-');
-    const HM = hms.substring(0, 5).replace(':', '-');
-    return `REC_${parsed.externalMeetingId}_Sess${parsed.sessionId}_${Y}_${M}_${D}_${HM}.mp3`;
+    [Y, M, D] = ymd.split('-');
+    HM = hms.substring(0, 5).replace(':', '-');
+  } else {
+    const sc = /^SCREEN_([^_]+)_Sess(\d+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})\.mp4$/i.exec(fileName);
+    if (sc) {
+      Y = sc[3]; M = sc[4]; D = sc[5];
+      HM = `${sc[6]}-${sc[7]}`;
+    }
+  }
+  if (meetingId != null && sessionId != null && Y) {
+    return `REC_Meet${meetingId}_Sess${sessionId}_${Y}_${M}_${D}_${HM}.mp3`;
   }
   return 'REC_' + path.basename(fileName).replace(/^SCREEN_/i, '').replace(/\.mp4$/i, '.mp3');
 }
@@ -175,6 +249,47 @@ function hashPassword(password) {
 async function resolveOrCreateSession(meetingId, start, end) {
   const existing = await VideoProcessingModel.findSessionByMeetingTime(meetingId, start, end).catch(() => null);
   if (existing && existing.id) return Number(existing.id);
+  const insertId = await VideoProcessingModel.insertSession(meetingId, start, end).catch(() => null);
+  if (!insertId) return null;
+  const row = await VideoProcessingModel.getSessionById(insertId).catch(() => null);
+  return row ? Number(row.id) : Number(insertId);
+}
+
+/**
+ * Resolve or create the REAL session for a NAMED-VIDEO file, keyed on the
+ * raw (instructor, file-embedded session number) pair rather than purely on
+ * computed date/time. Two different admin-named recordings can legitimately
+ * parse to the IDENTICAL start/end (human-typed filenames aren't always
+ * precise to the second) while carrying different embedded session numbers
+ * - e.g. "..._247411_...-20260817_092941.mp4" vs "..._247412_...-20260817_092941.mp4".
+ * Blindly matching by time would collapse those into one session. So:
+ *   1) if this exact raw id pair has already been resolved once (via
+ *      video_processing), reuse that same real session - idempotent
+ *      re-conversion of the same file.
+ *   2) otherwise, look for a session at the exact computed time; only reuse
+ *      it if nothing else has already claimed it under a DIFFERENT raw id
+ *      pair - if it's already claimed, this is genuinely a different
+ *      recording that happens to share a timestamp, so a new session is
+ *      created for it instead of reusing the other file's session.
+ *   3) otherwise create a new session as usual.
+ */
+async function resolveOrCreateNamedSession(meetingId, instructorId, rawSessionId, start, end) {
+  const byRawIds = await VideoProcessingModel.getMappingByVideoIds(instructorId, rawSessionId).catch(() => null);
+  if (byRawIds && Number(byRawIds.meetingId) === Number(meetingId) && byRawIds.sessionId != null) {
+    return Number(byRawIds.sessionId);
+  }
+
+  const existing = await VideoProcessingModel.findSessionByMeetingTime(meetingId, start, end).catch(() => null);
+  if (existing && existing.id) {
+    const claimant = await VideoProcessingModel.getClaimantForSession(meetingId, Number(existing.id)).catch(() => null);
+    const claimedByOther = claimant && (
+      Number(claimant.videoUserId) !== Number(instructorId) ||
+      Number(claimant.videoSessionId) !== Number(rawSessionId)
+    );
+    if (!claimedByOther) return Number(existing.id);
+    // Fall through - this time slot already belongs to a different recording.
+  }
+
   const insertId = await VideoProcessingModel.insertSession(meetingId, start, end).catch(() => null);
   if (!insertId) return null;
   const row = await VideoProcessingModel.getSessionById(insertId).catch(() => null);
@@ -248,7 +363,7 @@ async function seedNamedVideo(fileName) {
     meeting = { id: mid };
   }
 
-  const sessionId = await resolveOrCreateSession(meeting.id, start, end);
+  const sessionId = await resolveOrCreateNamedSession(meeting.id, parsed.instructorId, parsed.sessionId, start, end);
   if (!sessionId) return { success: false, error: 'Failed to create/lookup meeting session row.' };
 
   return {
@@ -262,14 +377,51 @@ async function seedNamedVideo(fileName) {
   };
 }
 /**
- * Screen-recording seed: uses/reuses the default system-convert instructor,
- * upserts a meeting and resolves/creates a session. Returns tracking info.
+ * Screen-recording seed. SCREEN_ files are written directly by the meeting
+ * bot (services/screenRecorder.js, driven by services/socraticbot.js) as
+ * SCREEN_<meetings.id>_Sess<meeting_sessions.id>_<date>_<time>.mp4 - the two
+ * numbers in the filename are the REAL database ids already. So this first
+ * tries to resolve straight to that real, existing meeting/session (never
+ * fabricating data for a recording the bot already tracked for real - and
+ * never conflating two different bot recordings that only differ by their
+ * embedded session id). Only when that direct lookup doesn't check out
+ * (e.g. a manually renamed/legacy file whose leading segment is genuinely
+ * an external_meeting_id string, not a numeric meetings.id) does it fall
+ * back to the original behaviour: reuse/create a default system-convert
+ * instructor, upsert a meeting and resolve/create a session by time.
  */
 async function seedScreenVideo(fileName) {
   const m = /^SCREEN_([^_]+)_Sess(\d+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})\.mp4$/i.exec(fileName);
   if (!m) return { success: false, error: 'Invalid screen video filename format.' };
   const externalMeetingId = m[1];
   const fileSessionId = Number(m[2]);
+
+  const directMeetingId = Number(m[1]);
+  if (Number.isFinite(directMeetingId) && Number.isFinite(fileSessionId)) {
+    const sessionRow = await VideoProcessingModel.getSessionById(fileSessionId).catch(() => null);
+    if (sessionRow && Number(sessionRow.meeting_id) === directMeetingId) {
+      const meetingRow = await VideoProcessingModel.getMeetingById(directMeetingId).catch(() => null);
+      if (meetingRow) {
+        const owner = meetingRow.created_by
+          ? await VideoProcessingModel.getUserById(meetingRow.created_by).catch(() => null)
+          : null;
+        return {
+          success: true,
+          data: {
+            meetingId: directMeetingId, sessionId: fileSessionId,
+            instructorId: owner ? owner.id : null,
+            externalMeetingId: meetingRow.external_meeting_id || String(directMeetingId),
+            title: meetingRow.title || ('Screen Recording ' + directMeetingId),
+            fileUserId: null, fileSessionId, fileMeetingId: null,
+            firstName: owner ? owner.first_name : 'System',
+            lastName: owner ? owner.last_name : 'Converter'
+          }
+        };
+      }
+    }
+  }
+
+  // Fallback: legacy/renamed screen file - reconcile by time as before.
   const start = `${m[3]}-${m[4]}-${m[5]} ${m[6]}:${m[7]}:00`;
   const d = new Date(`${m[3]}-${m[4]}-${m[5]}T${m[6]}:${m[7]}:00`);
   d.setHours(d.getHours() + 1);
@@ -342,39 +494,32 @@ async function seedConvertVideo(fileName) {
 /** Build the identification tracking record for video_processing.
  *  Keys match VideoProcessingModel.saveProcessingRecord exactly.
  *  Populates BOTH id families present in the table:
- *    - file-origin : file_user_id / file_meeting_id / file_session_id
- *                    (+ legacy video_user_id / video_meeting_id / video_session_id)
+ *    - file-origin : video_user_id / video_session_id (parsed straight out
+ *                    of the video filename, before any DB matching)
  *    - resolved DB : user_id / meeting_id / session_id
- *  *_type columns say which one the filename carried ('session' or 'meeting').
+ *  video_meeting_type says what kind of raw id the filename carried
+ *  ('session' - the only kind either filename format actually embeds).
  */
 function makeTrackRec({ fileName, status, mp3Path, seed }) {
-  const fileUserId = seed?.fileUserId ?? seed?.userId ?? null;
-  const fileSessionId = seed?.fileSessionId ?? null;
-  const fileMeetingId = seed?.fileMeetingId ?? null;
-  // The named-video formats carry a SESSION id in the filename; screen files too.
-  const videoMeetingType = fileSessionId != null ? 'session' : (fileMeetingId != null ? 'meeting' : null);
+  const videoUserId = seed?.fileUserId ?? seed?.userId ?? null;
+  const videoSessionId = seed?.fileSessionId ?? null;
+  const videoMeetingType = videoSessionId != null ? 'session' : null;
 
   return {
     fileName,
     status,
-    mp3Path: mp3Path ?? null,
+    mp3Path: toRelativeStoragePath(mp3Path),
 
-    // file-origin ids (parsed from the video filename)
-    fileUserId,
-    fileMeetingId,
-    fileSessionId,
+    // file-origin ids (parsed from the video filename, pre-DB-matching)
+    videoUserId,
+    videoSessionId,
+    videoMeetingType,
+    meetingType: videoMeetingType || 'teams',
 
     // real DB ids (users.id / meetings.id / meeting_sessions.id)
     userId: seed?.userId ?? null,
     meetingId: seed?.meetingId ?? null,
     sessionId: seed?.sessionId ?? null,
-
-    // legacy duplicate columns kept in sync
-    videoUserId: fileUserId,
-    videoMeetingId: fileMeetingId,
-    videoSessionId: fileSessionId,
-    videoMeetingType,
-    meetingType: videoMeetingType || 'teams',
 
     externalMeetingId: seed?.externalMeetingId ?? null,
     firstName: seed?.firstName ?? null,
@@ -398,55 +543,158 @@ async function getVideoFiles() {
 async function getFileMeta(fileName) {
   const filePath = path.join(RECORDINGS_DIR, fileName);
   if (!fs.existsSync(filePath)) return { size: '0.00', duration: '0:00', exists: false };
-  const sizeMB = (fs.statSync(filePath).size / (1024 * 1024)).toFixed(2);
-  return new Promise((resolve) => {
-    exec(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`, (error, stdout) => {
-      if (error) return resolve({ size: sizeMB, duration: '0:00', exists: true });
-      resolve({ size: sizeMB, duration: formatDuration(Number.parseFloat(stdout.trim())), exists: true });
-    });
+  const st = fs.statSync(filePath);
+
+  // Serve cached metadata when the file hasn't changed on disk.
+  const cached = fileMetaCache.get(fileName);
+  if (cached && cached.size === st.size && cached.mtimeMs === st.mtimeMs && Date.now() - cached.at < FFPROBE_TTL_MS) {
+    return cached.meta;
+  }
+
+  const sizeMB = (st.size / (1024 * 1024)).toFixed(2);
+  const meta = await new Promise((resolve) => {
+    execFile('ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath],
+      { timeout: 15000, windowsHide: true },
+      (error, stdout) => {
+        if (error) return resolve({ size: sizeMB, duration: '0:00', exists: true });
+        resolve({ size: sizeMB, duration: formatDuration(Number.parseFloat(stdout.trim())), exists: true });
+      });
   });
+  fileMetaCache.set(fileName, { at: Date.now(), size: st.size, mtimeMs: st.mtimeMs, meta });
+  return meta;
 }
 
 async function resolveVideoIds(fileName, providedSessionId = null) {
+  // 0) Prefer the persisted video_processing mapping (file_name -> real
+  //    meeting_id/session_id) over re-deriving it from the filename via
+  //    meetings/meeting_sessions lookups every time this runs - the table is
+  //    the durable video -> normal-pipeline id mapping once a file has been
+  //    converted/processed at least once (see makeTrackRec / saveProcessingRecord).
+  const cached = await VideoProcessingModel.getMappingByFileName(fileName).catch(() => null);
+  if (cached) return cached;
+
   const parsed = parseNamedVideoName(fileName);
+  let resolved = { meetingId: null, sessionId: null };
+
   if (parsed) {
-    const meeting = await VideoProcessingModel.getMeetingByExternalId(parsed.externalMeetingId).catch(() => null);
-    if (!meeting) return { meetingId: null, sessionId: null };
-    const { start } = scheduleTimes(parsed);
-    const startLike = start.substring(0, 16) + '%';
-    const sessionId = await VideoProcessingModel.findSessionByMeetingStartLike(meeting.id, startLike).catch(() => null);
-    return { meetingId: meeting.id, sessionId };
+    // 0b) Exact cache by the RAW filename-embedded id pair (instructor +
+    // the file's own session number). This is the ONLY reliable way to
+    // distinguish two admin-named recordings whose filenames happen to
+    // parse to the IDENTICAL date/time (human-typed filenames aren't always
+    // precise to the second) but carry different embedded session numbers -
+    // once this exact pair has been resolved once (via an actual convert/
+    // process call), it always resolves to that same real session again.
+    const byRawIds = await VideoProcessingModel.getMappingByVideoIds(parsed.instructorId, parsed.sessionId).catch(() => null);
+    if (byRawIds) {
+      resolved = byRawIds;
+    } else {
+      const meeting = await VideoProcessingModel.getMeetingByExternalId(parsed.externalMeetingId).catch(() => null);
+      if (meeting) {
+        // Match the EXACT start/end this session would have been seeded with
+        // (see resolveOrCreateNamedSession/seedNamedVideo - same
+        // scheduleTimes() computation) first, so two sessions of the same
+        // meeting that merely fall in the same minute are never conflated.
+        // Only fall back to the minute-truncated LIKE match for legacy rows
+        // whose end_time doesn't follow the exact start+1hr convention.
+        const { start, end } = scheduleTimes(parsed);
+        const exactRow = await VideoProcessingModel.findSessionByMeetingTime(meeting.id, start, end).catch(() => null);
+        let sessionId = exactRow ? Number(exactRow.id) : null;
+        if (sessionId == null) {
+          const startLike = start.substring(0, 16) + '%';
+          sessionId = await VideoProcessingModel.findSessionByMeetingStartLike(meeting.id, startLike).catch(() => null);
+        }
+        if (sessionId != null) {
+          // Guard against showing this file as sharing a session that a
+          // DIFFERENT raw recording has already claimed - until THIS file
+          // is actually converted/processed and gets its own session, show
+          // it as unresolved rather than borrowing another file's session.
+          const claimant = await VideoProcessingModel.getClaimantForSession(meeting.id, sessionId).catch(() => null);
+          const claimedByOther = claimant && (
+            Number(claimant.videoUserId) !== Number(parsed.instructorId) ||
+            Number(claimant.videoSessionId) !== Number(parsed.sessionId)
+          );
+          resolved = { meetingId: meeting.id, sessionId: claimedByOther ? null : sessionId };
+        } else {
+          resolved = { meetingId: meeting.id, sessionId: null };
+        }
+      }
+    }
+  } else {
+    const sc = /^SCREEN_([^_]+)_Sess(\d+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})\.mp4$/i.exec(fileName);
+    if (sc) {
+      // SCREEN_ files are written directly by the meeting bot
+      // (services/screenRecorder.js, driven by services/socraticbot.js) as
+      // SCREEN_<meetings.id>_Sess<meeting_sessions.id>_<date>_<time>.mp4 -
+      // sc[1]/sc[2] are the REAL database ids already, not values that need
+      // matching/lookup. Trust them once verified they refer to an actual,
+      // consistent meeting+session pair - this is what keeps two bot-recorded
+      // files for the same meeting that only differ by session id from ever
+      // resolving to the wrong (or the same) session.
+      const directMeetingId = Number(sc[1]);
+      const directSessionId = Number(sc[2]);
+      if (Number.isFinite(directMeetingId) && Number.isFinite(directSessionId)) {
+        const sessionRow = await VideoProcessingModel.getSessionById(directSessionId).catch(() => null);
+        if (sessionRow && Number(sessionRow.meeting_id) === directMeetingId) {
+          resolved = { meetingId: directMeetingId, sessionId: directSessionId };
+        }
+      }
+      // Fallback for filenames where sc[1] is genuinely an external_meeting_id
+      // string rather than this app's numeric meetings.id (or the direct ids
+      // above didn't check out) - reconcile by time instead, as before.
+      if (resolved.meetingId == null) {
+        const meeting = await VideoProcessingModel.getMeetingByExternalId(sc[1]).catch(() => null);
+        if (meeting) {
+          const startLike = `${sc[3]}-${sc[4]}-${sc[5]} ${sc[6]}:${sc[7]}:%`;
+          const sessionId = await VideoProcessingModel.findSessionByMeetingStartLike(meeting.id, startLike).catch(() => null);
+          resolved = { meetingId: meeting.id, sessionId };
+        }
+      }
+    }
   }
-  const sc = /^SCREEN_([^_]+)_Sess(\d+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})\.mp4$/i.exec(fileName);
-  if (sc) {
-    const meeting = await VideoProcessingModel.getMeetingByExternalId(sc[1]).catch(() => null);
-    if (!meeting) return { meetingId: null, sessionId: null };
-    const startLike = `${sc[3]}-${sc[4]}-${sc[5]} ${sc[6]}:${sc[7]}:%`;
-    const sessionId = await VideoProcessingModel.findSessionByMeetingStartLike(meeting.id, startLike).catch(() => null);
-    return { meetingId: meeting.id, sessionId };
+
+  // Newly-resolved mapping: backfill any existing video_processing row(s) for
+  // this file that don't have it yet, so the table stays up to date and the
+  // next call here is a cache hit via step 0.
+  if (resolved.meetingId != null && resolved.sessionId != null) {
+    await VideoProcessingModel.backfillMapping(fileName, resolved.meetingId, resolved.sessionId).catch(() => {});
   }
-  return { meetingId: null, sessionId: null };
+
+  return resolved;
 }
 
-function mp3Exists(fileName) {
-  return fs.existsSync(path.join(CONVERTED_DIR, toMp3Name(fileName)));
+function mp3Exists(fileName, meetingId, sessionId) {
+  return fs.existsSync(path.join(CONVERTED_DIR, toMp3Name(fileName, meetingId, sessionId)));
 }
 
-// Report/diarization file availability for a video (PDF-style observation report
-// saved to storage/video_diarization by python_engine).
-function reportFileNames(fileName) {
-  const base = toMp3Name(fileName).replace(/\.mp3$/i, '');
-  const canonical = base; // e.g. REC_..._Sess<id>_... 
-  const txt = path.join(DIARIZATION_DIR, `${canonical}.report.txt`);
-  const json = path.join(DIARIZATION_DIR, `${canonical}.report.json`);
-  const diar = path.join(DIARIZATION_DIR, `${canonical}.diarization.txt`);
+// Same base_id stem the python_engine pipeline uses for every cached file
+// (services/engine/orchestrator/pipeline_context.py::compute_base_id) -
+// strips the extension and, when present, the "REC_" prefix. Mirrors that
+// function exactly so these paths always match what the engine actually wrote.
+function computeBaseId(fileName) {
+  const noExt = path.basename(fileName, path.extname(fileName));
+  return noExt.startsWith('REC_') ? noExt.split('REC_').join('') : noExt;
+}
+
+// Report/diarization file availability for a video. The observation report
+// (PDF-style) is saved to storage/cache_audits/AUDIT_REPORT_<base_id>.*, and
+// the speaker-labelled diarization transcript to
+// storage/cache_audio_transcripts/DIARIZED_TRANS_<base_id>.diarization.* -
+// the SAME established cache folders + <PREFIX>_<base_id> naming convention
+// the rest of the engine uses (see services/engine/pipeline.py).
+function reportFileNames(fileName, meetingId, sessionId) {
+  const mp3Base = toMp3Name(fileName, meetingId, sessionId).replace(/\.mp3$/i, ''); // e.g. REC_Meet<id>_Sess<id>_...
+  const baseId = computeBaseId(mp3Base);
+  const txt = path.join(AUDITS_DIR, `AUDIT_REPORT_${baseId}.report.txt`);
+  const json = path.join(AUDITS_DIR, `AUDIT_REPORT_${baseId}.report.json`);
+  const diar = path.join(TRANSCRIPTS_DIR, `DIARIZED_TRANS_${baseId}.diarization.txt`);
   return {
     reportTxtExists: fs.existsSync(txt),
     reportJsonExists: fs.existsSync(json),
     diarizationExists: fs.existsSync(diar),
-    reportTxtUrl: encodeURI(`/storage/video_diarization/${canonical}.report.txt`),
-    reportJsonUrl: encodeURI(`/storage/video_diarization/${canonical}.report.json`),
-    diarizationUrl: encodeURI(`/storage/video_diarization/${canonical}.diarization.txt`),
+    reportTxtUrl: encodeURI(`/storage/cache_audits/AUDIT_REPORT_${baseId}.report.txt`),
+    reportJsonUrl: encodeURI(`/storage/cache_audits/AUDIT_REPORT_${baseId}.report.json`),
+    diarizationUrl: encodeURI(`/storage/cache_audio_transcripts/DIARIZED_TRANS_${baseId}.diarization.txt`),
   };
 }
 // ------------------------------------------------------------------
@@ -455,15 +703,51 @@ function reportFileNames(fileName) {
 const controller = {
   async getAllVideos(req, res) {
     try {
-      await VideoProcessingModel.ensureTable();
+      // Serve a cached response when one was computed recently. The 304
+      // not-modified path still calls this handler, so this is what makes
+      // repeated page loads fast without hitting ffprobe or the DB.
+      if (cachedGetResponse && Date.now() - cachedGetResponse.at < RESPONSE_TTL_MS) {
+        return res.json(cachedGetResponse.data);
+      }
+
       const fileNames = await getVideoFiles();
-      const videos = [];
-      for (const fileName of fileNames) {
-        const meta = await getFileMeta(fileName);
-        const hasMp3 = mp3Exists(fileName);
-        const lastStatus = await VideoProcessingModel.getLatestStatus(fileName);
-        const ids = await resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null }));
-        const hasAuditData = await VideoProcessingModel.hasAuditResults(ids.sessionId);
+      if (!fileNames.length) {
+        const empty = { success: true, data: [] };
+        cachedGetResponse = { at: Date.now(), data: empty };
+        return res.json(empty);
+      }
+
+      // 1) Resolve the REAL DB meeting/session ids first - the REC_ filename
+      // (and therefore mp3Exists/reportFileNames below) is now built from
+      // these ids, not from anything parsed out of the source filename.
+      // Bulk-check the video_processing mapping table for all files in one
+      // query first; only files with no persisted mapping yet fall through
+      // to per-file live resolution (which then backfills the table).
+      const mappedCache = await VideoProcessingModel.getMappingsByFileNames(fileNames).catch(() => ({}));
+      const sessions = await mapWithConcurrency(fileNames, 4, (fileName) =>
+        mappedCache[fileName]
+          ? Promise.resolve(mappedCache[fileName])
+          : resolveVideoIds(fileName).catch(() => ({ meetingId: null, sessionId: null })));
+
+      // 2) ffprobe metadata & mp3/report existence in parallel (bounded).
+      const metas = await mapWithConcurrency(fileNames, 4, async (fileName, i) => ({
+        fileName,
+        meta: await getFileMeta(fileName),
+        hasMp3: mp3Exists(fileName, sessions[i].meetingId, sessions[i].sessionId)
+      }));
+
+      // 3) statuses for all files in one query.
+      const statusMap = await VideoProcessingModel.getLatestStatuses(fileNames).catch(() => ({}));
+
+      // 4) audit flags for all sessions in one query.
+      const auditMap = await VideoProcessingModel.hasAuditResultsBatch(sessions.map(s => s.sessionId)).catch(() => ({}));
+
+      const videos = fileNames.map((fileName, i) => {
+        const meta = metas[i].meta;
+        const hasMp3 = metas[i].hasMp3;
+        const lastStatus = statusMap[fileName];
+        const ids = sessions[i];
+        const hasAuditData = ids.sessionId ? (auditMap[String(ids.sessionId)] === true) : false;
         const processed = hasMp3 && hasAuditData;
 
         let status; let canConvert = false; let canProcess = false;
@@ -473,18 +757,21 @@ const controller = {
         else if (lastStatus === 'failed') { status = 'failed'; canProcess = true; }
         else { status = 'converted'; canProcess = true; }
 
-        videos.push({
+        return {
           fileName, size: meta.size, duration: meta.duration, mp3Exists: hasMp3,
           processingStatus: status, processed, canConvert, canProcess,
           hasAuditData,
           auditReportUrl: ids.sessionId ? `/api/super_admin/settings/video-processing/report?sessionId=${ids.sessionId}` : null,
           videoPath: videoLink(fileName),
-          audioPath: hasMp3 ? audioLink(toMp3Name(fileName)) : null,
+          audioPath: hasMp3 ? audioLink(toMp3Name(fileName, ids.meetingId, ids.sessionId)) : null,
           meetingId: ids.meetingId, sessionId: ids.sessionId,
-          ...reportFileNames(fileName)
-        });
-      }
-      return res.json({ success: true, data: videos });
+          ...reportFileNames(fileName, ids.meetingId, ids.sessionId)
+        };
+      });
+
+      const payload = { success: true, data: videos };
+      cachedGetResponse = { at: Date.now(), data: payload };
+      return res.json(payload);
     } catch (err) {
       console.error('[VideoProcessingController] getAllVideos error:', err);
       return res.status(500).json({ success: false, error: err.message });
@@ -499,12 +786,16 @@ const controller = {
 
       await VideoProcessingModel.ensureTable();
       const sourcePath = path.join(RECORDINGS_DIR, fileName);
-      const targetName = toMp3Name(fileName);
-      const targetPath = path.join(CONVERTED_DIR, targetName);
 
+      // Resolve/create the REAL meeting + session rows FIRST so the output
+      // filename can be built from their real DB ids (REC_Meet<id>_Sess<id>_...)
+      // instead of anything parsed out of the source filename.
       let seedIds = null;
       try { seedIds = await seedConvertVideo(fileName); }
       catch (seedErr) { console.error('[VideoProcessingController] convert seed error:', seedErr.message || seedErr); }
+
+      const targetName = toMp3Name(fileName, seedIds?.meetingId, seedIds?.sessionId);
+      const targetPath = path.join(CONVERTED_DIR, targetName);
 
       if (!fs.existsSync(sourcePath)) return res.status(400).json({ success: false, error: 'Video file not found in storage/screen-recordings.' });
       if (!fs.existsSync(CONVERTED_DIR)) fs.mkdirSync(CONVERTED_DIR, { recursive: true });
@@ -514,24 +805,29 @@ const controller = {
       if (fs.existsSync(targetPath)) {
         await VideoProcessingModel.saveProcessingRecord({ ...track, status: 'converted' }).catch(() => {});
         if (seedIds && seedIds.meetingId && seedIds.sessionId) await syncAssets(seedIds, targetName, fileName);
+        invalidateCaches();
         return res.json({ success: true, data: { success: true, alreadyExists: true, mp3Path: targetPath, videoPath: videoLink(fileName), audioPath: audioLink(targetName) } });
       }
 
       await VideoProcessingModel.saveProcessingRecord(track).catch(() => {});
+      invalidateCaches();
       // Convert via MoviePy inside python_engine (no direct ffmpeg from Node).
       let converted;
       try {
         converted = await convertVideoToMp3(sourcePath, targetPath);
       } catch (convErr) {
         await VideoProcessingModel.saveProcessingRecord({ ...track, status: 'failed', mp3Path: null }).catch(() => {});
+        invalidateCaches();
         return res.json({ success: false, data: { success: false, error: convErr.message } });
       }
       if (fs.existsSync(targetPath)) {
         await VideoProcessingModel.saveProcessingRecord({ ...track, status: 'converted' }).catch(() => {});
         if (seedIds && seedIds.meetingId && seedIds.sessionId) await syncAssets(seedIds, targetName, fileName);
+        invalidateCaches();
         return res.json({ success: true, data: { success: true, alreadyExists: false, mp3Path: targetPath, duration: converted.duration || null, videoPath: videoLink(fileName), audioPath: audioLink(targetName) } });
       }
       await VideoProcessingModel.saveProcessingRecord({ ...track, status: 'failed', mp3Path: null }).catch(() => {});
+      invalidateCaches();
       return res.json({ success: false, data: { success: false, error: 'MoviePy conversion did not create the MP3 file.' } });
     } catch (err) {
       console.error('[VideoProcessingController] convertAudio error:', err);
@@ -545,21 +841,31 @@ async processAudio(req, res) {
       const sessionIdInput = req.body?.sessionId || null;
 
       const videoName = safeVideoName(audioPath);
-      const mp3Name = /\.mp3$/i.test(String(audioPath)) ? path.basename(String(audioPath)) : toMp3Name(videoName || String(audioPath));
+
+      // Resolve real ids (meeting/session) FIRST - needed both to build the
+      // REC_Meet<id>_Sess<id>_... filename below (when audioPath is a video
+      // path rather than an already-converted mp3) and so the tracking row is
+      // populated AND so the same real DB ids get forwarded through
+      // pythonBridge.js into the engine (see PipelineContext's explicit
+      // meeting_id/session_id override) instead of letting it re-derive them
+      // from the filename, which can resolve to the WRONG meeting for
+      // "named video" recordings whose external_meeting_id segment (e.g.
+      // "Regular") is not unique.
+      let meetingId = meetingIdInput || null;
+      let sessionId = sessionIdInput || null;
+      if (!meetingId || !sessionId) {
+        const ctx = await resolveVideoIds(videoName || String(audioPath)).catch(() => ({ meetingId: null, sessionId: null }));
+        meetingId = meetingId || ctx.meetingId;
+        sessionId = sessionId || ctx.sessionId;
+      }
+
+      const mp3Name = /\.mp3$/i.test(String(audioPath)) ? path.basename(String(audioPath)) : toMp3Name(videoName || String(audioPath), meetingId, sessionId);
       if (!mp3Name) return res.status(400).json({ success: false, error: 'Invalid audio filename.' });
 
       await VideoProcessingModel.ensureTable();
       const mp3Path = path.join(CONVERTED_DIR, mp3Name);
       if (!fs.existsSync(mp3Path)) return res.status(400).json({ success: false, error: 'MP3 file is missing. Convert the video to audio before processing.' });
 
-      // Resolve real ids (meeting/session) first so the tracking row is populated.
-      let meetingId = meetingIdInput || null;
-      let sessionId = sessionIdInput || null;
-      if (!meetingId || !sessionId) {
-        const ctx = await resolveVideoIds(videoName || mp3Name).catch(() => ({ meetingId: null, sessionId: null }));
-        meetingId = meetingId || ctx.meetingId;
-        sessionId = sessionId || ctx.sessionId;
-      }
       const parsed = parseNamedVideoName(videoName || mp3Name);
       const trackSeed = {
         meetingId, sessionId,
@@ -579,76 +885,121 @@ async processAudio(req, res) {
         return res.json({ success: true, data: { success: true, alreadyExists: true, mp3Path, audioPath: audioLink(mp3Name), duplicate: true } });
       }
 
-      // Dynamic per-session name boosting for transcription (NEVER hardcoded):
-      //   - tutor name parsed from THIS recording's filename
-      //   - student name from session_metadata for THIS meeting (when present)
-      const boostNames = new Set();
-      if (parsed) {
-        const fullName = `${parsed.firstName || ''} ${parsed.lastName || ''}`.trim();
-        if (fullName) boostNames.add(fullName);
-        if (parsed.firstName) boostNames.add(parsed.firstName);
-        if (parsed.lastName) boostNames.add(parsed.lastName);
-      }
-      if (meetingId) {
-        const meta = await SessionMetadataModel.getByMeeting(meetingId).catch(() => null);
-        const studentName = meta && meta.student_name ? String(meta.student_name).trim() : '';
-        if (studentName) {
-          boostNames.add(studentName);
-          studentName.split(/\s+/).forEach((part) => part.length > 1 && boostNames.add(part));
-        }
-      }
-      const wordBoost = [...boostNames];
-
       await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'processing', mp3Path, seed: trackSeed })).catch(() => {});
       try {
-        const result = await runPythonEngine(mp3Name, {
-          aiSettings: {
-            meeting_id: meetingId,
-            session_id: sessionId,
-            // Per-session known names -> AssemblyAI word_boost (proper-name fix)
-            ...(wordBoost.length ? { word_boost: wordBoost } : {})
-          },
-          // 'tiny' is much faster on CPU (no GPU). Use 'base'/'small' for better
-          // accuracy if slower speed is acceptable.
-          model: process.env.PYTHON_ENGINE_MODEL || 'tiny'
-        },
-        // Hard watchdog: if the Python engine hangs (stuck upload/API/ffmpeg),
-        // fail cleanly instead of waiting forever. Override via .env.
-        Number(process.env.PYTHON_ENGINE_TIMEOUT_MS) || 45 * 60 * 1000);
-        if (result && result.success === false) {
-          await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'failed', mp3Path, seed: trackSeed })).catch(() => {});
-          return res.json({ success: false, data: { success: false, error: result.error || 'Audio processing returned an error.' } });
-        }
+        // CONVERGENCE: this used to spawn the separate pipeline.py engine via
+        // runPythonEngine() (python_main.py: AssemblyAI transcription + its
+        // own diarization health-check + observation-report). It now calls
+        // the EXACT SAME entry point Flow 1 (the meeting bot) uses, so both
+        // flows run one audio-processing pipeline end to end: Whisper
+        // transcription -> AI rubric audit -> tutor eval (writes
+        // meeting_session_scores) -> summary -> DB persistence. This also
+        // means the pipeline.py-only diarization-health/"needs_reprocessing"
+        // check and the AssemblyAI word_boost proper-name boost no longer
+        // apply here, since Flow 1's pipeline has no equivalent step.
+        const result = await PythonBridge.runFullAudioPipeline(meetingId, sessionId, mp3Name);
 
-        // STEP 6: diarization health check - if one speaker covers >90% of the
-        // session, mark this recording as needing reprocessing so failed
-        // diarization jobs can be identified and re-run in bulk.
-        let needsReprocessing = false;
-        const health = result?.diarization_health;
-        if (health && health.healthy === false) {
-          needsReprocessing = true;
-          await VideoProcessingModel.markNeedsReprocessing(mp3Name).catch(() => {});
-          console.warn(`[VideoProcessingController] diarization unhealthy for ${mp3Name}: ${health.reason || 'unknown'} -> marked needs_reprocessing`);
+        if (!result || result.success === false) {
+          await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'failed', mp3Path, seed: trackSeed })).catch(() => {});
+          invalidateCaches();
+          return res.json({ success: false, data: { success: false, error: (result && result.error) || 'Audio processing returned an error.' } });
         }
 
         await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'processed', mp3Path, seed: trackSeed })).catch(() => {});
+        invalidateCaches();
         return res.json({
           success: true,
           data: {
             success: true, alreadyExists: true, mp3Path,
             audioPath: audioLink(mp3Name),
-            needsReprocessing,
-            diarizationHealth: health || null
+            meetingId: result.meetingId ?? meetingId,
+            sessionId: result.sessionId ?? sessionId,
+            oqiScore: result.auditResult ? result.auditResult.oqi_score : null
           }
         });
       } catch (err) {
         console.error('[VideoProcessingController] processAudio pipeline error:', err.message || err);
         await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'failed', mp3Path, seed: trackSeed })).catch(() => {});
+        invalidateCaches();
         return res.json({ success: false, data: { success: false, error: 'Audio processing failed: ' + (err.message || 'unknown error') } });
       }
     } catch (err) {
       console.error('[VideoProcessingController] processAudio error:', err);
       return res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /** Upload an MP4 video to storage/screen-recordings.
+   *  The raw binary body is streamed straight to disk (no full-file memory
+   *  buffering); the encoded filename travels in the X-File-Name header.
+   */
+  async uploadVideo(req, res) {
+    try {
+      // Filename is sent URL-encoded (so names with spaces/special chars work).
+      let fileName = null;
+      const rawName = req.headers['x-file-name'] || '';
+      try { fileName = safeVideoName(decodeURIComponent(String(rawName))); }
+      catch (e) { fileName = safeVideoName(String(rawName)); }
+      if (!fileName) {
+        return res.status(400).json({ success: false, error: 'Invalid or unsafe video filename. Only .mp4 files are allowed.' });
+      }
+      if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
+
+      const destPath = path.join(RECORDINGS_DIR, fileName);
+      if (fs.existsSync(destPath)) {
+        // Drains the incoming body so the connection can be reused, then reports the conflict.
+        req.on('data', () => {});
+        await new Promise(resolve => req.on('end', resolve));
+        return res.status(409).json({ success: false, error: `A video named "${fileName}" already exists in storage/screen-recordings. Rename the file or choose another.` });
+      }
+
+      // Stream the request body to disk in bounded chunks, cleaning up the
+      // partial file if anything fails mid-upload.
+      const FLUSH_THRESHOLD = 4 * 1024 * 1024; // flush every ~4 MB
+      let totalBytes = 0;
+      let pending = Buffer.alloc(0);
+      let writeError = null;
+      const flush = () => {
+        if (pending.length) {
+          fs.appendFileSync(destPath, pending);
+          pending = Buffer.alloc(0);
+        }
+      };
+      const cleanup = () => { try { fs.unlinkSync(destPath); } catch (e) { /* already gone */ } };
+
+      req.on('data', (chunk) => {
+        if (writeError) return;
+        totalBytes += chunk.length;
+        pending = Buffer.concat([pending, chunk]);
+        if (pending.length >= FLUSH_THRESHOLD) {
+          try { flush(); }
+          catch (err) { writeError = err; cleanup(); }
+        }
+      });
+      req.on('error', () => { writeError = new Error('upload stream aborted'); cleanup(); });
+      await new Promise(resolve => req.on('end', resolve));
+
+      if (writeError) {
+        cleanup();
+        return res.status(500).json({ success: false, error: 'Upload failed: ' + (writeError.message || 'write error') });
+      }
+      try { flush(); }
+      catch (err) { cleanup(); return res.status(500).json({ success: false, error: 'Upload failed: ' + (err.message || 'write error') }); }
+      if (totalBytes === 0) {
+        cleanup();
+        return res.status(400).json({ success: false, error: 'Uploaded file is empty.' });
+      }
+
+      const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
+      console.log(`[VideoProcessingController] uploaded ${fileName} (${sizeMB} MB)`);
+      invalidateCaches();
+      return res.json({
+        success: true,
+        data: { fileName, size: sizeMB, videoPath: videoLink(fileName) }
+      });
+    } catch (err) {
+      console.error('[VideoProcessingController] uploadVideo error:', err);
+      return res.status(500).json({ success: false, error: 'Upload failed: ' + (err.message || 'unknown error') });
     }
   },
 

@@ -4,7 +4,11 @@ from utils.logger_util import log_with_type
 
 import os
 
-from services.engine.services.ai_audit import (
+# CANONICAL audit engine only. Do NOT import
+# services.engine.services.ai_audit / audit_worker here — those are legacy
+# duplicate implementations with different scoring math and are no longer
+# wired into the pipeline.
+from services.engine.audit_service import (
     AuditService
 )
 
@@ -27,16 +31,22 @@ def run_audit_task(context):
 
         log_with_type("info", "Engine(task > audit > audit_task) : AuditService initialized", "TASK")
 
-        result = service.evaluate(
+        # Shared prompt-cache file: SAME path tutor_eval_task.py writes its
+        # own section into (storage/cache_llm_prompts/PROMPT_<base_id>.json),
+        # so the two AI evaluations that run for this session land in ONE
+        # file instead of two separate ones.
+        prompt_output_path = os.path.join(
+            context.storage_paths["cache_llm_prompts"],
+            f"PROMPT_{context.base_id}.json",
+        )
+
+        result = service.run_audit(
 
             context.labeled_transcript,
-            context.talk_ratio,
             meeting_id=context.meeting_id,
             session_id=context.session_id,
-            prompt_output_path=os.path.join(
-                context.storage_paths["cache_llm_prompts"],
-                f"PROMPT_AUDIT_{context.base_id}.json"
-            )
+            talk_ratio=context.talk_ratio,
+            prompt_output_path=prompt_output_path
         )
 
         log_with_type("info", "Engine(task > audit > audit_task) : Evaluation completed", "TASK")
@@ -170,8 +180,9 @@ def _normalize_audit_result(result):
     oqi = result.get("oqi_score") or 0
     if not max_score_total:
         max_score_total = 100
-    # When a weighted oqi_score is present (computed in audit_worker), use it as
-    # the authoritative percentage; otherwise fall back to the unweighted ratio.
+    # When a weighted oqi_score is present (computed in audit_service.py), use
+    # it as the authoritative percentage; otherwise fall back to the
+    # unweighted ratio.
     percentage = round(float(oqi), 2) if oqi else (
         round((score_total / max_score_total) * 100, 2) if max_score_total else 0.0
     )

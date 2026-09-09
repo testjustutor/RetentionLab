@@ -9,10 +9,15 @@ Flow (same as the legacy audit implemented self-contained here):
        (code|gate|benchmark lines + transcript) for the LLM.
     3. Call the AI client, parse the compact JSON response, expand it into a
        per-category structure, and recompute category + weighted OQI scores in
-       code (never trusting the LLM's math).
+       code (never trusting the LLM's math). Status codes: 1=Met, 2=Not Met,
+       3=Not Applicable. See audit_scoring.py for the shared math.
     4. Persist per-indicator rows to `ai_audit_results`, summary to
        `session_rubric_summary`, and save the exact request/response to a prompt
        file for replay.
+
+THIS IS THE ONLY CANONICAL AUDIT ENGINE. services/engine/services/audit_worker.py
+and services/engine/services/ai_audit.py are legacy/unused duplicates — do not
+wire new callers to them.
 """
 import json
 import os
@@ -25,9 +30,13 @@ from utils.logger_util import log_with_type
 
 from .rubric_loader import RubricLoader
 from .audit_storage import AuditStorage, _derive_rating, _json_default
-from .report_schema import build_empty_report
-from .report_scorer import apply_ai_ratings
-from .report_storage import save_report_file
+from .audit_scoring import (
+    compute_category_score,
+    compute_weighted_overall,
+    STATUS_MET,
+    STATUS_NOT_MET,
+    STATUS_NOT_APPLICABLE,
+)
 
 
 def _normalize_jsonable(value):
@@ -57,21 +66,6 @@ _AUDIT_SYSTEM_INSTRUCTION = (
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_DIR, "..", ".."))
 OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "storage", "cache_llm_prompts")
-
-# Prompt asking the AI for the full observation-report structure (matching PDF).
-# The model returns ratings + time-stamped notes; scoring is recomputed in code.
-_REPORT_PROMPT_HEAD = (
-    "You are a tutoring-session observer. Given the transcript, produce a tutoring "
-    "observation report. Output ONLY JSON with this exact shape:\n"
-    '{"meta":{"tutor_name":"","student_name":"","session_date":"","session_time":"",'
-    '"reviewer":""},'
-    '"ratings":{"A1":{"rating":"Meets Expectations|Partially Meets|Needs Improvement|Not Applicable",'
-    '"rating_descriptor":"one line","additional_notes":"time-stamped evidence / suggestion"},'
-    '"A2":{...}},\n'
-    '"red_flags":{"RF1":{"flagged":false,"note":""},...},\n'
-    '"observer_comments":["..."],"recommendations":["..."]}\n'
-)
-
 
 def default_prompt_path(meeting_id, session_id):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -130,6 +124,13 @@ class AuditService:
                 benchmark = (ind.get("benchmark") or "").strip()
                 ind_lines.append(f"{code}|{gate}|{benchmark}")
         return "\n".join(ind_lines) + "\n\nTranscript:\n" + (transcript_text or "")
+
+    # ------------------------------------------------------------------
+    # Compact LLM response -> full per-category structure (STATUS CODES:
+    # 1=Met, 2=Not Met, 3=Not Applicable). All math goes through
+    # audit_scoring.py so every audit path in the codebase computes
+    # identically.
+    # ------------------------------------------------------------------
     @staticmethod
     def _expand_compact_result(rubric_schema, compact):
         raw_scores = compact.get("scores") if isinstance(compact.get("scores"), dict) else {}
@@ -153,16 +154,14 @@ class AuditService:
 
         category_scores = {}
         gate_set = set()
-        num = 0.0
-        den = 0.0
+        category_pct_weight_pairs = []
 
         for cat in rubric_schema:
             cat_name = cat.get("category")
             weight = float(cat.get("weight") or 0)
             indicators_out = {}
-            scored_count = 0
-            excluded_count = 0
-            score_sum = 0.0
+            statuses = []
+
             for ind in cat.get("indicators", []):
                 code = ind.get("indicator_id")
                 name = ind.get("name")
@@ -180,20 +179,26 @@ class AuditService:
                     score = norm_score(entry)
 
                 if score is not None:
+                    # Coerce any abnormal s to binary 0/1
                     score = 1 if score >= 1 else 0
-                    scored_count += 1
-                    score_sum += score
+                    status = STATUS_MET if score == 1 else STATUS_NOT_MET
                     if is_gate and score == 0:
                         gate_set.add(code)
                 else:
-                    excluded_count += 1
+                    status = STATUS_NOT_APPLICABLE
                     if requires_video:
                         reason = reason or "requires video"
                         evidence = "requires video"
                     elif not reason:
                         reason = "not observable from the provided transcript"
 
-                rating = "Met" if score == 1 else ("Not met" if score == 0 else "N/A")
+                statuses.append(status)
+
+                rating = (
+                    "Met" if status == STATUS_MET
+                    else "Not met" if status == STATUS_NOT_MET
+                    else "N/A"
+                )
                 indicators_out[name] = {
                     "indicator": code,
                     "indicator_id": code,
@@ -205,39 +210,48 @@ class AuditService:
                     "reason": reason or None,
                     "evidence": evidence,
                     "requires_video": requires_video,
+                    "status_code": status,
                 }
 
-            cat_pct = round(score_sum / scored_count * 100, 2) if scored_count else None
+            cat_pct = compute_category_score(statuses)
+            met_count = sum(1 for s in statuses if s == STATUS_MET)
+            not_met_count = sum(1 for s in statuses if s == STATUS_NOT_MET)
+            na_count = sum(1 for s in statuses if s == STATUS_NOT_APPLICABLE)
+
             category_scores[cat_name] = {
                 "score": cat_pct,
-                "scored": scored_count,
-                "excluded": excluded_count,
-                "scored_indicator_count": scored_count,
-                "excluded_indicator_count": excluded_count,
+                "scored": met_count + not_met_count,
+                "excluded": na_count,
+                "scored_indicator_count": met_count + not_met_count,
+                "excluded_indicator_count": na_count,
                 "indicators": indicators_out,
             }
-            if cat_pct is not None:
-                num += cat_pct * weight
-                den += weight
+            category_pct_weight_pairs.append((cat_pct, weight))
 
-        oqi_score = round(num / den, 2) if den else 0.0
+        oqi_score = compute_weighted_overall(category_pct_weight_pairs)
         return {
             "category_scores": category_scores,
             "oqi_score": oqi_score,
             "gate_failures": sorted(gate_set),
             "evidence_quote": evidence_quote,
         }
-# ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
     # Main entry
     # ------------------------------------------------------------------
-    def process_audit(self, transcript_text, meeting_id=None, session_id=None):
+    def process_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None, prompt_output_path=None):
         log_with_type("info", f"audit/service: starting audit meeting={meeting_id} session={session_id}", "PYTHON_ENGINE")
         rubric_schema = self._load_nested_schema()
         log_with_type("info", f"audit/service: rubric schema loaded ({len(rubric_schema)} categories)", "PYTHON_ENGINE")
 
         system_instruction = _AUDIT_SYSTEM_INSTRUCTION
         prompt = self._build_compact_prompt(rubric_schema, transcript_text)
-        prompt_path = default_prompt_path(meeting_id, session_id)
+        # Prefer the shared, base_id-named path passed in by audit_task.py
+        # (storage/cache_llm_prompts/PROMPT_<base_id>.json - the SAME file
+        # tutor_eval_task.py writes its section into) so both AI evaluations
+        # for a session land in one file. Falls back to the legacy
+        # meeting/session-id-named path only when no caller supplies one.
+        prompt_path = prompt_output_path or default_prompt_path(meeting_id, session_id)
 
         AuditStorage.save_prompt_file(
             prompt_path, meeting_id, session_id, system_instruction, prompt,
@@ -288,41 +302,16 @@ class AuditService:
             log_with_type("warning", "audit/service: meeting_id not provided - skipping DB storage", "PYTHON_ENGINE")
 
         log_with_type("info", f"audit/service: audit complete oqi={result.get('oqi_score')} gates={result.get('gate_failures')}", "PYTHON_ENGINE")
-        return _normalize_jsonable(result)
 
-    def run_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None):
-        return self.process_audit(transcript_text, meeting_id=meeting_id, session_id=session_id)
+        result = _normalize_jsonable(result)
+        result["talk_ratio"] = talk_ratio or {}
+        return result
 
-    # ------------------------------------------------------------------
-    # Observation report (PDF-style structure)
-    # ------------------------------------------------------------------
-    def process_audit_report(self, transcript_text, audio_name=None,
-                             meeting_id=None, session_id=None):
-        """Build the PDF-style observation report: ask the AI for per-indicator
-        ratings + notes, recompute marks/total/overall in code, and save the
-        report file under storage/video_diarization. Returns the report dict."""
-        report = build_empty_report()
-        try:
-            prompt = _REPORT_PROMPT_HEAD + "\n\nTranscript:\n" + (transcript_text or "")
-            raw_response = self.ai_client.ask_ai(prompt=prompt, system_instruction="Return JSON only.")
-            clean = re.sub(r'^```(?:json)?\s*|```\s*$', '', (raw_response or "").strip(), flags=re.IGNORECASE).strip()
-            try:
-                ai = json.loads(clean)
-            except Exception:
-                start = clean.find("{")
-                end = clean.rfind("}")
-                ai = json.loads(clean[start:end + 1]) if start != -1 and end != -1 else {}
-
-            # Fill meta from AI response (fall back to provided/empty)
-            meta = ai.get("meta") or {}
-            for k in ("tutor_name", "student_name", "session_date", "session_time", "reviewer"):
-                if meta.get(k):
-                    report["meta"][k] = str(meta[k])
-
-            apply_ai_ratings(report, ai)
-            report = _normalize_jsonable(report)
-            save_report_file(report, audio_name)
-            log_with_type("info", f"audit/service: report complete total={report['total_score']}/{report['total_marks']} overall={report['rating_overall']}", "PYTHON_ENGINE")
-        except Exception as e:
-            log_with_type("error", f"audit/service: report generation failed -> {e}", "PYTHON_ENGINE")
-        return _normalize_jsonable(report)
+    def run_audit(self, transcript_text, meeting_id=None, session_id=None, talk_ratio=None, prompt_output_path=None):
+        return self.process_audit(
+            transcript_text,
+            meeting_id=meeting_id,
+            session_id=session_id,
+            talk_ratio=talk_ratio,
+            prompt_output_path=prompt_output_path,
+        )

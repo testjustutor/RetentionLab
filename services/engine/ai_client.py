@@ -78,10 +78,25 @@ class AiClient:
             raise RuntimeError("anthropic returned empty text")
         return text
 
-    def _ask_gemini(self, prompt, system_instruction):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY not configured")
+    @staticmethod
+    def _gemini_api_keys():
+        """Ordered list of (label, key) for every configured Gemini key:
+        GEMINI_API_KEY, then GEMINI_API_KEY1, GEMINI_API_KEY2, ... GEMINI_API_KEY9
+        (only the ones actually set in .env). Lets a transient failure on one
+        key (rate limit, quota, temporary "model overloaded" 503, revoked key)
+        retry on the next key instead of failing the whole audit/summary/
+        tutor-eval task."""
+        pairs = []
+        primary = os.getenv("GEMINI_API_KEY")
+        if primary:
+            pairs.append(("GEMINI_API_KEY", primary))
+        for i in range(1, 10):
+            key = os.getenv(f"GEMINI_API_KEY{i}")
+            if key:
+                pairs.append((f"GEMINI_API_KEY{i}", key))
+        return pairs
+
+    def _ask_gemini_with_key(self, api_key, prompt, system_instruction):
         full_prompt = f"{system_instruction}\n\n{prompt}"
         from google import genai
         client = genai.Client(api_key=api_key)
@@ -116,42 +131,76 @@ class AiClient:
         )
         return response.choices[0].message.content
 
+    def _build_attempts(self, prompt, system_instruction):
+        """Ordered list of (label, zero-arg callable) to try for this call.
+
+        Only 'gemini' gets multi-key rotation + an automatic provider
+        fallback to OpenAI once every configured Gemini key has failed -
+        anthropic/openai/ollama run exactly as before (a single attempt),
+        since only Gemini keys + an OpenAI fallback were asked for.
+        """
+        if self.provider == "gemini":
+            gemini_keys = self._gemini_api_keys()
+            if not gemini_keys:
+                raise RuntimeError("GEMINI_API_KEY not configured")
+
+            attempts = [
+                (
+                    f"gemini ({label})",
+                    (lambda k=key: self._ask_gemini_with_key(k, prompt, system_instruction)),
+                )
+                for label, key in gemini_keys
+            ]
+
+            if os.getenv("OPENAI_API_KEY"):
+                attempts.append((
+                    "openai (fallback after all Gemini keys failed)",
+                    (lambda: self._ask_openai_like(prompt, system_instruction)),
+                ))
+            return attempts
+
+        if self.provider == "anthropic":
+            return [("anthropic", lambda: self._ask_anthropic(prompt, system_instruction))]
+        if self.provider == "ollama":
+            return [("ollama", lambda: self._ask_ollama(prompt, system_instruction))]
+        return [("openai", lambda: self._ask_openai_like(prompt, system_instruction))]
+
     def ask_ai(self, prompt, system_instruction="You are a helpful assistant."):
-        log_with_type("info", f"audit/ai_client: calling {self.provider}", "PYTHON_ENGINE")
+        attempts = self._build_attempts(prompt, system_instruction)
+        last_err = None
 
-        def _call():
-            if self.provider == "anthropic":
-                return self._ask_anthropic(prompt, system_instruction)
-            if self.provider == "gemini":
-                return self._ask_gemini(prompt, system_instruction)
-            if self.provider == "ollama":
-                return self._ask_ollama(prompt, system_instruction)
-            return self._ask_openai_like(prompt, system_instruction)
+        for label, fn in attempts:
+            log_with_type("info", f"audit/ai_client: calling {label}", "PYTHON_ENGINE")
 
-        # Watchdog: never let a provider call hang the pipeline. On timeout we
-        # raise so the audit step fails cleanly (and the pipeline continues).
-        executor = ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(_call)
+            # Watchdog: never let ONE attempt hang the pipeline. Each key/
+            # provider gets its own timeout so a hang on key #1 doesn't cost
+            # key #2 its own chance - only a genuine failure/timeout moves on
+            # to the next attempt.
+            executor = ThreadPoolExecutor(max_workers=1)
             try:
-                result = future.result(timeout=AI_CALL_TIMEOUT)
-                log_with_type("info", f"audit/ai_client: {self.provider} responded OK", "PYTHON_ENGINE")
-                return result
-            except _FutureTimeout:
-                log_with_type(
-                    "error",
-                    f"audit/ai_client: {self.provider} call timed out after {AI_CALL_TIMEOUT}s "
-                    f"(model={self.model}) - check network/API key/model name",
-                    "PYTHON_ENGINE",
-                )
-                raise RuntimeError(
-                    f"AI Provider timeout: {self.provider} did not respond within {AI_CALL_TIMEOUT}s"
-                )
-        except RuntimeError:
-            raise
-        except Exception as e:
-            log_with_type("error", f"audit/ai_client: {self.provider} call failed -> {e}", "PYTHON_ENGINE")
-            raise RuntimeError(f"AI Provider error: {str(e)}")
-        finally:
-            # Do NOT wait for the orphaned request thread; it will finish/die on its own.
-            executor.shutdown(wait=False)
+                future = executor.submit(fn)
+                try:
+                    result = future.result(timeout=AI_CALL_TIMEOUT)
+                    log_with_type("info", f"audit/ai_client: {label} responded OK", "PYTHON_ENGINE")
+                    return result
+                except _FutureTimeout:
+                    last_err = RuntimeError(f"{label} did not respond within {AI_CALL_TIMEOUT}s")
+                    log_with_type(
+                        "warning",
+                        f"audit/ai_client: {label} timed out after {AI_CALL_TIMEOUT}s "
+                        f"(model={self.model}) - trying next option if available",
+                        "PYTHON_ENGINE",
+                    )
+                except Exception as e:
+                    last_err = e
+                    log_with_type(
+                        "warning",
+                        f"audit/ai_client: {label} failed -> {e} - trying next option if available",
+                        "PYTHON_ENGINE",
+                    )
+            finally:
+                # Do NOT wait for the orphaned request thread; it will finish/die on its own.
+                executor.shutdown(wait=False)
+
+        log_with_type("error", f"audit/ai_client: all providers/keys exhausted -> {last_err}", "PYTHON_ENGINE")
+        raise RuntimeError(f"AI Provider error: all providers/keys failed. Last error: {last_err}")

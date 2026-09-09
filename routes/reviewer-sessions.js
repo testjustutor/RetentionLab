@@ -1,18 +1,9 @@
 /**
- * routes/reviewer-sessions.js
- * Thin route layer for reviewer sessions page.
+ * DEPRECATED: was mounted at /api/reviewer-sessions; moved to routes/reviewer/sessions.js (now /api/reviewer/sessions).
+ * This functionality was migrated to the dedicated per-role MVC folder structure
+ * (see routes/registry.js). The old URL for this file is no longer mounted anywhere,
+ * so this file is unreachable from any request. It is kept only as a thin re-export
+ * shim (rather than deleted) pointing at its new location, so nothing breaks if
+ * something still requires this old path directly.
  */
-const express = require('express');
-const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
-const ctrl = require('../controllers/reviewers/reviewerSessionsController');
-
-function handle(fn) {
-  return (req, res) => fn(req).then(r => res.status(r.statusCode || (r.success === false ? 400 : 200)).json(r));
-}
-
-router.get('/instructors', requireAuth, handle(ctrl.getInstructors));
-router.get('/instructor-sessions', requireAuth, handle(ctrl.getInstructorSessions));
-router.get('/:meetingId/details', requireAuth, handle(ctrl.getSessionDetails));
-
-module.exports = router;
+module.exports = require('./reviewer/sessions');

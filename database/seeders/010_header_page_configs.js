@@ -110,7 +110,8 @@ const DEFAULT_PAGES = {
   reviewerEvaluations: { title: 'Evaluations', description: 'Complete and manage session evaluations.', roleTitle: 'Reviewer', showStats: false, buttons: [] },
   reviewerReviews: { title: 'Reviews', description: 'View and submit your session reviews.', roleTitle: 'Reviewer', showStats: false, buttons: [] },
   reviewerScore: { title: 'Score', description: 'View and assign scores for reviewed sessions.', roleTitle: 'Reviewer', showStats: false, buttons: [] },
-  reviewerAnalytics: { title: 'Analytics', description: 'View review trends and scoring analytics.', roleTitle: 'Reviewer', showStats: false, buttons: [] }
+  reviewerAnalytics: { title: 'Analytics', description: 'View review trends and scoring analytics.', roleTitle: 'Reviewer', showStats: false, buttons: [] },
+  reviewerEvaluationSummary: { title: 'Evaluation Summary', description: 'Score a session against the rubric and save the evaluation summary.', roleTitle: 'Reviewer', showStats: false, buttons: [] }
 };
 
 const seedHeaderPageConfigs = async () => {

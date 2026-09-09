@@ -28,7 +28,9 @@ const controller = {
       if (!current_password || !new_password) return err('Current and new password required', 400);
       if (String(new_password).length < 6) return err('New password must be at least 6 characters', 400);
 
-      const user = await UsersModel.getUserById(req.user, req.user.id);
+      // getUserById() strips password_hash from the row before returning it,
+      // so fetch the raw row (by email) to verify the current password.
+      const user = await UsersModel.getUserByEmail(req.user.email);
       if (!user) return err('User not found', 404);
 
       const valid = AuthModel.verifyPassword(current_password, user.password_hash);

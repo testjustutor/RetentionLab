@@ -17,14 +17,26 @@ returned by the AI into storage/cache_llm_prompts/EVAL_<base_id>.json so the
 prompt can be copy-pasted into a direct AI chat and reproduce the same output.
 
 Calculations happen in code (the project's "score calculation in code, not LLM"
-design) so the math is trustworthy and auditable:
+design) using the SAME shared math as every other audit path
+(services/engine/audit_scoring.py), so the numbers are consistent across the
+whole codebase:
 
-    category_percentage =
-        (count of Met) / (total indicators in category - count of Not Applicable) * 100
+    STATUS CODES: 1 = Met, 2 = Not Met, 3 = Not Applicable
 
-    overall percentage =
-        weighted by category weight when available, else simple average
-        of the category percentages.
+    category_percentage = Met / (Met + Not Applicable) x 100
+        - all Not Applicable -> 100%
+        - denominator 0      -> 0%
+
+    overall percentage = weighted by category weight (cat_score),
+        NEVER by the number of criteria in the category.
+
+    gate_status = "gate_failed" ONLY when an indicator marked is_gate=True
+        in the rubric was rated "Not Met". This is computed the SAME way as
+        audit_service.py / audit_storage.py (from real gate-indicator
+        failures), and is a SEPARATE signal from the AI's free-text
+        red_flag field - the two are never conflated with each other.
+        [FIX: previously gate_status was derived from red_flag instead of
+        actual gate failures - see _compute_percentages() and _persist().]
 """
 
 import json
@@ -37,6 +49,12 @@ from decimal import Decimal
 
 from services.engine.services import AiApiService
 from services.engine.services.rubric_loader import RubricLoader
+from services.engine.audit_scoring import (
+    compute_category_score,
+    compute_weighted_overall,
+    status_code_from_rating,
+    STATUS_NOT_MET,
+)
 
 
 def _json_default(o):
@@ -151,7 +169,16 @@ class TutorEvaluationService:
         analysis_instruction=None, analysis_prompt=None, analysis_response=None,
     ):
         """Persist the EXACT request + EXACT raw response (+ computed results).
-        Optionally also stores a second AI call (analysis) under request_2/response_2."""
+        Optionally also stores a second AI call (analysis) under request_2/response_2.
+
+        This file is SHARED with audit_storage.py's save_prompt_file, which
+        writes its own "audit" section to the SAME path (audit_task.py and
+        tutor_eval_task.py both build the path from context.base_id as
+        PROMPT_<base_id>.json). We merge into whatever is already on disk
+        under this task's own key ("tutor_eval") instead of overwriting the
+        whole file, so both AI evaluations for a session land in ONE file
+        instead of two - regardless of which task finishes (and writes) first.
+        """
         if not prompt_output_path:
             return
         try:
@@ -167,12 +194,10 @@ class TutorEvaluationService:
                 {"role": "user", "content": prompt},
             ]
 
-            payload = {
+            tutor_eval_section = {
                 "task": "tutor_evaluation",
                 "provider": self.ai_api.provider,
                 "model": model,
-                "meeting_id": meeting_id,
-                "session_id": session_id,
                 "request": {
                     "system_instruction": system_instruction,
                     "prompt": prompt,
@@ -187,7 +212,7 @@ class TutorEvaluationService:
             }
 
             if analysis_instruction and analysis_prompt:
-                payload["request_2"] = {
+                tutor_eval_section["request_2"] = {
                     "system_instruction": analysis_instruction,
                     "prompt": analysis_prompt,
                     "messages": [
@@ -196,13 +221,25 @@ class TutorEvaluationService:
                     ],
                     "replayable_prompt": f"{analysis_instruction}\n\n{analysis_prompt}",
                 }
-                payload["response_2"] = {
+                tutor_eval_section["response_2"] = {
                     "status": "OK" if analysis_response is not None else "PENDING",
                     "raw_response": analysis_response,
                 }
 
+            combined = {}
+            if os.path.exists(prompt_output_path):
+                try:
+                    with open(prompt_output_path, "r", encoding="utf-8") as existing:
+                        combined = json.load(existing) or {}
+                except Exception:
+                    combined = {}
+
+            combined["meeting_id"] = meeting_id
+            combined["session_id"] = session_id
+            combined["tutor_eval"] = tutor_eval_section
+
             with open(prompt_output_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False, default=_json_default)
+                json.dump(combined, f, indent=2, ensure_ascii=False, default=_json_default)
 
             print(
                 f"[TUTOR EVAL] Status: Prompt + AI response saved to {prompt_output_path}",
@@ -216,13 +253,27 @@ class TutorEvaluationService:
 
 
     # ==========================================================
-    # CODE-BASED PERCENTAGE CALCULATION
+    # CODE-BASED PERCENTAGE CALCULATION (shared math - audit_scoring.py)
     # ==========================================================
     def _compute_percentages(self, raw_rubric, parsed):
         """
-        Category percentage = (Met + 0.5 x Partial) / (total - Not Applicable) x 100
-        A category where ALL criteria are Not Applicable scores 100%.
-        Overall = weighted by category weight, else simple average.
+        STATUS CODES: 1=Met, 2=Not Met, 3=Not Applicable.
+
+        Category percentage = Met / (Met + Not Applicable) x 100
+            - all Not Applicable in a category -> 100%
+            - denominator 0                    -> 0%
+
+        Overall = weighted by each category's `weight` (cat_score) field -
+        NEVER by the number of criteria in the category. This uses the same
+        compute_category_score / compute_weighted_overall helpers as
+        audit_service.py so results are consistent everywhere in the codebase.
+
+        FIX: gate_failures is now collected here (mirrors audit_service.py's
+        _expand_compact_result) instead of never being tracked at all. Any
+        indicator flagged is_gate=True in the rubric that scored "Not Met"
+        (status code 2) is added to gate_failures, so gate_status downstream
+        reflects REAL gate-criteria failures instead of the AI's unrelated
+        free-text red_flag field.
         """
         cat_eval = parsed.get("category_evaluations") or {}
 
@@ -234,6 +285,8 @@ class TutorEvaluationService:
         category_percentages = {}
         category_weights = {}
         category_breakdown = {}
+        pct_weight_pairs = []
+        gate_failures = []  # FIX: was never populated before
 
         for cat_id, inds in by_category.items():
             cat_meta = categories.get(cat_id, {})
@@ -242,70 +295,60 @@ class TutorEvaluationService:
             if weight <= 0:
                 weight = 1.0
 
-            total = len(inds)
-            met = 0
-            partial = 0
-            na = 0
-            not_met = 0
+            ind_evals = cat_eval.get(cat_name, {}).get("indicators", {})
+            statuses = []
             rated = []
 
-            ind_evals = cat_eval.get(cat_name, {}).get("indicators", {})
             for ind in inds:
                 entry = ind_evals.get(ind["name"]) or {}
-                rating = (entry.get("rating") or "").strip().lower()
-                if rating in ("met", "not met", "not applicable", "partial"):
-                    if rating == "met":
-                        met += 1
-                    elif rating == "partial":
-                        partial += 1
-                    elif rating == "not met":
-                        not_met += 1
-                    else:
-                        na += 1
-                    rated.append({
-                        "indicator_id": ind.get("indicator_code"),
-                        "indicator_name": ind.get("name"),
-                        "subgroup_name": ind.get("subgroup_name"),
-                        "rating": rating,
-                        "reason": entry.get("reason", ""),
-                    })
+                status = status_code_from_rating(entry.get("rating"))
+                statuses.append(status)
 
-            # If every criterion in the category is Not Applicable -> 100%.
-            if total > 0 and na == total:
-                pct = 100.0
-            else:
-                eligible = total - na
-                credit = met + (0.5 * partial)
-                pct = round((credit / eligible * 100), 2) if eligible > 0 else 0.0
+                # FIX: a gate-marked indicator that came back Not Met is a
+                # real gate failure - collect it the same way
+                # audit_service.py's _expand_compact_result does, instead of
+                # leaving gate_status dependent on the AI's unrelated
+                # free-text red_flag field.
+                if ind.get("is_gate") and status == STATUS_NOT_MET:
+                    gate_failures.append(ind.get("indicator_code"))
+
+                rated.append({
+                    "indicator_id": ind.get("indicator_code"),
+                    "indicator_name": ind.get("name"),
+                    "subgroup_name": ind.get("subgroup_name"),
+                    "rating": {1: "met", 2: "not met", 3: "not applicable"}[status],
+                    "reason": entry.get("reason", ""),
+                })
+
+            pct = compute_category_score(statuses)
+            total = len(statuses)
+            met = statuses.count(1)
+            not_met = statuses.count(2)
+            na = statuses.count(3)
 
             category_percentages[cat_name] = pct
             category_weights[cat_name] = weight
+            pct_weight_pairs.append((pct, weight))
             category_breakdown[cat_name] = {
                 "category_id": cat_id,
                 "total": total,
                 "met": met,
-                "partial": partial,
                 "not_met": not_met,
                 "not_applicable": na,
-                "eligible": max(total - na, 0),
+                "eligible": met + na,
                 "percentage": pct,
                 "rated": rated,
             }
 
-        # overall: weighted by category weight, else simple average
-        if category_percentages:
-            total_w = sum(category_weights.values())
-            overall = round(
-                sum((category_percentages[k] * category_weights[k]) for k in category_percentages) / total_w,
-                2,
-            ) if total_w else 0.0
-        else:
-            overall = 0.0
+        overall = compute_weighted_overall(pct_weight_pairs)
 
         return {
             "category_percentages": category_percentages,
             "category_breakdown": category_breakdown,
             "overall_percentage": overall,
+            # FIX: real gate-indicator failures, deduplicated + sorted for
+            # stable output (matches audit_service.py's gate_failures shape).
+            "gate_failures": sorted(set(gate_failures)),
         }
 
 
@@ -393,6 +436,7 @@ class TutorEvaluationService:
 
         cat_eval = parsed.get("category_evaluations") or {}
         overall_pct = computed["overall_percentage"]
+        overall_pct_text = str(overall_pct)  # ai_audit_results.oqi_score is now TEXT
         overall_summary = (parsed.get("overall_summary") or "").strip()
         red_flag = bool(parsed.get("red_flag"))
         evidence_quote = (evidence_quote or parsed.get("evidence_quote") or "").strip() or None
@@ -465,7 +509,7 @@ class TutorEvaluationService:
                 rating, reason or None, ind.get("benchmark"),
                 # Full AI response, so ai_audit_results carries the exact output.
                 ai_raw_response_json,
-                overall_pct, evidence_quote, None,
+                overall_pct_text, evidence_quote, None,   # oqi_score column is TEXT
             ))
 
         # 2) ai_audit_results — delete-then-insert (no unique key on this table).
@@ -500,8 +544,20 @@ class TutorEvaluationService:
                 row,
             )
 
-        # 3) One aggregate summary row in session_rubric_summary (incl. red_flag)
-        gate_status = "gate_failed" if red_flag else "all_passed"
+        # 3) One aggregate summary row in session_rubric_summary (incl. red_flag).
+        #    weighted_score_pct is still numeric decimal there - unaffected by
+        #    the ai_audit_results.oqi_score TEXT change - so keep overall_pct
+        #    (not the text version) here.
+        #
+        # FIX: gate_status now comes from computed["gate_failures"] (real
+        # is_gate indicator failures collected in _compute_percentages()),
+        # matching the convention used in audit_storage.py / audit_service.py
+        # ("all_passed" unless a gate indicator actually failed). Previously
+        # this was `"gate_failed" if red_flag else "all_passed"`, which
+        # conflated the AI's unrelated free-text red_flag signal with gate
+        # status. red_flag is still persisted, but now as its own independent
+        # column - it no longer drives gate_status.
+        gate_status = "gate_failed" if computed.get("gate_failures") else "all_passed"
         overall_rating = "Exemplary" if overall_pct >= 90 else "Proficient" if overall_pct >= 75 else "Developing" if overall_pct >= 50 else "Beginning"
         execute(
             """INSERT INTO session_rubric_summary
@@ -526,7 +582,13 @@ class TutorEvaluationService:
         student_engagement = analysis.get("student_engagement") or ""
         learning_impact = analysis.get("learning_impact") or ""
         parent_readiness = analysis.get("parent_communication_readiness") or ""
-        recommended_action = analysis.get("recommended_action") or ("Schedule a coaching review." if red_flag else "Continue current approach.")
+        # FIX: recommended_action fallback now reflects a REAL gate failure
+        # (computed["gate_failures"]) instead of the unrelated red_flag
+        # boolean, since "schedule a coaching review" should trigger off an
+        # actual failed gate criterion, not off the AI's free-text flag.
+        recommended_action = analysis.get("recommended_action") or (
+            "Schedule a coaching review." if computed.get("gate_failures") else "Continue current approach."
+        )
         execute(
             """INSERT INTO session_final_evaluation
                (session_id, overall_session_rating, teacher_performance, student_engagement,
@@ -598,7 +660,11 @@ class TutorEvaluationService:
         return {
             "submitted": submitted,
             "overall_percentage": overall_pct,
+            # FIX: surface the real gate_status computed above (not
+            # red_flag-derived) alongside red_flag, so callers of
+            # generate_evaluation() can see both signals distinctly.
             "gate_status": gate_status,
+            "gate_failures": computed.get("gate_failures", []),
             "red_flag": red_flag,
             "summary": overall_summary,
             "ai_audit_results": len(ai_rows),
@@ -643,7 +709,7 @@ class TutorEvaluationService:
         except Exception as e:
             raise TutorEvaluationError(f"Failed to parse AI response as JSON: {e}")
 
-        # Compute in code (trusted math)
+        # Compute in code (trusted math - shared with audit_service.py)
         computed = self._compute_percentages(raw_rubric, parsed)
 
         # Re-save with computed block (non-destructive update)
@@ -695,6 +761,10 @@ class TutorEvaluationService:
             "prompt_output_path": prompt_output_path,
             "overall_percentage": computed["overall_percentage"],
             "category_percentages": computed["category_percentages"],
+            # FIX: gate_status/gate_failures now surfaced from the real
+            # computed/persisted values instead of only red_flag.
+            "gate_status": persisted["gate_status"],
+            "gate_failures": persisted["gate_failures"],
             "red_flag": persisted["red_flag"],
             "summary": persisted["summary"],
             "persisted": persisted,

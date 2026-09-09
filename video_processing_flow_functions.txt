@@ -1,0 +1,263 @@
+RetentionLab - Full running flow for the manual "Video Processing" admin page
+====================================================================================================
+Page: http://.../super_admin/settings/video-processing
+Actions: "Convert" then "Process" (the buttons next to each recording)
+
+This is a SEPARATE pipeline from pythonBridge_flow_functions.txt. It shares files under
+services/engine/ but is triggered from a different route, driven by a different Node bridge
+(services/engine/python_runner.js, NOT services/shared/pythonBridge.js), and lands in Python
+on the OLDER monolithic pipeline.py instead of engine_main.py's orchestrator/task DAG. Every
+file "page" is listed in call order below, with the exact function/method called inside it.
+
+====================================================================================================
+0. NODE SIDE - route -> controller
+====================================================================================================
+routes/super_admin/settings/video-processing.js
+    POST /convert  -> videoProcessingController.convertAudio
+    POST /process  -> videoProcessingController.processAudio
+    (GET /, POST /upload, GET /history also live here but are not part of a Convert+Process run)
+
+controllers/super_admin/settings/videoProcessingController.js
+
+--- "Convert" button -------------------------------------------------------------------------
+convertAudio(req, res)
+    -> safeVideoName(videoPath)                         - validates the .mp4 filename
+    -> VideoProcessingModel.ensureTable()                [models/.../VideoProcessingModel.js]
+    -> seedConvertVideo(fileName)                        - resolves/creates the DB identity for
+                                                            this file BEFORE any media work:
+           -> parseNamedVideoName(fileName)              - regex-parses "<id>_<name>_<ext>_<sess>_
+                                                            <title>-YYYYMMDD_HHMMSS.mp4" (your file:
+                                                            "1064_Neeraj Tanwar_Regular_247412_
+                                                            General Discussion-20260817_092941.mp4")
+           -> seedNamedVideo(fileName)                   (named-video path - this is the one that
+                                                            matches your filename)
+                  -> resolveNamedUser(parsed)            -> VideoProcessingModel.getUserById /
+                                                             getUserByEmail / getUserByName /
+                                                             getInstructorRoleId / insertInstructor
+                  -> ensureTeamsConnection(user)          -> VideoProcessingModel.getProviderByName /
+                                                             findConnection / insertConnection
+                  -> scheduleTimes(parsed)                - derives session start/end from filename
+                  -> VideoProcessingModel.findMeetingByExternalAndCreator(...) / insertMeeting(...)
+                  -> resolveOrCreateSession(meetingId, start, end)
+                         -> VideoProcessingModel.findSessionByMeetingTime / insertSession / getSessionById
+           (seedScreenVideo(fileName) is the alternate branch, only for SCREEN_*.mp4 files - not
+            used for a named recording like yours)
+    -> toMp3Name(fileName)                               - builds the REC_<extMeetingId>_Sess<id>_
+                                                            <date>_<time>.mp3 target name
+    -> makeTrackRec({...})                                - builds the video_processing tracking row
+    -> VideoProcessingModel.saveProcessingRecord(track)   - status: 'converting'
+    -> convertVideoToMp3(sourcePath, targetPath)          [services/engine/python_runner.js]
+           - spawns: python -m services.engine.video_convert <video_path> <mp3_path>
+    -> VideoProcessingModel.saveProcessingRecord({..., status: 'converted'})
+    -> syncAssets(seedIds, targetName, fileName)
+           -> VideoProcessingModel.updateSessionFileNames(sessionId, mp3Name, transcriptName)
+           -> VideoProcessingModel.insertMeetingAsset({ meetingId, sessionId, mp3Name, transcriptName, videoPath })
+
+services/engine/python_runner.js :: convertVideoToMp3(videoPath, mp3Path)
+    -> spawn python -m services.engine.video_convert <video> <mp3>, parses the trailing JSON
+       {success, audio_file, duration, error} from stdout
+
+services/engine/video_convert.py
+    main(argv) -> convert_video_to_mp3(video_path, mp3_path)
+        -> MoviePy VideoFileClip(video_path).audio.write_audiofile(mp3_path, fps=16000, ...)
+        - mono 16kHz MP3, NOT ffmpeg directly from Node (unlike the pythonBridge.js flow's
+          AudioExtractor, which shells out to ffmpeg itself)
+
+--- "Process" button --------------------------------------------------------------------------
+processAudio(req, res)
+    -> safeVideoName / toMp3Name(videoName)              - resolves the .mp3 produced by Convert
+    -> VideoProcessingModel.ensureTable()
+    -> resolveVideoIds(videoName)                         (only when meetingId/sessionId weren't
+                                                            passed in the request body)
+           -> VideoProcessingModel.getMeetingByExternalId(...)
+           -> VideoProcessingModel.findSessionByMeetingStartLike(...)
+    -> parseNamedVideoName(videoName)
+    -> VideoProcessingModel.findDuplicateSession(userId, sessionId)   - skips reprocessing an
+       already-processed file
+    -> SessionMetadataModel.getByMeeting(meetingId)       [models/session-quality/SessionMetadataModel.js]
+           - pulls student_name for AssemblyAI/Whisper word_boost (proper-name accuracy)
+    -> VideoProcessingModel.saveProcessingRecord({..., status: 'processing'})
+    -> runPythonEngine(mp3Name, { aiSettings: { meeting_id, session_id, word_boost }, model }, timeoutMs)
+           [services/engine/python_runner.js]
+    -> on result.diarization_health.healthy === false:
+           VideoProcessingModel.markNeedsReprocessing(mp3Name)
+    -> VideoProcessingModel.saveProcessingRecord({..., status: 'processed'})  (or 'failed' on error)
+
+services/engine/python_runner.js :: runPythonEngine(audioInput, opts, timeoutMs)
+    -> resolveAudioPath(audioInput)                       - finds the mp3 under storage/recordings
+                                                            or storage/screen-recordings
+    -> spawn python -u -m services.engine.python_main <audio_path> <ai_settings_json> --model <model>
+    -> scans stdout backwards for the last line that parses as a JSON object -> that is the result
+
+====================================================================================================
+1. PYTHON SIDE - the OLDER monolithic engine (NOT engine_main.py)
+====================================================================================================
+services/engine/python_main.py
+    main(argv) -> from .pipeline import run_pipeline
+               -> run_pipeline(input_file, ai_settings_json=..., model_size=args.model)
+               -> print(json.dumps(result))              - the single JSON line python_runner.js reads
+
+services/engine/pipeline.py :: run_pipeline(audio_input, ai_settings_json, model_size, n_speakers)
+    [MAIN ENTRY - no orchestrator/task DAG here, everything runs inline in one function]
+    -> resolve_audio_path(audio_input)                    [whisper_engine.py]
+    -> parse_ai_config(ai_settings_json)                  [whisper_engine.py]
+    -> _emit_progress(...) / _step(...) throughout          - progress + STEP log lines (STARTED/
+                                                            COMPLETED/FAILED) read by python_runner.js
+    -> threading.Thread(_heartbeat_loop) - background watchdog, logs "still working" every 20s
+
+    STEP: Audio preprocessing
+        -> AudioPreprocessor(enabled, denoise).preprocess(audio_path)   [audio_preprocess.py]
+               -> self._loudnorm(src, dst)                - ffmpeg loudnorm normalization
+               -> self._ffprobe_channels(prepped)          - detects stereo (per-mic) audio
+               -> split_stereo_channels(prepped)           - only if channels >= 2 (module function)
+               -> self._denoise_wav(prepped)               - noisereduce, in place
+
+    STEP: transcription + diarization - tries backends in this order until one succeeds:
+        1) AssemblyAI (opt-in via PYTHON_ENGINE_USE_ASSEMBLYAI=1 - OFF by default, so SKIPPED
+           on a normal run):
+               -> AssemblyAIEngine(...).transcribe_and_diarize(audio_path)   [assemblyai_engine.py]
+        2) Per-channel transcription (only when audio_preprocess detected 2 channels - a plain
+           screen/webcam recording like a single-mic .mp4 normally does NOT trigger this):
+               -> transcribe_channels(channel_files, ...)   [channel_transcriber.py]
+                      -> _transcribe_one(path, ...) x2       -> WhisperEngine(...).transcribe(path)
+                                                                [whisper_engine.py, imported locally]
+                      -> merge_by_timestamp(channel_results)
+        3) Fallback (legacy, DEFAULT path for a normal 1:1 recording with no special flags):
+               -> get_initial_prompt(config.get("subject"))   [whisperx_engine.py]
+               -> WhisperEngine(model_size, device, language, progress_cb, initial_prompt).transcribe(audio_path)
+                      [whisper_engine.py]
+                      -> self._load()                          - faster-whisper, else openai-whisper
+                      -> self._transcribe_faster / self._transcribe_openai
+               -> ResemblyzerDiarizer(n_speakers, progress_cb).diarize(audio_path)   [resemblyzer_diarizer.py]
+                      -> self._load_wav(audio_path)
+                      -> VoiceEncoder().embed_utterance(...) per window + AgglomerativeClustering
+               -> WhisperXEngine._apply_role_labels(diarization, fallback_names)   [whisperx_engine.py]
+                      - relabels raw SPEAKER_xx clusters to "Speaker 1"/"Speaker 2" by talk-time
+
+    -> _align_diarization(segments, diarization)           (module-level function in pipeline.py -
+                                                            skipped for assemblyai/channels backends,
+                                                            which are already speaker-labelled)
+
+    STEP: Diarization health check
+        -> check_diarization_health(labeled_segments)      [health_check.py]
+               -> speaker_duration_shares(segments)          - flags a session unhealthy when one
+                                                                speaker covers >90% of talk time
+
+    STEP: AI audit (only runs when plain_text is non-empty)
+        -> AuditService()                                  [engine/audit_service.py - SAME canonical
+                                                             class the pythonBridge.js flow uses]
+        -> audit_svc.process_audit(plain_text, meeting_id=, session_id=)
+               (identical internals to the pythonBridge.js flow: RubricLoader.load_rubric(),
+               AiClient.ask_ai(), _expand_compact_result() -> audit_scoring.py, AuditStorage.
+               store_audit_results()/store_summary() -> ai_audit_results + session_rubric_summary)
+        -> audit_svc.process_audit_report(plain_text, audio_name=, meeting_id=, session_id=)
+               [ONLY reachable from this pipeline - pythonBridge.js's audit_task.py never calls
+               this method, so it was flagged as dead code in the earlier "unused files" report
+               for THAT flow only]
+               -> build_empty_report()                     [engine/report_schema.py]
+               -> apply_ai_ratings(report, ai)              [engine/report_scorer.py]
+               -> save_report_file(report, audio_name)      [engine/report_storage.py]
+                      - writes storage/video_diarization/<name>.report.txt / .report.json
+
+    STEP: Save results
+        -> save_diarization_result(save_payload)            [storage_output.py]
+               -> build_transcript_text(segments) -> _merge_text_lines(...)
+               - writes storage/video_diarization/<name>.diarization.txt + .diarization.json
+        -> save_plain_transcript(save_payload)               [storage_output.py]
+               - writes storage/video_diarization/<name>.transcript.txt
+
+    -> returns { success, engine, version, audio_file, language, whisper_backend,
+                 diarization_available, segments, words, diarization, plain_text,
+                 output_path, plain_output_path, audit, report, diarization_health }
+       This whole dict is what python_runner.js parses back into processAudio()'s `result`.
+
+====================================================================================================
+2. SHARED / CROSS-CUTTING FILES USED THROUGHOUT
+====================================================================================================
+utils/logger_util.py :: log_with_type(level, message, tag)   - used by every engine file above.
+database/python_db.py :: get_cursor() / execute() / fetch_one()   - used inside audit_service.py's
+    RubricLoader/AuditStorage calls (same DB layer as the pythonBridge.js flow).
+database/db.js :: db.run() / db.get() / db.all()   - the Node-side DB layer every VideoProcessingModel
+    / SessionMetadataModel / MeetingAssetModel call above goes through.
+
+====================================================================================================
+3. DATABASE TABLES - which table is touched at which location in THIS flow
+====================================================================================================
+video_processing  (NEW table, specific to this admin page - not used by pythonBridge.js at all)
+    WRITE - VideoProcessingModel.ensureTable()      "CREATE TABLE IF NOT EXISTS video_processing (...)"
+    WRITE - VideoProcessingModel.saveProcessingRecord()  "INSERT INTO video_processing (...)" - called
+            repeatedly through Convert (converting/converted/failed) and Process
+            (processing/processed/failed) to track this file's status.
+    READ  - VideoProcessingModel.getLatestStatuses() / getLatestStatus() / findDuplicateSession()
+            - drive the page's status column and the "already processed" duplicate guard.
+    WRITE - VideoProcessingModel.markNeedsReprocessing()  "UPDATE video_processing SET status =
+            'needs_reprocessing' ..." - set when check_diarization_health() (Python) reports unhealthy.
+
+users / roles
+    READ  - VideoProcessingModel.getUserById() / getUserByEmail() / getUserByName()
+    READ  - VideoProcessingModel.getInstructorRoleId()   "SELECT id FROM roles WHERE role_name =
+            'instructor'"
+    WRITE - VideoProcessingModel.insertInstructor()   (only when the filename's user id has never
+            been seen before - creates a dummy instructor account so the recording has an owner)
+
+calendar_providers / calendar_connections
+    READ/WRITE - VideoProcessingModel.getProviderByName('teams') / findConnection() /
+            insertConnection()   - seeds a dummy Teams calendar connection for the resolved
+            instructor, so downstream code that expects one doesn't break.
+
+meetings
+    READ  - VideoProcessingModel.getMeetingByExternalId() / findMeetingByExternalAndCreator()
+    WRITE - VideoProcessingModel.insertMeeting()   (only if no meeting row for this external id
+            + title + creator exists yet)
+
+meeting_sessions
+    READ  - VideoProcessingModel.findSessionByMeetingTime() / findSessionByMeetingStartLike() /
+            getSessionById()
+    WRITE - VideoProcessingModel.insertSession()   "INSERT INTO meeting_sessions (meeting_id,
+            start_time, end_time, status, ...)"
+    WRITE - VideoProcessingModel.updateSessionFileNames()   "UPDATE meeting_sessions SET
+            audio_file_name = ?, transcript_file_name = ? ..." - called from syncAssets() right
+            after Convert succeeds.
+
+meeting_assets
+    WRITE - VideoProcessingModel.insertMeetingAsset()   called from syncAssets() right after
+            Convert succeeds - a DIFFERENT write path than pythonBridge.js's persist_results_task.py
+            / meetingAssetModel.updateAssets(), but the SAME shared table.
+
+session_metadata
+    READ  - SessionMetadataModel.getByMeeting(meetingId)   - only reads student_name for the
+            transcription word_boost list; nothing in this flow writes this table.
+
+ai_audit_results, session_rubric_summary
+    WRITE - engine/audit_storage.py :: AuditStorage.store_audit_results() / store_summary()
+            (called from audit_service.py's process_audit(), same as the pythonBridge.js flow -
+            these two tables get written by BOTH pipelines, keyed by the same (meeting_id, session_id)
+            pair, so running this admin page against a session ALSO overwrites whatever
+            engine_main.py's "audit" task previously wrote there, and vice versa).
+
+NOT touched by this flow (in contrast to pythonBridge_flow_functions.txt):
+    meeting_session_scores, session_rubric_evaluations, session_final_evaluation, session_analysis,
+    session_diarization - all four are written ONLY by services/engine/services/tutor_eval_worker.py
+    / task/persist_results_task.py, which this admin-page pipeline never calls. Manually
+    Convert+Process-ing a video does NOT populate the tutor-evaluation tables at all.
+
+====================================================================================================
+4. Summary: how this differs from pythonBridge_flow_functions.txt
+====================================================================================================
+- Different Node bridge: services/engine/python_runner.js (spawns video_convert.py / python_main.py),
+  not services/shared/pythonBridge.js (spawns engine_main.py).
+- Different Python entry: services/engine/pipeline.py::run_pipeline() - one long inline function
+  with try/except fallbacks - not the orchestrator/task_registry.py DAG.
+- Exercises files the earlier "unused files" report marked dead for the bot-recording flow:
+  video_convert.py, whisper_engine.py, resemblyzer_diarizer.py, audio_preprocess.py,
+  storage_output.py, health_check.py, whisperx_engine.py, and conditionally assemblyai_engine.py /
+  channel_transcriber.py. Those files are correctly "unused in pythonBridge.js's flow" but are the
+  ENTIRE point of this flow.
+- Still shares the canonical AuditService/AuditStorage/RubricLoader/AiClient/audit_scoring.py code
+  (ai_audit_results + session_rubric_summary), but additionally calls AuditService.process_audit_report()
+  (report_schema.py/report_scorer.py/report_storage.py), which pythonBridge.js's flow never calls.
+- Never touches the tutor_eval_worker.py / persist_results_task.py side, so meeting_session_scores,
+  session_rubric_evaluations, session_final_evaluation, session_analysis and session_diarization are
+  NOT written by a manual Convert+Process run.
+- Tracks its own progress/identity in a dedicated `video_processing` table instead of relying on
+  pipeline_context.py's task_status/execution_metadata.

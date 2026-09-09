@@ -1,0 +1,379 @@
+RetentionLab - Full running flow from services/shared/pythonBridge.js
+====================================================================================================
+Every file ("page") touched by a live run, in call order, with the exact function/method
+called inside it at each step. Indentation shows the call depth.
+
+====================================================================================================
+0. NODE SIDE - entry point
+====================================================================================================
+services/shared/pythonBridge.js
+    PythonBridge.runFullAudioPipeline(meetingId, sessionId, fileName)
+        -> builds runtimeSettings (ai profile + pipeline_features + HF token) and stringifies it
+        -> PythonBridge.runStage('engine_main.py', [fileName, stringifiedConfig])
+              - spawns: <python> -u services/engine/engine_main.py <fileName> <stringifiedConfig>
+              - streams stdout/stderr, extracts the trailing JSON object from stdout
+        -> PythonBridge.resolveMeetingContext(meetingId, sessionId, executionMatrix.meeting_id, executionMatrix.session_id)
+              - calls MeetingAssetModel.getMeetingIdBySessionId(sessionId)   [models/meetings/assets/meetingAssetModel.js]
+                (only when the engine didn't already resolve a numeric meeting_id)
+        -> MettingAssetController.updateAssets(syncMeetingId, syncSessionId, { summary_path, oqi_score, audit_completed_at, status })
+              [controllers/meetings/assets/meetingAssetController.js]
+        -> on error: MettingAssetController.updateAssets(meetingId, sessionId, { status: 'Error' })
+
+    (config/settings.js and utils/logger.js are also required here for appSettings.ai / logger.info,
+     but carry no pipeline logic of their own.)
+
+====================================================================================================
+1. PYTHON SIDE - engine entry
+====================================================================================================
+services/engine/engine_main.py
+    run_pipeline(input_file, ai_settings_json)
+        -> json.loads(ai_settings_json)
+        -> PipelineContext(input_file, ai_config, project_root)      [orchestrator/pipeline_context.py]
+        -> PipelineRunner(context)                                    [orchestrator/pipeline_runner.py]
+        -> runner.execute()
+
+--- services/engine/orchestrator/pipeline_context.py --------------------------------------------
+class PipelineContext
+    __init__(input_file, ai_config, project_root)
+        -> self._resolve_session_id(filename_no_ext)          - regex "_Sess(\d+)" out of the filename
+        -> self._resolve_meeting_id(session_id)                - meeting_sessions lookup, falls back to
+                                                                   meetings.external_meeting_id + self._ensure_session_row()
+        -> self._setup_directories()                           - creates/returns the storage_paths dict
+        -> self.str_to_bool(...)                               - x6, one per enable_* feature flag
+        -> self._resolve_captions_trans_path()                 - locates TRANS_*.txt for this session,
+                                                                   using self._session_from_key() / self._transcript_matches()
+    (called later, during/after task execution:)
+    mark_task_started(task_name) / mark_task_completed(task_name) / mark_task_failed(task_name)
+    build_final_response()                                     - the JSON object returned to Node
+
+--- services/engine/orchestrator/pipeline_runner.py ----------------------------------------------
+class PipelineRunner
+    __init__(context)
+        -> RuntimeManager(context)             [orchestrator/runtime_manager.py]
+        -> ExecutionManager(context, runtime_manager)  [orchestrator/execution_manager.py]
+    execute()
+        -> self.execution_manager.execute()
+        -> self.runtime_manager.complete_pipeline()
+        -> self.context.build_final_response()
+
+--- services/engine/orchestrator/execution_manager.py --------------------------------------------
+class ExecutionManager
+    __init__(context, runtime_manager)
+        -> DependencyGraph(context)            [orchestrator/dependency_graph.py]
+    execute()                                  - loop until no ready tasks remain:
+        -> self.graph.get_ready_tasks(completed_tasks)
+        -> self.graph.split_parallel_tasks(ready_tasks)
+        -> self._execute_single_task(task)       for each sequential task
+        -> self._execute_parallel_tasks(tasks)   for the parallel batch
+    _execute_single_task(task)
+        -> self.runtime_manager.task_started(task_name)
+        -> task["handler"](self.context)          - the TASK_REGISTRY handler, see step 2 below
+        -> self.runtime_manager.task_completed(task_name)  (or task_failed on exception)
+    _execute_parallel_tasks(tasks)
+        -> ThreadPoolExecutor -> self._parallel_wrapper(task_name, handler) per task
+    _parallel_wrapper(task_name, handler)
+        -> handler(self.context)
+
+--- services/engine/orchestrator/dependency_graph.py ----------------------------------------------
+class DependencyGraph
+    build()                    - reads TASK_REGISTRY, keeps only tasks whose context.<feature_flag> is True
+    get_ready_tasks(completed) - calls build(), returns tasks whose dependencies are all completed
+    split_parallel_tasks(tasks) [staticmethod] - splits into (sequential, parallel) by the "parallel" flag
+
+--- services/engine/orchestrator/runtime_manager.py ------------------------------------------------
+class RuntimeManager
+    task_started(task_name)    -> context.mark_task_started(task_name)
+    task_completed(task_name)  -> context.mark_task_completed(task_name); appends duration to execution_metadata
+    task_failed(task_name, error) -> context.mark_task_failed(task_name); appends traceback to execution_metadata
+    complete_pipeline()        -> writes pipeline_duration_seconds into context.execution_metadata
+
+--- services/engine/orchestrator/task_registry.py --------------------------------------------------
+TASK_REGISTRY dict + thin dispatch wrappers (each does a local import, then calls the real handler):
+    run_media_task(context)           -> task/media_task.run_media_task(context)
+    run_transcription_task(context)   -> task/transcription_task.run_transcription_task(context)
+    run_audit_task(context)           -> task/audit_task.run_audit_task(context)
+    run_summary_task(context)         -> task/summary_task.run_summary_task(context)
+    run_tutor_eval_task(context)      -> task/tutor_eval_task.run_tutor_eval_task(context)
+    run_persist_results_task(context) -> task/persist_results_task.run_persist_results_task(context)
+Declared dependency chain: media -> transcription -> {audit, summary} -> tutor_eval (needs audit too) -> persist_results
+
+====================================================================================================
+2. TASK HANDLERS (called from task_registry.py, per feature flag)
+====================================================================================================
+
+--- task/media_task.py -------------------------------------------------------------------------
+run_media_task(context)
+    -> context.mark_task_started("media")
+    -> MediaService(context)                       [services/media.py]
+    -> service.process(context.input_file)
+    -> context.audio_path = result["audio_path"]
+    -> context.mark_task_completed("media")
+
+    services/media.py :: MediaService.process(input_file)
+        -> validate_file(input_path)               [services/file_validator.py]
+        -> AudioExtractor(context)                 [services/audio_extractor.py]
+        -> extractor.extract(validated)            - runs ffmpeg (-ac 1 -ar 16000) to produce the WAV
+
+--- task/transcription_task.py -----------------------------------------------------------------
+run_transcription_task(context)
+    -> context.mark_task_started("transcription")
+    -> TranscriptionService(context)               [services/transcription.py]
+    -> service.transcribe(context.audio_path)      (service.diarize() exists but is NEVER called here)
+    -> context.transcript_path, context.labeled_transcript = result[...]
+    -> TranscriptionCacheManager.save_whisper_output(context, result["whisper_result"])  [task/cache_manager.py]
+    -> context.whisper_path = <cache path>
+    -> context.mark_task_completed("transcription")
+
+    services/transcription.py :: TranscriptionService.transcribe(audio_path)
+        -> WhisperLoader(context).load()           [services/whisper_loader.py] -> whisper.load_model(model_name)
+        -> WhisperRunner(context).run(model, audio_path)  [services/whisper_runner.py] -> model.transcribe(audio_path)
+        -> TranscriptBuilder(context).build_plain_text(whisper_result)  [services/transcript_builder.py]
+
+--- task/audit_task.py -------------------------------------------------------------------------
+run_audit_task(context)
+    -> context.mark_task_started("audit")
+    -> AuditService()                              [engine/audit_service.py]  (CANONICAL audit engine)
+    -> service.run_audit(context.labeled_transcript, meeting_id=, session_id=, talk_ratio=)
+    -> result = _normalize_audit_result(result)    (local function in audit_task.py - builds
+                                                       overall_score/max_score/percentage/rubric/metrics)
+    -> JsonStore.save(output_path, result)         [services/json_store.py]
+    -> context.audit_json_path, context.audit_results = ...
+    -> context.mark_task_completed("audit")
+
+    engine/audit_service.py :: AuditService
+        __init__()        -> AiClient()            [engine/ai_client.py]
+                          -> RubricLoader()         [engine/rubric_loader.py]  (top-level one)
+        run_audit(...)    -> process_audit(...)
+        process_audit(transcript_text, meeting_id, session_id, talk_ratio)
+            -> self._load_nested_schema()            -> self.loader.load_rubric()
+            -> self._build_compact_prompt(rubric_schema, transcript_text)
+            -> default_prompt_path(meeting_id, session_id)
+            -> AuditStorage.save_prompt_file(...)     [engine/audit_storage.py]  (before + after the AI call)
+            -> self.ai_client.ask_ai(prompt, system_instruction)   [engine/ai_client.py]
+            -> self._expand_compact_result(rubric_schema, result)
+                   -> compute_category_score(statuses)      [engine/audit_scoring.py]
+                   -> compute_weighted_overall(pairs)        [engine/audit_scoring.py]
+            -> AuditStorage.store_audit_results(meeting_id, session_id, rubric_schema, result)
+                   -> _find_indicator(...), _derive_rating(...)   (module-level helpers in audit_storage.py)
+            -> AuditStorage.store_summary(meeting_id, session_id, result)
+            -> self._normalize_jsonable(result)
+
+    engine/ai_client.py :: AiClient
+        __init__() -> self._resolve_model()
+        ask_ai(prompt, system_instruction) -> self._call() -> one of:
+            _ask_anthropic / _ask_gemini / _ask_openai_like / _ask_ollama   (by AI_PROVIDER env var)
+
+    engine/rubric_loader.py :: RubricLoader.load_rubric()  - SELECT rubric_categories + rubric_indicators
+
+--- task/summary_task.py -----------------------------------------------------------------------
+run_summary_task(context)
+    -> context.mark_task_started("summary")
+    -> SummaryService()                            [services/summary.py]
+    -> service.generate(context.labeled_transcript)
+    -> FileStore.save_text(output_path, summary_text)   [services/file_store.py]
+    -> context.summary_data, context.summary_path = ...
+    -> context.mark_task_completed("summary")
+
+    services/summary.py :: SummaryService
+        __init__() -> SummaryWorker()                       [services/summary_worker.py]
+                   -> load_settings_ai(), build_ai_config()  [services/shared/ai_config.py]
+                   -> AISummaryService(ai_config) i.e. summary_worker.SummaryService(ai_config)
+        generate(transcript) -> self.ai_worker.generate_meeting_summary(transcript)
+                                 (falls back to self.worker.generate(transcript) on failure/absence)
+
+    services/summary_worker.py
+        SummaryWorker.generate(transcript)                  - plain word-count preview, no AI
+        SummaryService(ai_config).__init__() -> AiApiService(ai_config)   [services/api_worker.py]
+        SummaryService.generate_meeting_summary(transcript_text) -> self.ai_api.ask_ai(prompt, system_instruction)
+
+--- task/tutor_eval_task.py --------------------------------------------------------------------
+run_tutor_eval_task(context)
+    -> context.mark_task_started("tutor_eval")
+    -> load_settings_ai()                          [services/shared/ai_config.py]
+    -> build_ai_config(ai_settings)                [services/shared/ai_config.py]
+    -> TutorEvaluationService(ai_config)           [services/tutor_eval_worker.py]
+    -> service.generate_evaluation(context.labeled_transcript, session_id=, meeting_id=, prompt_output_path=)
+    -> context.tutor_eval_results = result
+    -> context.mark_task_completed("tutor_eval")
+
+    services/tutor_eval_worker.py :: TutorEvaluationService
+        __init__(ai_config) -> AiApiService(ai_config)     [services/api_worker.py]
+        generate_evaluation(transcript_text, session_id, meeting_id, prompt_output_path)   [MAIN ENTRY]
+            -> RubricLoader().load_rubric()                [services/rubric_loader.py - the SERVICES copy,
+                                                              a different file from engine/rubric_loader.py]
+            -> self._build_system_instruction()
+            -> self._build_prompt(raw_rubric, transcript_text)
+            -> self._save_eval_file(...)                   (persists exact request/response JSON, called 4x)
+            -> self.ai_api.ask_ai(prompt, system_instruction)     - AI CALL #1 (per-indicator ratings)
+            -> json.loads(...) -> parsed
+            -> self._compute_percentages(raw_rubric, parsed)
+                   -> status_code_from_rating(rating)        [engine/audit_scoring.py]
+                   -> compute_category_score(statuses)       [engine/audit_scoring.py]
+                   -> compute_weighted_overall(pairs)         [engine/audit_scoring.py]
+            -> self._build_analysis_system_instruction()
+            -> self._build_analysis_prompt(raw_rubric, parsed, transcript_text)
+            -> self.ai_api.ask_ai(analysis_prompt, analysis_instruction)   - AI CALL #2 (session analysis)
+            -> self._persist(session_id, meeting_id, raw_rubric, parsed, computed, raw_response_text=, evidence_quote=, analysis=)
+                   -> self._resolve_admin_indicator_ids(meeting_id)
+                          -> fetch_one/fetch_all (database/python_db.py) - resolves meeting owner ->
+                             admin -> admin_rubric_indicators mapping
+                   -> execute(...) INSERT/UPDATE session_rubric_evaluations   (per indicator)
+                   -> execute(...) DELETE + INSERT ai_audit_results           (per indicator)
+                   -> execute(...) INSERT/UPDATE session_rubric_summary
+                   -> execute(...) INSERT/UPDATE session_final_evaluation
+                   -> execute(...) INSERT/UPDATE session_analysis
+                   -> execute(...) DELETE FROM meeting_session_scores WHERE meeting_id=/session_id=
+                   -> execute(...) INSERT INTO meeting_session_scores          (per indicator, score_type='AI')
+                          <-- this is what writes the meeting_session_scores table
+            -> returns {success, overall_percentage, gate_status, gate_failures, red_flag, summary, persisted}
+
+--- task/persist_results_task.py ----------------------------------------------------------------
+run_persist_results_task(context)
+    -> context.mark_task_started("persist_results")
+    -> _meeting_exists(context.meeting_id)         -> fetch_one SELECT id FROM meetings
+    -> _session_exists(context.session_id)         -> fetch_one SELECT id FROM meeting_sessions
+    -> _persist_meeting_assets(context, meeting_id, session_id, summary_data, audit_results)
+           -> execute(...) INSERT/UPDATE meeting_assets (audio_path, transcript_path, summary_path,
+                                                          video_path, oqi_score, audit_summary, status)
+    -> _persist_diarization(context, meeting_id, session_id)
+           -> execute(...) INSERT/UPDATE session_diarization (talk_ratio, speaker_segments)
+              (no-op/skip when context.diarization_data and context.talk_ratio are both empty -
+               which is currently always true, since transcription_task.py never calls .diarize())
+    -> context.mark_task_completed("persist_results")
+
+    NOTE: this file imports TranscriptBuilder from services/engine/services/transcript_builder.py
+    at the top, but never actually calls it anywhere in the function bodies above - a dead import.
+
+====================================================================================================
+3. SHARED / CROSS-CUTTING FILES USED THROUGHOUT
+====================================================================================================
+utils/logger_util.py :: log_with_type(level, message, tag)   - called from nearly every orchestrator/
+    task/service file above for structured console logging.
+database/python_db.py :: get_cursor() / execute() / fetch_one() / fetch_all()   - the only DB access
+    layer used anywhere in this flow (audit_storage.py, rubric_loader.py x2, tutor_eval_worker.py,
+    persist_results_task.py, pipeline_context.py).
+services/shared/ai_config.py :: load_settings_ai() / build_ai_config()   - used by services/summary.py
+    and task/tutor_eval_task.py to build the ai_config dict handed to AiApiService.
+
+====================================================================================================
+4. DATABASE TABLES - which table is touched at which location in this flow
+====================================================================================================
+Every table below is MySQL, accessed only through database/python_db.py (Python side:
+get_cursor / execute / fetch_one / fetch_all) or database/db.js (Node side: db.run / db.get).
+Listed in the order they first appear in a live run.
+
+meetings
+    READ  - services/engine/orchestrator/pipeline_context.py :: PipelineContext._resolve_meeting_id()
+            "SELECT id FROM meetings WHERE external_meeting_id = %s"  (fallback path, when
+            meeting_sessions has no row yet)
+    READ  - services/engine/task/persist_results_task.py :: _meeting_exists()
+            "SELECT id FROM meetings WHERE id = %s"
+    READ  - services/engine/services/tutor_eval_worker.py :: _resolve_admin_indicator_ids()
+            "SELECT u.id, u.created_by, u.company_id FROM meetings m JOIN users u ON
+             LOWER(u.email) = LOWER(m.calendar_account) WHERE m.id = %s"  (finds the meeting owner)
+    READ  - models/meetings/assets/meetingAssetModel.js :: getMeetingByExternalId()  (Node side helper,
+            same lookup as pipeline_context.py's fallback; not on the hot path when Python already
+            resolves the id)
+    WRITE - models/meetings/assets/meetingAssetModel.js :: ensureMeetingByExternalId()  (INSERT, only
+            when a meeting truly doesn't exist yet - not exercised on a normal already-scheduled run)
+
+meeting_sessions
+    READ  - pipeline_context.py :: PipelineContext._resolve_meeting_id()
+            "SELECT meeting_id FROM meeting_sessions WHERE id = %s"  (fast path)
+    WRITE - pipeline_context.py :: PipelineContext._ensure_session_row()
+            "INSERT INTO meeting_sessions (id, meeting_id, start_time, status) ... ON DUPLICATE KEY
+             UPDATE meeting_id = VALUES(meeting_id)"  (only when the fast path above misses)
+    READ  - task/persist_results_task.py :: _session_exists()
+            "SELECT id FROM meeting_sessions WHERE id = %s"
+    READ  - models/meetings/assets/meetingAssetModel.js :: getMeetingIdBySessionId()  (Node side,
+            called from pythonBridge.js's resolveMeetingContext() when the engine didn't already
+            return a numeric meeting_id)
+
+users / roles
+    READ  - services/tutor_eval_worker.py :: _resolve_admin_indicator_ids()
+            joined off the `meetings` lookup above (users.created_by / users.company_id), plus a
+            fallback "SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE
+            u.company_id = %s AND r.role_name = 'admin'" when the owner has no direct manager -
+            used only to find which admin's rubric copy governs this meeting.
+
+rubric_categories, rubric_indicators
+    READ  - engine/rubric_loader.py :: RubricLoader.load_rubric()   (used by audit_service.py, the
+            canonical audit path)
+    READ  - services/rubric_loader.py :: RubricLoader.load_rubric()  (a SEPARATE, duplicate copy of
+            the same query - used by tutor_eval_worker.py's generate_evaluation())
+
+admin_rubric_indicators
+    READ  - services/tutor_eval_worker.py :: _resolve_admin_indicator_ids()
+            "SELECT master_indicator_id, id AS admin_indicator_id FROM admin_rubric_indicators
+             WHERE admin_user_id = %s AND master_indicator_id IS NOT NULL"  - maps each master
+            rubric_indicators.id to the admin's own indicator-copy id, since meeting_session_scores
+            and session_rubric_evaluations both store the ADMIN copy's id, not the master id.
+
+ai_audit_results
+    WRITE - engine/audit_storage.py :: AuditStorage.store_audit_results()   (DELETE then INSERT,
+            one row per indicator) - called from audit_service.py during the "audit" task.
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 2   (DELETE then
+            INSERT, one row per indicator) - called during the "tutor_eval" task.
+    NOTE: both writers target the SAME table for the SAME (meeting_id, session_id). This is why
+    task_registry.py makes "tutor_eval" depend on "audit" (not just "transcription") - so the two
+    delete-then-insert writers never run concurrently and clobber each other.
+
+session_rubric_summary
+    WRITE - engine/audit_storage.py :: AuditStorage.store_summary()   (INSERT ... ON DUPLICATE KEY
+            UPDATE) - "audit" task.
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 3   (INSERT ...
+            ON DUPLICATE KEY UPDATE) - "tutor_eval" task. Same race-avoidance note as above.
+
+session_rubric_evaluations
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 1
+            "INSERT ... ON DUPLICATE KEY UPDATE" - one row per indicator (rating + comment),
+            keyed by (session_id, indicator_id).
+
+session_final_evaluation
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 4
+            "INSERT ... ON DUPLICATE KEY UPDATE" - one row per session (overall narrative + rating).
+
+session_analysis
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 5
+            "INSERT ... ON DUPLICATE KEY UPDATE" - what_worked_well / what_needs_improvement /
+            missed_opportunities JSON columns, one row per session.
+
+meeting_session_scores
+    WRITE - services/tutor_eval_worker.py :: TutorEvaluationService._persist(), step 6
+            "DELETE FROM meeting_session_scores WHERE meeting_id = %s AND session_id = %s" then one
+            "INSERT INTO meeting_session_scores (meeting_id, session_id, indicator_id, score,
+            score_type, comment, reviewer_id) VALUES (..., 'AI', ..., NULL)" per non-N/A indicator
+            (indicator_id = the ADMIN rubric copy id resolved above). This is the table from the
+            earlier lookup - it is written ONLY here, exclusively by the "tutor_eval" task.
+
+meeting_assets
+    WRITE - services/engine/task/persist_results_task.py :: _persist_meeting_assets()
+            "INSERT ... ON DUPLICATE KEY UPDATE" covering audio_path, transcript_path, summary_path,
+            video_path, oqi_score, audit_summary, status, audit_completed_at - "persist_results" task
+            (Python side).
+    WRITE - models/meetings/assets/meetingAssetModel.js :: updateAssets()
+            "UPDATE meeting_assets SET summary_path/video_path/oqi_score/audit_summary/
+            audit_completed_at/status ... WHERE meeting_id = ? AND session_id = ?" - called from
+            pythonBridge.js AFTER the Python process exits, using the values from the engine's JSON
+            response (Node side; runs a second time, after persist_results_task.py already wrote
+            most of the same columns from inside Python).
+    WRITE - models/meetings/assets/meetingAssetModel.js :: initializeAssets()   (INSERT ... ON
+            DUPLICATE KEY UPDATE, status='Conversion') - called earlier in the recording pipeline,
+            BEFORE pythonBridge.js runs; not part of this trace but shares the same table/row.
+
+session_diarization
+    WRITE - services/engine/task/persist_results_task.py :: _persist_diarization()
+            "INSERT ... ON DUPLICATE KEY UPDATE" (talk_ratio, speaker_segments) - "persist_results"
+            task. Currently a no-op every run: context.diarization_data / context.talk_ratio are
+            only ever populated by TranscriptionService.diarize(), which transcription_task.py never
+            calls (see the idle-path note below), so this INSERT is skipped every time until
+            diarization is wired back into the DAG.
+
+====================================================================================================
+Idle-but-imported path (documented for completeness, not part of the above trace)
+====================================================================================================
+services/engine/services/diarization_engine.py :: DiarizationEngine.process(...) and
+services/engine/services/speaker_resolver.py :: SpeakerResolver.resolve(...)
+    are only reachable via TranscriptionService.diarize(), which transcription_task.py never calls
+    in the current DAG - so although these files import cleanly, none of their functions run in a
+    live pipeline pass today.

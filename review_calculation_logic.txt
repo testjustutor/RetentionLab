@@ -1,64 +1,122 @@
-REVIEW CALCULATION LOGIC
+TUTOR EVALUATION — REVIEW CALCULATION LOGIC
+(Updated to match actual implementation in code)
 ========================
-
 OVERVIEW
+
 Reviewers evaluate a tutor session by marking each criterion within each
 category. The marks are rolled up into a per-category score and a final
-(overall) score, including category weightage.
+(overall) score.
 
-------------------------------------------------------------------
-1. STATUS VALUES
-------------------------------------------------------------------
+STATUS VALUES
+
 Each criterion is marked with one of three statuses:
 
-    Met              (code 1)
-    Not Met          (code 2)
-    Not Applicable   (code 3)
+Met              (code 1)
+Not Met          (code 2)
+Not Applicable   (code 3)
+PER-CATEGORY SCORE
 
-------------------------------------------------------------------
-2. PER-CATEGORY SCORE
-------------------------------------------------------------------
 For each category, count how many criteria are Met, Not Met, and
-Not Applicable.
+Not Applicable. The counting logic differs depending on which page
+is used, as follows:
 
-    Category Score = ( Met / (Criteria excluding Not Met) ) x 100
+2a. On initial submission — review-tutor-evaluation-grid
 
-Rules:
-    - If ALL criteria in the category are "Not Applicable",
-      the category score is 100%.
-    - If the denominator is 0, the category score is 0%.
-    - Otherwise: Met / (criteria that are not Not Met) x 100.
+(function: TutorEvaluationSubmit)
 
-------------------------------------------------------------------
-3. CATEGORY WEIGHTAGE
-------------------------------------------------------------------
-Each category has its own weightage value (cat_score). A category can also
-have a type (cat_type). Criteria belong to a category via cat_idFK.
+count_1 = number of criteria with status = 1 (Met)
+count_2 = number of criteria with status = 2 (Not Met)
+count_3 = number of criteria with status = 3 (Not Applicable)
 
-    Category Weightage = cat_score
+If count_2 == total_criteria (i.e. ALL criteria are Not Applicable):
+    Category Score = 0%
+Else if (total_criteria - count_2) > 0:
+    Category Score = ( count_1 / (total_criteria - count_3) ) x 100
+Else:
+    Category Score = 100%
 
-A category with a higher cat_score contributes more to the final score.
+In plain terms: Met / (Criteria excluding Not Met) x 100,
+with all-Not-Applicable categories scored as 100%.
+2b. On feedback/update — tutor-evaluation-feedback-update-grid
 
-------------------------------------------------------------------
-4. FINAL (OVERALL) SCORE
-------------------------------------------------------------------
-The final score is the weighted average of the category scores, where each
-category is weighted by its weightage (cat_score).
+(function: TutorEvaluationUpdate)
 
-    Weighted sum = Sum( category score x category weightage )
-    Final score  = Weighted sum / Sum( category weightage )
+count_1 = number of criteria with status = 1 (Met)
+count_2 = number of criteria with status = 2 (Not Met)
+count_3 = number of criteria with status = 3 (Not Applicable)
 
-Categories with higher weightage influence the final score the most.
+If count_2 == total_criteria (i.e. ALL criteria are Not Applicable):
+    Category Score = 0%
+Else if (total_criteria - count_2) > 0:
+    Category Score = ( count_1 / (total_criteria - count_3) ) x 100
+Else:
+    Category Score = 100%
 
-------------------------------------------------------------------
-5. RED FLAG
-------------------------------------------------------------------
-A reviewer may raise a red flag on a review. The flag is stored alongside
-the overall result (red_flag field).
+In plain terms: Met / (Criteria excluding Not Applicable) x 100,
+with all-Not-Met categories (incorrectly) scored as 100%.
 
-NOTE (implementation detail)
----------------------------
-As of the current implementation the final score is weighted by the number
-of criteria in each category, NOT by the cat_score field. If the intended
-behavior is to weight by cat_score (as described above), the calculation
-must be changed to use each category's cat_score value.
+⚠ NOTE: This produces a different result than 2a for the same set
+of criterion statuses. The status codes assigned to count_2 and
+count_3 are swapped relative to the submission page, so:
+  - A fully "Not Met" category scores 100% here (should be 0%,
+    or should require all "Not Applicable" to hit 100%).
+  - Not Met criteria are included in the denominator instead of
+    excluded, which understates the score whenever any criteria
+    are Not Met.
+CATEGORY WEIGHTAGE
+
+No cat_score (category weightage) field is queried or used anywhere
+in either calculation file. Categories are only ever fetched by
+cat_id / cat_name. There is currently no per-category weightage
+applied to the final score.
+
+FINAL (OVERALL) SCORE
+
+The final score is a weighted average of the category scores, where
+each category is weighted by ITS NUMBER OF CRITERIA, not by any
+weightage/importance value:
+
+total_weighted_percent += category_score x total_criteria_in_category
+total_criteria_all     += total_criteria_in_category
+
+Final Score = total_weighted_percent / total_criteria_all
+              (0 if total_criteria_all is 0)
+
+This logic is identical in both review-tutor-evaluation-grid and
+tutor-evaluation-feedback-update-grid — only the per-category
+score calculation (section 2) differs between the two.
+
+A category with more criteria influences the final score more, not
+a category with a higher configured importance.
+
+RED FLAG
+
+A reviewer may raise a red flag when submitting the summary
+(review-tutor-evaluation-grid, SaveSummary action). The flag is
+stored alongside the overall result in:
+
+tutor_evaluation_overall_summary.red_flag
+
+$red_flag = (!empty($_POST['red_flag']) && $_POST['red_flag'] != '0')
+            ? ($_POST['red_flag'] === 'on' ? 1 : $_POST['red_flag'])
+            : null;
+
+This is only present in the initial submission flow
+(review-tutor-evaluation-grid); the feedback-update flow
+(tutor-evaluation-feedback-update-grid) does not set or update
+red_flag.
+
+KNOWN DISCREPANCIES (as currently implemented)
+
+a) Status-code mapping for count_2/count_3 is swapped between
+review-tutor-evaluation-grid and
+tutor-evaluation-feedback-update-grid, producing different
+category scores for the same submitted statuses depending on
+which flow is used.
+
+b) Final score weighting uses criteria count per category, not a
+configured category weightage (cat_score does not exist in the
+query/data used for this calculation).
+
+c) red_flag is only handled in the initial submission flow, not in
+the feedback-update flow.

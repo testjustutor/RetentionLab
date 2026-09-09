@@ -42,16 +42,38 @@ class AuditStorage:
     def save_prompt_file(output_path, meeting_id, session_id,
                          system_instruction, prompt, ai_client,
                          raw_response=None, status="PENDING"):
+        """
+        Persist the audit request/response into the SHARED per-session prompt
+        cache file (storage/cache_llm_prompts/PROMPT_<base_id>.json).
+
+        This file is shared with tutor_eval_worker.py's _save_eval_file, which
+        writes its own "tutor_eval" section to the SAME path (audit_task.py and
+        tutor_eval_task.py both build the path from context.base_id). Since two
+        separate AI evaluations run for the same session, we merge into
+        whatever is already on disk under this task's own key ("audit")
+        instead of overwriting the whole file, so both evaluations land in
+        ONE file instead of two - regardless of which task happens to finish
+        (and therefore write) first.
+        """
         if not output_path:
             return
         try:
             os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-            payload = {
+
+            combined = {}
+            if os.path.exists(output_path):
+                try:
+                    with open(output_path, "r", encoding="utf-8") as existing:
+                        combined = json.load(existing) or {}
+                except Exception:
+                    combined = {}
+
+            combined["meeting_id"] = meeting_id
+            combined["session_id"] = session_id
+            combined["audit"] = {
                 "task": "audit",
                 "provider": ai_client.provider,
                 "model": ai_client.model,
-                "meeting_id": meeting_id,
-                "session_id": session_id,
                 "request": {
                     "system_instruction": system_instruction,
                     "prompt": prompt,
@@ -59,18 +81,26 @@ class AuditStorage:
                 },
                 "response": {"status": status, "raw_response": raw_response},
             }
+
             with open(output_path, "w", encoding="utf-8") as pf:
-                json.dump(payload, pf, indent=2, ensure_ascii=False, default=_json_default)
+                json.dump(combined, pf, indent=2, ensure_ascii=False, default=_json_default)
             log_with_type("info", f"audit/storage: prompt file saved -> {output_path}", "PYTHON_ENGINE")
         except Exception as e:
             log_with_type("warning", f"audit/storage: could not save prompt file -> {e}", "PYTHON_ENGINE")
+
     @staticmethod
     def store_audit_results(meeting_id, session_id, rubric_schema, ai_result):
-        """Insert/update per-indicator rows in ai_audit_results. Returns count."""
+        """Insert/update per-indicator rows in ai_audit_results. Returns count.
+
+        NOTE: ai_audit_results.oqi_score is now TEXT (was decimal). We always
+        str() it before binding so a numeric weighted score (e.g. 84.5) is
+        stored as the text "84.5" - never bind the raw float/Decimal here.
+        """
         if not meeting_id:
             return 0
         try:
             oqi_score = ai_result.get("oqi_score", 0.0)
+            oqi_score_text = str(oqi_score)  # ai_audit_results.oqi_score is TEXT
             category_scores = ai_result.get("category_scores", {})
 
             with get_cursor() as cur:
@@ -78,6 +108,13 @@ class AuditStorage:
                     "DELETE FROM ai_audit_results WHERE meeting_id = %s AND session_id = %s",
                     (meeting_id, session_id),
                 )
+                deleted_count = cur.rowcount
+            log_with_type(
+                "info",
+                f"audit/storage: DELETE ai_audit_results -> {deleted_count} old row(s) cleared "
+                f"(meeting_id={meeting_id}, session_id={session_id})",
+                "PYTHON_ENGINE",
+            )
 
             # Use a FRESH cursor for the inserts: the DELETE's get_cursor() block
             # above has already closed its connection, so reusing `cur` here
@@ -159,7 +196,9 @@ class AuditStorage:
                                 ai_raw_response, oqi_score, evidence_quote)
                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                                ON DUPLICATE KEY UPDATE
+                                category_name = VALUES(category_name),
                                 category_weight = VALUES(category_weight),
+                                indicator_name = VALUES(indicator_name),
                                 indicator_value = VALUES(indicator_value),
                                 is_gate = VALUES(is_gate),
                                 ai_score = VALUES(ai_score),
@@ -177,43 +216,75 @@ class AuditStorage:
                                 cat_name, category_weight, ind_name,
                                 float(ind_ref.get("value", 1)), 1 if ind_ref.get("is_gate") else 0,
                                 ai_score, ai_max, ai_evidence, rating, reason, ind_ref.get("benchmark"),
-                                ind_raw, oqi_score, ai_evidence,
+                                ind_raw, oqi_score_text, ai_evidence,
                             ),
                         )
                         indicator_count += 1
+                        log_with_type(
+                            "info",
+                            f"audit/storage: INSERT ai_audit_results row #{indicator_count} -> "
+                            f"meeting_id={meeting_id}, session_id={session_id}, category={cat_name}, "
+                            f"indicator={ind_name}, score={ai_score}/{ai_max}, rating={rating}",
+                            "PYTHON_ENGINE",
+                        )
 
-            log_with_type("info", f"audit/storage: stored {indicator_count} indicator rows in ai_audit_results", "PYTHON_ENGINE")
+            log_with_type(
+                "info",
+                f"audit/storage: INSERT ai_audit_results -> {indicator_count} indicator row(s) written "
+                f"(meeting_id={meeting_id}, session_id={session_id})",
+                "PYTHON_ENGINE",
+            )
             return indicator_count
         except Exception as e:
-            log_with_type("error", f"audit/storage: failed to store audit results -> {e}", "PYTHON_ENGINE")
+            log_with_type(
+                "error",
+                f"audit/storage: ai_audit_results write FAILED (meeting_id={meeting_id}, session_id={session_id}) -> {e}",
+                "PYTHON_ENGINE",
+            )
             return 0
+
     @staticmethod
     def store_summary(meeting_id, session_id, ai_result):
         """Write/update session_rubric_summary.
 
-        The table schema (migration 057) has NO meeting_id / gate_failures /
-        evidence_quote columns; it is keyed on session_id UNIQUE. Only write the
-        columns that actually exist so the upsert does not fail.
+        gate_status is derived ONLY from actual gate-indicator failures
+        (ai_result["gate_failures"]) — never from the total count of
+        non-gate "Not Met" indicators, so a single ordinary Not Met can no
+        longer flip the whole session into gate_failed.
+
+        session_rubric_summary.weighted_score_pct stays a numeric decimal;
+        this table did NOT change to TEXT (only ai_audit_results.oqi_score did).
         """
         try:
             oqi_score = ai_result.get("oqi_score", 0.0)
             gate_failures = ai_result.get("gate_failures", [])
             with get_cursor() as cur:
-                cur.execute(
-                    """INSERT INTO session_rubric_summary
-                       (session_id, weighted_score_pct, gate_status)
-                       VALUES (%s,%s,%s)
-                       ON DUPLICATE KEY UPDATE
-                        weighted_score_pct = VALUES(weighted_score_pct),
-                        gate_status = VALUES(gate_status)""",
-                    (
-                        session_id, oqi_score,
-                        "all_passed" if not gate_failures else "gate_failed",
-                    ),
+                gate_status = "all_passed" if not gate_failures else "gate_failed"
+                overall_rating = (
+                    "Exemplary" if oqi_score >= 90
+                    else "Proficient" if oqi_score >= 75
+                    else "Developing" if oqi_score >= 50
+                    else "Beginning"
                 )
-            log_with_type("info", f"audit/storage: summary saved for session={session_id} oqi={oqi_score}", "PYTHON_ENGINE")
+                cur.execute(
+                    """INSERT INTO session_rubric_summary (session_id, weighted_score_pct, gate_status, overall_rating)
+                       VALUES (%s,%s,%s,%s)
+                       ON DUPLICATE KEY UPDATE weighted_score_pct=VALUES(weighted_score_pct),
+                       gate_status=VALUES(gate_status), overall_rating=VALUES(overall_rating)""",
+                    (session_id, oqi_score, gate_status, overall_rating)
+                )
+            log_with_type(
+                "info",
+                f"audit/storage: UPSERT session_rubric_summary -> meeting_id={meeting_id}, session_id={session_id}, "
+                f"oqi={oqi_score}, gate_status={gate_status}, rating={overall_rating}",
+                "PYTHON_ENGINE",
+            )
         except Exception as e:
-            log_with_type("error", f"audit/storage: failed to store summary -> {e}", "PYTHON_ENGINE")
+            log_with_type(
+                "error",
+                f"audit/storage: session_rubric_summary write FAILED (meeting_id={meeting_id}, session_id={session_id}) -> {e}",
+                "PYTHON_ENGINE",
+            )
 
 
 def _find_indicator(rubric_schema, ind_name):

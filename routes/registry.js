@@ -39,7 +39,6 @@ const routeRegistry = [
   
   // Dashboard
   { method: 'use', path: '/api/admin/dashboard', handler: 'dashboard' },
-  { method: 'use', path: '/api/instructor-dashboard', handler: 'instructor-dashboard' },
   
   // Admin Settings
   { method: 'use', path: '/api/admin/settings', handler: 'settings' },
@@ -50,12 +49,18 @@ const routeRegistry = [
   { method: 'use', path: '/api/admin/reviews', handler: 'reviews' },
   { method: 'use', path: '/api/admin/reviewers', handler: 'reviewers' },
   { method: 'use', path: '/api/admin/scores', handler: 'scores' },
+  { method: 'use', path: '/api/scores', handler: 'scores', middleware: ['auth'] },
   
-  // Reviewer Dashboard
-  { method: 'use', path: '/api/reviewer-dashboard', handler: 'reviewer-dashboard', middleware: ['auth'] },
-  { method: 'use', path: '/api/reviewer-sessions', handler: 'reviewer-sessions', middleware: ['auth'] },
-  { method: 'use', path: '/api/reviewer-reviews', handler: 'reviewer-reviews', middleware: ['auth'] },
-  
+  // Reviewer Portal (dedicated MVC folders: controllers/reviewer, models/reviewer, routes/reviewer)
+  // Replaces the old flat mounts: /api/reviewer-dashboard, /api/reviewer-sessions,
+  // /api/reviewer-reviews, /api/reviewer-scores, /api/tutor-evaluation.
+  { method: 'use', path: '/api/reviewer', handler: 'reviewer', middleware: ['auth'] },
+
+  // Reviewer page routes (self-contained; takes priority over the catch-all pages router.
+  // lives in routes/reviewer/pages.js + reviewerPageController + ReviewerPageModel.
+  // Does NOT touch routes/pages.js login/sidebar/header routes.)
+  { method: 'use', path: '/reviewer', handler: 'reviewer/pages' },
+
   // Admin Transcripts & Media
   { method: 'use', path: '/api/admin/transcripts', handler: 'transcripts' },
   { method: 'use', path: '/api/admin/content', handler: 'content-dashboard' },
@@ -84,12 +89,23 @@ const routeRegistry = [
   
   // Google Credentials (legacy)
   { method: 'use', path: '/api/google-credentials', handler: 'google-credentials' },
-  
-  // Instructor Calendar
-  { method: 'use', path: '/api/instructor-calendar', handler: 'instructor-calendar' },
+
   { method: 'use', path: '/api/admin/meetings/calendar', handler: 'meetings-calendar' },
-  { method: 'use', path: '/api/admin/instructor-meetings', handler: 'instructor-meetings' },
-  
+
+  // Instructor Portal (dedicated MVC folders: controllers/instructor, models/instructor, routes/instructor)
+  // Replaces the old flat mounts: /api/instructor-dashboard, /api/instructor-calendar,
+  // /api/admin/instructor-meetings.
+  // NOTE: no global 'auth' middleware here (unlike /api/reviewer) — calendar.js
+  // has public sub-routes (verify, self-request, callback) that Google/instructor
+  // emails hit without a session; each sub-router (dashboard/calendar/meetings/profile)
+  // applies its own requireAuth where needed, exactly as the old flat mounts did.
+  { method: 'use', path: '/api/instructor', handler: 'instructor' },
+
+  // Instructor page routes (self-contained; takes priority over the catch-all pages router.
+  // lives in routes/instructor/pages.js + instructorPageController + InstructorPageModel.
+  // Does NOT touch routes/pages.js login/sidebar/header/meetings/evaluations/reports/profile routes.)
+  { method: 'use', path: '/instructor', handler: 'instructor/pages' },
+
   // Admin Tutoring & Session Quality
   { method: 'use', path: '/api/admin/tutoring', handler: 'tutoring' },
   { method: 'use', path: '/api/admin/participants', handler: 'participants' },
@@ -111,6 +127,14 @@ const routeRegistry = [
   // Does NOT touch routes/pages.js login/sidebar/header routes.)
   { method: 'use', path: '/super_admin', handler: 'super_admin/pages' },
   
+  // Student Portal (dedicated MVC folders: controllers/student, models/student, routes/student)
+  { method: 'use', path: '/api/student', handler: 'student' },
+
+  // Student page routes (self-contained; takes priority over the catch-all pages router.
+  // lives in routes/student/pages.js + studentPageController + StudentPageModel.
+  // Does NOT touch routes/pages.js login/sidebar/header routes.)
+  { method: 'use', path: '/student', handler: 'student/pages' },
+
   // Per-table control visibility (search / entries / info / pagination)
   { method: 'use', path: '/api/tables', handler: 'table-controls' },
 

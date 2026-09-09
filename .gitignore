@@ -1,6 +1,6 @@
 node_modules/
 .env
-.venv/
+.venv311/
 .vscode/
 retention_lab.sql
 test-engine.js

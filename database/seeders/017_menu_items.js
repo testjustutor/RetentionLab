@@ -142,7 +142,15 @@ const MENU_ITEMS = [
   { menu_key: 'reviewer-score', label: 'Score', icon: 'bar-chart', route_path: '/reviewer/score', parent_id: null, sort_order: 5, role_id: 4 },
   { menu_key: 'reviewer-analytics', label: 'Analytics', icon: 'activity', route_path: '/reviewer/analytics', parent_id: null, sort_order: 6, role_id: 4 },
   { menu_key: 'reviewer-profile', label: 'Profile', icon: 'user', route_path: '/reviewer/profile', parent_id: null, sort_order: 7, role_id: 4 },
-  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 4 }
+  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 4 },
+
+  // ========== Student (role_id = 6) ==========
+  // NOTE: role_id 5 is solo_instructor, which (like here) has no dedicated
+  // entries in this seeder yet — see 008_header_role_configs.js note.
+  { menu_key: 'student-dashboard', label: 'Dashboard', icon: 'grid', route_path: '/student/dashboard', parent_id: null, sort_order: 1, role_id: 6 },
+  { menu_key: 'student-report', label: 'Reports', icon: 'bar-chart', route_path: '/student/reports', parent_id: null, sort_order: 2, role_id: 6 },
+  { menu_key: 'student-profile', label: 'Profile', icon: 'user', route_path: '/student/profile', parent_id: null, sort_order: 3, role_id: 6 },
+  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 6 }
 ];
 
 const seedMenuItems = async () => {

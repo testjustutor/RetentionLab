@@ -177,6 +177,7 @@ module.exports = {
     media_extraction: true,
     transcription: true,
     ai_audit: true,
+    tutor_eval: true,
     summary_generation: true,
     persist_results: true
   },

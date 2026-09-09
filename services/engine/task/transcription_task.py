@@ -63,12 +63,15 @@ def run_transcription_task(context):
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : Transcription task completed", "TASK")
 
-    except Exception:
+    # FIX: was `except Exception:` with `str(e)` in the log line below -
+    # `e` was never bound, so a real transcription failure raised a
+    # NameError here instead, and the ORIGINAL error/traceback was lost.
+    except Exception as e:
 
         context.mark_task_failed(
             "transcription"
         )
-        
+
         log_with_type("error", f"Engine(task > transcription > transcription_task) : Transcription failed error={str(e)}", "TASK")
 
         raise

@@ -1,85 +1,105 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="dark">
 <head><link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="dashboard-role" content="reviewer">
-  <title>Review Scores</title>
+  <title>Scores Report - Reviewer</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/css/shared.css">
+  <link rel="stylesheet" href="../css/shared.css">
+  <script src="../js/reviewer/tailwind-config.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
-  <div class="mx-auto p-4 max-w-6xl">
+  <div class="flex-1 flex flex-col overflow-hidden">
     <div id="header-placeholder"></div>
+    <div class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+      <div class="max-w-7xl mx-auto space-y-3">
 
-    <section class="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3 mt-4">
-      <aside class="rounded-lg border border-slate-800 bg-slate-900 p-3">
- <h1 class="text-lg font-semibold mb-1.5">Review Scores</h1>
-        <p class="text-slate-400 text-xs leading-relaxed">Save session-level rubric scores. Values are stored in the session score table via the Node.js route.</p>
-        <div class="mt-4 space-y-2 text-xs text-slate-300">
-          <div>
-            <strong>Note:</strong> Use <code class="text-[12px]">meeting_id</code> and <code class="text-[12px]">session_id</code> to store in <code class="text-[12px]">meeting_session_scores</code>.
+        <!-- Filters: date -> meeting -> session -> Get Data (compact) -->
+        <section class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+          <div class="flex flex-wrap items-end gap-3">
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="fromDate">From Date</label>
+              <input id="fromDate" type="date" class="input-field w-44">
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="toDate">To Date</label>
+              <input id="toDate" type="date" class="input-field w-44">
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="meetingFilter">Meeting ID</label>
+              <select id="meetingFilter" class="input-field w-52">
+                <option value="">All Meetings</option>
+              </select>
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="sessionFilter">Session ID</label>
+              <select id="sessionFilter" class="input-field w-44">
+                <option value="">All Sessions</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="getDataBtn" class="rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition">Get Data</button>
+              <button id="resetBtn" type="button" class="rounded-lg bg-slate-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-500 transition">Reset</button>
+            </div>
           </div>
-          <div>
-            API: <code class="text-[12px]">POST /api/scores/session</code>
+          <div id="filterStatus" class="mt-2 text-xs text-blue-900"></div>
+        </section>
+
+        <!-- Compact summary bar -->
+        <div id="summaryBar" class="hidden bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md px-3 py-2">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-emerald-700 uppercase tracking-wide">Total Scores</span>
+              <span id="statTotal" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-violet-700 uppercase tracking-wide">Avg Score</span>
+              <span id="statAvg" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-blue-700 uppercase tracking-wide">Meetings</span>
+              <span id="statMeetings" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-amber-700 uppercase tracking-wide">Sessions</span>
+              <span id="statSessions" class="font-bold text-slate-900">0</span>
+            </span>
           </div>
         </div>
-      </aside>
 
-      <main class="space-y-4">
-        <section class="rounded-lg border border-slate-800 bg-slate-900 p-3">
- <h2 class="text-base font-semibold mb-3">Store Session Score</h2>
-          <form id="scoreForm" class="grid gap-3">
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="meetingId">Meeting ID</label>
-              <input id="meetingId" name="meetingId" class="input-field" placeholder="meeting_uuid_here" required>
-            </div>
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="sessionId">Session ID</label>
-              <input id="sessionId" name="sessionId" type="number" class="input-field" placeholder="1" required>
-            </div>
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="indicatorId">Indicator ID</label>
-              <input id="indicatorId" name="indicatorId" class="input-field" placeholder="engagement" required>
-            </div>
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="score">Score</label>
-              <input id="score" name="score" type="number" min="0" max="100" class="input-field" placeholder="85" required>
-            </div>
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="comment">Comment</label>
-              <textarea id="comment" name="comment" rows="2" class="input-field" placeholder="Optional feedback"></textarea>
-            </div>
-            <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition">Save Score</button>
-          </form>
-          <div id="saveStatus" class="mt-3 text-xs"></div>
-        </section>
-
-        <section class="rounded-lg border border-slate-800 bg-slate-900 p-3">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
- <h2 class="text-base font-semibold ">Lookup Scores</h2>
-            <button id="refreshScores" class="rounded-lg bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700 transition">Refresh</button>
+        <!-- Report table (compact max-h) -->
+        <section id="reportSection" class="hidden bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+          <div class="overflow-x-auto overflow-y-auto max-h-96 custom-scrollbar">
+            <table class="w-full text-left text-[11px]">
+              <thead class="sticky top-0 z-10">
+                <tr class="border-b-2 border-indigo-300 bg-indigo-200">
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">#</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Date / Time</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Meeting</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Session</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Criterion</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Category</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Score</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Type</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-indigo-950 uppercase tracking-wider">Comment</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-indigo-200" id="reportTableBody"></tbody>
+            </table>
           </div>
-          <form id="lookupForm" class="grid gap-3 sm:grid-cols-2">
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="lookupMeetingId">Meeting ID</label>
-              <input id="lookupMeetingId" class="input-field" placeholder="meeting_uuid_here">
-            </div>
-            <div class="grid gap-1.5">
-              <label class="text-slate-300 text-xs" for="lookupSessionId">Session ID</label>
-              <input id="lookupSessionId" type="number" class="input-field" placeholder="1">
-            </div>
-          </form>
-          <div id="loader" class="mt-3 text-xs text-slate-400 hidden">Loading scores…</div>
-          <div id="scoresResult" class="mt-3 space-y-3"></div>
         </section>
-      </main>
-    </section>
+
+        <div id="noData" class="hidden bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-4 shadow-md">
+          <h3 class="text-[12px] font-bold text-amber-900 uppercase tracking-wide">No scores found</h3>
+          <p class="text-amber-800 text-xs mt-1">No scores saved by you match the selected filters. Adjust filters and click <strong>Get Data</strong>.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/js/auth.js"></script>
-  <script src="/js/load-components.js"></script>
-  <script type="module" src="/reviewer/js/score.js"></script>
+  <script src="../js/load-components.js"></script>
+  <script src="../js/reviewer/score.js"></script>
 </body>
 </html>
-
