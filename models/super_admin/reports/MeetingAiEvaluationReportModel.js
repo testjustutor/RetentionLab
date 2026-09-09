@@ -201,6 +201,7 @@ class MeetingAiEvaluationReportModel {
           aar.ai_raw_response,
           aar.oqi_score,
           aar.evidence_quote,
+          aar.rating,
           aar.talk_ratio,
           aar.scored_at,
           COALESCE(aar.category_name, rc.name) AS category_name,

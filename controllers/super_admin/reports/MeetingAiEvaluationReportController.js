@@ -115,15 +115,44 @@ const controller = {
         ? Math.round(Math.max(...results.map((r) => Number(r.oqi_score) || 0)))
         : 0;
 
+      // The audit pipeline stores the SAME full evaluation JSON
+      // (ai_raw_response) on every indicator row, so returning the raw rows
+      // repeats that multi-KB payload once per indicator. The session report
+      // table only renders Category / Indicator / Weightage / AI Outcome /
+      // Evidence Quote, so reduce each row to exactly those header values and
+      // drop the heavy repeated fields (ai_raw_response, ai_score, ...).
+      // Also dedupe by indicator (defensive - the uq_ar_meeting_session_indicator
+      // unique key normally prevents true duplicates) so each indicator appears
+      // exactly once regardless of source data.
+      const seenIndicators = new Set();
+      const auditRows = [];
+      results.forEach((r) => {
+        const dedupeKey = r.indicator_id != null
+          ? `i${r.indicator_id}`
+          : `n${String(r.indicator_name || r.id || '').toLowerCase()}`;
+        if (seenIndicators.has(dedupeKey)) return;
+        seenIndicators.add(dedupeKey);
+        auditRows.push({
+          id: r.id,
+          category_name: r.category_name,
+          indicator_name: r.indicator_name,
+          category_weight: r.category_weight,
+          indicator_value: r.indicator_value,
+          rating: r.rating,
+          ai_evidence: r.ai_evidence,
+          evidence_quote: r.evidence_quote
+        });
+      });
+
       return ok({
         session: meta,
-        results,
+        results: auditRows,
         stats: {
-          indicatorCount: results.length,
+          indicatorCount: auditRows.length,
           avgScorePct: scored.length ? Math.round(avgPct * 10) / 10 : 0,
           oqiScore,
           gateFailed,
-          evidenceCount: results.filter((r) => r.ai_evidence || r.evidence_quote).length
+          evidenceCount: auditRows.filter((r) => r.ai_evidence || r.evidence_quote).length
         }
       });
     } catch (e) {
