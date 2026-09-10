@@ -120,12 +120,17 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">' + label + '</button>';
   }
 
-  // Report button: shown only when a report file exists for this video.
+  // Report button: links straight to the full Meeting AI Evaluation report
+  // page (super_admin/reports/meeting-ai-session-report?session_id=...) for
+  // this video's session, instead of opening a local JSON modal. Enabled
+  // once the server says real audit data exists for this session
+  // (video.hasAuditData, from getAllVideos()/VideoProcessingModel.hasAuditResultsBatch) -
+  // the same condition that flips processingStatus to "processed".
   function reportButtonHtml(video) {
-    if (!video || !video.reportJsonExists) {
-      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Report</button>';
+    if (!video || !video.sessionId || !video.hasAuditData) {
+      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled title="Generate the report first">Report</button>';
     }
-    return '<button type="button" class="report-btn px-2 py-1 text-[10px] rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold" data-file="' + video.fileName + '">Report</button>';
+    return '<a href="/super_admin/reports/meeting-ai-session-report?session_id=' + encodeURIComponent(video.sessionId) + '" target="_blank" rel="noopener" class="report-btn inline-block px-2 py-1 text-[10px] rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold">Report</a>';
   }
 
   // Render the videos table
@@ -176,9 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.process-btn').forEach(btn => {
       btn.addEventListener('click', () => openProcessModal(btn.getAttribute('data-file'), 'report'));
     });
-    document.querySelectorAll('.report-btn').forEach(btn => {
-      btn.addEventListener('click', () => openReportModal(btn.getAttribute('data-file')));
-    });
+    // .report-btn is now a plain <a href> to the report page (see
+    // reportButtonHtml above) - no click handler/modal needed.
   }
 
   // Open report modal for a video (fetches JSON, renders PDF-style report)

@@ -200,6 +200,17 @@
         <div id="reportContent" class="p-4 overflow-y-auto flex-1"></div>
       </div>
     </div>
+
+    <!-- AI Transcript View Modal (in-page popup — replaces opening transcriptTxtUrl in a new tab) -->
+    <div id="transcriptModal" class="hidden fixed inset-0 bg-black/50 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full border-2 border-purple-400 overflow-hidden max-h-[85vh] flex flex-col">
+        <div class="px-3 py-2 border-b-2 border-purple-300 bg-purple-100 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-purple-950 uppercase tracking-wide">AI Transcript</h2>
+          <button type="button" data-close-transcript class="text-purple-700 hover:text-purple-900 text-sm leading-none">✕</button>
+        </div>
+        <div id="transcriptContent" class="p-4 overflow-y-auto flex-1 text-xs text-slate-700 whitespace-pre-wrap"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification -->
