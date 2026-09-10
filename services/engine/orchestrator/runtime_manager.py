@@ -39,13 +39,16 @@ class RuntimeManager:
         task_name
     ):
 
+        # FIX: used to also call self.context.mark_task_started(task_name)
+        # here, but every task handler ALSO calls that itself at its own
+        # start (and must, since handlers run standalone outside the
+        # orchestrator too - e.g. test_ai_evaluation.py). That meant every
+        # task name was appended twice to execution_metadata["started_tasks"].
+        # RuntimeManager's only job here is timing.
+
         self.active_tasks[
             task_name
         ] = time.time()
-
-        self.context.mark_task_started(
-            task_name
-        )
 
         log_with_type("info", f"Engine(orchestrator > runtime_manager) : Task started={task_name}", "RUNTIME")
 
@@ -71,12 +74,16 @@ class RuntimeManager:
                 2
             )
 
-        self.context.mark_task_completed(
-            task_name
-        )
+        # FIX: used to also call self.context.mark_task_completed(task_name)
+        # here - but the task handler already called it itself just before
+        # returning, so completed_tasks ended up with the task name TWICE
+        # (once as a plain string from mark_task_completed, once more here)
+        # plus this dict, giving 3 mixed-type entries per completed task.
+        # completed_tasks stays a clean list of plain strings (owned solely
+        # by mark_task_completed); the timing detail goes here instead.
 
         self.context.execution_metadata[
-            "completed_tasks"
+            "task_durations"
         ].append({
 
             "task": task_name,
@@ -96,12 +103,13 @@ class RuntimeManager:
         error
     ):
 
-        self.context.mark_task_failed(
-            task_name
-        )
+        # FIX: same double-append issue as task_completed() above - the task
+        # handler's own except block already calls mark_task_failed(task_name)
+        # before re-raising, so failed_tasks stays a clean list of plain
+        # strings; the error/traceback detail goes here instead.
 
         self.context.execution_metadata[
-            "failed_tasks"
+            "task_failures"
         ].append({
 
             "task": task_name,

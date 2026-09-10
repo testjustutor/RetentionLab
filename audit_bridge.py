@@ -1,5 +1,23 @@
 # root/audit_bridge.py
 
+"""
+Standalone CLI: run the full media -> transcription -> audit pipeline for a
+single recording (no session_id required).
+
+FIX: this file used to construct MediaService(ROOT) / TranscriptionService()
+directly and call media.extract_audio(...) / transcriber.process(...). Those
+methods/signatures don't exist anymore - MediaService and TranscriptionService
+were refactored to take a shared PipelineContext and expose
+.process(input_file) / .transcribe(audio_path) instead, so every call in the
+old version of this file raised AttributeError/TypeError the moment it ran.
+Nothing in the current codebase invokes this script (confirmed via a repo-wide
+search), so the bug was silent, but it's fixed here by going through the same
+PipelineContext + PipelineRunner orchestrator that services/engine/engine_main.py
+(the live Node-bridge entry point) and test_ai_evaluation.py already use -
+guaranteeing this matches the current, working engine API instead of a stale
+one.
+"""
+
 import sys
 import os
 import json
@@ -40,70 +58,70 @@ def install_missing_packages():
 install_missing_packages()
 
 # ==========================================================
-# 3. CORE ENGINE IMPORTS
+# 3. CORE ENGINE IMPORTS - context-based, matches engine_main.py
 # ==========================================================
-from services.engine.services.media import MediaService
-from services.engine.services.transcription import TranscriptionService
-from services.engine.services.ai_audit import AuditService
+from services.engine.orchestrator.pipeline_context import PipelineContext
+from services.engine.orchestrator.pipeline_runner import PipelineRunner
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def execute_pipeline(video_name, meeting_id=None):
     """
-    Full audit pipeline: Media -> Transcription -> AI Audit (with DB storage).
+    Full audit pipeline: Media -> Transcription -> AI Audit (with DB storage
+    when meeting_id resolves to a real meetings.id).
 
     Args:
-        video_name: The recording file name (e.g. REC_xxx.mp4)
-        meeting_id: The meeting ID for storing audit results in the database
+        video_name: The recording file name (e.g. REC_xxx.mp4), resolved
+            under storage/recordings/ (same convention as the Node bridge).
+        meeting_id: The meeting ID for storing audit results in the database.
+            Coerced/validated by PipelineContext; persist_results_task.py
+            already skips DB writes cleanly (with a logged warning) if it
+            doesn't resolve to a real row, so it's safe to pass through as-is.
     """
     try:
-        base_name = video_name.replace("REC_", "TRANS_").replace(".mp4", "")
-
-        # Setup Paths
         video_path = os.path.join(ROOT, "storage", "recordings", video_name)
-        transcript_path = os.path.join(ROOT, "storage", "transcript", f"{base_name}.txt")
-        audit_path = os.path.join(ROOT, "storage", "audits", f"{base_name}.json")
 
         # Verify video exists before starting
         if not os.path.exists(video_path):
             print(f"ERROR|File not found: {video_path}")
             return
 
-        # Initialize Services
-        media = MediaService(ROOT)
-        transcriber = TranscriptionService()
-        auditor = AuditService()
-
-        # 1. Media (MP4 -> WAV)
-        print("[1/3] Extracting audio...")
-        audio_path = media.extract_audio(video_path)
-
-        # 2. Transcription (AI Processing)
-        print("[2/3] Running AI Transcription & Diarization...")
-        transcript_text = transcriber.process(audio_path)
-
-        # Ensure transcript directory exists
-        os.makedirs(os.path.dirname(transcript_path), exist_ok=True)
-        with open(transcript_path, "w", encoding="utf-8") as f:
-            f.write(transcript_text)
-
-        # 3. Audit (Rubric Scoring) — loads rubric and stores results in DB
-        print("[3/3] Generating Quality Audit...")
         if meeting_id:
             print(f"[Audit Bridge] Using meeting_id={meeting_id}")
         else:
             print("[Audit Bridge] WARNING: meeting_id not provided. Audit results will NOT be stored in DB.")
 
-        report = auditor.run_audit(
-            transcript_text,
-            meeting_id=meeting_id
+        # Media + transcription + audit only (no summary) - persist_results
+        # stays enabled since it already no-ops safely when meeting_id is
+        # missing/unresolvable.
+        ai_config = {
+            "meeting_id": meeting_id,
+            "pipeline_features": {
+                "media_extraction": True,
+                "transcription": True,
+                "ai_audit": True,
+                "summary_generation": False,
+                "persist_results": True,
+            },
+        }
+
+        context = PipelineContext(
+            input_file=video_name,
+            ai_config=ai_config,
+            project_root=ROOT,
         )
 
-        # Ensure audits directory exists
-        os.makedirs(os.path.dirname(audit_path), exist_ok=True)
-        with open(audit_path, "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=4)
+        runner = PipelineRunner(context)
+
+        print("[1/3] Extracting audio...")
+        print("[2/3] Running transcription...")
+        print("[3/3] Generating quality audit...")
+
+        result = runner.execute()
+
+        transcript_path = result.get("transcript_path") or context.transcript_path
+        audit_path = result.get("audit_json_path") or context.audit_json_path
 
         # The SUCCESS prefix is what the Node.js audit.js route looks for
         print(f"SUCCESS|{transcript_path}|{audit_path}")

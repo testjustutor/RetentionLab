@@ -57,8 +57,8 @@
                   <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase">Category</th>
                   <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase">Indicator</th>
                   <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase text-right">Weightage</th>
-                  <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase text-right">AI Outcome</th>
-                  <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase">Evidence Quote</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase text-right">Outcome</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase">Evidence</th>
                 </tr>
               </thead>
               <tbody id="auditBody" class="divide-y divide-blue-200">
@@ -66,6 +66,35 @@
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- Category Scores (ai_audit_category_scores) -->
+        <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-300 rounded-lg p-3 shadow-md mt-4">
+          <h3 class="text-[13px] font-bold text-violet-900 mb-2 uppercase tracking-wide">Category Scores</h3>
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-[11px]">
+              <thead>
+                <tr class="border-b-2 border-violet-300 bg-violet-200">
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase">Category</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">Weight</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">Met</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">Not Met</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">N/A</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">Total Criteria</th>
+                  <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase text-right">Category Score</th>
+                </tr>
+              </thead>
+              <tbody id="categoryScoresBody" class="divide-y divide-violet-200">
+                <tr><td colspan="7" class="py-6 px-2 text-violet-800 text-center">Loading category scores...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Overall Summary (ai_audit_overall_summary) -->
+        <div class="bg-gradient-to-br from-slate-50 to-slate-200 border-2 border-slate-300 rounded-lg p-3 shadow-md mt-4" id="overallSummaryCard">
+          <h3 class="text-[13px] font-bold text-slate-900 mb-2 uppercase tracking-wide">Overall Summary</h3>
+          <div id="overallSummaryBody" class="text-[11px] text-slate-700">Loading overall summary...</div>
         </div>
       </main>
     </div>

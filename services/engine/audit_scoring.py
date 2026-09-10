@@ -89,3 +89,65 @@ def compute_weighted_overall(category_scores: Iterable[Tuple[float, float]]) -> 
         num += float(score or 0) * weight
         den += weight
     return round(num / den, 2) if den else 0.0
+
+
+# ---------------------------------------------------------------------------
+# Review-calculation-logic formulas (review_calculation_logic.txt)
+#
+# STATUS VALUES (identical everywhere): 1 = Met, 2 = Not Met, 3 = Not Applicable
+#
+#   submit (TutorEvaluationSubmit grid)  -> Met / (Met + Not Applicable) x 100,
+#          all-Not-Applicable category scored 100%.
+#   update (feedback-update grid)        -> Met / (Met + Not Met) x 100,
+#          all-Not-Met category (incorrectly) scored 100% — the documented
+#          swap of the count_2/count_3 mapping between the two flows.
+#
+# The two flows produce DIFFERENT category scores for the same statuses, so the
+# stored rollups (ai_audit_category_scores / ai_audit_overall_summary) carry a
+# calc_source column ('submit' | 'update') to say which formula produced them.
+# ---------------------------------------------------------------------------
+def compute_category_score_from_counts(met, not_met, na, calc_source="submit"):
+    """Compute a per-category percentage from raw status counts.
+
+    met/not_met/na are the counts of status 1/2/3 in the category.
+    calc_source 'update' swaps the denominator (the documented quirk): the
+    denominator becomes Met + Not Met instead of Met + Not Applicable.
+    """
+    met = int(met or 0)
+    not_met = int(not_met or 0)
+    na = int(na or 0)
+    total = met + not_met + na
+
+    if calc_source == "update":
+        # Met / (Met + Not Met) x 100 — all-Not-Met category (incorrectly) 100%.
+        if total > 0 and not_met == total:
+            return 100.0
+        denom = met + not_met
+    else:
+        # submit — Met / (Met + Not Applicable) x 100 — all-NA category 100%.
+        if total > 0 and na == total:
+            return 100.0
+        denom = met + na
+
+    if denom == 0:
+        return 0.0
+    return round((met / denom) * 100, 2)
+
+
+def compute_overall_from_category_rows(category_rows):
+    """Final (overall) score from a list of (category_score, category_total_criteria).
+
+    Per review_calculation_logic.txt this is IDENTICAL in both submit/update
+    flows and weights by criteria COUNT per category (never a configured
+    category weight):
+
+        total_weighted_percent += category_score * total_criteria_in_category
+        total_criteria_all     += total_criteria_in_category
+        Final Score = total_weighted_percent / total_criteria_all   (0 if 0)
+    """
+    total_weighted_percent = 0.0
+    total_criteria_all = 0
+    for score, total in category_rows:
+        total_weighted_percent += float(score or 0) * int(total or 0)
+        total_criteria_all += int(total or 0)
+    return round(total_weighted_percent / total_criteria_all, 2) if total_criteria_all else 0.0

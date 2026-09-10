@@ -12,6 +12,8 @@ from services.engine.audit_service import (
     AuditService
 )
 
+from services.engine.llm_cache import llm_cache_paths
+
 from services.engine.services.json_store import (
     JsonStore
 )
@@ -31,13 +33,14 @@ def run_audit_task(context):
 
         log_with_type("info", "Engine(task > audit > audit_task) : AuditService initialized", "TASK")
 
-        # Shared prompt-cache file: SAME path tutor_eval_task.py writes its
-        # own section into (storage/cache_llm_prompts/PROMPT_<base_id>.json),
-        # so the two AI evaluations that run for this session land in ONE
-        # file instead of two separate ones.
-        prompt_output_path = os.path.join(
+        # Split request/response cache pair for this LLM call ("audit").
+        # This is the ONLY AI call the engine makes, so the session produces
+        # exactly one split file pair (request + response).
+        request_output_path, response_output_path = llm_cache_paths(
             context.storage_paths["cache_llm_prompts"],
-            f"PROMPT_{context.base_id}.json",
+            context.storage_paths["cache_llm_prompts_responce"],
+            context.base_id,
+            "audit",
         )
 
         result = service.run_audit(
@@ -46,7 +49,9 @@ def run_audit_task(context):
             meeting_id=context.meeting_id,
             session_id=context.session_id,
             talk_ratio=context.talk_ratio,
-            prompt_output_path=prompt_output_path
+            request_output_path=request_output_path,
+            response_output_path=response_output_path,
+            base_id=context.base_id,
         )
 
         log_with_type("info", "Engine(task > audit > audit_task) : Evaluation completed", "TASK")

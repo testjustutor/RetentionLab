@@ -23,10 +23,14 @@ async function loadSessionReport() {
     const session = data.session || {};
     const results = data.results || [];
     const stats = data.stats || {};
+    const categoryScores = data.categoryScores || [];
+    const overallSummary = data.overallSummary || null;
 
     renderMeta(session);
     renderStats(stats);
     renderTable(session, results);
+    renderCategoryScores(categoryScores);
+    renderOverallSummary(overallSummary);
 
     if (!results.length) {
       showToast('No AI audit results found for this session', true);
@@ -37,6 +41,10 @@ async function loadSessionReport() {
       '<div class="text-red-700 font-semibold">Failed to load session report: ' + escHtml(e.message) + '</div>';
     document.getElementById('auditBody').innerHTML =
       '<tr><td colspan="5" class="py-6 px-2 text-red-700 text-center">Failed to load data.</td></tr>';
+    document.getElementById('categoryScoresBody').innerHTML =
+      '<tr><td colspan="7" class="py-6 px-2 text-red-700 text-center">Failed to load data.</td></tr>';
+    document.getElementById('overallSummaryBody').innerHTML =
+      '<div class="text-red-700 font-semibold">Failed to load data.</div>';
     showToast('Failed to load session report: ' + e.message, true);
   }
 }
@@ -127,6 +135,78 @@ function renderTable(session, results) {
       <td class="py-2 px-2 text-[11px] italic text-slate-600 max-w-xs break-words">${escHtml(quote)}</td>
     </tr>`;
   });
+  body.innerHTML = html;
+}
+
+// ai_audit_category_scores: one row per rubric category (A-H) for this session.
+function renderCategoryScores(categoryScores) {
+  const body = document.getElementById('categoryScoresBody');
+  if (!categoryScores.length) {
+    body.innerHTML = '<tr><td colspan="7" class="py-6 px-2 text-violet-800 text-center">No category scores found for this session</td></tr>';
+    return;
+  }
+
+  let html = '';
+  categoryScores.forEach((c) => {
+    const scoreColor = c.categoryScore >= 70 ? 'text-emerald-700'
+      : c.categoryScore >= 40 ? 'text-amber-700'
+      : 'text-red-700';
+    const weightDisplay = (c.category_weight !== null && c.category_weight !== undefined)
+      ? (Number(c.category_weight) * 100).toFixed(0) + '%' : '-';
+
+    html += `<tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">${escHtml(c.category_name)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-800 text-right">${escHtml(weightDisplay)}</td>
+      <td class="py-2 px-2 text-[11px] text-emerald-700 text-right font-semibold">${escHtml(c.countMet)}</td>
+      <td class="py-2 px-2 text-[11px] text-red-700 text-right font-semibold">${escHtml(c.countNotMet)}</td>
+      <td class="py-2 px-2 text-[11px] text-slate-500 text-right">${escHtml(c.countNotApplicable)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-800 text-right">${escHtml(c.totalCriteria)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-right ${scoreColor}">${escHtml(c.categoryScore.toFixed(1))}%</td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+// ai_audit_overall_summary: the single session-level rollup row.
+function renderOverallSummary(overallSummary) {
+  const card = document.getElementById('overallSummaryCard');
+  const body = document.getElementById('overallSummaryBody');
+
+  if (!overallSummary) {
+    body.innerHTML = '<div class="text-slate-500">No overall summary found for this session</div>';
+    return;
+  }
+
+  const scoreColor = overallSummary.finalScore >= 70 ? 'text-emerald-700'
+    : overallSummary.finalScore >= 40 ? 'text-amber-700'
+    : 'text-red-700';
+
+  card.classList.toggle('border-red-400', overallSummary.redFlag);
+  card.classList.toggle('from-red-50', overallSummary.redFlag);
+  card.classList.toggle('to-red-100', overallSummary.redFlag);
+
+  let html = `
+    <div class="flex flex-wrap items-center gap-x-8 gap-y-2 mb-2">
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Final Score</p>
+        <p class="text-lg font-bold ${scoreColor}">${escHtml(overallSummary.finalScore.toFixed(2))}%</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Total Criteria</p>
+        <p class="text-sm font-bold text-slate-900">${escHtml(overallSummary.totalCriteriaAll)}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Gate Status</p>
+        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${overallSummary.redFlag ? 'bg-red-200 text-red-800' : 'bg-emerald-100 text-emerald-700'}">
+          ${overallSummary.redFlag ? 'RED FLAG' : 'All Gates Passed'}
+        </span>
+      </div>
+    </div>`;
+
+  if (overallSummary.overallSummaryText) {
+    html += `<div class="text-[11px] text-slate-700 border-t border-slate-300 pt-2 mt-1">${escHtml(overallSummary.overallSummaryText)}</div>`;
+  }
+
   body.innerHTML = html;
 }
 

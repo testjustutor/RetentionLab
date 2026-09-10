@@ -65,6 +65,61 @@ except Exception:
 
 from database.python_db import fetch_one
 
+# ==========================================================================
+# WORKAROUND: services/engine/__init__.py unconditionally does
+#   from .transcriber import transcribe_and_diarize
+#   from .client import AssemblyAIClient
+# for the OPTIONAL AssemblyAI diarization backend. Python always runs a
+# package's __init__.py before importing ANY of its submodules, so if that
+# checkout doesn't have transcriber.py/client.py, EVERY `services.engine.*`
+# import below fails with ModuleNotFoundError - even though this script
+# never touches transcription (media_extraction/transcription are disabled
+# in build_mid_pipeline_context; it starts mid-pipeline with an
+# already-resolved transcript).
+#
+# This script does not modify services/engine/__init__.py or add the
+# missing files - it pre-registers harmless stand-ins for those two
+# submodules in sys.modules BEFORE anything imports services.engine.
+# Python's import system checks sys.modules first, so __init__.py's
+# `from .transcriber import ...` / `from .client import ...` resolve
+# against these stand-ins instead of hitting the filesystem. If a real
+# transcriber.py/client.py IS present (e.g. in an environment where the
+# AssemblyAI backend is actually installed), each stub detects that via a
+# real import attempt first and steps aside, so this never shadows a
+# working module.
+# ==========================================================================
+import types as _types
+
+
+def _stub_missing_optional_submodule(qualified_name, **attrs):
+    try:
+        __import__(qualified_name)
+        return  # real module imports fine - don't shadow it
+    except ModuleNotFoundError:
+        pass
+    except Exception:
+        # Some other error importing the real module (e.g. a missing
+        # third-party dependency IT needs) - still stub it rather than let
+        # an unrelated optional backend block this script.
+        pass
+    stub = _types.ModuleType(qualified_name)
+    for _name, _value in attrs.items():
+        setattr(stub, _name, _value)
+    sys.modules[qualified_name] = stub
+
+
+def _diarization_backend_unavailable(*_args, **_kwargs):
+    raise RuntimeError(
+        "AssemblyAI diarization backend stub called - this script disables "
+        "media_extraction/transcription (see build_mid_pipeline_context), "
+        "so nothing should actually invoke it. If you see this, something "
+        "unexpected tried to use it."
+    )
+
+
+_stub_missing_optional_submodule("services.engine.transcriber", transcribe_and_diarize=_diarization_backend_unavailable)
+_stub_missing_optional_submodule("services.engine.client", AssemblyAIClient=object)
+
 from services.engine.orchestrator.pipeline_context import PipelineContext
 from services.engine.task.audit_task import run_audit_task
 from services.engine.task.summary_task import run_summary_task

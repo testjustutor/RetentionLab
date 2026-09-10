@@ -28,12 +28,6 @@ def run_summary_task(context):
     return handler(context)
 
 
-def run_tutor_eval_task(context):
-    log_with_type("info", "Engine(orchestrator > task_registry) : run_tutor_eval_task dispatched", "TASK")
-    from services.engine.task.tutor_eval_task import run_tutor_eval_task as handler
-    return handler(context)
-
-
 def run_persist_results_task(context):
     log_with_type("info", "Engine(orchestrator > task_registry) : run_persist_results_task dispatched", "TASK")
     from services.engine.task.persist_results_task import run_persist_results_task as handler
@@ -101,27 +95,6 @@ TASK_REGISTRY = {
         "parallel": True,
         "feature_flag": (
             "enable_summary"
-        )
-    },
-
-    # ==========================================
-    # TUTOR EVAL
-    # Depends on "audit" (not just "transcription") so it never runs
-    # concurrently with audit_task.py - both write to ai_audit_results
-    # for the same (meeting_id, session_id) via DELETE-then-INSERT, and
-    # running them in the same parallel batch would race/corrupt that
-    # table. Still runs in parallel with "summary" (unrelated table).
-    # ==========================================
-
-    "tutor_eval": {
-        "handler": run_tutor_eval_task,
-        "dependencies": [
-            "transcription",
-            "audit"
-        ],
-        "parallel": True,
-        "feature_flag": (
-            "enable_tutor_eval"
         )
     },
 

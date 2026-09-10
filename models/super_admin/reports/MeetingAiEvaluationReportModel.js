@@ -100,22 +100,13 @@ class MeetingAiEvaluationReportModel {
           SELECT
             aar.session_id,
             COUNT(aar.id) AS ai_indicator_count,
-            SUM(CASE WHEN aar.ai_score IS NOT NULL THEN 1 ELSE 0 END) AS ai_scored_count,
-            ROUND(
-              COALESCE(
-                AVG(
-                  CASE
-                    WHEN aar.ai_score IS NULL THEN NULL
-                    ELSE COALESCE(aar.ai_score * 100.0 / NULLIF(aar.ai_max_score, 0), 0)
-                  END
-                ),
-                0
-              ),
-              1
-            ) AS ai_avg_score_pct,
+            SUM(CASE WHEN aar.status_code IN (1, 2) THEN 1 ELSE 0 END) AS ai_scored_count,
+            MAX(aos.final_score) AS ai_avg_score_pct,
             MAX(aar.scored_at) AS ai_scored_at,
-            MAX(aar.oqi_score) AS ai_max_oqi_score
+            MAX(aos.final_score) AS ai_max_oqi_score
           FROM ai_audit_results aar
+          LEFT JOIN ai_audit_overall_summary aos
+            ON aos.session_id = aar.session_id AND aos.calc_source = 'submit'
           WHERE aar.session_id IS NOT NULL
           GROUP BY aar.session_id
         ) audit ON audit.session_id = ms.id
@@ -183,9 +174,44 @@ class MeetingAiEvaluationReportModel {
   }
 
   /**
+   * Get a single session's aggregate overall summary (from ai_audit_overall_summary).
+   * @param {number} sessionId - meeting_sessions.id
+   * @returns {Promise<object|null>}
+   */
+  static getSessionOverallSummary(sessionId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT
+          session_id,
+          final_score,
+          total_weighted_percent,
+          total_criteria_all,
+          calc_source,
+          red_flag,
+          overall_summary
+        FROM ai_audit_overall_summary
+        WHERE session_id = ? AND calc_source = 'submit'
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      db.get(sql, [parseInt(sessionId, 10)], (err, row) => {
+        if (err) {
+          logger.error('Model(MeetingAiEvaluationReportModel): Error fetching session overall summary:', err);
+          return reject(err);
+        }
+        resolve(row || null);
+      });
+    });
+  }
+
+  /**
    * Get all AI audit result rows for a given session, joined to rubric names when available.
    * @param {number} sessionId - meeting_sessions.id (also stored in ai_audit_results.session_id)
    * @returns {Promise<Array>}
+   *
+   * The rewritten ai_audit_results schema only stores status_code (1=Met,
+   * 2=Not Met, 3=N/A), is_gate, ai_evidence, reason — category/indicator
+   * display names and weights resolve via the canonical rubric_* tables.
    */
   static getSessionAuditResults(sessionId) {
     return new Promise((resolve, reject) => {
@@ -196,30 +222,64 @@ class MeetingAiEvaluationReportModel {
           aar.session_id,
           aar.category_id,
           aar.indicator_id,
-          aar.ai_score,
-          aar.ai_max_score,
-          aar.ai_raw_response,
-          aar.oqi_score,
-          aar.evidence_quote,
-          aar.rating,
-          aar.talk_ratio,
+          aar.status_code,
+          aar.is_gate,
+          aar.reason,
+          aar.ai_evidence,
           aar.scored_at,
-          COALESCE(aar.category_name, rc.name) AS category_name,
-          COALESCE(aar.category_weight, rc.weight) AS category_weight,
-          COALESCE(aar.indicator_name, ri.name) AS indicator_name,
-          COALESCE(aar.indicator_value, ri.value) AS indicator_value,
-          COALESCE(aar.is_gate, ri.is_gate) AS is_gate,
-          aar.ai_evidence
+          rc.name AS category_name,
+          rc.weight AS category_weight,
+          ri.name AS indicator_name,
+          ri.value AS indicator_value,
+          CASE aar.status_code
+            WHEN 1 THEN 'Met'
+            WHEN 2 THEN 'Not met'
+            ELSE 'N/A'
+          END AS rating
         FROM ai_audit_results aar
-        LEFT JOIN admin_rubric_categories rc ON rc.id = aar.category_id
-        LEFT JOIN admin_rubric_indicators ri ON ri.id = aar.indicator_id
+        LEFT JOIN rubric_categories rc ON rc.id = aar.category_id
+        LEFT JOIN rubric_indicators ri ON ri.id = aar.indicator_id
         WHERE aar.session_id = ?
-        ORDER BY COALESCE(aar.category_name, rc.name, 'Other'),
-                 COALESCE(aar.indicator_name, ri.name, '')
+        ORDER BY COALESCE(rc.name, 'Other'),
+                 COALESCE(ri.name, '')
       `;
       db.all(sql, [parseInt(sessionId, 10)], (err, rows) => {
         if (err) {
           logger.error('Model(MeetingAiEvaluationReportModel): Error fetching session audit results:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      });
+    });
+  }
+
+  /**
+   * Get a single session's per-category rollup (from ai_audit_category_scores),
+   * joined to rubric_categories for the display name and canonical A-H order.
+   * @param {number} sessionId - meeting_sessions.id
+   * @returns {Promise<Array>} one row per category with counts + category_score
+   */
+  static getSessionCategoryScores(sessionId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT
+          acs.category_id,
+          rc.name AS category_name,
+          rc.category_code,
+          acs.category_weight,
+          acs.count_met,
+          acs.count_not_met,
+          acs.count_not_applicable,
+          acs.total_criteria,
+          acs.category_score
+        FROM ai_audit_category_scores acs
+        LEFT JOIN rubric_categories rc ON rc.id = acs.category_id
+        WHERE acs.session_id = ? AND acs.calc_source = 'submit'
+        ORDER BY COALESCE(rc.category_code, ''), COALESCE(rc.name, 'Other')
+      `;
+      db.all(sql, [parseInt(sessionId, 10)], (err, rows) => {
+        if (err) {
+          logger.error('Model(MeetingAiEvaluationReportModel): Error fetching session category scores:', err);
           return reject(err);
         }
         resolve(rows || []);

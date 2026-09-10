@@ -2,10 +2,6 @@
 
 from utils.logger_util import log_with_type
 
-from services.engine.orchestrator.execution_graph import (
-    ExecutionGraph
-)
-
 from services.engine.orchestrator.execution_manager import (
     ExecutionManager
 )

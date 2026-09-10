@@ -8,7 +8,11 @@ import time
 import traceback
 from decimal import Decimal
 from database.python_db import get_cursor, execute, fetch_all
-from services.engine.services.rubric_loader import RubricLoader
+# CLEANUP: was `from services.engine.services.rubric_loader import RubricLoader`
+# - a near-duplicate of services/engine/rubric_loader.py (the one the live
+# AuditService actually uses). Consolidated onto the single canonical
+# top-level module; the services-level duplicate has been removed.
+from services.engine.rubric_loader import RubricLoader
 
 # FIX: pull in the shared scoring math (audit_scoring.py) so this module's
 # category-score / weighted-overall calculation is IDENTICAL to

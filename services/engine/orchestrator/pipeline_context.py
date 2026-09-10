@@ -76,6 +76,14 @@ def build_storage_paths(project_root):
             "cache_llm_prompts"
         ),
 
+        # Split-cache response side: one RESPONSE_<base_id>_<call>.json per
+        # LLM call, paired with the REQUEST file of the same name under
+        # "cache_llm_prompts" above. See services/engine/llm_cache.py.
+        "cache_llm_prompts_responce": os.path.join(
+            storage_base,
+            "cache_llm_prompts_responce"
+        ),
+
         "audits": os.path.join(
             storage_base,
             "cache_audits"
@@ -84,6 +92,30 @@ def build_storage_paths(project_root):
         "cache_audits": os.path.join(
             storage_base,
             "cache_audits"
+        ),
+
+        # ==========================================
+        # DIARIZATION / CAPTIONS CACHE
+        # ==========================================
+        # Used by TranscriptionCacheManager.save_diarization_output /
+        # save_voice_activity / save_raw_captions (services/engine/task/cache_manager.py).
+        # These keys were previously missing here, so any caller of those
+        # methods would hit a KeyError - added so they work if/when
+        # diarization gets wired back into the DAG.
+
+        "cache_diarization": os.path.join(
+            storage_base,
+            "cache_diarization"
+        ),
+
+        "cache_voice_activity": os.path.join(
+            storage_base,
+            "cache_voice_activity"
+        ),
+
+        "cache_captions_raw": os.path.join(
+            storage_base,
+            "cache_captions_raw"
         )
     }
 
@@ -183,11 +215,6 @@ class PipelineContext:
             True
         )
 
-        self.enable_tutor_eval = self.str_to_bool(
-            features.get("tutor_eval"),
-            False
-        )
-
         # ==========================================
         # SHARED PIPELINE ARTIFACTS
         # ==========================================
@@ -202,11 +229,8 @@ class PipelineContext:
 
         self.audit_results = {}
 
-        # Structured outputs produced by the AI tasks and consumed by
-        # the persist_results task.
+        # of the AI tasks and consumed by the persist_results task.
         self.summary_data = {}
-
-        self.tutor_eval_results = {}
 
         # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
@@ -224,7 +248,6 @@ class PipelineContext:
             "transcription": "pending",
             "audit": "pending",
             "summary": "pending",
-            "tutor_eval": "pending",
             "persist_results": "pending"
         }
 
@@ -234,7 +257,19 @@ class PipelineContext:
         self.execution_metadata = {
             "started_tasks": [],
             "completed_tasks": [],
-            "failed_tasks": []
+            "failed_tasks": [],
+            # FIX: RuntimeManager used to ALSO append its own richer
+            # {task, duration_seconds} / {task, error, traceback} dicts into
+            # completed_tasks/failed_tasks above (on top of the plain task-name
+            # strings mark_task_completed/mark_task_failed already append below).
+            # Since every task handler (audit_task.py, transcription_task.py,
+            # etc.) calls mark_task_completed/mark_task_failed itself - and also
+            # runs standalone outside the orchestrator (e.g. test_ai_evaluation.py),
+            # where RuntimeManager never runs at all - completed_tasks/failed_tasks
+            # must stay a clean list of plain strings. RuntimeManager's extra
+            # timing/error detail now goes into these two dedicated lists instead.
+            "task_durations": [],
+            "task_failures": []
         }
 
     @staticmethod

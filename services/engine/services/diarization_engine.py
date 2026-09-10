@@ -11,10 +11,17 @@ class DiarizationEngine:
     """
     Builds diarization-compatible timeline data from Whisper segments.
 
-    Prefers a real speaker-diarization backend (AssemblyAI) and assigns the
-    resulting speaker labels back to Whisper segments. Falls back to a
-    non-diarized per-segment mapping when no backend is available, so the
-    pipeline never crashes on a missing module.
+    CLEANUP: this used to try an AssemblyAI backend first (via
+    services/engine/transcriber.py) and only fall back to a non-diarized
+    per-segment mapping if that failed. The AssemblyAI backend was never
+    reachable in the live pipeline (transcription_task.py only ever calls
+    .transcribe(), never .diarize(), so this class's process() was never
+    even invoked), and services/engine/transcriber.py + its client.py/
+    config.py/main.py support files have been removed as orphaned code -
+    they referenced services/engine/pipeline.py, which was deleted in an
+    earlier cleanup pass. This class now always builds the fallback,
+    per-segment "Speaker 1" mapping (still resolved to real names via
+    SpeakerResolver when a captions transcript is available).
     """
 
     def __init__(
@@ -45,32 +52,9 @@ class DiarizationEngine:
             []
         )
 
-        try:
-            # AssemblyAI diarization (preferred; no local diarization model)
-            diarization_segments = self._try_assemblyai(audio_path)
+        log_with_type("info", "Engine(transcription_service > diarization_engine) : Using fallback diarization", "SERVICE")
 
-        except Exception as error:
-
-            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization failed error={str(error)}", "SERVICE")
-
-            diarization_segments = []
-
-        if not diarization_segments:
-
-            log_with_type("info", "Engine(transcription_service > diarization_engine) : Using fallback diarization", "SERVICE")
-
-            return self._build_fallback_diarization(segments)
-
-        log_with_type("info", "Engine(transcription_service > diarization_engine) : Assigning speaker labels", "SERVICE")
-
-        labeled = self._assign_labels_to_segments(
-            segments,
-            diarization_segments
-        )
-
-        labeled = self._resolve_speaker_names(labeled)
-
-        return labeled
+        return self._build_fallback_diarization(segments)
 
     def _build_fallback_diarization(
         self,
@@ -98,54 +82,6 @@ class DiarizationEngine:
         diarization = self._resolve_speaker_names(diarization)
 
         return diarization
-
-    # ==========================================
-    # ASSEMBLYAI DIARIZATION
-    # ==========================================
-    def _try_assemblyai(self, audio_path):
-        """Run diarization via services/engine/transcriber if it is importable."""
-        try:
-            from services.engine.transcriber import (
-                transcribe_and_diarize,
-            )
-
-            result = transcribe_and_diarize(
-                audio_path,
-                num_speakers=2,
-                language=self._context_language(),
-            )
-
-            if not result or not result.get("success", True):
-                log_with_type("warning", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization returned no result error={result and result.get('error')}", "SERVICE")
-                return []
-
-            # Normalize AssemblyAI segments -> { start, end, speaker }
-            normalized = []
-            for seg in (result.get("segments") or []):
-                speaker = seg.get("speaker")
-                if not speaker:
-                    continue
-                normalized.append({
-                    "start": float(seg.get("start", 0)),
-                    "end": float(seg.get("end", 0)),
-                    "speaker": speaker,
-                })
-            log_with_type("info", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization segments count={len(normalized)}", "SERVICE")
-            return normalized
-        except Exception as error:
-            log_with_type("warning", f"Engine(transcription_service > diarization_engine) : AssemblyAI diarization failed error={str(error)}", "SERVICE")
-            return []
-
-    def _context_language(self):
-        try:
-            ai_config = getattr(self.context, "ai_config", None)
-            if isinstance(ai_config, dict):
-                lang = ai_config.get("language") or ai_config.get("language_code")
-                if lang:
-                    return lang
-        except Exception:
-            pass
-        return "en"
 
     def _resolve_speaker_names(
         self,
@@ -180,52 +116,5 @@ class DiarizationEngine:
 
         except Exception as error:
             log_with_type("warning", f"Engine(transcription_service > diarization_engine) : Speaker resolution failed keeping SPEAKER_XX labels error={str(error)}", "SERVICE")
-
-        return labeled
-
-    def _assign_labels_to_segments(
-        self,
-        segments,
-        diarization_segments
-    ):
-
-        labeled = []
-
-        for index, segment in enumerate(segments):
-            start = round(segment.get("start", 0), 2)
-            end = round(segment.get("end", start), 2)
-            text = segment.get("text", "").strip()
-
-            best_speaker = None
-            best_overlap = 0.0
-
-            for diarization_segment in diarization_segments:
-                overlap_start = max(start, diarization_segment.get("start", 0.0))
-                overlap_end = min(end, diarization_segment.get("end", end))
-                overlap = max(0.0, overlap_end - overlap_start)
-
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    best_speaker = diarization_segment.get("speaker")
-
-            if best_speaker is None and diarization_segments:
-                # Fallback to the nearest matched speaker by minimum temporal distance.
-                segment_midpoint = (start + end) / 2.0
-                closest_segment = min(
-                    diarization_segments,
-                    key=lambda s: abs(((s.get("start", 0.0) + s.get("end", 0.0)) / 2.0) - segment_midpoint)
-                )
-                best_speaker = closest_segment.get("speaker")
-
-            labeled.append({
-                "start": start,
-                "end": end,
-                "speaker": best_speaker or "Speaker 1",
-                "text": text,
-                "source": "diarization",
-                "segment_index": index
-            })
-
-        log_with_type("info", f"Engine(transcription_service > diarization_engine) : Label assignment completed count={len(labeled)}", "SERVICE")
 
         return labeled

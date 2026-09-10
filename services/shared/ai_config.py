@@ -39,7 +39,11 @@ def build_ai_config(ai_settings: dict):
     ai_config dict for AiApiService — or None if AI isn't usable
     (caller should fall back to its non-AI worker).
     """
-    provider = os.getenv("AI_PROVIDER", ai_settings.get("provider")).lower()
+    # FIX: was os.getenv("AI_PROVIDER", ai_settings.get("provider")).lower() -
+    # if AI_PROVIDER was unset AND settings.js's ai.provider was also
+    # empty/missing, getenv's default was None and .lower() crashed with
+    # AttributeError instead of cleanly falling back to "AI unusable".
+    provider = (os.getenv("AI_PROVIDER") or ai_settings.get("provider") or "").lower()
 
     # Fixed spelling from "cloude" to "anthropic" to prevent connection bugs
     provider_keys = {

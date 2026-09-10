@@ -7,6 +7,19 @@ active provider (anthropic / gemini / openai / ollama).
 
 Exposes a single method `ask_ai(prompt, system_instruction)` returning the
 model's raw text, plus `provider`/`model` for metadata.
+
+Optional Gemini context caching: `ask_ai` also accepts `cache_key` +
+`cache_context` (a static text block, e.g. the audit rubric's indicator
+catalog, plus a short fingerprint of it). When the caller supplies both AND
+GEMINI_USE_CACHING is truthy in the environment, the gemini path uploads
+`cache_context` to Gemini once per (model, cache_key) via
+services/engine/gemini_cache.py and references it by handle on every later
+call instead of resending it as full-price input tokens - see that module
+for the rubric-change/cache-invalidation story. Every other provider (and
+gemini itself whenever caching is off, unavailable, or fails) just gets
+`cache_context + "\n\n" + prompt` concatenated exactly as if the caller had
+passed one combined prompt - behavior is byte-identical to before this was
+added whenever cache_context is omitted.
 """
 import os
 import json
@@ -96,11 +109,134 @@ class AiClient:
                 pairs.append((f"GEMINI_API_KEY{i}", key))
         return pairs
 
-    def _ask_gemini_with_key(self, api_key, prompt, system_instruction):
-        full_prompt = f"{system_instruction}\n\n{prompt}"
+    def _ask_gemini_with_key(self, api_key, prompt, system_instruction, cache_key=None, cache_context=None):
         from google import genai
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(model=self.model, contents=full_prompt)
+
+        max_output_tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
+        config_kwargs = {"max_output_tokens": max_output_tokens}
+
+        # Disable "thinking"/extended-reasoning tokens for this call. On
+        # thinking-capable Gemini models, max_output_tokens caps thinking +
+        # visible output TOGETHER - so a model that spends most of its
+        # budget on hidden reasoning can leave almost nothing for the actual
+        # JSON, silently truncating it mid-object (this broke a real audit
+        # run: the model stopped after ~6 of 74 indicators and the response
+        # failed to parse, wiping that session's ai_audit_results rows).
+        # This is a deterministic classification task - the rubric and
+        # scoring rules are fully spelled out in the prompt - so extended
+        # reasoning isn't earning its token cost here anyway; turning it off
+        # fixes the truncation risk AND further reduces real cost. Defensive
+        # + optional via env: if a model/SDK version doesn't support
+        # thinking_budget, this is skipped rather than blocking the call.
+        if os.getenv("GEMINI_DISABLE_THINKING", "true").strip().lower() in ("1", "true", "yes"):
+            try:
+                from google.genai import types as _types
+                config_kwargs["thinking_config"] = _types.ThinkingConfig(thinking_budget=0)
+            except Exception as e:
+                log_with_type(
+                    "warning",
+                    f"audit/ai_client: could not disable Gemini thinking ({e}) - "
+                    f"continuing without it (max_output_tokens cap still applies)",
+                    "PYTHON_ENGINE",
+                )
+
+        # Explicit context caching: only attempted when the caller supplied
+        # both cache_key and cache_context AND it's turned on via env - off
+        # by default so this is a no-op until deliberately enabled and
+        # verified against the live API. Any failure here (content below
+        # Gemini's caching floor, API error, SDK shape mismatch) falls back
+        # to the plain uncached call below; it never breaks the audit call.
+        cached_content_name = None
+        use_caching = bool(
+            cache_key and cache_context
+            and os.getenv("GEMINI_USE_CACHING", "false").strip().lower() in ("1", "true", "yes")
+        )
+        if use_caching:
+            try:
+                from .gemini_cache import get_or_create_cache
+                cached_content_name = get_or_create_cache(
+                    client=client,
+                    model=self.model,
+                    cache_key=cache_key,
+                    system_instruction=system_instruction,
+                    cache_context=cache_context,
+                )
+            except Exception as e:
+                log_with_type(
+                    "warning",
+                    f"audit/ai_client: gemini caching unavailable ({e}) - falling back to uncached call",
+                    "PYTHON_ENGINE",
+                )
+                cached_content_name = None
+
+        if cached_content_name:
+            # The system instruction + cache_context are already baked into
+            # the cache - send ONLY the variable per-call content.
+            contents = prompt
+            config_kwargs["cached_content"] = cached_content_name
+        else:
+            prefix = f"{system_instruction}\n\n{cache_context}\n\n" if cache_context else f"{system_instruction}\n\n"
+            contents = f"{prefix}{prompt}"
+
+        # Apply the config built above, but GRADUATED rather than
+        # all-or-nothing: some part of config_kwargs can be rejected by a
+        # given model/API version (e.g. gemini-3.6-flash returned 400
+        # INVALID_ARGUMENT for thinking_config specifically, even though
+        # max_output_tokens alone was accepted fine) - a single try/except
+        # around the whole config used to mean ANY one rejected field threw
+        # away every optimization at once (including ones that DID work) and
+        # fell all the way back to an unbounded, uncached, ~40s call. Instead,
+        # strip the most-likely-unsupported fields one at a time and retry,
+        # so a single bad field degrades gracefully instead of wiping
+        # everything - e.g. losing just thinking_config still keeps the
+        # (working) output-token cap active.
+        attempt_variants = [dict(config_kwargs)]
+        if "thinking_config" in config_kwargs:
+            without_thinking = dict(config_kwargs)
+            del without_thinking["thinking_config"]
+            attempt_variants.append(without_thinking)
+        if "cached_content" in config_kwargs:
+            bare = {k: v for k, v in config_kwargs.items() if k not in ("thinking_config", "cached_content")}
+            if bare not in attempt_variants:
+                attempt_variants.append(bare)
+
+        uncached_contents = f"{system_instruction}\n\n{cache_context}\n\n{prompt}" if cache_context else f"{system_instruction}\n\n{prompt}"
+
+        for i, variant in enumerate(attempt_variants):
+            # `contents` must match what THIS variant's config expects: if
+            # the variant still references the cache (cached_content kwarg
+            # present), send just the variable prompt part (contents, set
+            # above); if this variant dropped the cache, the system
+            # instruction + indicator block need to be back in the text.
+            variant_contents = contents if "cached_content" in variant else uncached_contents
+            try:
+                from google.genai import types
+                config = types.GenerateContentConfig(**variant)
+                response = client.models.generate_content(model=self.model, contents=variant_contents, config=config)
+                if i > 0:
+                    dropped = set(config_kwargs) - set(variant)
+                    log_with_type(
+                        "info",
+                        f"audit/ai_client: generate_content succeeded after dropping {dropped} "
+                        f"from config (tier {i + 1}/{len(attempt_variants)})",
+                        "PYTHON_ENGINE",
+                    )
+                return response.text
+            except Exception as e:
+                is_last = (i + 1 == len(attempt_variants))
+                log_with_type(
+                    "warning",
+                    f"audit/ai_client: generate_content failed with config keys={list(variant)} ({e}) - "
+                    + ("falling back to fully uncapped/uncached call" if is_last else "trying next fallback tier"),
+                    "PYTHON_ENGINE",
+                )
+
+        # Last resort: exactly the original (pre-optimization) call shape -
+        # no config object at all, in case google-genai's own defaults for
+        # an unrecognized/malformed GenerateContentConfig are themselves
+        # part of the problem.
+        response = client.models.generate_content(model=self.model, contents=uncached_contents)
         return response.text
 
     def _ask_openai_like(self, prompt, system_instruction):
@@ -131,14 +267,21 @@ class AiClient:
         )
         return response.choices[0].message.content
 
-    def _build_attempts(self, prompt, system_instruction):
+    def _build_attempts(self, prompt, system_instruction, cache_key=None, cache_context=None):
         """Ordered list of (label, zero-arg callable) to try for this call.
 
         Only 'gemini' gets multi-key rotation + an automatic provider
         fallback to OpenAI once every configured Gemini key has failed -
         anthropic/openai/ollama run exactly as before (a single attempt),
         since only Gemini keys + an OpenAI fallback were asked for.
+
+        cache_key/cache_context only ever affect the gemini attempts (the
+        only provider this codebase has caching support for) - every other
+        attempt gets `cache_context + prompt` concatenated into one prompt,
+        so behavior for them is identical to before caching existed.
         """
+        effective_prompt = f"{cache_context}\n\n{prompt}" if cache_context else prompt
+
         if self.provider == "gemini":
             gemini_keys = self._gemini_api_keys()
             if not gemini_keys:
@@ -147,7 +290,9 @@ class AiClient:
             attempts = [
                 (
                     f"gemini ({label})",
-                    (lambda k=key: self._ask_gemini_with_key(k, prompt, system_instruction)),
+                    (lambda k=key: self._ask_gemini_with_key(
+                        k, prompt, system_instruction, cache_key=cache_key, cache_context=cache_context
+                    )),
                 )
                 for label, key in gemini_keys
             ]
@@ -155,18 +300,18 @@ class AiClient:
             if os.getenv("OPENAI_API_KEY"):
                 attempts.append((
                     "openai (fallback after all Gemini keys failed)",
-                    (lambda: self._ask_openai_like(prompt, system_instruction)),
+                    (lambda: self._ask_openai_like(effective_prompt, system_instruction)),
                 ))
             return attempts
 
         if self.provider == "anthropic":
-            return [("anthropic", lambda: self._ask_anthropic(prompt, system_instruction))]
+            return [("anthropic", lambda: self._ask_anthropic(effective_prompt, system_instruction))]
         if self.provider == "ollama":
-            return [("ollama", lambda: self._ask_ollama(prompt, system_instruction))]
-        return [("openai", lambda: self._ask_openai_like(prompt, system_instruction))]
+            return [("ollama", lambda: self._ask_ollama(effective_prompt, system_instruction))]
+        return [("openai", lambda: self._ask_openai_like(effective_prompt, system_instruction))]
 
-    def ask_ai(self, prompt, system_instruction="You are a helpful assistant."):
-        attempts = self._build_attempts(prompt, system_instruction)
+    def ask_ai(self, prompt, system_instruction="You are a helpful assistant.", cache_key=None, cache_context=None):
+        attempts = self._build_attempts(prompt, system_instruction, cache_key=cache_key, cache_context=cache_context)
         last_err = None
 
         for label, fn in attempts:

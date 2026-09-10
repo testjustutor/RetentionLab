@@ -87,43 +87,21 @@ const controller = {
       if (!meta) return err('Session not found', 404);
 
       const results = await MeetingAiEvaluationReportModel.getSessionAuditResults(sessionId);
+      const overall = await MeetingAiEvaluationReportModel.getSessionOverallSummary(sessionId);
+      const categoryScores = await MeetingAiEvaluationReportModel.getSessionCategoryScores(sessionId);
 
-      // Compute aggregate stats for the session.
-      // A row with ai_score null is an EXCLUDED indicator (e.g. video-gated and
-      // not scorable from a transcript). Excluded rows must not contribute to the
-      // average nor count as gate failures — otherwise they'd be double-penalized.
-      // A row with ai_score set but ai_max_score 0/null contributes 0 rather than being
-      // dropped — this matches the summary query's per-row CASE logic so the two pages agree.
+      // Aggregate stats from the new status-code schema.
+      // status_code: 1=Met, 2=Not Met, 3=Not Applicable (excluded).
       const scored = results.filter(
-        (r) => r.ai_score !== null && r.ai_score !== undefined
+        (r) => r.status_code !== null && r.status_code !== undefined && Number(r.status_code) !== 3
       );
-      const avgPct = scored.length
-        ? scored.reduce((sum, r) => {
-            const denom = Number(r.ai_max_score) || 0;
-            return sum + (denom > 0 ? ((Number(r.ai_score) || 0) / denom) * 100 : 0);
-          }, 0) / scored.length
-        : 0;
-      const gateFailed = results.filter((r) => Number(r.is_gate) === 1 &&
-        r.ai_score !== null && r.ai_score !== undefined &&
-        (Number(r.ai_score) || 0) < (Number(r.ai_max_score) || 0)).length;
+      const avgPct = overall && Number(overall.final_score) ? Number(overall.final_score) : 0;
+      const oqiScore = avgPct;
+      const gateFailed = results.filter((r) => Number(r.is_gate) === 1 && Number(r.status_code) === 2).length;
 
-      // oqi_score is expected to be a session-level value duplicated across every indicator
-      // row. Rather than trusting results[0] (results is ordered alphabetically by
-      // category/indicator name, not meaningfully for this purpose), take the max across
-      // all rows so a null/0 first row can't silently zero out the session's OQI score.
-      const oqiScore = results.length
-        ? Math.round(Math.max(...results.map((r) => Number(r.oqi_score) || 0)))
-        : 0;
-
-      // The audit pipeline stores the SAME full evaluation JSON
-      // (ai_raw_response) on every indicator row, so returning the raw rows
-      // repeats that multi-KB payload once per indicator. The session report
-      // table only renders Category / Indicator / Weightage / AI Outcome /
-      // Evidence Quote, so reduce each row to exactly those header values and
-      // drop the heavy repeated fields (ai_raw_response, ai_score, ...).
-      // Also dedupe by indicator (defensive - the uq_ar_meeting_session_indicator
-      // unique key normally prevents true duplicates) so each indicator appears
-      // exactly once regardless of source data.
+      // The session report table renders Category / Indicator / Weightage /
+      // AI Outcome / Evidence Quote from the status-code rows. The new schema
+      // carries evidence in ai_evidence (reason stores the justification).
       const seenIndicators = new Set();
       const auditRows = [];
       results.forEach((r) => {
@@ -139,20 +117,54 @@ const controller = {
           category_weight: r.category_weight,
           indicator_value: r.indicator_value,
           rating: r.rating,
+          status_code: r.status_code,
           ai_evidence: r.ai_evidence,
-          evidence_quote: r.evidence_quote
+          reason: r.reason
         });
       });
+
+      // ai_audit_category_scores rollup - one row per rubric category
+      // (A-H), already computed by the audit engine (audit_scoring.py) at
+      // scoring time. Just shape numeric fields consistently for the UI.
+      const categories = (categoryScores || []).map((c) => ({
+        category_id: c.category_id,
+        category_name: c.category_name || c.category_code || 'Other',
+        category_code: c.category_code,
+        category_weight: c.category_weight !== null && c.category_weight !== undefined
+          ? Number(c.category_weight) : null,
+        countMet: Number(c.count_met) || 0,
+        countNotMet: Number(c.count_not_met) || 0,
+        countNotApplicable: Number(c.count_not_applicable) || 0,
+        totalCriteria: Number(c.total_criteria) || 0,
+        categoryScore: c.category_score !== null && c.category_score !== undefined
+          ? Number(c.category_score) : 0
+      }));
+
+      // ai_audit_overall_summary - the single session-level rollup row.
+      // Exposed in full (not just final_score, which is all getSessionReport
+      // used before) so the UI can also show red_flag / total criteria /
+      // the narrative summary text if present.
+      const overallSummary = overall ? {
+        finalScore: overall.final_score !== null && overall.final_score !== undefined
+          ? Number(overall.final_score) : 0,
+        totalWeightedPercent: overall.total_weighted_percent !== null && overall.total_weighted_percent !== undefined
+          ? Number(overall.total_weighted_percent) : 0,
+        totalCriteriaAll: Number(overall.total_criteria_all) || 0,
+        redFlag: Number(overall.red_flag) === 1,
+        overallSummaryText: overall.overall_summary || null
+      } : null;
 
       return ok({
         session: meta,
         results: auditRows,
+        categoryScores: categories,
+        overallSummary,
         stats: {
           indicatorCount: auditRows.length,
           avgScorePct: scored.length ? Math.round(avgPct * 10) / 10 : 0,
           oqiScore,
           gateFailed,
-          evidenceCount: auditRows.filter((r) => r.ai_evidence || r.evidence_quote).length
+          evidenceCount: auditRows.filter((r) => r.ai_evidence || r.reason).length
         }
       });
     } catch (e) {
