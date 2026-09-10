@@ -1,5 +1,15 @@
 ﻿/**
- * public/js/super_admin/settings/video-processing.js
+ * public/js/super_admin/content/video-processing.js
+ * (Moved from public/js/super_admin/settings/ — page now lives under
+ * /super_admin/content/video-processing. The API endpoints below are
+ * unchanged and still live under /api/super_admin/content/video-processing.)
+ *
+ * AI Transcript calls Deepgram directly via POST .../video-processing/transcript
+ * (in videoProcessingController.js — requires DEEPGRAM_API_KEY in .env). This
+ * is a SEPARATE, fast, speaker-labelled transcript — not the Whisper transcript
+ * that Generate Report produces as part of the full audit pipeline. The old
+ * standalone "Deepgram Processing" page/route/controller/model were deleted
+ * and are NOT used here; this endpoint lives entirely inside video-processing.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,12 +26,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadFileInput = document.getElementById('uploadFileInput');
   const uploadBtn = document.getElementById('uploadBtn');
   const uploadHint = document.getElementById('uploadHint');
+  const convertProcessing = document.getElementById('convertProcessing');
+  const processProcessing = document.getElementById('processProcessing');
   let videosCache = {};   // filename -> video meta (for modal state checks)
+  let isConverting = false;            // true while a Convert request is in flight
+  let isProcessing = false;            // true while a Process (report/transcript) request is in flight
+  let activeProcessMode = 'report';    // which action the process modal is running: 'report' | 'transcript'
+  const DEFAULT_CONVERT_BTN_HTML = convertBtn ? convertBtn.innerHTML : '';
+  const DEFAULT_PROCESS_BTN_HTML = processBtn ? processBtn.innerHTML : '';
+  const BUSY_SVG = '<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
 
   // Load videos from the API
   async function loadVideos() {
     try {
-      const response = await fetch('/api/super_admin/settings/video-processing', { credentials: 'include' });
+      const response = await fetch('/api/super_admin/content/video-processing', { credentials: 'include' });
       const data = await response.json();
       if (data.success && Array.isArray(data.data)) {
         // Cache by filename so modals can check current mp3 status.
@@ -73,21 +91,32 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<button type="button" class="convert-btn px-2 py-1 text-[10px] rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold" data-file="' + video.fileName + '">Convert</button>';
   }
 
+  // AI Transcript button: enabled only when an MP3 exists (Deepgram reads the
+  // converted audio). Once a transcript exists, also show a "View" link.
+  function aiTranscriptButtonHtml(video) {
+    if (!video || !video.mp3Exists) {
+      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled title="Convert the video to MP3 first">AI Transcript</button>';
+    }
+    const btn = '<button type="button" class="ai-transcript-btn px-2 py-1 text-[10px] rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold" data-file="' + video.fileName + '">AI Transcript</button>';
+    if (!video.transcriptExists) return btn;
+    return btn + '<a href="' + video.transcriptTxtUrl + '" target="_blank" rel="noopener" class="ml-1 px-2 py-1 text-[10px] rounded bg-purple-100 hover:bg-purple-200 text-purple-700 font-semibold">View</a>';
+  }
+
   // Process button state machine:
-  //   converted -> enabled "Process"
-  //   failed    -> enabled "Re-process"
+  //   converted -> enabled "Generate Report"
+  //   failed    -> enabled "Re-generate Report"
   //   processing -> disabled "Processing"
-  //   processed  -> disabled "Process"
-  //   pending    -> disabled "Process"
+  //   processed  -> disabled "Generate Report"
+  //   pending    -> disabled "Generate Report"
   function processButtonHtml(video, canProcess) {
     const s = video.processingStatus || ('pending');
     if (s === 'processing') {
       return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-blue-200 text-blue-500 cursor-wait" disabled>Processing</button>';
     }
     if (!canProcess) {
-      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Process</button>';
+      return '<button type="button" class="px-2 py-1 text-[10px] rounded bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Generate Report</button>';
     }
-    const label = s === 'failed' ? 'Re-process' : 'Process';
+    const label = s === 'failed' ? 'Re-generate Report' : 'Generate Report';
     return '<button type="button" class="process-btn px-2 py-1 text-[10px] rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" data-file="' + video.fileName + '">' + label + '</button>';
   }
 
@@ -130,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         + '<td class="py-1.5 px-2"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ' + statusLabelColor(video) + '">' + statusLabel_ + '</span></td>'
         + '<td class="py-1.5 px-2 space-x-1.5">'
         + convertButtonHtml(video, canConvert)
+        + aiTranscriptButtonHtml(video)
         + processButtonHtml(video, canProcess)
         + reportButtonHtml(video)
         + '</td>';
@@ -140,8 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.convert-btn').forEach(btn => {
       btn.addEventListener('click', () => openConvertModal(btn.getAttribute('data-file')));
     });
+    document.querySelectorAll('.ai-transcript-btn').forEach(btn => {
+      btn.addEventListener('click', () => openProcessModal(btn.getAttribute('data-file'), 'transcript'));
+    });
     document.querySelectorAll('.process-btn').forEach(btn => {
-      btn.addEventListener('click', () => openProcessModal(btn.getAttribute('data-file')));
+      btn.addEventListener('click', () => openProcessModal(btn.getAttribute('data-file'), 'report'));
     });
     document.querySelectorAll('.report-btn').forEach(btn => {
       btn.addEventListener('click', () => openReportModal(btn.getAttribute('data-file')));
@@ -217,13 +250,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return html;
   }
 
+  // Toggle the Convert modal busy (processing) state while a request is in flight.
+  function setConvertBusy(busy) {
+    if (!convertBtn || !convertProcessing) return;
+    isConverting = !!busy;
+    convertBtn.disabled = !!busy;
+    convertBtn.classList.toggle('opacity-50', !!busy);
+    convertBtn.classList.toggle('cursor-wait', !!busy);
+    convertBtn.innerHTML = busy ? BUSY_SVG + ' Converting...' : DEFAULT_CONVERT_BTN_HTML;
+    convertProcessing.classList.toggle('hidden', !busy);
+    convertProcessing.classList.toggle('flex', !!busy);
+    if (busy) convertMp3Status.textContent = '';
+  }
+
   // Open convert modal
   function openConvertModal(fileName) {
     const video = videosCache[fileName];
     // Convert works on the .mp4 video file link.
     convertVideoFile.value = (video && video.videoPath) || fileName;
     convertMp3Status.textContent = (video && video.mp3Exists) ? 'MP3 already exists — convert disabled' : 'MP3 not found — convert available';
-    convertBtn.textContent = 'Convert to MP3';
+    convertMp3Status.className = 'text-xs ' + ((video && video.mp3Exists) ? 'text-amber-600' : 'text-cyan-700');
+    // Reset any leftover busy state, then apply the can-convert enable/disable.
+    setConvertBusy(false);
+    convertBtn.innerHTML = DEFAULT_CONVERT_BTN_HTML;
     convertBtn.disabled = !!(video && video.mp3Exists);
     convertBtn.classList.toggle('opacity-50', !!(video && video.mp3Exists));
     convertBtn.onclick = () => convertAudio(fileName);
@@ -231,16 +280,46 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => convertModal.classList.add('opacity-100'), 10);
   }
 
-  // Open process modal
-  function openProcessModal(fileName) {
+  // Build the correct resting (non-busy) innerHTML for the process button based
+  // on which mode the modal is running (report vs transcript).
+  function processBtnRestoreHtml() {
+    if (activeProcessMode === 'transcript') {
+      return DEFAULT_PROCESS_BTN_HTML.replace(/Generate Report/, 'Generate Transcript');
+    }
+    return DEFAULT_PROCESS_BTN_HTML;
+  }
+
+  // Toggle the Process modal busy (processing) state while a request is in flight
+  // (used for both Generate Report and AI Transcript).
+  function setProcessBusy(busy) {
+    if (!processBtn || !processProcessing) return;
+    isProcessing = !!busy;
+    processBtn.disabled = !!busy;
+    processBtn.classList.toggle('opacity-50', !!busy);
+    processBtn.classList.toggle('cursor-wait', !!busy);
+    processBtn.innerHTML = busy ? BUSY_SVG + ' Processing...' : processBtnRestoreHtml();
+    processProcessing.classList.toggle('hidden', !busy);
+    processProcessing.classList.toggle('flex', !!busy);
+    if (busy) processMp3Status.textContent = '';
+  }
+
+  // Open the process modal.
+  //   mode = 'report'     -> Generate Report (full Whisper + audit pipeline)
+  //   mode = 'transcript' -> AI Transcript (Deepgram, fast, speaker-labelled)
+  function openProcessModal(fileName, mode) {
     const video = videosCache[fileName];
+    activeProcessMode = mode === 'transcript' ? 'transcript' : 'report';
+    const modalTitle = document.getElementById('processModalTitle');
+    if (modalTitle) modalTitle.textContent = activeProcessMode === 'transcript' ? 'AI Transcript' : 'Generate Report';
     // Process works on the .mp3 audio file link.
     processVideoFile.value = (video && video.audioPath) || fileName;
-    processMp3Status.textContent = (video && video.mp3Exists) ? 'MP3 exists — processing available' : 'MP3 required before processing';
-    processBtn.textContent = 'Process Audio';
+    processMp3Status.textContent = (video && video.mp3Exists) ? 'MP3 exists — action available' : 'MP3 required before processing';
+    processMp3Status.className = 'text-xs ' + ((video && video.mp3Exists) ? 'text-emerald-700' : 'text-amber-600');
+    // Reset any leftover busy state, then apply the can-process enable/disable.
+    setProcessBusy(false);
     processBtn.disabled = !(video && video.mp3Exists);
     processBtn.classList.toggle('opacity-50', !(video && video.mp3Exists));
-    processBtn.onclick = () => processAudio(fileName);
+    processBtn.onclick = () => processAudio(fileName, activeProcessMode);
     processModal.classList.remove('hidden');
     setTimeout(() => processModal.classList.add('opacity-100'), 10);
   }
@@ -298,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadHint.textContent = 'Uploading ' + file.name + ' — please wait...';
     uploadHint.className = 'text-xs text-blue-600';
     try {
-      const response = await fetch('/api/super_admin/settings/video-processing/upload', {
+      const response = await fetch('/api/super_admin/content/video-processing/upload', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -331,9 +410,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Convert to audio
   async function convertAudio(fileName) {
-    if (convertBtn.disabled) return;             // guard against duplicate clicks
-    convertBtn.disabled = true;                   // disable while in-flight
-    convertBtn.textContent = 'Converting...';
+    if (convertBtn.disabled || isConverting) return;   // guard against duplicate clicks
+    setConvertBusy(true);                              // show the processing state
     try {
       // The backend model performs all DB work (users, calendar_connections,
       // meetings, meeting_sessions, meeting_assets) as part of the conversion.
@@ -341,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const video = videosCache[fileName];
       const videoPath = (video && video.videoPath) || fileName;
 
-      const response = await fetch('/api/super_admin/settings/video-processing/convert', {
+      const response = await fetch('/api/super_admin/content/video-processing/convert', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -349,33 +427,35 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const result = await response.json();
       if (result.success) {
-        if (result.data && result.data.alreadyExists) {
-          showToast('MP3 already exists', 'success');
-        } else {
-          showToast('Conversion started', 'success');
-          closeModals();
-          loadVideos();
-        }
+        setConvertBusy(false);                 // release the modal lock before closing
+        showToast(result.data && result.data.alreadyExists ? 'MP3 already exists' : 'Conversion completed — MP3 saved', 'success');
+        closeModals();
       } else {
+        convertMp3Status.textContent = result.error || 'Conversion failed';
+        convertMp3Status.className = 'text-xs text-red-600';
         showToast('Conversion failed: ' + (result.error || 'unknown error'), 'error');
       }
     } catch (err) {
       console.error('Convert error:', err);
+      convertMp3Status.textContent = 'Conversion failed: ' + err.message;
+      convertMp3Status.className = 'text-xs text-red-600';
       showToast('Conversion failed', 'error');
     } finally {
-      convertBtn.disabled = false;
-      convertBtn.textContent = 'Convert to MP3';
+      setConvertBusy(false);                   // always restore the button
+      loadVideos();                            // always re-call the data after the response
     }
   }
 
   // Process audio
-  async function processAudio(fileName) {
-    if (processBtn.disabled) return;              // guard against duplicate clicks
-    processBtn.disabled = true;                   // disable while in-flight
-    processBtn.textContent = 'Processing...';
+  //   mode = 'report'     -> POST video-processing/process (full Whisper + audit pipeline)
+  //   mode = 'transcript' -> POST video-processing/transcript (Deepgram AI transcript)
+  async function processAudio(fileName, mode) {
+    const isTranscript = mode === 'transcript';
+    if (processBtn.disabled || isProcessing) return;   // guard against duplicate clicks
+    setProcessBusy(true);                              // show the processing state
     try {
       // Send the .mp3 audio file link + meeting_id + session_id so the backend
-      // can pass them straight to the Python bridge (runFullAudioPipeline).
+      // can pass them straight into the pipeline (runFullAudioPipeline or Deepgram).
       const video = videosCache[fileName];
       // Prefer the video record's audioPath (the .mp3 link); otherwise derive the
       // mp3 path from the .mp4 file name so we never send the video file itself.
@@ -384,7 +464,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const meetingId = (video && video.meetingId) || null;
       const sessionId = (video && video.sessionId) || null;
 
-      const response = await fetch('/api/super_admin/settings/video-processing/process', {
+      const url = isTranscript
+        ? '/api/super_admin/content/video-processing/transcript'
+        : '/api/super_admin/content/video-processing/process';
+
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -392,27 +476,28 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const result = await response.json();
       if (result.success) {
-        if (result.data && result.data.alreadyExists) {
-          showToast('Processing completed — MP3 saved', 'success');
-        } else {
-          showToast('Audio processing started', 'success');
-        }
+        setProcessBusy(false);                 // release the modal lock before closing
+        showToast(isTranscript ? 'AI transcript generated' : 'Report generated', 'success');
         closeModals();
-        loadVideos();
       } else {
-        showToast('Processing failed: ' + (result.error || 'unknown error'), 'error');
+        processMp3Status.textContent = result.error || 'Processing failed';
+        processMp3Status.className = 'text-xs text-red-600';
+        showToast((isTranscript ? 'Transcript' : 'Report') + ' failed: ' + (result.error || 'unknown error'), 'error');
       }
     } catch (err) {
       console.error('Process error:', err);
+      processMp3Status.textContent = 'Processing failed: ' + err.message;
+      processMp3Status.className = 'text-xs text-red-600';
       showToast('Processing failed', 'error');
     } finally {
-      processBtn.disabled = false;
-      processBtn.textContent = 'Process Audio';
+      setProcessBusy(false);                   // always restore the button
+      loadVideos();                            // always re-call the data after the response
     }
   }
 
-  // Close modals
+  // Close modals (locked while a Convert/Process request is running)
   function closeModals() {
+    if (isConverting || isProcessing) return;   // keep the modal open while a job is running
     convertModal.classList.add('hidden');
     convertModal.classList.remove('opacity-100');
     processModal.classList.add('hidden');

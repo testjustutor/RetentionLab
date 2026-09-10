@@ -20,7 +20,8 @@ const DEFAULT_MENU_BY_ROLE = {
 
     { id: 'sa-content', label: 'Content', icon: 'folder', href: null, submenu: [
       { id: 'sa-archives', label: 'Archives', href: '/super_admin/content/archives' },
-      { id: 'sa-media-assets', label: 'Media Assets', href: '/super_admin/content/assets' }
+      { id: 'sa-media-assets', label: 'Media Assets', href: '/super_admin/content/assets' },
+      { id: 'sa-video-processing', label: 'Video Processing', icon: 'video', href: '/super_admin/content/video-processing' }
     ]},
 
     { id: 'sa-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
@@ -28,8 +29,7 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'sa-ai-providers', label: 'AI Providers', href: '/super_admin/settings/ai-providers' },
       { id: 'sa-platforms', label: 'Platform Integrations', href: '/super_admin/settings/platforms' },
       { id: 'sa-user-defaults', label: 'User Defaults', href: '/super_admin/settings/user-defaults' },
-      { id: 'sa-table-controls', label: 'Table Controls', href: '/super_admin/settings/table-controls' },
-      { id: 'sa-video-processing', label: 'Video Processing', icon: 'video', href: '/super_admin/settings/video-processing' }
+      { id: 'sa-table-controls', label: 'Table Controls', href: '/super_admin/settings/table-controls' }
     ]},
 
     { id: 'sa-monitoring', label: 'Monitoring', icon: 'activity', href: null, submenu: [

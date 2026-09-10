@@ -1,5 +1,28 @@
 # TODO
 
+## Task: Video Processing - Add "AI Transcript" (Deepgram) button + rename Process to "Generate Report"
+
+- [x] Add an "AI Transcript" action button in the table right after Convert (enabled when MP3 exists)
+- [x] Reuse the Process modal for both actions with dynamic title/button + processing indicator (spinner + message)
+- [x] AI Transcript posts to /api/super_admin/content/deepgram-processing/process (Deepgram pipeline)
+- [x] Generate Report posts to /api/super_admin/content/video-processing/process (full audio pipeline)
+- [x] Rename Process/Re-process button labels to "Generate Report" / "Re-generate Report"
+- [x] Lock modal close while a Report/Transcript request is in flight; always re-call loadVideos() after response
+- [x] Fix stale JS API URLs (settings/ -> content/) after the page move
+- [x] Verify JS syntax, route loading, and live server (port 3000) serves updated static files + mounted API endpoints
+
+- [x] Add a visible processing indicator (spinner + message) to the Process Audio modal when "Process Audio" is clicked
+- [x] Lock the Process modal (no closing) while the process request is in flight
+- [x] Always re-call loadVideos() after the process response completes (success / already-exists / error)
+- [x] Verify JS syntax and behavior
+
+## Task: Video Processing - Convert to MP3 shows processing state and re-calls data
+
+- [x] Add a visible processing indicator (spinner + message) to the Convert modal when "Convert to MP3" is clicked
+- [x] Lock the Convert modal (no closing) while the conversion request is in flight
+- [x] Always re-call loadVideos() after the conversion response completes (success / already-exists / error)
+- [x] Verify JS syntax and behavior
+
 ## Task: Remove unused files from services/engine
 
 - [x] Verify the 13 target files exist in `services/engine`

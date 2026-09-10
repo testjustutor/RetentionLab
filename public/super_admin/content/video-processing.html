@@ -117,6 +117,16 @@
             <label class="block text-xs font-bold text-slate-700 mb-1">MP3 Status</label>
             <span id="convertMp3Status" class="text-xs text-cyan-700"></span>
           </div>
+
+          <!-- Processing indicator shown while the conversion request is in flight -->
+          <div id="convertProcessing" class="hidden items-center gap-1.5 text-xs text-cyan-700 font-medium">
+            <svg class="w-3.5 h-3.5 animate-spin text-cyan-600" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span>Converting video to MP3 — please wait. Do not close this window...</span>
+          </div>
+
           <button id="convertBtn" class="w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded transition flex items-center justify-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m0-16l-4 4m4-4l4 4"/></svg>
             Convert to MP3
@@ -129,7 +139,7 @@
     <div id="processModal" class="hidden fixed inset-0 bg-black/50 z-[99999] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
       <div class="bg-white rounded-lg shadow-xl max-w-md w-full border-2 border-emerald-400 overflow-hidden">
         <div class="px-3 py-2 border-b-2 border-emerald-300 bg-emerald-100 flex items-center justify-between">
-          <h2 class="text-sm font-bold text-emerald-950 uppercase tracking-wide">Process Audio</h2>
+          <h2 id="processModalTitle" class="text-sm font-bold text-emerald-950 uppercase tracking-wide">Generate Report</h2>
           <button type="button" data-close class="text-emerald-700 hover:text-emerald-900 text-sm leading-none">✕</button>
         </div>
         <div class="p-4 space-y-3">
@@ -141,9 +151,19 @@
             <label class="block text-xs font-bold text-slate-700 mb-1">MP3 Status</label>
             <span id="processMp3Status" class="text-xs text-emerald-700"></span>
           </div>
+
+          <!-- Processing indicator shown while the report/transcript request is in flight -->
+          <div id="processProcessing" class="hidden items-center gap-1.5 text-xs text-emerald-700 font-medium">
+            <svg class="w-3.5 h-3.5 animate-spin text-emerald-600" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span>Processing — please wait. Do not close this window...</span>
+          </div>
+
           <button id="processBtn" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded transition flex items-center justify-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            Process Audio
+            Generate Report
           </button>
         </div>
       </div>
@@ -193,6 +213,6 @@
   <script type="module" src="/js/auth.js"></script>
   <script src="/js/load-components.js"></script>
   <script src="/js/common-ui-super-admin.js"></script>
-  <script src="/js/super_admin/settings/video-processing.js"></script>
+  <script src="/js/super_admin/content/video-processing.js"></script>
 </body>
 </html>

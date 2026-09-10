@@ -8,8 +8,9 @@
  * `video_processing` identification rows (storing BOTH file-origin ids and the
  * real DB ids).
  */
-const VideoProcessingModel = require('../../../models/super_admin/settings/VideoProcessingModel');
+const VideoProcessingModel = require('../../../models/super_admin/content/VideoProcessingModel');
 const { convertVideoToMp3 } = require('../../../services/engine/python_runner');
+const axios = require('axios');
 // Same audio-processing pipeline Flow 1 (the meeting bot, services/socraticbot.js)
 // uses: Whisper transcription -> AI rubric audit -> tutor eval -> summary ->
 // DB persistence. The admin video-processing flow now converges onto this
@@ -29,6 +30,10 @@ const CONVERTED_DIR = path.join(ROOT_DIR, 'storage', 'recordings');
 // storage/video_diarization is no longer used/written by the engine.
 const TRANSCRIPTS_DIR = path.join(ROOT_DIR, 'storage', 'cache_audio_transcripts');
 const AUDITS_DIR = path.join(ROOT_DIR, 'storage', 'cache_audits');
+// AI Transcript (Deepgram) output — deliberately separate from
+// storage/cache_audio_transcripts (the Whisper pipeline's diarization output
+// above) so the two never collide or get confused for one another.
+const DEEPGRAM_DIR = path.join(ROOT_DIR, 'storage', 'cache_deepgram_transcripts');
 
 const SAFE_NAME_RE = /^[A-Za-z0-9_.\-\s]+\.mp4$/i;
 
@@ -697,6 +702,73 @@ function reportFileNames(fileName, meetingId, sessionId) {
     diarizationUrl: encodeURI(`/storage/cache_audio_transcripts/DIARIZED_TRANS_${baseId}.diarization.txt`),
   };
 }
+
+// AI Transcript (Deepgram) file availability for a video, same base_id
+// scheme as reportFileNames() above but its own DEEPGRAM_DIR/prefix.
+function transcriptFileNames(fileName, meetingId, sessionId) {
+  const mp3Base = toMp3Name(fileName, meetingId, sessionId).replace(/\.mp3$/i, '');
+  const baseId = computeBaseId(mp3Base);
+  const json = path.join(DEEPGRAM_DIR, `DEEPGRAM_TRANS_${baseId}.json`);
+  const txt = path.join(DEEPGRAM_DIR, `DEEPGRAM_TRANS_${baseId}.txt`);
+  return {
+    transcriptExists: fs.existsSync(json),
+    transcriptJsonUrl: encodeURI(`/storage/cache_deepgram_transcripts/DEEPGRAM_TRANS_${baseId}.json`),
+    transcriptTxtUrl: encodeURI(`/storage/cache_deepgram_transcripts/DEEPGRAM_TRANS_${baseId}.txt`),
+  };
+}
+
+/** Deepgram API key, read fresh from env each call (never cached/logged). */
+function getDeepgramApiKey() {
+  return process.env.DEEPGRAM_API_KEY || null;
+}
+
+/**
+ * Call Deepgram's prerecorded /v1/listen REST API directly with the mp3's
+ * raw bytes (no SDK — matches the rest of this codebase's pattern of plain
+ * axios calls to third-party APIs). diarize+utterances give us per-speaker
+ * turns; smart_format+punctuate make the text readable.
+ */
+async function callDeepgram(mp3Path, apiKey) {
+  const audioBuffer = fs.readFileSync(mp3Path);
+  const response = await axios.post(
+    'https://api.deepgram.com/v1/listen',
+    audioBuffer,
+    {
+      params: { model: 'nova-2', smart_format: true, punctuate: true, diarize: true, utterances: true },
+      headers: { Authorization: `Token ${apiKey}`, 'Content-Type': 'audio/mpeg' },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 120000
+    }
+  );
+  return response.data;
+}
+
+/** Shape Deepgram's raw response into what the frontend/txt file expect. */
+function shapeDeepgramResult(raw) {
+  const results = raw?.results || {};
+  const alt = results.channels?.[0]?.alternatives?.[0] || {};
+  const utterances = Array.isArray(results.utterances) ? results.utterances : [];
+  const segments = utterances.map(u => ({
+    speaker: `Speaker ${u.speaker ?? 0}`,
+    start: u.start ?? 0,
+    end: u.end ?? 0,
+    text: u.transcript || ''
+  }));
+  const speakers = [...new Set(segments.map(s => s.speaker))];
+  return {
+    transcript: alt.transcript || '',
+    segments,
+    speakers,
+    duration: raw?.metadata?.duration ?? null
+  };
+}
+
+function transcriptTxtBody(shaped) {
+  const fmt = (t) => new Date((t || 0) * 1000).toISOString().substring(11, 19);
+  if (!shaped.segments.length) return shaped.transcript || '(empty transcript)';
+  return shaped.segments.map(s => `[${fmt(s.start)} - ${fmt(s.end)}] ${s.speaker}: ${s.text}`).join('\n');
+}
 // ------------------------------------------------------------------
   // Route-handler methods
   // ------------------------------------------------------------------
@@ -765,7 +837,8 @@ const controller = {
           videoPath: videoLink(fileName),
           audioPath: hasMp3 ? audioLink(toMp3Name(fileName, ids.meetingId, ids.sessionId)) : null,
           meetingId: ids.meetingId, sessionId: ids.sessionId,
-          ...reportFileNames(fileName, ids.meetingId, ids.sessionId)
+          ...reportFileNames(fileName, ids.meetingId, ids.sessionId),
+          ...transcriptFileNames(fileName, ids.meetingId, ids.sessionId)
         };
       });
 
@@ -925,6 +998,65 @@ async processAudio(req, res) {
       }
     } catch (err) {
       console.error('[VideoProcessingController] processAudio error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  /**
+   * AI Transcript: calls Deepgram's prerecorded API directly on the already-
+   * converted mp3 (no Whisper, no audit/report pipeline — just a fast
+   * speaker-labelled transcript). Requires DEEPGRAM_API_KEY in .env.
+   */
+  async generateTranscript(req, res) {
+    try {
+      const apiKey = getDeepgramApiKey();
+      if (!apiKey) {
+        return res.json({ success: false, data: { success: false, error: 'DEEPGRAM_API_KEY is not set in .env — add it and restart the server before using AI Transcript.' } });
+      }
+
+      const audioPath = req.body?.audioPath || req.body?.filePath || req.body?.fileName;
+      const meetingId = req.body?.meetingId || null;
+      const sessionId = req.body?.sessionId || null;
+
+      const videoName = safeVideoName(audioPath);
+      const mp3Name = /\.mp3$/i.test(String(audioPath)) ? path.basename(String(audioPath)) : toMp3Name(videoName || String(audioPath), meetingId, sessionId);
+      if (!mp3Name) return res.status(400).json({ success: false, error: 'Invalid audio filename.' });
+
+      const mp3Path = path.join(CONVERTED_DIR, mp3Name);
+      if (!fs.existsSync(mp3Path)) return res.status(400).json({ success: false, error: 'MP3 file is missing. Convert the video to audio before generating a transcript.' });
+
+      const baseId = computeBaseId(mp3Name.replace(/\.mp3$/i, ''));
+      if (!fs.existsSync(DEEPGRAM_DIR)) fs.mkdirSync(DEEPGRAM_DIR, { recursive: true });
+      const jsonPath = path.join(DEEPGRAM_DIR, `DEEPGRAM_TRANS_${baseId}.json`);
+      const txtPath = path.join(DEEPGRAM_DIR, `DEEPGRAM_TRANS_${baseId}.txt`);
+
+      let shaped;
+      try {
+        const raw = await callDeepgram(mp3Path, apiKey);
+        shaped = shapeDeepgramResult(raw);
+      } catch (dgErr) {
+        const dgMessage = dgErr.response?.data?.err_msg || dgErr.response?.data?.reason || dgErr.message || 'Deepgram request failed.';
+        console.error('[VideoProcessingController] generateTranscript Deepgram error:', dgMessage);
+        return res.json({ success: false, data: { success: false, error: 'Deepgram error: ' + dgMessage } });
+      }
+
+      fs.writeFileSync(jsonPath, JSON.stringify({
+        fileName: mp3Name, meetingId, sessionId, generatedAt: new Date().toISOString(),
+        duration: shaped.duration, speakers: shaped.speakers, segments: shaped.segments, transcript: shaped.transcript
+      }, null, 2));
+      fs.writeFileSync(txtPath, transcriptTxtBody(shaped));
+
+      invalidateCaches();
+      return res.json({
+        success: true,
+        data: {
+          success: true, speakers: shaped.speakers, segments: shaped.segments.length, duration: shaped.duration,
+          transcriptJsonUrl: encodeURI(`/storage/cache_deepgram_transcripts/DEEPGRAM_TRANS_${baseId}.json`),
+          transcriptTxtUrl: encodeURI(`/storage/cache_deepgram_transcripts/DEEPGRAM_TRANS_${baseId}.txt`)
+        }
+      });
+    } catch (err) {
+      console.error('[VideoProcessingController] generateTranscript error:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   },
