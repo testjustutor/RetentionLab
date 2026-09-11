@@ -8,6 +8,7 @@ const settings = require('../../config/settings');
 
 const MeetingSessionController = require('../../controllers/meetings/meeting-session/meetingSessionController');
 const MeetingAssetModel = require('../../models/meetings/assets/meetingAssetModel');
+const MeetingModel = require('../../models/meetings/MeetingModel');
 
 const ACTIVE_STATUSES = ['running', 'joining', 'starting', 'launching', 'live'];
 
@@ -179,12 +180,28 @@ class BotManager {
           const inst = this.instances.get(session.id);
           if (inst) inst.status = 'completed';
           MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'completed');
+          // Also finalize the parent meetings row — this used to only update
+          // meeting_sessions, so the meetings.status column (what Admin >
+          // Meetings > Completed reads) stayed stuck on 'in_progress' forever
+          // after the session actually ended. Keyed on event_id, same as
+          // BotPollingController's status writes, so it hits the right
+          // occurrence of a recurring meeting.
+          if (meetingRecord.event_id) {
+            MeetingModel.updateMeetingStatus(meetingRecord.event_id, 'completed').catch(e => {
+              logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} completed:`, e);
+            });
+          }
         })
         .catch(err => {
           logger.error(`Shared(botManager): Launch error ${meetingId}:`, err);
           const inst = this.instances.get(session.id);
           if (inst) inst.status = 'error';
           MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'error');
+          if (meetingRecord.event_id) {
+            MeetingModel.updateMeetingStatus(meetingRecord.event_id, 'failed').catch(e => {
+              logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} failed:`, e);
+            });
+          }
         });
 
       return { success: true, meetingId, sessionId: session.id };

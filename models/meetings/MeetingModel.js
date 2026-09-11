@@ -361,10 +361,21 @@ class MeetingModel {
   // gets its status updated — meeting_id is shared across every occurrence
   // of a recurring meeting, so using it here could flip the status of the
   // wrong day's row (e.g. tomorrow's queued row instead of today's).
+  //
+  // The guard used to be `status IN ('queued', 'launching')`, which only
+  // covered the pre-launch transitions BotPollingController makes
+  // (queued -> launching -> in_progress). That meant once a meeting reached
+  // 'in_progress' there was NO way to ever move it to 'completed'/'failed'
+  // again through this method — any later call (e.g. when the bot's session
+  // actually ends, see botManager.js) silently matched 0 rows and did
+  // nothing, which is why completed sessions kept showing as "in_progress"
+  // on Admin > Meetings > Completed forever. The guard now only blocks
+  // writing over a row that's already in a terminal state, so the meeting
+  // can still be finalized once it's actually running.
   static updateMeetingStatus(eventId, status) {
     return new Promise((resolve, reject) => {
       db.run(
-        `UPDATE meetings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status IN ('queued', 'launching')`,
+        `UPDATE meetings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status NOT IN ('completed', 'failed', 'cancelled', 'expired')`,
         [status, eventId],
         function (err) {
           if (err) {
