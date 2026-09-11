@@ -31,3 +31,9 @@ python -m pip install -U moviepy
 python -m pip install -U soundfile
 python -m pip install -U deepgram-sdk
 python -m pip install noisereduce
+
+# spaCy: local/offline NER fallback used by services/python_deepgram/name_detector.py
+# to detect the student's real name from the transcript text (no LLM/API calls -
+# regex cues are tried first, spaCy PERSON-entity recognition is the fallback).
+python -m pip install -U spacy
+python -m spacy download en_core_web_sm

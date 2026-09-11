@@ -23,11 +23,15 @@ PipelineContext._resolve_captions_trans_path).
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from utils.logger_util import log_with_type
+
+from .name_detector import detect_student_name
+from .participants_repo import save_participants
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv", ".m4v"}
 
@@ -76,6 +80,73 @@ def _extract_name_from_filename(audio_path: str) -> List[str]:
         return [candidate]
     except Exception:
         return []
+
+
+
+# Deliberately stricter than _extract_name_from_filename() above (which
+# only guards against the 2nd field being blank/pure-digits - fine for a
+# soft transcription-accuracy nudge, not fine for something written
+# straight into a permanent DB row). This requires the filename to match
+# the FULL documented shape, not just "some non-numeric 2nd field":
+#   <numericId>_<Name Words>_<AlphaType>_<numericId2>_...
+# e.g. "1064_Neeraj Tanwar_Regular_247411_General Discussion-...mp4".
+# A REC_/SCREEN_ bot filename fails at the very first token (starts with
+# letters, not a numeric id) and correctly returns None; so does an
+# arbitrary/unrelated filename like "some_random_file.mp4".
+_TEACHER_FILENAME_PATTERN = re.compile(
+    r"^\d+_([A-Za-z][A-Za-z.'\-]*(?:\s[A-Za-z][A-Za-z.'\-]*)*)_[A-Za-z]+_\d+_"
+)
+
+
+def extract_teacher_name_from_filename(input_path: str) -> Optional[str]:
+    """Best-effort extraction of the tutor/instructor's name from the
+    recording filename - e.g.
+        1064_Neeraj Tanwar_Regular_247411_General Discussion-20260817_092941.mp4
+    -> "Neeraj Tanwar".
+
+    Used for recording the teacher's name into the `participants` table
+    (see participants_repo.save_participants) - a stricter, independent
+    check from _extract_name_from_filename()'s keyterm-biasing heuristic
+    above, since a wrong guess here writes a wrong name to the DB instead
+    of just slightly mis-tuning transcription accuracy.
+
+    Returns None on the bot-recorded REC_/SCREEN_ convention, and on
+    anything else that doesn't match the full expected shape.
+    """
+    try:
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        m = _TEACHER_FILENAME_PATTERN.match(base)
+        if not m:
+            return None
+        name = m.group(1).strip()
+        return name or None
+    except Exception:
+        return None
+
+
+# Matches the bot-recorded convention (see KNOWN_RECORDING_PREFIXES below):
+#   REC_<meetingDbId>_Sess<sessionId>_<YYYY-MM-DD>_<HH-MM>.mp3
+#   SCREEN_<meetingDbId>_Sess<sessionId>_<YYYY-MM-DD>_<HH-MM>.mp4
+# Used to auto-derive meeting_id/session_id for the participants-table write
+# when a caller doesn't pass them explicitly (see transcribe_and_save()).
+_REC_MEETING_SESSION_PATTERN = re.compile(r"^(?:REC|SCREEN)_(\d+)_Sess(\d+)_", re.IGNORECASE)
+
+
+def _extract_meeting_session_ids_from_filename(input_path: str) -> Tuple[Optional[int], Optional[int]]:
+    """Best-effort (meeting_id, session_id) extraction from a REC_/SCREEN_
+    filename. Returns (None, None) if the filename doesn't match this
+    convention - e.g. the differently-named "1064_Neeraj Tanwar_..." files
+    extract_teacher_name_from_filename() reads don't carry these ids, so a
+    caller must pass meeting_id/session_id explicitly for those to get a
+    participants-table write."""
+    try:
+        stem = os.path.splitext(os.path.basename(input_path))[0]
+        m = _REC_MEETING_SESSION_PATTERN.match(stem)
+        if not m:
+            return None, None
+        return int(m.group(1)), int(m.group(2))
+    except Exception:
+        return None, None
 
 
 def _get_client():
@@ -127,6 +198,7 @@ def transcribe_audio(audio_path: str, keyterms: List[str] | None = None) -> Dict
         "success": False, "audio_file": audio_path, "language": "en",
         "backend": f"deepgram-{DEFAULT_MODEL}", "segments": [], "words": [],
         "diarization": [], "plain_text": "", "error": None,
+        "student_name": None, "student_name_confidence": None, "student_name_source": None,
     }
     if not audio_path or not os.path.exists(audio_path):
         result["error"] = f"audio file not found: {audio_path}"
@@ -254,12 +326,21 @@ def transcribe_audio(audio_path: str, keyterms: List[str] | None = None) -> Dict
         segments = _apply_role_labels(segments)
         diarization = [{"start": s["start"], "end": s["end"], "speaker": s["speaker"]} for s in segments]
 
+        # Best-effort recovery of the student's real name from the transcript
+        # text itself (regex greeting/self-intro cues, falling back to spaCy
+        # NER) - see name_detector.py. Purely local/library-based, no LLM
+        # calls; never raises, so a miss here can't break transcription.
+        name_info = detect_student_name(segments)
+
         result.update({
             "success": True,
             "duration": data.get("metadata", {}).get("duration"),
             "segments": segments,
             "diarization": diarization,
             "plain_text": alt.get("transcript", ""),
+            "student_name": name_info.get("student_name"),
+            "student_name_confidence": name_info.get("confidence"),
+            "student_name_source": name_info.get("source"),
             # raw word stream kept for word-level consumers
             "words": [
                 {"word": w.get("punctuated_word") or w.get("word"),
@@ -269,7 +350,7 @@ def transcribe_audio(audio_path: str, keyterms: List[str] | None = None) -> Dict
             ],
         })
         n_spk = len({s["speaker"] for s in segments})
-        log_with_type("info", f"deepgram: done -> {len(segments)} turns, speakers={n_spk}, duration={result['duration']}s", "PYTHON_DEEPGRAM")
+        log_with_type("info", f"deepgram: done -> {len(segments)} turns, speakers={n_spk}, duration={result['duration']}s, student_name={result['student_name']!r}", "PYTHON_DEEPGRAM")
         return result
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
@@ -384,15 +465,31 @@ def _build_transcript_text(segments: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def transcribe_and_save(input_path: str, keyterms: List[str] | None = None) -> Dict[str, Any]:
+def transcribe_and_save(
+    input_path: str,
+    keyterms: List[str] | None = None,
+    meeting_id: int | None = None,
+    session_id: int | None = None,
+) -> Dict[str, Any]:
     """Main entry point: accepts a recording path - video OR audio, whichever
     was generated - transcribes it via Deepgram, and saves the transcript to
     storage/transcripts/TRANS_<name>.txt (REC_ -> TRANS_ prefix swap, .txt
     extension), so it's discoverable the same way platform-captions
     transcripts already are.
 
+    meeting_id/session_id: pass these when the caller already knows which
+    meeting/session this recording belongs to (the Node side generally
+    does), so the teacher name (from the filename) and student name (from
+    the transcript - see name_detector.detect_student_name) can be written
+    into the shared `participants` table. When omitted, this tries to
+    auto-derive both from a REC_<meetingId>_Sess<sessionId>_... filename
+    (the bot-recorder convention); if that doesn't match either, the names
+    are still returned in the result dict, just not persisted to the DB
+    (see participants_repo.save_participants).
+
     Returns the same shape as transcribe_audio(), plus "transcript_path"
-    (the saved file's path, or None if transcription failed).
+    (the saved file's path, or None if transcription failed), "teacher_name"
+    (from the filename), and "participants_db" (the DB-write outcome).
     """
     # Derive keyterms from the ORIGINAL filename (e.g. REC_1064_Neeraj...)
     # before any video->audio conversion - a temp extracted-audio filename
@@ -400,6 +497,14 @@ def transcribe_and_save(input_path: str, keyterms: List[str] | None = None) -> D
     # expects, so auto-keyterm derivation must happen on the source path.
     if not keyterms:
         keyterms = _extract_name_from_filename(input_path)
+
+    # Same reasoning for the teacher's name and the meeting/session ids:
+    # both are read from the ORIGINAL recording filename, before any
+    # video->audio extraction produces a differently-named temp file.
+    teacher_name = extract_teacher_name_from_filename(input_path)
+    auto_meeting_id, auto_session_id = _extract_meeting_session_ids_from_filename(input_path)
+    resolved_meeting_id = meeting_id if meeting_id is not None else auto_meeting_id
+    resolved_session_id = session_id if session_id is not None else auto_session_id
 
     try:
         audio_path, temp_dir = _extract_audio_if_needed(input_path)
@@ -410,6 +515,8 @@ def transcribe_and_save(input_path: str, keyterms: List[str] | None = None) -> D
             "success": False, "audio_file": input_path, "language": "en",
             "backend": f"deepgram-{DEFAULT_MODEL}", "segments": [], "words": [],
             "diarization": [], "plain_text": "", "transcript_path": None,
+            "student_name": None, "student_name_confidence": None, "student_name_source": None,
+            "teacher_name": teacher_name, "participants_db": None,
             "error": error,
         }
 
@@ -417,6 +524,7 @@ def transcribe_and_save(input_path: str, keyterms: List[str] | None = None) -> D
         result = transcribe_audio(audio_path, keyterms=keyterms)
         result["audio_file"] = input_path  # report the ORIGINAL path, not the temp mp3
         result["transcript_path"] = None
+        result["teacher_name"] = teacher_name
 
         if result.get("success"):
             transcript_text = _build_transcript_text(result.get("segments") or [])
@@ -425,6 +533,14 @@ def transcribe_and_save(input_path: str, keyterms: List[str] | None = None) -> D
                 fh.write(transcript_text)
             result["transcript_path"] = output_path
             log_with_type("info", f"deepgram: transcript saved -> {output_path}", "PYTHON_DEEPGRAM")
+
+            # Best-effort: never lets a DB hiccup fail the transcription job -
+            # see participants_repo.save_participants for the no-op/error shape.
+            result["participants_db"] = save_participants(
+                resolved_meeting_id, resolved_session_id, teacher_name, result.get("student_name")
+            )
+        else:
+            result["participants_db"] = None
 
         return result
     finally:

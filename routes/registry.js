@@ -15,6 +15,19 @@ const routeRegistry = [
   // Auth
   { method: 'get', path: '/auth/google/callback', handler: 'index', action: 'googleCallback' },
   { method: 'get', path: '/api/calendar/callback', handler: 'index', action: 'calendarCallback', middleware: ['guest'] },
+
+  // Legacy public verify link — DO NOT remove or change this path. It's the exact
+  // URL already emailed to instructors and depended on by the existing Google
+  // Calendar OAuth setup. Delegates to the same handler as the current
+  // /api/instructor/calendar/verify route (see routes/instructor-calendar-verify-legacy.js).
+  { method: 'get', path: '/api/instructor-calendar/verify', handler: 'instructor-calendar-verify-legacy' },
+
+  // Legacy OAuth callback — DO NOT remove or change this path either. It's the
+  // redirect_uri instructorCalendarController.verifyToken() sends to Google and
+  // the URI registered in the Google Cloud OAuth console, so Google will only
+  // ever redirect back here. Delegates to the same handler as the current
+  // /api/instructor/calendar/callback route (see routes/instructor-calendar-callback-legacy.js).
+  { method: 'get', path: '/api/instructor-calendar/callback', handler: 'instructor-calendar-callback-legacy' },
   
   // Bot & Calendar
   { method: 'use', path: '/api/bot', handler: 'bot' },

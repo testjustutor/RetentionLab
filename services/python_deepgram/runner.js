@@ -26,13 +26,27 @@ function deepgramAvailable() {
 /**
  * Transcribe local audio via Deepgram API.
  *   {success, segments:[{start,end,text,speaker}], words, diarization,
- *    plain_text, language:'en', backend}
+ *    plain_text, language:'en', backend, teacher_name, student_name,
+ *    student_name_confidence, student_name_source, participants_db}
+ *
+ * meetingId/sessionId: pass these when known so the Python side can save
+ * the detected teacher name (from the filename) and student name (from the
+ * transcript) into the `participants` table - see
+ * services/python_deepgram/participants_repo.py. Omit them and the Python
+ * side falls back to auto-deriving both from a REC_<meetingId>_
+ * Sess<sessionId>_... filename when the recording follows that convention;
+ * otherwise the names still come back in the resolved object, just without
+ * a DB write.
  */
-function transcribeWithDeepgram(audioPath, { timeoutMs = 30 * 60 * 1000 } = {}) {
+function transcribeWithDeepgram(audioPath, { timeoutMs = 30 * 60 * 1000, meetingId = null, sessionId = null } = {}) {
   return new Promise((resolve, reject) => {
+    const args = ['-m', 'services.python_deepgram.main', path.resolve(audioPath)];
+    if (meetingId !== null && meetingId !== undefined) args.push('--meeting-id', String(meetingId));
+    if (sessionId !== null && sessionId !== undefined) args.push('--session-id', String(sessionId));
+
     const proc = spawn(
       resolvePython(),
-      ['-m', 'services.python_deepgram.main', path.resolve(audioPath)],
+      args,
       {
         cwd: PROJECT_ROOT,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONPATH: PROJECT_ROOT },

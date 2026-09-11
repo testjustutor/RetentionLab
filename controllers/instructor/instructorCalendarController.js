@@ -350,7 +350,9 @@ const controller = {
     }
   },
 
-  /** GET /api/instructor-calendar/verify?token=JWT */
+  /** GET /api/instructor-calendar/verify?token=JWT (legacy path, kept reachable for
+   *  already-sent emails and the existing Google OAuth setup — see
+   *  routes/instructor-calendar-verify-legacy.js) */
   async verifyToken(req, res) {
     try {
       const { token } = req.query;
