@@ -3,6 +3,8 @@
  *
  */
 const { logger } = require('../../../utils/logger');
+const settings = require('../../../config/settings');
+const { HostDeniedError, WaitingRoomTimeoutError } = require('../joinErrors');
 
 class ZoomJoiner {
   constructor(page, botName, passcode, meetingUrl) {
@@ -30,7 +32,11 @@ class ZoomJoiner {
 
     let joined = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 120;
+    let sawWaitingRoom = false;
+    // Total lobby/waiting-room window comes from .env (BOT_HOST_WAIT_TIMEOUT_MS)
+    // via config/settings.js — a single shared value for all platforms.
+    // Poll cadence stays at 5 s (see sleep below).
+    const MAX_ATTEMPTS = Math.max(1, Math.ceil(settings.bot.hostWaitTimeoutMs / 5000));
 
     while (!joined && attempts < MAX_ATTEMPTS) {
       attempts++;
@@ -59,9 +65,15 @@ class ZoomJoiner {
             throw new Error('Zoom meeting has already ended');
           }
 
+          if (analysis.isHostDenied) {
+            logger.warn('ZoomAdapter(zoomJoiner): Host rejected/removed the bot — aborting join');
+            throw new HostDeniedError('Zoom host rejected the bot');
+          }
+
           if (analysis.isWaitingForHost) {
+            sawWaitingRoom = true;
             if (attempts % 6 === 0) {
-              logger.info(`ZoomAdapter(zoomJoiner): Waiting for host (${Math.round(attempts * 5 / 60)} min elapsed)...`);
+              logger.info(`ZoomAdapter(zoomJoiner): Waiting for host (${Math.round(attempts * 5000 / 60000)} min elapsed)...`);
             }
             continue; // FIX: only skip this frame, not the rest of the pass
           }
@@ -87,6 +99,10 @@ class ZoomJoiner {
 
     if (!joined) {
       await this.page.screenshot({ path: './logs/image/stuck_debug.png' }).catch(() => {});
+      if (sawWaitingRoom) {
+        logger.error('ZoomAdapter(zoomJoiner): Timed out waiting for the host — waiting_timeout');
+        throw new WaitingRoomTimeoutError('Zoom waiting-room timeout: host never admitted the bot');
+      }
       logger.error('ZoomAdapter(zoomJoiner): FAILED after max attempts — saved stuck_debug.png');
       throw new Error('Zoom join failed');
     }
@@ -136,6 +152,13 @@ class ZoomJoiner {
           text.includes('waiting for the host') ||
           text.includes('The meeting has not started') ||
           text.includes('Please wait for the host'),
+        isHostDenied:
+          text.includes('removed you from the meeting') ||
+          text.includes('You have been removed') ||
+          text.includes('not admitted') ||
+          text.includes('not let you in') ||
+          text.includes('not authorized') ||
+          text.includes('This meeting is closed'),
         isMeetingEnded:
           text.includes('This meeting has been ended') ||
           text.includes('meeting is over') ||

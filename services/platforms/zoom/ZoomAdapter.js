@@ -9,7 +9,8 @@
 
 const { logger } = require('../../../utils/logger');
 const SocraticBot = require('../../socraticbot');
-const TranscriptModel = require('../../../models/transcripts/transcriptModel');
+const MeetingAssetModel = require('../../../models/meetings/assets/meetingAssetModel');
+const MeetingModel = require('../../../models/meetings/MeetingModel');
 const botManager = require('../../shared/botManager');
 const settings = require('../../../config/settings');
 
@@ -43,8 +44,21 @@ class ZoomAdapter {
 
       logger.info(`ZoomAdapter(ZoomAdapter): Starting bot for meeting ${this.config.meetingId}`);
 
-      // Create session
-      const session = await TranscriptModel.createSession(this.config.meetingId);
+      // NOTE: meeting_sessions = human/conversation lifecycle - NOT created at
+      // join time. SocraticBot creates the row only once a real human is detected.
+      let meetingDbId = null;
+      try {
+        const mRes = await MeetingAssetModel.ensureMeetingByExternalId(this.config.meetingId, { platform: 'zoom', title: 'Bot: ' + this.config.meetingId });
+        meetingDbId = mRes.id ? Number(mRes.id) : null;
+      } catch (mErr) {
+        logger.warn(`ZoomAdapter(ZoomAdapter): Could not ensure meetings row: ${mErr.message}`);
+      }
+      if (meetingDbId) {
+        MeetingModel.updateMeetingStatusById(meetingDbId, 'bot_launching', { force: true }).catch(e =>
+          logger.warn(`ZoomAdapter(ZoomAdapter): Failed to mark meeting bot_launching: ${e.message}`)
+        );
+      }
+      const trackingId = `track_${meetingDbId ?? this.config.meetingId}_${Date.now()}`;
 
       // Build meeting URL from config if not provided.
       // FIX: this now matches botManager.js's buildMeetingLink() shape
@@ -67,7 +81,8 @@ class ZoomAdapter {
       this.bot = new SocraticBot({
         meetingUrl,
         meetingId: this.config.meetingId,
-        sessionId: session.id,
+        meetingDbId,
+        sessionId: trackingId,
         passcode: this.config.passcode,
         botName: this.config.botName,
         webhookUrl: this.config.webhookUrl
@@ -79,7 +94,7 @@ class ZoomAdapter {
         status: 'joining',
         startedAt: Date.now(),
         config: this.config,
-        sessionId: session.id,
+        sessionId: trackingId,
         adapter: this
       });
 
@@ -95,7 +110,7 @@ class ZoomAdapter {
       return {
         success: true,
         meetingId: this.config.meetingId,
-        sessionId: session.id,
+        sessionId: trackingId,
         platform: 'zoom',
         status: 'joining'
       };

@@ -108,6 +108,23 @@ async function getCurrentParticipantNames(page, botName) {
   }
 }
 
+/**
+ * NEW: lightweight one-off check for whether at least one real human
+ * participant is currently visible on the page. Used by
+ * socraticbot.js's waitForHumanParticipant() to gate recording/Python
+ * processing on a real participant joining (see Request 4: "Don't process
+ * when only the bot joins").
+ */
+async function hasHumanJoined(page, botName) {
+  try {
+    const names = await getCurrentParticipantNames(page, botName);
+    return Array.isArray(names) && names.length > 0;
+  } catch (err) {
+    logger.error(`TeamsAdapter (Monitor): hasHumanJoined check failed: ${err.message}`);
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────
 // PAGE STATE CHECKS
 // ─────────────────────────────────────────────
@@ -282,5 +299,7 @@ async function monitorMeeting(page, meetingId, botName, sessionId, participantTr
 module.exports = {
   startKeepAlive,
   monitorMeeting,
-  exportMeetingTranscript
+  exportMeetingTranscript,
+  getCurrentParticipantNames,
+  hasHumanJoined
 };

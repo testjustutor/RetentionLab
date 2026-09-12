@@ -85,6 +85,27 @@ async function getCurrentParticipantNames(frame, botName) {
   }
 }
 
+/**
+ * NEW: lightweight one-off check for whether at least one real human
+ * participant is currently visible in the Zoom iframe. Used by
+ * socraticbot.js's waitForHumanParticipant() to gate recording/Python
+ * processing on a real participant joining (see Request 4: "Don't process
+ * when only the bot joins"). Zoom's participant list lives inside the
+ * `zoom.us` iframe, not `page` directly, so this locates that frame the
+ * same way monitorMeeting() below does.
+ */
+async function hasHumanJoined(page, botName) {
+  try {
+    const frame = page.frames().find(f => f.url().includes('zoom.us'));
+    if (!frame) return false;
+    const names = await getCurrentParticipantNames(frame, botName);
+    return Array.isArray(names) && names.length > 0;
+  } catch (err) {
+    logger.debug(`ZoomAdapter(monitor): hasHumanJoined check failed: ${err.message}`);
+    return false;
+  }
+}
+
 async function trackAttendanceChanges(frame, botName, participantTracker, previousParticipants) {
   const currentParticipants = await getCurrentParticipantNames(frame, botName);
 
@@ -236,5 +257,7 @@ async function startKeepAlive(page) {
 module.exports = {
   startKeepAlive,
   monitorMeeting,
-  exportMeetingTranscript
+  exportMeetingTranscript,
+  getCurrentParticipantNames,
+  hasHumanJoined
 };

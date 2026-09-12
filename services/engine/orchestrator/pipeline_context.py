@@ -223,6 +223,13 @@ class PipelineContext:
         self.audit_json_path = None
         self.summary_path = None
 
+        # Internal cache-only artifacts (no meeting_assets column - never
+        # persisted). audio_path/transcript_path above are the CANONICAL
+        # storage/recordings and storage/transcripts paths written to the DB;
+        # these hold the Whisper-facing working copies instead.
+        self.wav_audio_path = None
+        self.whisper_transcript_cache_path = None
+
         self.labeled_transcript = ""
         self.diarization_data = None
         self.talk_ratio = None

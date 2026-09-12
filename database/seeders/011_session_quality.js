@@ -1,10 +1,18 @@
 /**
  * root/database/seeders/011_session_quality.js
  *
- * Seeds the 10 Session Quality & Impact Report tables with realistic sample data
+ * Seeds the Session Quality & Impact Report tables with realistic sample data
  * so the frontend pages display content immediately after seeding.
  *
  * Uses session_id=1 (must exist in meeting_sessions).
+ *
+ * NOTE: several legacy session_* tables (session_snapshot, session_analysis,
+ * session_learning_impact, session_parent_summary, session_coaching_feedback,
+ * session_better_alternatives, session_next_plan, session_quality_flags,
+ * session_final_evaluation) no longer have migrations. Their INSERTs are
+ * skipped gracefully at runtime (ER_NO_SUCH_TABLE detection) so this seeder
+ * never breaks `npm run db:reset`; the surviving tables (session_rubric_*)
+ * still get seeded.
  */
 const { db } = require('../db');
 const { logger } = require('../../utils/logger');
@@ -12,6 +20,13 @@ const { logger } = require('../../utils/logger');
 // ── Helper: promisified run ─────────────────────────────────────────────────
 const run = (sql, params = []) => new Promise((resolve, reject) => {
   db.run(sql, params, function (err) {
+    // Skip INSERTs whose target table no longer exists in the schema
+    // (migration was removed) instead of failing the whole seeding run.
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.errno === 1146)) {
+      const m = /INTO\s+[`"']?([a-zA-Z_0-9]+)/i.exec(sql);
+      logger.warn(`[SessionQualitySeeder] Skipping missing table: ${m ? m[1] : 'unknown'}`);
+      return resolve({ lastID: null, changes: 0 });
+    }
     if (err) return reject(err);
     resolve({ lastID: this.lastID, changes: this.changes });
   });

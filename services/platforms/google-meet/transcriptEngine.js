@@ -10,6 +10,9 @@
 const fs   = require('fs').promises;
 const path = require('path');
 const { logger } = require('../../../utils/logger');
+const { logThrottled } = require('../../../utils/logThrottle');
+const TranscriptModel = require('../../../models/transcripts/transcriptModel');
+const MeetingSessionModel = require('../../../models/meetings/meeting-session/meetingSessionModel');
 
 // ═══════════════════════════════════════════════════════════
 // SECTION 1 — CAPTION VALIDATOR
@@ -211,6 +214,10 @@ function longestCommonPrefix(a, b) {
   return a.slice(0, i);
 }
 
+// Kept for backward compatibility (still exported) but no longer used by
+// exportTranscriptBuffer()/buildFinalCaptionSection() — see
+// extractFinalUtterances()/formatFinalUtterances() below, which replaced
+// this prefix-stripping heuristic with a simpler, correct approach.
 function compressTranscriptUpdates(rawText) {
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
   const compressed = [];
@@ -247,8 +254,107 @@ function compressTranscriptUpdates(rawText) {
   return compressed.join('\n');
 }
 
-function buildFinalCaptionSection(cleanedContent) {
-  const compressedContent = compressTranscriptUpdates(cleanedContent);
+// ═══════════════════════════════════════════════════════════
+// SECTION 4b — FINAL UTTERANCE EXTRACTION (FINAL CAPTION SNAPSHOT)
+// ═══════════════════════════════════════════════════════════
+//
+// Google Meet's live captions are CUMULATIVE: while one person keeps
+// talking, Meet re-emits growing/corrected versions of the SAME utterance
+// as separate lines under that speaker (e.g. "Hello" → "Hello, assistant!"
+// → "Hello, assistant! Okay, waiting session.") until the speaker changes.
+// The old cleanTranscript()/compressTranscriptUpdates() pipeline tried to
+// dedupe/compress this with prefix-stripping heuristics, which could mangle
+// text. This instead just groups consecutive same-speaker lines into one
+// run and keeps the LAST line of each run — the fullest/most-corrected
+// version of that utterance — tagged with the run's start/end timestamps.
+const TRANSCRIPT_LINE_PATTERN = /^\[(\d{2}:\d{2}:\d{2})\]\s+([^:]+):\s+(.*)$/;
+
+function parseTranscriptLines(rawText) {
+  const lines = [];
+  for (const rawLine of (rawText || '').split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(TRANSCRIPT_LINE_PATTERN);
+    if (!match) continue;
+    const [, ts, speaker, text] = match;
+    lines.push({ ts, speaker: speaker.trim(), text: text.trim() });
+  }
+  return lines;
+}
+
+function extractFinalUtterances(rawText) {
+  const lines = parseTranscriptLines(rawText);
+  const utterances = [];
+  let currentSpeaker = null;
+  let startTs = null;
+  let lastLine = null;
+
+  for (const entry of lines) {
+    if (entry.speaker !== currentSpeaker) {
+      if (lastLine !== null) {
+        utterances.push({
+          speaker: currentSpeaker,
+          start: startTs,
+          end: lastLine.ts,
+          text: lastLine.text,
+        });
+      }
+      currentSpeaker = entry.speaker;
+      startTs = entry.ts;
+    }
+    lastLine = entry;
+  }
+
+  if (lastLine !== null) {
+    utterances.push({
+      speaker: currentSpeaker,
+      start: startTs,
+      end: lastLine.ts,
+      text: lastLine.text,
+    });
+  }
+
+  return utterances;
+}
+
+function formatFinalUtterances(rawText) {
+  return extractFinalUtterances(rawText)
+    .map(u => `[${u.start} - ${u.end}] ${u.speaker}: ${u.text}`)
+    .join('\n');
+}
+
+// Builds the COMPLETE final transcript file content in one shot: header,
+// blank line, one line per final utterance (grouped/deduped — see
+// extractFinalUtterances() above), blank line, footer. No "FINAL CAPTION
+// SNAPSHOT" sub-banner and no raw/intermediate caption lines — those were
+// only ever a live, in-progress view; the finished file should read as one
+// clean transcript, not the live log with a cleaned copy appended after it.
+function buildFinalTranscriptContent(ctx, rawContent) {
+  const dateStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const utterancesText = rawContent ? formatFinalUtterances(rawContent) : '';
+
+  return [
+    '==========================================',
+    'GOOGLE-MEET MEETING TRANSCRIPT',
+    '==========================================',
+    `Meeting ID : ${ctx.meetingId || 'N/A'}`,
+    `Session ID : ${ctx.sessionId || '1'}`,
+    `Date       : ${dateStr}`,
+    '==========================================',
+    '',
+    utterancesText,
+    '',
+    '==========================================',
+    `TRANSCRIPT ENDED: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+    '==========================================',
+    ''
+  ].join('\n');
+}
+
+// Kept for backward compatibility (still exported); no longer used by
+// exportTranscriptBuffer() — see buildFinalTranscriptContent() above.
+function buildFinalCaptionSection(rawContent) {
+  const finalContent = formatFinalUtterances(rawContent);
   return [
     '',
     '==========================================',
@@ -256,7 +362,7 @@ function buildFinalCaptionSection(cleanedContent) {
     'This is the last full caption data collected at meeting end.',
     '==========================================',
     '',
-    compressedContent,
+    finalContent,
     buildFooter()
   ].join('\n');
 }
@@ -316,7 +422,14 @@ async function saveTranscriptLine(ctx, formattedLine) {
   try {
     await fs.mkdir(path.dirname(ctx.filePath), { recursive: true });
     await fs.appendFile(ctx.filePath, `${formattedLine}\n`);
-    logger.info(`GoogleMeetJoiner(transcriptEngine): Saved → ${formattedLine}`);
+    // LOG VOLUME: fires once per accepted caption line (every ~1.5s per
+    // active speaker - see startMonitorLoop's polling interval below) and
+    // just echoes content already durably written to the transcript file
+    // above, so it belongs at debug, not info - the info-level production
+    // log file (see utils/logger.js's File transport level:'info') would
+    // otherwise grow by thousands of lines per hour per speaker for no
+    // operational benefit. Still visible when LOG_LEVEL=debug.
+    logger.debug(`GoogleMeetJoiner(transcriptEngine): Saved → ${formattedLine}`);
   } catch (err) {
     logger.error('GoogleMeetJoiner(transcriptEngine): File write error:', err.message);
   }
@@ -325,56 +438,38 @@ async function saveTranscriptLine(ctx, formattedLine) {
 async function exportTranscriptBuffer(ctx) {
   if (!ctx)          { logger.warn('GoogleMeetJoiner(transcriptEngine): exportTranscriptBuffer missing ctx'); return; }
   if (!ctx.filePath) { logger.warn('GoogleMeetJoiner(transcriptEngine): filePath missing'); return; }
-  
+
   if (ctx._exportedTranscript) {
     logger.info('GoogleMeetJoiner(transcriptEngine): Transcript already exported, skipping duplicate');
     return;
   }
 
   try {
-    const stat = await fs.stat(ctx.filePath).catch(() => null);
     const buffer = Array.isArray(ctx.transcriptBuffer) ? ctx.transcriptBuffer : [];
+    let rawContent = '';
 
-    if (stat && stat.size > 0) {
-      let finalSection = '';
-
-      if (buffer.length > 0) {
-        const rawContent     = buffer.map(b => `[${b.time}] ${b.name}: ${b.text}`).join('\n') + '\n';
-        const cleanedContent = cleanTranscript(rawContent);
-        finalSection = buildFinalCaptionSection(cleanedContent);
-      } else {
-        const fileLines = await readTranscriptLinesFromFile(ctx.filePath);
-        if (fileLines.length > 0) {
-          const rawContent     = fileLines.join('\n') + '\n';
-          const cleanedContent = cleanTranscript(rawContent);
-          finalSection = buildFinalCaptionSection(cleanedContent);
-        }
+    if (buffer.length > 0) {
+      rawContent = buffer.map(b => `[${b.time}] ${b.name}: ${b.text}`).join('\n') + '\n';
+    } else {
+      // Fallback for the unusual case where the in-memory buffer is empty
+      // (e.g. process restarted mid-meeting) but a partial file with raw
+      // caption lines from an earlier run already exists on disk.
+      const fileLines = await readTranscriptLinesFromFile(ctx.filePath);
+      if (fileLines.length > 0) {
+        rawContent = fileLines.join('\n') + '\n';
       }
-
-      if (finalSection) {
-        await fs.appendFile(ctx.filePath, finalSection);
-        ctx._exportedTranscript = true;
-        logger.info(`GoogleMeetJoiner(transcriptEngine): Final caption snapshot appended → ${ctx.filePath}`);
-      } else {
-        const footer = `\n==========================================\nTRANSCRIPT ENDED: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n==========================================\n`;
-        await fs.appendFile(ctx.filePath, footer);
-        ctx._exportedTranscript = true;
-        logger.info(`GoogleMeetJoiner(transcriptEngine): Footer appended → ${ctx.filePath}`);
-      }
-      return;
     }
 
-    if (buffer.length === 0) {
-      logger.warn('GoogleMeetJoiner(transcriptEngine): transcriptBuffer is empty');
-      return;
-    }
-
+    // Always a full, single overwrite of the file with the complete, clean
+    // transcript — header, grouped utterances, footer, nothing else. This
+    // replaces whatever raw/intermediate lines any earlier live
+    // ensureTranscriptHeader()/saveTranscriptLine() calls wrote during the
+    // meeting (those exist only as a crash-safety net; the finished file on
+    // disk should never contain them).
     await fs.mkdir(path.dirname(ctx.filePath), { recursive: true });
-    const rawContent     = buffer.map(b => `[${b.time}] ${b.name}: ${b.text}`).join('\n') + '\n';
-    const cleanedContent = cleanTranscript(rawContent);
-    await fs.writeFile(ctx.filePath, buildHeader(ctx) + buildFinalCaptionSection(cleanedContent));
+    await fs.writeFile(ctx.filePath, buildFinalTranscriptContent(ctx, rawContent));
     ctx._exportedTranscript = true;
-    logger.info(`GoogleMeetJoiner(transcriptEngine): Buffer exported → ${ctx.filePath}`);
+    logger.info(`GoogleMeetJoiner(transcriptEngine): Final transcript written → ${ctx.filePath}`);
 
   } catch (err) {
     logger.error('GoogleMeetJoiner(transcriptEngine): Export failed:', err.message);
@@ -428,13 +523,23 @@ async function processCaptionLines(ctx, captions, lastCaptionLine, lastSpeakerNa
   for (const item of captions) {
     const { name, text } = item;
 
-    logger.info(`GoogleMeetJoiner(transcriptEngine): Processing | ${name}: "${text}"`);
+    // THROTTLED (not silenced): this fires once per caption item on EVERY
+    // ~1.5s poll tick (see startMonitorLoop below) - unthrottled that's
+    // thousands of lines/hour in the production log. The poll tick itself,
+    // and caption processing below, are UNCHANGED and still run every time -
+    // only this logger.info() call is throttled to at most once per 60s per
+    // meeting (see utils/logThrottle.js). Level stays 'info', as before.
+    logThrottled(
+      'info',
+      `transcript:processing:${ctx?.meetingUrl || 'unknown'}`,
+      `GoogleMeetJoiner(transcriptEngine): Processing | ${name}: "${text}"`
+    );
 
     // 1. Skip participant name bubbles
     try {
       const candidate = (text || '').trim();
       if (candidate && ctx?.participantTracker?.trackedParticipants?.has(candidate)) {
-        logger.info(`GoogleMeetJoiner(transcriptEngine): Skipping name bubble: "${candidate}"`);
+        logger.debug(`GoogleMeetJoiner(transcriptEngine): Skipping name bubble: "${candidate}"`);
         continue;
       }
     } catch (e) {
@@ -479,12 +584,50 @@ async function processCaptionLines(ctx, captions, lastCaptionLine, lastSpeakerNa
     lastCaptionLine      = text;
     lastSpeakerName      = name;
 
+    // ── Record the speaker as a participant (participants + participant_attendance_sessions).
+    // A real speaker name parsed from the captions is proof of a human participant.
+    // The tracker dedupes by name, so repeated caption lines only ever write once.
+    // The bot's own display name is NEVER a participant.
+    try {
+      const tracker = ctx?.participantTracker;
+      const speakerName = (name || '').trim();
+      const speakerKey = speakerName.toLowerCase();
+      const botNameKey = (ctx?.botName || '').trim().toLowerCase();
+      if (tracker && speakerName && speakerKey !== botNameKey && !speakerKey.includes('(you)') && !speakerKey.includes('(me)')) {
+        const joined = await tracker.handleParticipantJoin(speakerName);
+        if (joined && (joined.event === 'first_join' || joined.event === 'rejoin')) {
+          logger.info(`GoogleMeetJoiner(transcriptEngine): Participant recorded from captions: ${speakerName} (${joined.event})`);
+        }
+      }
+    } catch (e) {
+      logger.debug(`GoogleMeetJoiner(transcriptEngine): Could not record caption speaker as participant: ${e.message}`);
+    }
+
     const formattedTime = new Date().toTimeString().split(' ')[0];
     const formattedLine = `[${formattedTime}] ${name}: ${text}`;
 
     transcriptBuffer.push({ name, text, time: formattedTime });
 
     await saveTranscriptLine(ctx, formattedLine);
+
+    // First real caption line captured for this session — this is the
+    // "human speaks / conversation starts" moment: link the transcript file
+    // to meeting_sessions AND flip the session from 'human_detected' (set
+    // when the row was created, before anyone had said anything) to
+    // 'processing' now that real conversation content actually exists.
+    // sessionId/fileName come from the CaptionMonitor the joiner was given
+    // (joiner.setCaptionMonitor()), since ctx (the joiner) has no sessionId
+    // of its own.
+    const monitor = ctx?.captionMonitor;
+    if (!ctx._transcriptFileSaved && monitor?.sessionId && monitor?.fileName) {
+      ctx._transcriptFileSaved = true;
+      Promise.all([
+        TranscriptModel.saveTranscriptFile(monitor.sessionId, monitor.fileName),
+        MeetingSessionModel.updateStatus(monitor.sessionId, 'processing')
+      ])
+        .then(() => logger.info(`GoogleMeetJoiner(transcriptEngine): Transcript file linked & session ${monitor.sessionId} marked processing (first caption captured)`))
+        .catch(err => logger.error(`GoogleMeetJoiner(transcriptEngine): Error updating session on first caption: ${err.message}`));
+    }
   }
 
   return { lastCaptionLine, lastSpeakerName };
@@ -502,11 +645,25 @@ function initContext(ctx) {
   logger.info('GoogleMeetJoiner(transcriptEngine): Transcript context reset for new meeting');
 }
 
-function filterValidCaptions(captions) {
+function filterValidCaptions(captions, ctx) {
   return captions.filter(c => {
     const valid = isValid(c.text);
-    if (!valid) logger.debug(`GoogleMeetJoiner(transcriptEngine): Invalid caption dropped`);
-    else        logger.info(`GoogleMeetJoiner(transcriptEngine): Valid caption: "${c.text.substring(0, 50)}..."`);
+    // "Invalid caption dropped" stays at debug - purely diagnostic noise,
+    // not something production needs to see even throttled.
+    if (!valid) {
+      logger.debug(`GoogleMeetJoiner(transcriptEngine): Invalid caption dropped`);
+    } else {
+      // THROTTLED (not silenced): runs on every ~1.5s poll tick for every
+      // caption currently on screen (see startMonitorLoop below) - the poll
+      // tick and the validity check above are UNCHANGED and still run every
+      // time; only this logger.info() call is throttled to at most once per
+      // 60s per meeting (see utils/logThrottle.js). Level stays 'info'.
+      logThrottled(
+        'info',
+        `transcript:valid-caption:${ctx?.meetingUrl || 'unknown'}`,
+        `GoogleMeetJoiner(transcriptEngine): Valid caption: "${c.text.substring(0, 50)}..."`
+      );
+    }
     return valid;
   });
 }
@@ -553,7 +710,7 @@ async function runCaptionTick(ctx, page, state) {
 
   if (!captions?.length) return state;
 
-  const validCaptions = filterValidCaptions(captions);
+  const validCaptions = filterValidCaptions(captions, ctx);
   if (!validCaptions.length) return state;
 
   const nextState = await processCaptionLines(
@@ -623,6 +780,10 @@ module.exports = {
   ensureTranscriptHeader,
   processCaptionLines,
   cleanTranscript,
+  compressTranscriptUpdates,
+  extractFinalUtterances,
+  formatFinalUtterances,
+  buildFinalTranscriptContent,
   extractCaptions,
   isValid,
   INVALID_PATTERNS,

@@ -188,5 +188,33 @@ module.exports = {
     captionCapture: true,
     transcription: true,
     summarizer: true
+  },
+
+  // NEW: bot join-gating config (see socraticbot.js waitForHumanParticipant()).
+  // How long the bot waits, AFTER it has already been admitted into the
+  // meeting, for a real human participant to actually show up in the
+  // roster before giving up, closing the browser, and marking the meeting
+  // 'missed' instead of starting recording/Python processing.
+  //
+  // This is a SEPARATE stage/timeout from hostWaitTimeoutMs below (that one
+  // covers the lobby/waiting-room wait, BEFORE the bot is even let in).
+  // If HUMAN_JOIN_TIMEOUT_MS isn't set explicitly, this falls back to the
+  // same value as BOT_HOST_WAIT_TIMEOUT_MS (so configuring just that one
+  // .env var, as most people do, also extends this stage) rather than a
+  // hardcoded 60s — a bare 60-second window was routinely too short for
+  // real participants to actually join after the bot did, causing bots to
+  // give up and close even though people did show up a bit later.
+  bot: {
+    humanJoinTimeoutMs: parseInt(
+      process.env.HUMAN_JOIN_TIMEOUT_MS || process.env.BOT_HOST_WAIT_TIMEOUT_MS || '60000',
+      10
+    ),
+
+    // How long the bot waits for the host to allow/admit it into the meeting
+    // (lobby / waiting room) before giving up. This is the single knob that
+    // drives ALL platform joiners (zoom / google-meet / teams) — see
+    // BOT_HOST_WAIT_TIMEOUT_MS in .env / .env.example.
+    // Default 900000 ms = 15 minutes.
+    hostWaitTimeoutMs: parseInt(process.env.BOT_HOST_WAIT_TIMEOUT_MS || '900000', 10)
   }
 };

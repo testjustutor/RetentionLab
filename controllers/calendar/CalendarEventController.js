@@ -202,14 +202,14 @@ class CalendarEventController {
   /**
    * Process events and store meetings
    */
-  static async processAndStoreEvents(email, events) {
+  static async processAndStoreEvents(email, events, calendarAccountId = null) {
     const stored = [];
     for (const e of events) {
       const link = e.hangoutLink || CalendarHelper.extractMeetingLink(e.description, e.location || '');
       if (link) {
         const platformType = CalendarHelper.detectPlatform(link, e.location || '');
         if (platformType && platformType !== 'unknown') {
-          const result = await CalendarHelper.storeMeetingFromEvent(e, email, platformType, link);
+          const result = await CalendarHelper.storeMeetingFromEvent(e, email, platformType, link, calendarAccountId);
           if (result) stored.push(e.id);
         }
       }

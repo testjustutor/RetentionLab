@@ -3,6 +3,8 @@
  *
  */
 const { logger } = require('../../../utils/logger');
+const settings = require('../../../config/settings');
+const { HostDeniedError, WaitingRoomTimeoutError } = require('../joinErrors');
 
 class TeamsJoiner {
   constructor(page, botName, meetingUrl, passcode) {
@@ -498,7 +500,12 @@ class TeamsJoiner {
   async waitForJoinConfirmation() {
     logger.info('TeamsAdapter(teamJoiner): Bot is in the lobby. Waiting for host to admit...');
 
-    for (let i = 0; i < 200; i++) {
+    // Total lobby/waiting-room window comes from .env (BOT_HOST_WAIT_TIMEOUT_MS)
+    // via config/settings.js — a single shared value for all platforms.
+    // Poll cadence stays at 3 s (see sleep below).
+    const MAX_LOBBY_ATTEMPTS = Math.max(1, Math.ceil(settings.bot.hostWaitTimeoutMs / 3000));
+
+    for (let i = 0; i < MAX_LOBBY_ATTEMPTS; i++) {
       const sessionState = await this.page.evaluate(() => {
         const text = document.body.innerText;
 
@@ -534,10 +541,18 @@ class TeamsJoiner {
           /can'?t find this meeting/i.test(text) ||
           /meeting passcode/i.test(text);
 
+        const isDenied =
+          text.toLowerCase().includes('you were removed from this meeting') ||
+          text.toLowerCase().includes('you were removed') ||
+          text.toLowerCase().includes('your request to join was declined') ||
+          text.toLowerCase().includes('your request to join the meeting') ||
+          text.toLowerCase().includes('you cannot join this meeting');
+
         return {
           isAdmitted,
           isStillInLobby,
           needsPasscode,
+          isDenied,
           pageTextSample: text.trim().slice(0, 300),
         };
       });
@@ -546,6 +561,11 @@ class TeamsJoiner {
         logger.info('TeamsAdapter(teamJoiner): SUCCESS: Host admitted the bot to the meeting');
         await new Promise(r => setTimeout(r, 2000));
         return true;
+      }
+
+      if (sessionState.isDenied) {
+        logger.warn('TeamsAdapter(teamJoiner): Host rejected/removed the bot — aborting join');
+        throw new HostDeniedError('Teams host rejected the bot');
       }
 
 
@@ -586,6 +606,7 @@ class TeamsJoiner {
     }
 
     logger.warn('TeamsAdapter(teamJoiner): Admission timeout: Bot was never let into the meeting');
+    throw new WaitingRoomTimeoutError('Teams waiting-room timeout: host never admitted the bot');
   }
 
   async clickJoinNowButton() {

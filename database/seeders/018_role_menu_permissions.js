@@ -44,13 +44,11 @@ const seedRoleMenuPermissions = async () => {
         ['admin-departments', 'admin-people'],
         ['admin-roles', 'admin-people'],
       ['admin-meetings', null],
-        ['admin-calendar', 'admin-meetings'],
         ['admin-schedule', 'admin-meetings'],
         ['admin-live', 'admin-meetings'],
         ['admin-completed', 'admin-meetings'],
       ['admin-content', null],
         ['admin-recordings', 'admin-content'],
-        ['admin-videos', 'admin-content'],
         ['admin-transcripts', 'admin-content'],
         ['admin-summaries', 'admin-content'],
       ['admin-evaluation', null],
@@ -58,28 +56,6 @@ const seedRoleMenuPermissions = async () => {
         ['admin-reviews', 'admin-evaluation'],
         ['admin-scores', 'admin-evaluation'],
         ['admin-performance', 'admin-evaluation'],
-      // ['admin-insights', null],
-      //   ['admin-engagement', 'admin-insights'],
-      //   ['admin-actions', 'admin-insights'],
-      //   ['admin-decisions', 'admin-insights'],
-      //   ['admin-risks', 'admin-insights'],
-      //   ['admin-analytics', 'admin-insights'],
-      // ['admin-reports', null],
-      //   ['admin-meeting-reports', 'admin-reports'],
-      //   ['admin-evaluation-reports', 'admin-reports'],
-      //   ['admin-team-reports', 'admin-reports'],
-      //   ['admin-audit-reports', 'admin-reports'],
-      // ['admin-session-quality', null],
-      //   ['admin-sq-hub', 'admin-session-quality'],
-      //   ['admin-sq-rubric', 'admin-session-quality'],
-      //   ['admin-sq-analysis', 'admin-session-quality'],
-      //   ['admin-sq-impact', 'admin-session-quality'],
-      //   ['admin-sq-parent-summary', 'admin-session-quality'],
-      //   ['admin-sq-coaching', 'admin-session-quality'],
-      //   ['admin-sq-better-alt', 'admin-session-quality'],
-      //   ['admin-sq-next-plan', 'admin-session-quality'],
-      //   ['admin-sq-flags', 'admin-session-quality'],
-      //   ['admin-sq-final-eval', 'admin-session-quality'],
       ['admin-settings', null],
         ['admin-organization', 'admin-settings'],
         ['admin-notifications', 'admin-settings'],
@@ -116,12 +92,6 @@ const seedRoleMenuPermissions = async () => {
     ]
   };
 
-  // Get all roles that have a defined menu hierarchy.
-  // NOTE: solo_instructor is intentionally excluded here — it has no
-  // role_id-tagged entries in 017_menu_items.js, so there is nothing
-  // for this seeder to attach permissions to. If solo_instructor is
-  // still an active role, add its menu items to 017 first, then add
-  // a matching hierarchy block here.
   const roles = await allAsync('SELECT id, role_name FROM roles WHERE role_name IN (?, ?, ?, ?, ?)',
     ['super_admin', 'admin', 'instructor', 'reviewer', 'student']
   );

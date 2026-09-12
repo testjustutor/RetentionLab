@@ -60,11 +60,15 @@ class PythonBridge {
         });
       });
 
-      // Real-time Error Stream Logging
+      // Real-time Error Stream Logging - Python writes normal progress
+      // output (tqdm progress bars, warnings.warn()) to stderr by design,
+      // not just actual errors, so this is colored blue (not red) to avoid
+      // looking like a failure. Actual failures still surface separately via
+      // the exit-code check below (logger.error on the 'close' handler).
       pyProcess.stderr.on('data', (data) => {
         const errStr = data.toString();
         errorData += errStr;
-        console.error(`\x1b[31m[Python STDERR Tracing]:\x1b[0m ${errStr.trim()}`);
+        console.error(`\x1b[34m[Python STDERR Tracing]:\x1b[0m ${errStr.trim()}`);
       });
 
       pyProcess.on('error', (err) => {

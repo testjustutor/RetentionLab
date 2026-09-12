@@ -14,7 +14,7 @@ const DEFAULT_NAV_BY_ROLE = {
   },
   admin: {
     home: { label: 'Dashboard', href: '/admin' },
-    events: { label: 'Calendar', href: '/admin/meetings/calendar' },
+    events: { label: 'Calendar', href: '/admin/meetings/schedule' },
     archives: { label: 'Content', href: '/admin/content/recordings' },
     profile: { label: 'Profile', href: '/admin/profile' },
     settings: { label: 'Settings', href: '/admin/settings/organization' }

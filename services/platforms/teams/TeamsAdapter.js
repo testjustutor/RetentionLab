@@ -9,8 +9,11 @@
 
 const puppeteer = require('puppeteer');
 const { logger } = require('../../../utils/logger');
-const TranscriptModel = require('../../../models/transcripts/transcriptModel');
+const MeetingSessionController = require('../../../controllers/meetings/meeting-session/meetingSessionController');
+const MeetingAssetModel = require('../../../models/meetings/assets/meetingAssetModel');
+const MeetingModel = require('../../../models/meetings/MeetingModel');
 const botManager = require('../../shared/botManager');
+const { hasHumanJoined } = require('./monitor');
 
 class TeamsAdapter {
   constructor(config) {
@@ -24,6 +27,7 @@ class TeamsAdapter {
     this.browser = null;
     this.page = null;
     this.sessionId = null;
+    this.meetingDbId = null;
   }
 
   async startBot() {
@@ -43,9 +47,22 @@ class TeamsAdapter {
 
       logger.info(`TeamsAdapter: Starting bot for meeting ${this.config.meetingId}`);
 
-      // Create session
-      const session = await TranscriptModel.createSession(this.config.meetingId);
-      this.sessionId = session.id;
+      // meeting_sessions = human/conversation lifecycle - NOT created at join
+      // time. Created later only when a real human participant is detected
+      // (see ensureConversationSession()).
+      this.sessionId = null;
+      this.meetingDbId = null;
+      try {
+        const mRes = await MeetingAssetModel.ensureMeetingByExternalId(this.config.meetingId, { platform: 'teams', title: 'Bot: ' + this.config.meetingId });
+        this.meetingDbId = mRes.id ? Number(mRes.id) : null;
+      } catch (mErr) {
+        logger.warn(`TeamsAdapter: Could not ensure meetings row: ${mErr.message}`);
+      }
+      if (this.meetingDbId) {
+        MeetingModel.updateMeetingStatusById(this.meetingDbId, 'bot_launching', { force: true }).catch(e =>
+          logger.warn(`TeamsAdapter: Failed to mark meeting bot_launching: ${e.message}`)
+        );
+      }
 
       // Launch browser
       this.browser = await puppeteer.launch({
@@ -132,12 +149,41 @@ class TeamsAdapter {
 
       logger.info(`TeamsAdapter: Successfully joined Teams meeting ${this.config.meetingId}`);
 
+      // Create the conversation session only when a real human is present.
+      await this.ensureConversationSession();
+
       // Start transcript monitoring
       this.monitorTranscript();
 
     } catch (err) {
       logger.error('TeamsAdapter: Error joining Teams meeting:', err);
       throw err;
+    }
+  }
+
+  /**
+   * Create a meeting_sessions row ONLY when a real human participant is
+   * detected (meeting_sessions = human/conversation lifecycle, not bot join).
+   */
+  async ensureConversationSession() {
+    try {
+      const deadline = Date.now() + 30000; // up to 30 s to spot a human
+      while (Date.now() < deadline) {
+        try {
+          if (await hasHumanJoined(this.page, this.config.botName)) {
+            if (!this.sessionId) {
+              const session = await MeetingSessionController.createSession(this.meetingDbId, 'human_detected');
+              this.sessionId = session.id;
+              logger.info(`TeamsAdapter: Session ${this.sessionId} created (human detected) for meeting ${this.meetingDbId}`);
+            }
+            return;
+          }
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 3000));
+      }
+      logger.info(`TeamsAdapter: No human participant within 30s - no session created (meeting ${this.meetingDbId} stays in bot-join lifecycle).`);
+    } catch (err) {
+      logger.warn(`TeamsAdapter: ensureConversationSession failed: ${err.message}`);
     }
   }
 

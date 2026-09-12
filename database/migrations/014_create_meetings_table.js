@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS meetings (
     actual_start_time DATETIME NULL,
     actual_end_time DATETIME NULL,
     platform VARCHAR(50),
-    calendar_account VARCHAR(255),
+    calendar_account_id int(11),
+    calendar_account_email VARCHAR(255),
     meeting_link TEXT,
     passcode VARCHAR(255),
     event_id VARCHAR(255),
@@ -35,9 +36,10 @@ CREATE TABLE IF NOT EXISTS meetings (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_meetings_status (status),
     INDEX idx_meetings_platform (platform),
-    INDEX idx_meetings_calendar (calendar_account),
+    INDEX idx_meetings_calendar (calendar_account_email),
     INDEX idx_meetings_start (scheduled_start_time),
     INDEX idx_meetings_event_id (event_id),
+    FOREIGN KEY (calendar_account_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `);

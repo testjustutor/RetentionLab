@@ -9,15 +9,82 @@ const UsersModel = require('../../models/users/UsersModel');
 const CalendarEventController = require('../calendar/CalendarEventController');
 const CalendarHelper = require('../../utils/calendarHelper');
 const TranscriptModel = require('../../models/transcripts/transcriptModel');
+const { FOLDERS } = require('../../utils/storagePaths');
 const { logger } = require('../../utils/logger');
+const { logThrottled } = require('../../utils/logThrottle');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
 
+// Turns a stored asset path (meeting_assets.*_path or meeting_sessions.*_file_name)
+// into a browser-loadable, root-relative URL. Paths written via
+// utils/storagePaths.normalizeStorageRef already look like "storage/<folder>/<file>"
+// (no leading slash); this just adds the slash. Anything else (a bare filename, a
+// legacy absolute path) is placed in its asset kind's canonical storage folder,
+// same convention normalizeStorageRef uses, so old rows still resolve.
+function assetUrl(kind, storedPath) {
+  if (!storedPath) return null;
+  let p = String(storedPath).trim();
+  if (!p) return null;
+  p = p.replace(/\\/g, '/');
+  if (p.startsWith('/')) return p;
+  if (p.startsWith('storage/')) return '/' + p;
+  const filename = p.split('/').pop();
+  return '/' + FOLDERS[kind] + '/' + filename;
+}
+
+// Groups session-wise completed rows (one row per meeting_assets/session) by
+// instructor account for Admin > Meetings > Completed. Distinct from groupByAccount()
+// above, which is meeting-wise and used by syncMeetings()/getCompletedMeetings' older
+// callers — kept separate so this page's session pivot can't accidentally regress those.
+function groupSessionsByAccount(rows) {
+  const groups = {};
+  rows.forEach(r => {
+    const email = (r.calendar_account_email || '').toLowerCase();
+    if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
+
+    const startTime = r.session_start_time || r.scheduled_start_time;
+    const endTime = r.session_end_time || r.scheduled_end_time;
+    let duration = null;
+    if (startTime && endTime) {
+      duration = Math.round((new Date(endTime) - new Date(startTime)) / 60000);
+    }
+
+    const recordingUrl = assetUrl('audio', r.audio_path) || assetUrl('audio', r.session_audio_file);
+    const transcriptUrl = assetUrl('transcript', r.transcript_path) || assetUrl('transcript', r.session_transcript_file);
+    const summaryUrl = assetUrl('summary', r.summary_path);
+
+    groups[email].events.push({
+      session_id: r.session_id || null,
+      meeting_id: r.external_meeting_id,
+      title: r.title || 'Untitled',
+      start_time: startTime,
+      end_time: endTime,
+      scheduled_start_time: r.scheduled_start_time,
+      scheduled_end_time: r.scheduled_end_time,
+      duration,
+      platform: r.platform || null,
+      // Status comes strictly from meeting_sessions.status (ms.status, aliased as
+      // session_status in the query) — NOT the parent meetings.status — per the
+      // requirement that this table's Status column reflect the session row. The
+      // meeting_sessions column defaults to 'completed' in the schema, so this only
+      // falls back to the literal string when the LEFT JOIN found no session row at all.
+      status: r.session_status || 'completed',
+      recording_url: recordingUrl,
+      transcript_url: transcriptUrl,
+      summary_url: summaryUrl,
+      has_recording: !!recordingUrl,
+      has_transcript: !!transcriptUrl,
+      has_summary: !!summaryUrl
+    });
+  });
+  return Object.values(groups).map(g => ({ email: g.email, role_name: g.role_name, total: g.events.length, events: g.events }));
+}
+
 function groupByAccount(rows) {
   const groups = {};
   rows.forEach(r => {
-    const email = (r.calendar_account || '').toLowerCase();
+    const email = (r.calendar_account_email || '').toLowerCase();
     if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
     
     // Calculate duration in minutes
@@ -67,10 +134,21 @@ async function getActiveEmails(adminId = null, userRole = null) {
     return hasValidStatus && hasTokens && notInvalid;
   });
   
-  // Log how many were filtered out due to invalid tokens
+  // Log how many were filtered out due to invalid tokens.
+  // THROTTLED: getActiveEmails() is called on every poll of a ~5s-interval
+  // endpoint (the Live meetings view), so as long as the same users keep
+  // having invalid tokens this warning was previously written every single
+  // poll. The token-validity check itself still runs on every call - only
+  // this log line is throttled to at most once per 60s (see
+  // utils/logThrottle.js). Keyed by adminId so two different admins'
+  // polling don't suppress each other's first warning.
   const invalidCount = (connections || []).length - validConnections.length;
   if (invalidCount > 0) {
-    logger.warn(`[MeetingSchedule] Filtered out ${invalidCount} users with invalid calendar tokens`);
+    logThrottled(
+      'warn',
+      `meeting-schedule:invalid-tokens:${adminId || 'all'}`,
+      `[MeetingSchedule] Filtered out ${invalidCount} users with invalid calendar tokens`
+    );
   }
   
   return validConnections.map(c => c.email.toLowerCase());
@@ -133,7 +211,7 @@ const controller = {
             if (pt && pt !== 'unknown') {
               const { meetingId, passcode } = CalendarHelper.extractMeetingId(link, pt, e.description || '', e.location || '');
               if (meetingId && meetingId !== 'unknown' && meetingId !== 'null') {
-                const result = await MeetingModel.getMeetingByIdOrCreate({ meetingId, platform: pt, eventId: e.id, passcode, account: conn.email, meetingLink: link, scheduled_start_time: e.start.dateTime || e.start.date, scheduled_end_time: e.end.dateTime || e.end.date, timezone: e.start.timezone, title: e.summary || 'Untitled Meeting' });
+                const result = await MeetingModel.getMeetingByIdOrCreate({ meetingId, platform: pt, eventId: e.id, passcode, account: conn.email, calendarAccountId: conn.user_id_ref || conn.user_id || null, created_by_user_id: adminId, meetingLink: link, scheduled_start_time: e.start.dateTime || e.start.date, scheduled_end_time: e.end.dateTime || e.end.date, timezone: e.start.timezone, title: e.summary || 'Untitled Meeting' });
                 if (result.created || result.updated) {
                   totalStored++;
                 }
@@ -236,7 +314,7 @@ const controller = {
       // Group meetings by account
       const meetingsByAccount = {};
       (rows || []).forEach(r => {
-        const email = (r.calendar_account || '').toLowerCase();
+        const email = (r.calendar_account_email || '').toLowerCase();
         if (!meetingsByAccount[email]) meetingsByAccount[email] = [];
         meetingsByAccount[email].push({
           title: r.title,
@@ -296,12 +374,19 @@ const controller = {
       
       // Get full meeting rows including external_meeting_id, meeting_link, passcode, event_id
       const rows = await MeetingModel.getLiveMeetingsByAccounts(activeEmails);
-      
+
+      // Live enrichment (all from DB): latest meeting_sessions row + participant
+      // roster per meeting, used by the Live page to show bot status, detected
+      // participants, and transcript/audio activity inside each meeting card.
+      const meetingPks = rows.map(r => r.id).filter(Boolean);
+      const enrichment = await MeetingModel.getLiveMeetingsEnrichment(meetingPks);
+
       // Group meetings by account - include ALL fields needed for bot join
       const groups = {};
       rows.forEach(r => {
-        const email = (r.calendar_account || '').toLowerCase();
+        const email = (r.calendar_account_email || '').toLowerCase();
         if (!groups[email]) groups[email] = { email, events: [], role_name: r.role_name || 'instructor' };
+        const participants = enrichment.participants[r.id] || [];
         groups[email].events.push({
           id: r.id,
           meeting_id: r.external_meeting_id,
@@ -316,7 +401,13 @@ const controller = {
           passcode: r.passcode || null,
           link: r.meeting_link || null,
           status: r.status || null,
-          calendar_account: r.calendar_account || null
+          calendar_account: r.calendar_account_email || null,
+          // -- Live tracking (DB-sourced) --
+          bot_status: r.status || null,                 // meetings.status: bot join lifecycle
+          session: enrichment.sessions[r.id] || null,   // latest meeting_sessions row (human detected)
+          participants,                                  // detected humans (bot never stored)
+          participant_count: participants.length,
+          remaining_seconds: r._remaining_seconds || null // server-computed, TZ-safe
         });
       });
       const users = Object.values(groups).map(g => g);
@@ -363,14 +454,23 @@ const controller = {
         targetEmails = (connections || []).filter(c => c.connection_status === 'active' && c.email).map(c => c.email.toLowerCase());
       }
 
-      // Get completed meetings (filtered by SQL: meeting_assets has data; no status check)
-      const rows = await MeetingModel.getCompletedMeetingsByAccounts(targetEmails, hours, { from_date: fromDate, to_date: toDate });
-      const users = groupByAccount(rows);
+      // Get completed SESSIONS (session-wise, one row per recorded session — see
+      // MeetingModel.getCompletedSessionsByAccounts for why this replaced the old
+      // meeting-wise query). Filtered by SQL: meeting_assets has data; no status check.
+      const rows = await MeetingModel.getCompletedSessionsByAccounts(targetEmails, hours, { from_date: fromDate, to_date: toDate });
+      const users = groupSessionsByAccount(rows);
+
+      // Distinct MEETING count, separate from the session count (totalEvents below is
+      // one per recorded session — the same meeting can have more than one session).
+      // The stats grid shows both so "Meetings" and "Sessions" aren't conflated.
+      const uniqueMeetingKeys = new Set(
+        rows.map(r => r.meeting_pk != null ? 'id:' + r.meeting_pk : 'ext:' + r.external_meeting_id)
+      );
 
       // Connected calendars count from calendar_connections, users, roles, calendar_connections & created_by admin
       const connectedCount = await CalendarUsersModel.getConnectedCalendarCount(adminId);
 
-      return ok({ hours, from_date: fromDate, to_date: toDate, instructor_id: instructorId, users, totalUsers: users.length, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
+      return ok({ hours, from_date: fromDate, to_date: toDate, instructor_id: instructorId, users, totalUsers: users.length, totalMeetings: uniqueMeetingKeys.size, totalEvents: users.reduce((s,u)=>s+u.total,0), connectedUsers: connectedCount });
     } catch (e) { return err(e.message); }
   }
 };

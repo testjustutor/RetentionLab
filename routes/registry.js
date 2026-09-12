@@ -119,14 +119,9 @@ const routeRegistry = [
   // Does NOT touch routes/pages.js login/sidebar/header/meetings/evaluations/reports/profile routes.)
   { method: 'use', path: '/instructor', handler: 'instructor/pages' },
 
-  // Admin Tutoring & Session Quality
-  { method: 'use', path: '/api/admin/tutoring', handler: 'tutoring' },
   { method: 'use', path: '/api/admin/participants', handler: 'participants' },
   
-  // Admin Insights
-  { method: 'use', path: '/api/admin/insights', handler: 'insights' },
-  
-  // Configuration Pages (super admin)
+    // Configuration Pages (super admin)
   { method: 'use', path: '/super_admin/configuration', handler: 'configuration' },
 
   // Super Admin Panel (dedicated MVC folders: controllers/super_admin, models/super_admin, routes/super_admin)

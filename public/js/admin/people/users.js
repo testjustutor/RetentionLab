@@ -261,9 +261,12 @@ const tableHeaders = [
     // show "Connected" once active, otherwise show the Connect action.
     let calendarAction = '';
     if (isConnected) {
-      calendarAction = '<span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200 whitespace-nowrap flex-shrink-0">' +
-          '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' +
-          'Connected</span>';
+      // Calendar connected -> deep-link to the admin schedule page filtered to
+      // this instructor's meetings (Admin > Meetings > Schedule).
+      const scheduleUrl = '/admin/meetings/schedule?instructor=' + encodeURIComponent(row.email || '');
+      calendarAction = '<a href="' + scheduleUrl + '" title="View this instructor\'s scheduled meetings" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 text-amber-950 hover:bg-amber-600 text-[10px] font-semibold shadow-sm ring-2 ring-amber-300 transition-colors whitespace-nowrap flex-shrink-0">' +
+          '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' +
+          'View Meetings</a>';
     } else if (isInstructor) {
       calendarAction = '<button data-connect-calendar data-email="' + escHtml(row.email || '') + '" ' +
           'class="connect-calendar-btn inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 ' +

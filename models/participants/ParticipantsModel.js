@@ -5,10 +5,16 @@ const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
 class ParticipantsModel {
+  // SCHEMA UPDATE: `participants` no longer has join_time/leave_time columns
+  // (current table: id, meeting_id, session_id, participant_name,
+  // participant_email, participant_role, deleted_at, created_at, updated_at).
+  // Join/leave timestamps live only in participant_attendance_sessions now
+  // (see models/participants/ParticipantModel.js) — this generic CRUD model
+  // just carries the two new identity columns through instead.
   static create(participant) {
     return new Promise((resolve, reject) => {
-      const sql = `INSERT IGNORE INTO participants (meeting_id, session_id, participant_name, join_time, leave_time, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-      db.run(sql, [participant.meeting_id, participant.session_id, participant.participant_name, participant.join_time || null, participant.leave_time || null], function(err) {
+      const sql = `INSERT IGNORE INTO participants (meeting_id, session_id, participant_name, participant_email, participant_role, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      db.run(sql, [participant.meeting_id, participant.session_id, participant.participant_name, participant.participant_email || null, participant.participant_role || null], function(err) {
         if (err) {
           logger.error('[ParticipantsModel] create error', err);
           return reject(err);
@@ -26,7 +32,9 @@ class ParticipantsModel {
 
   static getByMeeting(meetingId) {
     return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM participants WHERE meeting_id = ? ORDER BY join_time ASC', [meetingId], (err, rows) => err ? reject(err) : resolve(rows || []));
+      // Ordered by created_at (when the row first appeared) — join_time no
+      // longer exists on this table; see the SCHEMA UPDATE note above.
+      db.all('SELECT * FROM participants WHERE meeting_id = ? ORDER BY created_at ASC', [meetingId], (err, rows) => err ? reject(err) : resolve(rows || []));
     });
   }
 

@@ -3,9 +3,10 @@
  *
  */
 const TranscriptModel = require('../../../models/transcripts/transcriptModel.js');
+const MeetingSessionModel = require('../../../models/meetings/meeting-session/meetingSessionModel');
 const fs = require('fs');
 const path = require('path');
-const { logger } = require('../../../utils/logger'); 
+const { logger } = require('../../../utils/logger');
 
 class CaptionMonitor {
   constructor(sessionId, page, meetingId, platform, joinerInstance, onMeetingEnd) {
@@ -17,6 +18,9 @@ class CaptionMonitor {
     this.onMeetingEnd = onMeetingEnd;
     this.seenRows = new Set();
     this.poller = null;
+    // Guards the one-shot meeting_sessions write below: only write once,
+    // the moment real transcript content is first captured (not at file init).
+    this._transcriptFileSaved = false;
     this.isShuttingDown = false;
     this.isMeetingActive = true;
 
@@ -31,7 +35,7 @@ class CaptionMonitor {
     this.dirPath = path.join(__dirname, '../../../storage/transcripts');
     
     // We change "transcripts" to "TRANS" or keep it, but match the rest of the structure
-    this.fileName = `TRANS_${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
+    this.fileName = `TRANS_Meet${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
     this.filePath = path.join(this.dirPath, this.fileName);
 
     this.initStorage();
@@ -54,10 +58,10 @@ class CaptionMonitor {
 
       fs.writeFileSync(this.filePath, header);
       logger.info(`ZoomAdapter(captionMonitor): File Created: storage/transcripts/${this.fileName}`);
-      if (this.sessionId) {
-        TranscriptModel.saveTranscriptFile(this.sessionId, this.fileName)
-          .catch(err => logger.error(`ZoomAdapter(captionMonitor): Error saving transcript file metadata: ${err.message}`));
-      }
+      // NOTE: meeting_sessions.transcript_file_name is intentionally NOT written
+      // here — this file only has a header at this point, no real transcript yet.
+      // It's written from processAndSaveTranscript() below, the first time an
+      // actual caption line is captured, so the row only reflects a real transcript.
     } catch (err) {
       logger.error(`ZoomAdapter(captionMonitor): Failed to initialize transcript file: ${err.message}`);
     }
@@ -266,6 +270,21 @@ class CaptionMonitor {
           fs.appendFileSync(this.filePath, logLine + '\n');
         } catch (fileErr) {
           logger.error(`ZoomAdapter(captionMonitor): File Append Error: ${fileErr.message}`);
+        }
+
+        // First real caption line captured for this session — this is the
+        // "human speaks / conversation starts" moment: link the transcript
+        // file to meeting_sessions AND flip the session from 'human_detected'
+        // (set when the row was created, before anyone had said anything) to
+        // 'processing' now that real conversation content actually exists.
+        if (!this._transcriptFileSaved && this.sessionId) {
+          this._transcriptFileSaved = true;
+          Promise.all([
+            TranscriptModel.saveTranscriptFile(this.sessionId, this.fileName),
+            MeetingSessionModel.updateStatus(this.sessionId, 'processing')
+          ])
+            .then(() => logger.info(`ZoomAdapter(captionMonitor): Transcript file linked & session ${this.sessionId} marked processing (first caption captured)`))
+            .catch(err => logger.error(`ZoomAdapter(captionMonitor): Error updating session on first caption: ${err.message}`));
         }
 
         // try {

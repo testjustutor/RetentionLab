@@ -8,16 +8,17 @@ const { logger } = require('../../../utils/logger');
 
 class MeetingSessionController {
   /**
-   * Create a meeting session and return the created/reused session row.
+   * Create a NEW meeting session row for one human/conversation segment.
    * @param {string} meetingId - meetings id
+   * @param {string} initialStatus - starting session status (default 'human_detected')
    * @returns {Promise<Object>} session row or { id: null, meeting_id }
    */
-  static async createSession(meetingId) {
+  static async createSession(meetingId, initialStatus = 'human_detected') {
     if (!meetingId) {
       logger.warn('[MeetingSessionController] createSession skipped: missing meetingId');
       throw new Error('[MeetingSessionController] createSession requires meetingId');
     }
-    const session = await MeetingSessionModel.createSession(meetingId);
+    const session = await MeetingSessionModel.createSession(meetingId, initialStatus);
     logger.info(`[MeetingSessionController] Session created for meeting ${meetingId}: id=${session.id}`);
     return session;
   }

@@ -4,9 +4,9 @@
  * DEVELOPMENT ONLY — Drops all tables, runs migrations, then seeds.
  * 
  * Database Structure:
- * - Migrations: 57 files (001-057) creating tables for roles, users, meetings,
+ * - Migrations: 55 files (001-055) creating tables for roles, users, meetings,
  *   sessions, transcripts, rubrics, calendar, archives, and more
- * - Seeders: 19 files (001-019) seeding roles, companies, permissions, users,
+ * - Seeders: 20 files (001-020) seeding roles, companies, permissions, users,
  *   settings, menu items, and role-based menu permissions
  * 
  * Usage: npm run db:reset
@@ -106,7 +106,7 @@ const runMigrations = async () => {
     .filter(f => f.endsWith('.js'))
     .sort();
   
-  console.log(`   Found ${files.length} migration files (001-057)`);
+  console.log(`   Found ${files.length} migration files (001-055)`);
   
   let success = 0;
   let fail = 0;

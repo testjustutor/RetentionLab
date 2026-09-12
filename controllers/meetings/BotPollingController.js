@@ -46,12 +46,13 @@ class BotPollingController {
           continue;
         }
 
-        // Mark 'launching' BEFORE calling launchFromDb — prevents double-launch
-        await MeetingModel.updateMeetingStatus(meeting.event_id, 'launching');
+        // Mark 'bot_launching' BEFORE calling launchFromDb — prevents double-launch.
+        // meetings.status is the bot JOIN lifecycle; SocraticBot drives it onward
+        // (waiting_for_host → joined, etc.), so do NOT set 'in_progress' here.
+        await MeetingModel.updateMeetingStatus(meeting.event_id, 'bot_launching');
 
         try {
           await botManager.launchFromDb(meeting);
-          await MeetingModel.updateMeetingStatus(meeting.event_id, 'in_progress');
           logger.info(`Launched meeting ${meeting.external_meeting_id}`);
         } catch (launchErr) {
           logger.error(`Launch failed for ${meeting.external_meeting_id}:`, launchErr);

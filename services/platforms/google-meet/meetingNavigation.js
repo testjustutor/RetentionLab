@@ -1,8 +1,16 @@
 /**
  * services/platforms/google-meet/meetingNavigation.js
  *
+ * STAGE/STATE LOGGING: both functions here run with `this` bound to the
+ * MeetJoiner instance (see meetJoiner.js's prototype bindings), so besides
+ * their own info logs they also report into that joiner's shared stage
+ * timeline via this._setStage(...) where useful, and waitForJoinConfirmation()
+ * additionally logs every MEET_STATE transition explicitly (not just every
+ * Nth poll like the existing KNOCKING/HANDSHAKE logs already did) so a stuck
+ * bot's exact state history is visible in the log without guessing.
  */
 const { logger } = require('../../../utils/logger');
+const settings = require('../../../config/settings');
 
 async function enterMeeting() {
   logger.info('GoogleMeetJoiner(meetingNavigation): Entering Meet session...');
@@ -33,9 +41,10 @@ async function enterMeeting() {
     });
 
     logger.info(`Attempt ${i + 1}: hasNameInput=${state.hasNameInput}, hasJoinBtn=${state.hasJoinBtn}, joinBtnText=${state.joinBtnText}`);
-    
+
     if (state.hasNameInput) {
       await this.page.type('input[type="text"]', this.botName);
+      logger.info('GoogleMeetJoiner(meetingNavigation): Name typed into name field');
     }
 
     if (state.hasJoinBtn) {
@@ -61,14 +70,17 @@ async function enterMeeting() {
   }
 
   if (!joined) {
+    if (typeof this._setStage === 'function') this._setStage('enter_meeting_failed');
     await this.page.screenshot({ path: 'meet_stuck.png' });
     logger.error('GoogleMeetJoiner(meetingNavigation): Meet join failed');
     throw new Error('Google Meet join failed');
   }
+
+  logger.info('GoogleMeetJoiner(meetingNavigation): Meeting form submitted (name entered / join requested)');
 }
 
 async function waitForJoinConfirmation() {
-  logger.info('GoogleMeetJoiner:meetingNavigation for Meet session...');
+  logger.info('GoogleMeetJoiner(meetingNavigation): STAGE: waitForJoinConfirmation started');
 
   const MEET_STATE = {
     INIT: 'INIT', JOINING: 'JOINING', LOBBY: 'LOBBY',
@@ -77,7 +89,27 @@ async function waitForJoinConfirmation() {
 
   let state = MEET_STATE.INIT;
   let inMeetingStreak = 0;
-  const maxAttempts = 300; 
+  // Total lobby/waiting-room window comes from .env (BOT_HOST_WAIT_TIMEOUT_MS)
+  // via config/settings.js — a single shared value for all platforms.
+  // Poll cadence stays at 3 s (see sleep below).
+  const maxAttempts = Math.max(1, Math.ceil(settings.bot.hostWaitTimeoutMs / 3000));
+
+  // Logs a line EVERY TIME the MEET_STATE actually changes (not on every 3s
+  // poll tick that stays in the same state) - this is the join lifecycle
+  // state machine, so its transitions are worth a clear, always-on record.
+  // Also mirrors into the owning MeetJoiner's own stage timeline, when this
+  // is called bound to one (see meetJoiner.js), so both state machines read
+  // as one consistent history.
+  const setState = (next) => {
+    if (next !== state) {
+      logger.info(`GoogleMeetJoiner(meetingNavigation): STATE CHANGE: ${state} -> ${next}`);
+      state = next;
+      if (typeof this?._setStage === 'function') {
+        this._setStage(`meet_state_${next.toLowerCase()}`);
+      }
+    }
+    return state;
+  };
 
   for (let i = 0; i < maxAttempts; i++) {
     const snapshot = await this.page.evaluate(() => {
@@ -109,38 +141,40 @@ async function waitForJoinConfirmation() {
     });
 
     if (snapshot.isRejected) {
-      state = MEET_STATE.REJECTED;
-      logger.error('GoogleMeetJoiner:meetingNavigation by meeting');
+      setState(MEET_STATE.REJECTED);
+      logger.error('GoogleMeetJoiner(meetingNavigation): Host/meeting rejected the bot (REJECTED)');
       return { success: false, state };
     }
 
     if (snapshot.hasInMeetingUI && !snapshot.hasJoinBtn && !snapshot.isWaitingToBeLetIn && !snapshot.isTransitioning) {
       inMeetingStreak++;
       if (inMeetingStreak >= 2) {
-        state = MEET_STATE.IN_MEETING;
-        logger.info('GoogleMeetJoiner:meetingNavigation MEETING confirmed');
+        setState(MEET_STATE.IN_MEETING);
+        logger.info('GoogleMeetJoiner(meetingNavigation): MEETING confirmed (IN_MEETING)');
         return { success: true, state };
       }
-      logger.info(`GoogleMeetJoiner:meetingNavigation stream stability... (Streak: ${inMeetingStreak}/2)`);
+      logger.info(`GoogleMeetJoiner(meetingNavigation): stream stability... (Streak: ${inMeetingStreak}/2)`);
     } else {
       inMeetingStreak = 0;
     }
 
     if (snapshot.isWaitingToBeLetIn || snapshot.hasJoinBtn) {
-      state = MEET_STATE.LOBBY;
+      setState(MEET_STATE.LOBBY);
       if ((i + 1) % 5 === 0) {
-        logger.info(`GoogleMeetJoiner:meetingNavigation / KNOCKING (attempt ${i + 1}/${maxAttempts})`);
+        logger.info(`GoogleMeetJoiner(meetingNavigation): LOBBY / KNOCKING (attempt ${i + 1}/${maxAttempts})`);
       }
     } else {
-      state = MEET_STATE.JOINING;
+      setState(MEET_STATE.JOINING);
       if ((i + 1) % 5 === 0) {
-        logger.info(`GoogleMeetJoiner:meetingNavigation / HANDSHAKE (attempt ${i + 1}/${maxAttempts})`);
+        logger.info(`GoogleMeetJoiner(meetingNavigation): JOINING / HANDSHAKE (attempt ${i + 1}/${maxAttempts})`);
       }
     }
 
     await new Promise(r => setTimeout(r, 3000));
   }
 
+  setState(MEET_STATE.FAILED);
+  logger.error(`GoogleMeetJoiner(meetingNavigation): FAILED - no join confirmation after ${maxAttempts} attempts`);
   return { success: false, state: MEET_STATE.FAILED };
 }
 

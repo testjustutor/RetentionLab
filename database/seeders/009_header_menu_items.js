@@ -51,7 +51,6 @@ const DEFAULT_MENU_BY_ROLE = {
     ]},
 
     { id: 'admin-meetings', label: 'Meetings', icon: 'calendar', href: null, submenu: [
-      { id: 'admin-calendar', label: 'Calendar', href: '/admin/meetings/calendar' },
       { id: 'admin-schedule', label: 'Schedule', href: '/admin/meetings/schedule' },
       { id: 'admin-live', label: 'Live Meetings', href: '/admin/meetings/live' },
       { id: 'admin-completed', label: 'Completed', href: '/admin/meetings/completed' }
@@ -59,7 +58,6 @@ const DEFAULT_MENU_BY_ROLE = {
 
     { id: 'admin-content', label: 'Content', icon: 'folder', href: null, submenu: [
       { id: 'admin-recordings', label: 'Recordings', href: '/admin/content/recordings' },
-      { id: 'admin-videos', label: 'Videos', href: '/admin/content/videos' },
       { id: 'admin-transcripts', label: 'Transcripts', href: '/admin/content/transcripts' },
       { id: 'admin-summaries', label: 'Summaries', href: '/admin/content/summaries' }
     ]},
@@ -70,41 +68,13 @@ const DEFAULT_MENU_BY_ROLE = {
       { id: 'admin-scores', label: 'Scores', href: '/admin/evaluation/scores' },
       { id: 'admin-performance', label: 'Performance', href: '/admin/evaluation/performance' }
     ]},
-
-    // { id: 'admin-insights', label: 'Insights', icon: 'lightbulb', href: null, submenu: [
-    //   { id: 'admin-engagement', label: 'Engagement', href: '/admin/insights/engagement' },
-    //   { id: 'admin-actions', label: 'Actions', href: '/admin/insights/actions' },
-    //   { id: 'admin-decisions', label: 'Decisions', href: '/admin/insights/decisions' },
-    //   { id: 'admin-risks', label: 'Risks', href: '/admin/insights/risks' },
-    //   { id: 'admin-analytics', label: 'Analytics', href: '/admin/insights/analytics' }
-    // ]},
-
-    // { id: 'admin-reports', label: 'Reports', icon: 'bar-chart', href: null, submenu: [
-    //   { id: 'admin-meeting-reports', label: 'Meeting Reports', href: '/admin/reports/meetings' },
-    //   { id: 'admin-evaluation-reports', label: 'Evaluation Reports', href: '/admin/reports/evaluations' },
-    //   { id: 'admin-team-reports', label: 'Team Reports', href: '/admin/reports/teams' },
-    //   { id: 'admin-audit-reports', label: 'Audit Reports', href: '/admin/reports/audits' }
-    // ]},
-
-    // { id: 'admin-session-quality', label: 'Session Quality', icon: 'check-circle', href: null, submenu: [
-    //   { id: 'admin-sq-hub', label: 'SQ Hub', href: '/admin/session-quality/index' },
-    //   { id: 'admin-sq-rubric', label: 'SQ Rubric', href: '/admin/session-quality/rubric' },
-    //   { id: 'admin-sq-analysis', label: 'SQ Analysis', href: '/admin/session-quality/analysis' },
-    //   { id: 'admin-sq-impact', label: 'SQ Impact', href: '/admin/session-quality/impact' },
-    //   { id: 'admin-sq-parent-summary', label: 'SQ Parent Summary', href: '/admin/session-quality/parent-summary' },
-    //   { id: 'admin-sq-coaching', label: 'SQ Coaching', href: '/admin/session-quality/coaching' },
-    //   { id: 'admin-sq-better-alt', label: 'SQ Better Alternatives', href: '/admin/session-quality/better-alternatives' },
-    //   { id: 'admin-sq-next-plan', label: 'SQ Next Plan', href: '/admin/session-quality/next-plan' },
-    //   { id: 'admin-sq-flags', label: 'SQ Flags', href: '/admin/session-quality/flags' },
-    //   { id: 'admin-sq-final-eval', label: 'SQ Final Evaluation', href: '/admin/session-quality/final-eval' }
-    // ]},
-
-    // { id: 'admin-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
-    //   { id: 'admin-organization', label: 'Organization', href: '/admin/settings/organization' },
-    //   { id: 'admin-notifications', label: 'Notifications', href: '/admin/settings/notifications' },
-    //   { id: 'admin-meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
-    //   { id: 'admin-integrations', label: 'Integrations', href: '/admin/settings/integrations' }
-    // ]},
+    
+    { id: 'admin-settings', label: 'Settings', icon: 'settings', href: null, submenu: [
+      { id: 'admin-organization', label: 'Organization', href: '/admin/settings/organization' },
+      { id: 'admin-notifications', label: 'Notifications', href: '/admin/settings/notifications' },
+      { id: 'admin-meeting-rules', label: 'Meeting Rules', href: '/admin/settings/meetings' },
+      { id: 'admin-integrations', label: 'Integrations', href: '/admin/settings/integrations' }
+    ]},
 
     { id: 'admin-profile', label: 'Profile', icon: 'user', href: '/admin/profile', submenu: null },
     { id: 'admin-logout', label: 'Logout', icon: 'log-out', href: '/logout', color: 'rose', section: 'account', submenu: null }

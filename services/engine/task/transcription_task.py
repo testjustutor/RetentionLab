@@ -32,14 +32,35 @@ def run_transcription_task(context):
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : TranscriptionService initialized", "TASK")
 
+        # FIX: Whisper must run on the extracted/normalized 16kHz mono WAV
+        # (wav_audio_path), not context.audio_path - the latter is now the
+        # canonical recording path (storage/recordings/REC_...) that gets
+        # persisted to meeting_assets.audio_path, and used to be (wrongly)
+        # the WAV cache path.
         result = service.transcribe(
-            context.audio_path
+            context.wav_audio_path
         )
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : Whisper transcription completed", "TASK")
 
-        context.transcript_path = (
+        # FIX: context.transcript_path is the CANONICAL transcript path
+        # persisted to meeting_assets.transcript_path - it must stay
+        # storage/transcripts/TRANS_... (the platform captions transcript
+        # already resolved onto context.captions_trans_path in
+        # PipelineContext). Previously this line overwrote it with the
+        # Whisper-generated cache file (storage/cache_audio_transcripts/
+        # AUDIO_TRANS_...), so the DB ended up pointing at a cache file
+        # instead of the real transcript. That cache path is kept separately
+        # as whisper_transcript_cache_path (used as a fallback only when no
+        # platform captions transcript could be found, e.g. admin-uploaded
+        # recordings with no live captions).
+        context.whisper_transcript_cache_path = (
             result["transcript_path"]
+        )
+
+        context.transcript_path = (
+            context.captions_trans_path
+            or result["transcript_path"]
         )
 
         context.labeled_transcript = (
