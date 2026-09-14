@@ -5,6 +5,9 @@
 const { logger } = require('../../../utils/logger');
 const settings = require('../../../config/settings');
 const { HostDeniedError, WaitingRoomTimeoutError } = require('../joinErrors');
+// Mic/camera enforcement is independently toggleable per platform - see
+// services/featureConfig.js.
+const featureConfig = require('../../featureConfig').zoom;
 
 class ZoomJoiner {
   constructor(page, botName, passcode, meetingUrl) {
@@ -248,9 +251,17 @@ class ZoomJoiner {
   // ─────────────────────────────────────────────
 
   async _muteMicPreJoin(frame) {
+    const wantMic = featureConfig.media.muteMicOnJoin;
+    const wantCam = featureConfig.media.disableCameraOnJoin;
+
+    if (!wantMic && !wantCam) {
+      logger.info('ZoomAdapter(zoomJoiner): Mic/camera enforcement both disabled via featureConfig — skipping pre-join mute.');
+      return;
+    }
+
     await new Promise(r => setTimeout(r, 1000)); // wait for pre-join UI to render
 
-    await frame.evaluate(() => {
+    await frame.evaluate((wantMic, wantCam) => {
       const getVisible = () =>
         Array.from(document.querySelectorAll('button, .dropdown-item, li, span, div[role="menuitem"]'))
           .filter(el => {
@@ -262,13 +273,17 @@ class ZoomJoiner {
         getVisible().find(el => regex.test((el.innerText || el.ariaLabel || '').trim()));
 
       // Mic — only click if currently unmuted
-      const micBtn = findAndClick(/^Mute$|Mute my mic|mute microphone|turn off mic/i);
-      if (micBtn) micBtn.click();
+      if (wantMic) {
+        const micBtn = findAndClick(/^Mute$|Mute my mic|mute microphone|turn off mic/i);
+        if (micBtn) micBtn.click();
+      }
 
       // Camera — only click if currently on
-      const camBtn = findAndClick(/^Stop Video$|turn off camera|stop my video|stop camera/i);
-      if (camBtn) camBtn.click();
-    });
+      if (wantCam) {
+        const camBtn = findAndClick(/^Stop Video$|turn off camera|stop my video|stop camera/i);
+        if (camBtn) camBtn.click();
+      }
+    }, wantMic, wantCam);
 
     await new Promise(r => setTimeout(r, 1000));
 
@@ -285,8 +300,8 @@ class ZoomJoiner {
 
     logger.info(`ZoomAdapter(zoomJoiner): Pre-join mic muted: ${micMuted}, camera off: ${camOff}`);
 
-    if (!micMuted) logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted on pre-join.');
-    if (!camOff)   logger.warn('ZoomAdapter(zoomJoiner): Could not confirm camera off on pre-join.');
+    if (wantMic && !micMuted) logger.warn('ZoomAdapter(zoomJoiner): Could not confirm mic muted on pre-join.');
+    if (wantCam && !camOff)   logger.warn('ZoomAdapter(zoomJoiner): Could not confirm camera off on pre-join.');
   }
 
   // ─────────────────────────────────────────────
@@ -315,6 +330,11 @@ class ZoomJoiner {
   }
 
   async muteMicAfterJoin() {
+    if (!featureConfig.media.muteMicOnJoin) {
+      logger.info('ZoomAdapter(zoomJoiner): Post-join mic mute disabled via featureConfig — skipping.');
+      return;
+    }
+
     await new Promise(r => setTimeout(r, 2000));
 
     const frame = this.page.frames().find(f => f.url().includes('zoom.us')) || this.page;

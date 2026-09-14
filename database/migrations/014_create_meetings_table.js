@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS meetings (
     passcode VARCHAR(255),
     event_id VARCHAR(255),
     timezone VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'scheduled',
+    status ENUM('scheduled','queued','bot_launching','waiting_for_host','joined','host_rejected','waiting_timeout','failed','expired','stopped') NOT NULL DEFAULT 'scheduled',
     created_by INT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -146,16 +146,28 @@ class MasterRubricModel {
    */
   static createIndicator(indicator) {
     return new Promise((resolve, reject) => {
-      const { indicator_code, category_id, name, type = 'HUMAN', is_gate = 0, value = 1, status = 'active', subgroup_name, benchmark, requires_video, company_id = 0 } = indicator;
+      const {
+        indicator_code, category_id, name, type = 'HUMAN', is_gate = 0, value = 1, status = 'active',
+        subgroup_name, benchmark, requires_video, requires_calculation, calculation_config, company_id = 0
+      } = indicator;
       if (!indicator_code || !category_id || !name) {
         return reject(new Error('indicator_code, category_id, and name are required'));
       }
+      // calculation_config is stored as JSON text - e.g.
+      // {"metric":"talk_ratio_tutor_pct","operator":"<=","threshold":70} -
+      // accept either an object (from a JSON request body) or an
+      // already-stringified value, so the Python engine (rubric_loader.py)
+      // can read it back as data without any indicator-specific code.
+      const calculationConfigJson = calculation_config == null
+        ? null
+        : (typeof calculation_config === 'string' ? calculation_config : JSON.stringify(calculation_config));
       this._categoryByIdentifier(category_id).then((catRow) => {
         if (!catRow) return reject(new Error(`Category not found: ${category_id}`));
         const sql = `
           INSERT INTO rubric_indicators
-            (category_id, indicator_code, subgroup_name, name, type, is_gate, value, benchmark, requires_video, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (category_id, indicator_code, subgroup_name, name, type, is_gate, value, benchmark,
+             requires_video, requires_calculation, calculation_config, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             category_id = VALUES(category_id),
             subgroup_name = VALUES(subgroup_name),
@@ -165,10 +177,13 @@ class MasterRubricModel {
             value = VALUES(value),
             benchmark = VALUES(benchmark),
             requires_video = VALUES(requires_video),
+            requires_calculation = VALUES(requires_calculation),
+            calculation_config = VALUES(calculation_config),
             status = VALUES(status)
         `;
         db.run(sql,
-          [catRow.id, indicator_code, subgroup_name || null, name, type, is_gate ? 1 : 0, parseFloat(value), benchmark || null, requires_video ? 1 : 0, status],
+          [catRow.id, indicator_code, subgroup_name || null, name, type, is_gate ? 1 : 0, parseFloat(value), benchmark || null,
+           requires_video ? 1 : 0, requires_calculation ? 1 : 0, calculationConfigJson, status],
           function(err) {
             if (err) return reject(err);
             resolve({ id: this.lastID, changes: this.changes });
@@ -257,6 +272,16 @@ class MasterRubricModel {
       if (updates.value !== undefined) { fields.push('value = ?'); params.push(parseFloat(updates.value)); }
       if (updates.benchmark !== undefined) { fields.push('benchmark = ?'); params.push(updates.benchmark || null); }
       if (updates.requires_video !== undefined) { fields.push('requires_video = ?'); params.push(updates.requires_video ? 1 : 0); }
+      if (updates.requires_calculation !== undefined) { fields.push('requires_calculation = ?'); params.push(updates.requires_calculation ? 1 : 0); }
+      if (updates.calculation_config !== undefined) {
+        // Same accept-object-or-string handling as createIndicator; null
+        // clears the config (e.g. when requires_calculation is turned off).
+        const calculationConfigJson = updates.calculation_config == null
+          ? null
+          : (typeof updates.calculation_config === 'string' ? updates.calculation_config : JSON.stringify(updates.calculation_config));
+        fields.push('calculation_config = ?');
+        params.push(calculationConfigJson);
+      }
       if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
       if (fields.length === 0) return resolve({ updated: false });
       params.push(row.id);

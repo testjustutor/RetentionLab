@@ -29,6 +29,8 @@ const up = async () => {
       value INT NOT NULL DEFAULT 1,
       benchmark TEXT,
       requires_video TINYINT(1) NOT NULL DEFAULT 0,
+      requires_calculation TINYINT(1) NOT NULL DEFAULT 0,
+      calculation_config TEXT NULL,
       status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

@@ -16,7 +16,9 @@ const { HostDeniedError, WaitingRoomTimeoutError } = require('../joinErrors');
 const ensureMicCameraOff                         = require('./preJoinMedia');
 const { enterMeeting, waitForJoinConfirmation }  = require('./meetingNavigation');
 const enableCaptionsIfPossible                   = require('./captionManager');
-const featureConfig                              = require('../../featureConfig'); // moved from ./featureConfig.js — see services/featureConfig.js
+// featureConfig.js is now keyed per platform - pull out this platform's copy
+// once here so every existing `featureConfig.xxx` reference below still works.
+const featureConfig                              = require('../../featureConfig')['google-meet'];
 
 const {
   startTranscriptMonitor,

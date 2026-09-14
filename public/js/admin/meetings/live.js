@@ -68,6 +68,69 @@ var STATUS_COLORS = {
   violet:  { text: 'text-violet-500' }
 };
 
+// ── Bot auto-join countdown ("Bot will join meeting within MM:SS") ─────────
+// The launch lead time (BOT_LAUNCH_LEAD_MINUTES) is read from the server and
+// exposed on each live event as `seconds_until_launch` (TZ-safe). While the
+// bot is still in a PRE-JOIN state and that value is > 0, the page shows a
+// ticking countdown (updated every second in place) so the user is sure the
+// bot will auto-join, instead of a static "Bot is joining...".
+var BOT_WILL_JOIN_PREFIX = 'Bot will join meeting within ';
+// Statuses that mean "bot has NOT actually started joining yet" (pre-launch /
+// now spawning). Actual-join states (joining, waiting_for_host, joined) and
+// terminal states keep their normal labels.
+var BOT_PRE_LAUNCH_STATUSES = ['queued', 'scheduled', 'bot_launching', 'starting', 'launching'];
+var _countdownTimer = null;
+
+function fmtCountdown(totalSecs) {
+  totalSecs = Math.max(0, Math.floor(Number(totalSecs) || 0));
+  var s = totalSecs % 60;
+  var m = Math.floor((totalSecs / 60) % 60);
+  var h = Math.floor(totalSecs / 3600);
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return h > 0 ? (h + ':' + pad(m) + ':' + pad(s)) : (pad(m) + ':' + pad(s));
+}
+
+// Seconds until the bot's expected auto-launch moment, or null when the bot is
+// not in a pre-join state and/or the launch window has already started.
+function botCountdownSecs(ev) {
+  var s = ev.bot_status || ev.status || '';
+  if (BOT_PRE_LAUNCH_STATUSES.indexOf(s) === -1) return null;
+  var secs = Number(ev.seconds_until_launch);
+  return (isFinite(secs) && secs > 0) ? Math.ceil(secs) : null;
+}
+
+// Renders a self-updating countdown chip or null when it does not apply.
+function botCountdownChip(ev, chipClass) {
+  var secs = botCountdownSecs(ev);
+  if (secs === null) return null;
+  var until = Date.now() + secs * 1000;
+  var cls = chipClass || 'whitespace-nowrap text-xs font-bold text-amber-600 animate-pulse';
+  return '<span class="' + cls + '" data-bot-cd-until="' + until + '">' + escHtml(BOT_WILL_JOIN_PREFIX + fmtCountdown(secs)) + '</span>';
+}
+
+// 1-second in-place ticker for every [data-bot-cd-until] chip. When a
+// countdown hits 0 it flips to "Bot is joining..." (the next 5s poll then
+// loads the authoritative bot_launching/joining state).
+function tickBotCountdowns() {
+  if (_countdownTimer) return;
+  _countdownTimer = setInterval(function () {
+    var els = document.querySelectorAll('[data-bot-cd-until]');
+    if (!els.length) return;
+    var nowMs = Date.now();
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var target = parseInt(el.getAttribute('data-bot-cd-until'), 10);
+      if (!target) continue;
+      var secs = Math.max(0, Math.ceil((target - nowMs) / 1000));
+      if (secs <= 0) {
+        el.textContent = 'Bot is joining...';
+        el.removeAttribute('data-bot-cd-until');
+      } else {
+        el.textContent = BOT_WILL_JOIN_PREFIX + fmtCountdown(secs);
+      }
+    }
+  }, 1000);
+}
 // ── Adaptive polling ──────────────────────────────────────────────────
 // The auto-refresh timer only stays ON while at least one bot is still
 // running / joining / in a waiting room / active session. Once every bot for
@@ -364,7 +427,10 @@ async function loadLive(silent) {
         } else if (botJoined) {
           html += '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 text-white cursor-default">Bot joined</span>';
         } else if (botBusy) {
-          html += '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white cursor-default animate-pulse">Bot joining...</span>';
+          // While the bot is busy but hasn't launched yet, show a live countdown
+          // to its expected auto-join time instead of a static "Bot joining...".
+          var busyCountdown = botCountdownChip(e, 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white cursor-default animate-pulse');
+          html += busyCountdown || '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white cursor-default animate-pulse">Bot joining...</span>';
         } else if (stored.launched) {
           html += '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 text-white cursor-default">Bot launched</span>';
         } else {
@@ -388,7 +454,8 @@ async function loadLive(silent) {
 
         // ---- Live tracking (all DB-sourced) ----
         // Single-line status strip: [BOT] status + [TRANSCRIPT]/[AUDIO] activity.
-        var statusParts = [statusChip(e.bot_status || e.status, true)].concat(activityChips(e.session));
+        var botChip = botCountdownChip(e) || statusChip(e.bot_status || e.status, true);
+        var statusParts = [botChip].concat(activityChips(e.session));
         html += '<div class="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-700/40 min-w-0 overflow-hidden">' + statusParts.join('<span class="text-slate-600 text-xs whitespace-nowrap">|</span>') + '</div>';
 
         // Detected participants (roster excludes the bot)
@@ -410,6 +477,7 @@ async function loadLive(silent) {
       html += '</div></div>';
     }
     container.innerHTML = html;
+    tickBotCountdowns();
   } catch(err) {
     if (!silent) container.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-red-400"><p>Failed to load</p><p class="text-sm mt-1">'+escHtml(err.message)+'</p></div>';
   }

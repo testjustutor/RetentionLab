@@ -41,6 +41,22 @@ def run_persist_results_task(context):
     log_with_type("info", "Engine(task > persist > persist_results_task) : Persist results task started", "TASK")
 
     try:
+        # Pre-audit transcript validation found nothing worth processing -
+        # skip DB persistence entirely (mirrors the _meeting_exists/
+        # _session_exists early-return pattern below) so a skipped session
+        # never gets a misleading "Completed" meeting_assets row or empty
+        # rubric rows written for it.
+        if getattr(context, "processing_skipped", False):
+            log_with_type(
+                "info",
+                f"Engine(task > persist > persist_results_task) : "
+                f"processing was skipped (reason={context.skip_reason}) - "
+                f"skipping DB persistence entirely.",
+                "TASK",
+            )
+            context.mark_task_completed("persist_results")
+            return
+
         # IMPORTANT: only use the REAL resolved meetings.id (context.meeting_id,
         # set in pipeline_context.py via _resolve_meeting_id()). Do NOT fall
         # back to context.base_id - base_id is a filename-derived string and

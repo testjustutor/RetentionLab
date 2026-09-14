@@ -240,6 +240,18 @@ class PipelineContext:
         self.summary_data = {}
 
         # ==========================================
+        # PROCESSING SKIP STATE (pre-audit transcript validation)
+        # Set by transcription_task.py (services/engine/transcript_validation.py)
+        # when the transcript is empty/near-empty or single-speaker-only, so
+        # audit_task.py / summary_task.py / persist_results_task.py can all
+        # skip their work cleanly instead of wasting an LLM call or persisting
+        # a garbage result. Surfaced to Node via build_final_response() below.
+        # ==========================================
+        self.processing_skipped = False
+        self.skip_reason = None
+        self.skip_message = None
+
+        # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
         # Resolved at startup from storage/transcripts
         # using base_id (strip trailing chunk suffix)
@@ -520,5 +532,8 @@ class PipelineContext:
             "transcript_path": self.transcript_path,
             "audit_json_path": self.audit_json_path,
             "summary_path": self.summary_path,
-            "oqi_score": self.audit_results.get("oqi_score", 0)
+            "oqi_score": self.audit_results.get("oqi_score", 0),
+            "skipped": self.processing_skipped,
+            "skip_reason": self.skip_reason,
+            "skip_message": self.skip_message
         }

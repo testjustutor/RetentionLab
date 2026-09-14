@@ -29,6 +29,53 @@ def run_audit_task(context):
 
     try:
 
+        # Pre-audit transcript validation (services/engine/transcript_validation.py,
+        # run from transcription_task.py) found nothing worth auditing - skip the
+        # LLM call entirely, but still write a skip-record so downstream code
+        # relying on audit_json_path/audit_results keeps working uniformly.
+        if getattr(context, "processing_skipped", False):
+
+            log_with_type(
+                "info",
+                f"Engine(task > audit > audit_task) : Skipping AI audit reason={context.skip_reason}",
+                "TASK",
+            )
+
+            skip_result = {
+                "skipped": True,
+                "skip_reason": context.skip_reason,
+                "skip_message": context.skip_message,
+                "oqi_score": 0,
+                "category_scores": {},
+                "gate_failures": [],
+                "overall_score": 0,
+                "max_score": 0,
+                "percentage": 0.0,
+                "rubric": [],
+                "metrics": {
+                    "total_questions": 0,
+                    "passed": 0,
+                    "failed": 0,
+                    "partial": 0
+                }
+            }
+
+            output_path = os.path.join(
+                context.storage_paths["cache_audits"],
+                f"AUDIT_{context.base_id}.json"
+            )
+
+            JsonStore.save(output_path, skip_result)
+
+            context.audit_json_path = output_path
+            context.audit_results = skip_result
+
+            context.mark_task_completed("audit")
+
+            log_with_type("info", "Engine(task > audit > audit_task) : Audit task skipped (transcript validation)", "TASK")
+
+            return
+
         service = AuditService()
 
         log_with_type("info", "Engine(task > audit > audit_task) : AuditService initialized", "TASK")

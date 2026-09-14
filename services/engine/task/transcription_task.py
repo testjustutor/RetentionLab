@@ -16,6 +16,10 @@ from services.engine.services.transcription import (
     TranscriptionService
 )
 
+from services.engine.transcript_validation import (
+    validate_transcript
+)
+
 
 def run_transcription_task(context):
 
@@ -68,6 +72,45 @@ def run_transcription_task(context):
         )
 
         log_with_type("info", "Engine(task > transcription > transcription_task) : Context updated with plain transcript", "TASK")
+
+        # ==========================================
+        # PRE-AUDIT TRANSCRIPT VALIDATION
+        # Detect an empty/near-empty or single-speaker-only session BEFORE
+        # the audit task spends an LLM call on it. The single-speaker check
+        # needs the platform CAPTIONS transcript (real speaker names) - the
+        # live Whisper path never attaches speaker labels at all - so it's
+        # read here (best-effort; a missing/unreadable file just means the
+        # single-speaker check is skipped, not assumed).
+        # ==========================================
+        captions_text = None
+
+        if context.captions_trans_path and os.path.exists(context.captions_trans_path):
+            try:
+                with open(context.captions_trans_path, "r", encoding="utf-8") as captions_file:
+                    captions_text = captions_file.read()
+            except Exception as read_err:
+                log_with_type(
+                    "warning",
+                    f"Engine(task > transcription > transcription_task) : Could not read captions transcript for validation path={context.captions_trans_path} error={str(read_err)}",
+                    "TASK",
+                )
+
+        validation = validate_transcript(
+            context.labeled_transcript,
+            captions_text=captions_text,
+            talk_ratio=context.talk_ratio,
+        )
+
+        if not validation["valid"]:
+            context.processing_skipped = True
+            context.skip_reason = validation["reason"]
+            context.skip_message = validation["message"]
+
+            log_with_type(
+                "info",
+                f"Engine(task > transcription > transcription_task) : Downstream AI processing will be skipped reason={validation['reason']}",
+                "TASK",
+            )
 
         context.whisper_path = (
             TranscriptionCacheManager.save_whisper_output(

@@ -104,7 +104,16 @@ const rubricData = {
             "F3.2": { "name": "Provides adequate wait time", "type": "HUMAN", "gate": false, "value": 1, "benchmark": "Tutor allows time for student to think.", "requires_video": true },
             "F3.3": { "name": "Probes learner thinking", "type": "HUMAN", "gate": false, "value": 1, "benchmark": "Tutor asks follow-up questions to check depth.", "requires_video": false },
             "F4.1": { "name": "Listens without interruption", "type": "AI", "gate": false, "value": 1, "benchmark": "Tutor lets student finish speaking.", "requires_video": true },
-            "F4.2": { "name": "Allows sufficient learner talk time", "type": "HUMAN", "gate": false, "value": 1, "benchmark": "Student speaks more than tutor.", "requires_video": true },
+            // NOTE: this indicator was briefly flagged requires_calculation with
+            // calculation_config metric "talk_ratio_student_pct" - reverted
+            // because nothing in the pipeline assigns speaker roles (student vs
+            // tutor); talk_ratio is keyed by raw speaker identity (a diarization
+            // label or a resolved real name), and isn't even populated in the
+            // live DAG today (diarization isn't run - see transcript_builder.py).
+            // As configured it could only ever resolve to "Not Applicable", so it
+            // goes back to being judged normally like the other HUMAN indicators
+            // until real speaker-role detection exists.
+            "F4.2": { "name": "Allows sufficient learner talk time", "type": "HUMAN", "gate": false, "value": 1, "benchmark": "Student speaks more than tutor.", "requires_video": false },
             "F4.3": { "name": "Responds appropriately to cues", "type": "HUMAN", "gate": false, "value": 1, "benchmark": "Tutor picks up on student's verbal and nonverbal signals.", "requires_video": true }
         }
     },
@@ -221,9 +230,11 @@ const seedRubric = async () => {
                         is_gate,
                         value,
                         benchmark,
-                        requires_video
+                        requires_video,
+                        requires_calculation,
+                        calculation_config
                     ) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `, [
                     rubricCategoryId,
                     indId,
@@ -233,10 +244,27 @@ const seedRubric = async () => {
                     ind.gate ? 1 : 0,
                     ind.value || 1,
                     ind.benchmark || null,
-                    ind.requires_video ? 1 : 0
+                    ind.requires_video ? 1 : 0,
+                    ind.requires_calculation ? 1 : 0,
+                    ind.calculation_config ? JSON.stringify(ind.calculation_config) : null
                 ]);
             }
         }
+
+        // Idempotent F4.2 correction for already-seeded master rubric rows.
+        // INSERT IGNORE above cannot update existing rows, so correct them
+        // explicitly: F4.2 ("Allows sufficient learner talk time") was briefly
+        // configured as requires_calculation with metric "talk_ratio_student_pct",
+        // which cannot be resolved by the pipeline (no speaker-role assignment,
+        // and talk_ratio is not populated in the live DAG). Matches the (fixed)
+        // rubricData definition above. Mirrors the fix that used to live in
+        // database/migrations/056_fix_f42_calculation_metric.js (now removed -
+        // the fix ships with the seeders instead).
+        await runAsync(`
+            UPDATE rubric_indicators
+            SET requires_calculation = 0, calculation_config = NULL
+            WHERE indicator_code = 'F4.2' AND requires_calculation = 1
+        `);
 
         logger.info("[Seeder] Rubric seeded successfully.");
     } catch (error) {

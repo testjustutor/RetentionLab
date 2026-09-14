@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (s === 'processed') return 'bg-violet-100 text-violet-700';
     if (s === 'processing') return 'bg-blue-100 text-blue-700';
     if (s === 'failed') return 'bg-red-100 text-red-700';
+    // Pre-audit transcript validation skipped this recording (empty /
+    // single-speaker-only) - amber like "converted", not red, since nothing
+    // actually failed.
+    if (s === 'skipped') return 'bg-amber-100 text-amber-700';
     if (s === 'converted') return 'bg-emerald-100 text-emerald-700';
     return 'bg-amber-100 text-amber-700';
   }
@@ -72,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'processed': return 'Processed';
       case 'processing': return 'Processing';
       case 'failed': return 'Process failed';
+      case 'skipped': return 'Skipped (no content)';
       case 'converted': return 'Converted';
       default: return 'Pending';
     }
@@ -479,14 +484,25 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ audioPath, meetingId, sessionId })
       });
       const result = await response.json();
-      if (result.success) {
+      if (result.success && result.data && result.data.skipped) {
+        // Pre-audit transcript validation found no meaningful (or single-
+        // speaker-only) content - a friendly, non-error outcome. Amber/info
+        // styling, not the red "failed" or green "success" treatment.
+        setProcessBusy(false);
+        const skipMessage = result.data.skipMessage || 'No meaningful conversation was detected, so processing was skipped.';
+        processMp3Status.textContent = skipMessage;
+        processMp3Status.className = 'text-xs text-amber-600';
+        showToast(skipMessage, 'info');
+        closeModals();
+      } else if (result.success) {
         setProcessBusy(false);                 // release the modal lock before closing
         showToast(isTranscript ? 'AI transcript generated' : 'Report generated', 'success');
         closeModals();
       } else {
-        processMp3Status.textContent = result.error || 'Processing failed';
+        const errorMessage = result.error || (result.data && result.data.error) || 'Processing failed';
+        processMp3Status.textContent = errorMessage;
         processMp3Status.className = 'text-xs text-red-600';
-        showToast((isTranscript ? 'Transcript' : 'Report') + ' failed: ' + (result.error || 'unknown error'), 'error');
+        showToast((isTranscript ? 'Transcript' : 'Report') + ' failed: ' + errorMessage, 'error');
       }
     } catch (err) {
       console.error('Process error:', err);

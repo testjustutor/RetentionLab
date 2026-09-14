@@ -109,6 +109,8 @@ class SocraticBot {
       this.browserManager = await new BrowserManager().init({
         userDataDir: uniqueProfileDir,
         deleteProfileOnClose: true,
+        botInstanceId: this.sessionId,
+        meetingId: this.meetingDbId ?? this.meetingId ?? null,
       });
 
       const joiner = this.createJoiner();
@@ -208,9 +210,11 @@ class SocraticBot {
       // creation failed above, still the placeholder — same fallback either
       // way), so the output filename is correct (REC_Meet<id>_Sess<realId>_...)
       // instead of embedding the "wait_<id>_<timestamp>" tracking token.
-      // Recording toggles apply to all platforms - see featureConfig.js.
-      const audioRecorderEnabled = featureConfig.audioRecorder.enabled;
-      const screenRecorderEnabled = featureConfig.screenRecorder.enabled;
+      // featureConfig.js is keyed per platform - see PLATFORM FEATURES HANDLER
+      // below for the rest of this platform's toggles.
+      const platformFeatures = featureConfig[this.platform];
+      const audioRecorderEnabled = platformFeatures.audioRecorder.enabled;
+      const screenRecorderEnabled = platformFeatures.screenRecorder.enabled;
 
       if (audioRecorderEnabled || screenRecorderEnabled) {
         logger.info('DefaultAdapter(SocraticBot): Triggering FFmpeg recording...');
@@ -462,30 +466,43 @@ class SocraticBot {
   // -------------------------
   async handlePlatformFeatures(joiner) {
 
+    // featureConfig.js is keyed per platform - every toggle below reads
+    // from this platform's own copy.
+    const platformFeatures = featureConfig[this.platform];
+
     switch (this.platform) {
 
       // ---------------- ZOOM ----------------
       case 'zoom': {
 
-        this.captionMonitor = new ZoomCaptionMonitor(
-          this.sessionId,
-          this.browserManager.page,
-          this.meetingDbId,
-          this.platform,
-          joiner,
-          this.stop.bind(this)
-        );
+        if (platformFeatures.captionMonitor.enabled) {
+          this.captionMonitor = new ZoomCaptionMonitor(
+            this.sessionId,
+            this.browserManager.page,
+            this.meetingDbId,
+            this.platform,
+            joiner,
+            this.stop.bind(this)
+          );
 
-        this.captionMonitor.startPolling();
+          this.captionMonitor.startPolling();
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): captionMonitor disabled via featureConfig for zoom — skipping caption capture/persistence.');
+        }
 
-        const participantTracker = new ZoomParticipantTracker(
-          this.meetingDbId,
-          this.sessionId
-        );
-        this.participantTracker = participantTracker;
+        let participantTracker = null;
+        if (platformFeatures.participantTracker.enabled) {
+          participantTracker = new ZoomParticipantTracker(
+            this.meetingDbId,
+            this.sessionId
+          );
+          this.participantTracker = participantTracker;
 
-        if (joiner.setParticipantTracker) {
-          joiner.setParticipantTracker(participantTracker);
+          if (joiner.setParticipantTracker) {
+            joiner.setParticipantTracker(participantTracker);
+          }
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): participantTracker disabled via featureConfig for zoom — skipping.');
         }
 
         const active = await joiner.checkCaptionsEnabled();
@@ -498,45 +515,57 @@ class SocraticBot {
           await joiner.startTranscriptMonitor();
         }
 
-        ZoomMonitor.monitorMeeting(
-          this.browserManager.page,
-          this.meetingDbId,
-          this.botName,
-          this.sessionId,
-          participantTracker
-        )
-          .then(() => this.stop())
-          .catch(err =>
-            logger.error(
-              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
-              err
-            )
-          );
+        if (platformFeatures.attendanceMonitor.enabled) {
+          ZoomMonitor.monitorMeeting(
+            this.browserManager.page,
+            this.meetingDbId,
+            this.botName,
+            this.sessionId,
+            participantTracker
+          )
+            .then(() => this.stop())
+            .catch(err =>
+              logger.error(
+                'DefaultAdapter(SocraticBot): Monitor loop crashed:',
+                err
+              )
+            );
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): attendanceMonitor disabled via featureConfig for zoom — bot will stay in meeting with no join/leave tracking.');
+        }
         break;
       }
 
       // ---------------- GOOGLE MEET ----------------
       case 'google-meet': {
 
-        this.captionMonitor = new GoogleMeetCaptionMonitor(
-          this.sessionId,
-          this.browserManager.page,
-          this.meetingDbId,
-          this.platform,
-          joiner,
-          this.stop.bind(this)
-        );
+        if (platformFeatures.captionMonitor.enabled) {
+          this.captionMonitor = new GoogleMeetCaptionMonitor(
+            this.sessionId,
+            this.browserManager.page,
+            this.meetingDbId,
+            this.platform,
+            joiner,
+            this.stop.bind(this)
+          );
 
-        this.captionMonitor.startPolling();
+          this.captionMonitor.startPolling();
+          joiner.setCaptionMonitor(this.captionMonitor);
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): captionMonitor disabled via featureConfig for google-meet — skipping caption capture/persistence.');
+        }
 
-        const participantTracker = new GoogleParticipantTracker(
-          this.meetingDbId,
-          this.sessionId
-        );
-        this.participantTracker = participantTracker;
-
-        joiner.setCaptionMonitor(this.captionMonitor);
-        joiner.setParticipantTracker(participantTracker);
+        let participantTracker = null;
+        if (platformFeatures.participantTracker.enabled) {
+          participantTracker = new GoogleParticipantTracker(
+            this.meetingDbId,
+            this.sessionId
+          );
+          this.participantTracker = participantTracker;
+          joiner.setParticipantTracker(participantTracker);
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): participantTracker disabled via featureConfig for google-meet — skipping.');
+        }
 
         // Don't re-start (and reset()) the transcript monitor if it was
         // already started early in run() — that would wipe out the
@@ -558,14 +587,101 @@ class SocraticBot {
         // SocraticBot's flow, so this intentionally uses captureInitialParticipants'
         // own default snapshot time (now, i.e. the moment a human was
         // detected) rather than risk touching earlier, already-relied-upon
-        // parts of this file to plumb one through.
-        const initialParticipants = await GoogleMeetMonitor.captureInitialParticipants(
-          this.browserManager.page,
-          this.botName,
-          participantTracker
-        );
+        // parts of this file to plumb one through. Only meaningful with a
+        // real participantTracker to record into.
+        const initialParticipants = participantTracker
+          ? await GoogleMeetMonitor.captureInitialParticipants(
+              this.browserManager.page,
+              this.botName,
+              participantTracker
+            )
+          : [];
 
-        GoogleMeetMonitor.monitorMeeting(
+        if (platformFeatures.attendanceMonitor.enabled) {
+          GoogleMeetMonitor.monitorMeeting(
+              this.browserManager.page,
+              this.meetingDbId,
+              this.botName,
+              this.sessionId,
+              participantTracker,
+              initialParticipants
+            )
+              .then(() => this.stop())
+              .catch(err =>
+                logger.error(
+                  'DefaultAdapter(SocraticBot): Monitor loop crashed:',
+                  err
+                )
+              );
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): attendanceMonitor disabled via featureConfig for google-meet — bot will stay in meeting with no join/leave tracking.');
+        }
+
+          break;
+      }
+
+      // ---------------- TEAMS ----------------
+      case 'teams': {
+
+        // FIX 1: TeamsCaptionMonitor is now the SINGLE source of truth for
+        // caption capture/persistence on Teams. teamsJoiner.js's
+        // startTranscriptMonitor() no longer runs its own polling loop —
+        // it only does post-join setup (mute mic, enable captions), so
+        // there is no more double-polling here.
+        if (platformFeatures.captionMonitor.enabled) {
+          this.captionMonitor = new TeamsCaptionMonitor(
+            this.sessionId,
+            this.browserManager.page,
+            this.meetingDbId,
+            this.platform,
+            joiner,
+            this.stop.bind(this)
+          );
+
+          this.captionMonitor.startPolling();
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): captionMonitor disabled via featureConfig for teams — skipping caption capture/persistence.');
+        }
+
+        if (joiner.enableCaptionsIfPossible) {
+          await joiner.enableCaptionsIfPossible();
+        }
+
+        // FIX 2: participant tracker now created here (matching zoom/meet),
+        // stored on `this.participantTracker` so stop() can reset it, and
+        // passed both to the joiner (for future use, e.g. in-lobby events)
+        // and into TeamsMonitor.monitorMeeting so attendance tracking uses
+        // the SAME instance instead of an invisible one created internally
+        // inside monitor.js.
+        let participantTracker = null;
+        if (platformFeatures.participantTracker.enabled) {
+          participantTracker = new TeamsParticipantTracker(
+            this.meetingDbId,
+            this.sessionId
+          );
+          this.participantTracker = participantTracker;
+
+          if (joiner.setParticipantTracker) {
+            joiner.setParticipantTracker(participantTracker);
+          }
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): participantTracker disabled via featureConfig for teams — skipping.');
+        }
+
+        if (joiner.startTranscriptMonitor) {
+          await joiner.startTranscriptMonitor();
+        }
+
+        const initialParticipants = participantTracker
+          ? await TeamsMonitor.captureInitialParticipants(
+              this.browserManager.page,
+              this.botName,
+              participantTracker
+            )
+          : [];
+
+        if (platformFeatures.attendanceMonitor.enabled) {
+          TeamsMonitor.monitorMeeting(
             this.browserManager.page,
             this.meetingDbId,
             this.botName,
@@ -580,67 +696,9 @@ class SocraticBot {
                 err
               )
             );
-
-          break;
-      }
-
-      // ---------------- TEAMS ----------------
-      case 'teams': {
-
-        // FIX 1: TeamsCaptionMonitor is now the SINGLE source of truth for
-        // caption capture/persistence on Teams. teamsJoiner.js's
-        // startTranscriptMonitor() no longer runs its own polling loop —
-        // it only does post-join setup (mute mic, enable captions), so
-        // there is no more double-polling here.
-        this.captionMonitor = new TeamsCaptionMonitor(
-          this.sessionId,
-          this.browserManager.page,
-          this.meetingDbId,
-          this.platform,
-          joiner,
-          this.stop.bind(this)
-        );
-
-        this.captionMonitor.startPolling();
-
-        if (joiner.enableCaptionsIfPossible) {
-          await joiner.enableCaptionsIfPossible();
+        } else {
+          logger.info('DefaultAdapter(SocraticBot): attendanceMonitor disabled via featureConfig for teams — bot will stay in meeting with no join/leave tracking.');
         }
-
-        // FIX 2: participant tracker now created here (matching zoom/meet),
-        // stored on `this.participantTracker` so stop() can reset it, and
-        // passed both to the joiner (for future use, e.g. in-lobby events)
-        // and into TeamsMonitor.monitorMeeting so attendance tracking uses
-        // the SAME instance instead of an invisible one created internally
-        // inside monitor.js.
-        const participantTracker = new TeamsParticipantTracker(
-          this.meetingDbId,
-          this.sessionId
-        );
-        this.participantTracker = participantTracker;
-
-        if (joiner.setParticipantTracker) {
-          joiner.setParticipantTracker(participantTracker);
-        }
-
-        if (joiner.startTranscriptMonitor) {
-          await joiner.startTranscriptMonitor();
-        }
-
-        TeamsMonitor.monitorMeeting(
-          this.browserManager.page,
-          this.meetingDbId,
-          this.botName,
-          this.sessionId,
-          participantTracker
-        )
-          .then(() => this.stop())
-          .catch(err =>
-            logger.error(
-              'DefaultAdapter(SocraticBot): Monitor loop crashed:',
-              err
-            )
-          );
         break;
       }
     

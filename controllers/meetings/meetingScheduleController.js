@@ -12,6 +12,7 @@ const TranscriptModel = require('../../models/transcripts/transcriptModel');
 const { FOLDERS } = require('../../utils/storagePaths');
 const { logger } = require('../../utils/logger');
 const { logThrottled } = require('../../utils/logThrottle');
+const settings = require('../../config/settings');
 
 function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
 function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
@@ -373,7 +374,7 @@ const controller = {
       if (!activeEmails.length) return ok({ users: [], totalUsers: 0, totalEvents: 0 });
       
       // Get full meeting rows including external_meeting_id, meeting_link, passcode, event_id
-      const rows = await MeetingModel.getLiveMeetingsByAccounts(activeEmails);
+      const rows = await MeetingModel.getLiveMeetingsByAccounts(activeEmails, settings.bot.autoJoinLeadMinutes);
 
       // Live enrichment (all from DB): latest meeting_sessions row + participant
       // roster per meeting, used by the Live page to show bot status, detected
@@ -407,7 +408,8 @@ const controller = {
           session: enrichment.sessions[r.id] || null,   // latest meeting_sessions row (human detected)
           participants,                                  // detected humans (bot never stored)
           participant_count: participants.length,
-          remaining_seconds: r._remaining_seconds || null // server-computed, TZ-safe
+          remaining_seconds: r._remaining_seconds || null, // server-computed, TZ-safe
+          seconds_until_launch: r._seconds_until_launch != null ? r._seconds_until_launch : null // server-computed, TZ-safe
         });
       });
       const users = Object.values(groups).map(g => g);

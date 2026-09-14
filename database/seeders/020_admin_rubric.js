@@ -38,6 +38,20 @@ const seedAdminRubric = async () => {
     for (const adminUser of adminUsers) {
         const adminUserId = adminUser.id;
 
+        // Idempotent F4.2 correction for this admin's (possibly already-seeded)
+        // admin_rubric_indicators rows. The existing-clone skip / INSERT IGNORE
+        // below cannot update already-seeded rows, so correct them explicitly -
+        // matches the fixed master rubric definition (see 006_rubric.js).
+        // Mirrors the fix that used to live in
+        // database/migrations/056_fix_f42_calculation_metric.js (now removed -
+        // the fix ships with the seeders instead).
+        await runAsync(
+            `UPDATE admin_rubric_indicators
+             SET requires_calculation = 0, calculation_config = NULL
+             WHERE admin_user_id = ? AND indicator_code = 'F4.2' AND requires_calculation = 1`,
+            [adminUserId]
+        );
+
         // Idempotent: skip if this admin already has a cloned rubric.
         const existing = await getAsync(
             `SELECT id FROM admin_rubric_categories WHERE admin_user_id = ? LIMIT 1`,
@@ -88,8 +102,8 @@ const seedAdminRubric = async () => {
                     `INSERT IGNORE INTO admin_rubric_indicators
                         (admin_category_id, master_indicator_id, indicator_code, master_category_id,
                          category_code, admin_user_id, source, subgroup_name, name, type,
-                         is_gate, value, benchmark, requires_video, status)
-                     VALUES (?, ?, ?, ?, ?, ?, 'master', ?, ?, ?, ?, ?, ?, ?, ?)`,
+                         is_gate, value, benchmark, requires_video, requires_calculation, calculation_config, status)
+                     VALUES (?, ?, ?, ?, ?, ?, 'master', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         adminCategoryId,
                         indicator.id,
@@ -104,6 +118,8 @@ const seedAdminRubric = async () => {
                         indicator.value,
                         indicator.benchmark,
                         indicator.requires_video,
+                        indicator.requires_calculation,
+                        indicator.calculation_config,
                         indicator.status
                     ]
                 );

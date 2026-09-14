@@ -246,6 +246,70 @@ class ParticipantTracker {
     this.trackedParticipants.clear();
     logger.info(`TeamsAdapter(participantTracker): Tracker reset for meeting ${this.meetingId}`);
   }
+
+    /**
+   * INITIAL ROSTER CAPTURE (join-time)
+   *
+   * Parity with google-meet/participantTracker.js's handleInitialRoster().
+   * When the bot joins a Teams meeting that already has other participants
+   * in it, the normal join-detection loop (monitor.js's trackAttendanceChanges
+   * diff) only notices them on its NEXT tick, and only "works" today because
+   * that diff happens to run against an empty previousParticipants list on
+   * its very first tick. This makes the initial capture explicit: call it
+   * once, right after the bot is admitted, with whatever names monitor.js's
+   * DOM scrape (getCurrentParticipantNames, after opening the roster panel)
+   * returns at that moment.
+   *
+   * TIMESTAMP LIMITATION: same as google-meet - Teams exposes no API/event
+   * that hands back the TRUE original join time of someone already in the
+   * call before the bot arrived. snapshotTime is the moment THIS BOT first
+   * observed each participant.
+   *
+   * Every name is routed through handleParticipantJoin(), reusing the same
+   * _key normalization, idempotency, and DB persistence path as any other
+   * join - safe to call even if the next trackAttendanceChanges() tick
+   * independently reports the same names again (hits "already_joined").
+   *
+   * Runs independently per participant (Promise.allSettled) so one failing
+   * write doesn't stop the rest of the people already in the meeting from
+   * being recorded.
+   */
+  async handleInitialRoster(names, snapshotTime = new Date()) {
+    const unique = Array.from(
+      new Set((Array.isArray(names) ? names : []).map((n) => (n || '').trim()).filter(Boolean))
+    );
+
+    if (unique.length === 0) {
+      logger.info(
+        `TeamsAdapter(participantTracker): INITIAL_ROSTER: bot joined meeting ${this.meetingId} with no other participants present`
+      );
+      return [];
+    }
+
+    logger.info(
+      `TeamsAdapter(participantTracker): INITIAL_ROSTER: ${unique.length} participant(s) already in meeting ${this.meetingId} at join time - recording attendance: ${unique.join(', ')}`
+    );
+
+    const results = await Promise.allSettled(
+      unique.map((name) => this.handleParticipantJoin(name, snapshotTime))
+    );
+
+    results.forEach((result, idx) => {
+      const name = unique[idx];
+      if (result.status === 'rejected') {
+        logger.error(
+          `TeamsAdapter(participantTracker): INITIAL_ROSTER: failed to record ${name}:`,
+          result.reason
+        );
+      } else if (result.value && result.value.success === false) {
+        logger.warn(
+          `TeamsAdapter(participantTracker): INITIAL_ROSTER: not persisted for ${name}: ${result.value.error || 'unknown reason'}`
+        );
+      }
+    });
+
+    return unique;
+  }
 }
 
 module.exports = ParticipantTracker;

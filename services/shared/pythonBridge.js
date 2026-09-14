@@ -261,6 +261,24 @@ class PythonBridge {
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Python Bridge] Execution data package parsed successfully.`);
 
+      // Pre-audit transcript validation (services/engine/transcript_validation.py,
+      // run from transcription_task.py) found this recording empty/near-empty or
+      // single-speaker-only. The engine already skipped the AI audit, summary
+      // generation, and its own DB persistence for exactly this reason - mirror
+      // that here by skipping the "Completed" + oqi_score asset DB-sync too,
+      // instead of falsely marking a skipped session as a completed report.
+      if (executionMatrix.skipped) {
+        logger.info(`[Python Bridge] Engine reported processing skipped reason="${executionMatrix.skip_reason}" for meetingId=${meetingId} sessionId=${sessionId} - skipping AI audit + asset DB-sync (transcript validation).`);
+        return {
+          success: true,
+          skipped: true,
+          skipReason: executionMatrix.skip_reason || null,
+          skipMessage: executionMatrix.skip_message || 'Processing was skipped for this recording.',
+          meetingId: meetingId || executionMatrix.meeting_id || null,
+          sessionId: sessionId || executionMatrix.session_id || null
+        };
+      }
+
       // Resolve meetingId/sessionId from the engine payload when the caller did
       // not supply them (e.g. socraticbot test runs), so the asset DB-sync below
       // is never skipped for a parseable meeting id.

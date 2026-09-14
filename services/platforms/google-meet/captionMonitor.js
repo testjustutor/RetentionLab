@@ -36,12 +36,18 @@ class CaptionMonitor {
 
     const now = new Date();
 
+    // FIX: was `.toISOString().split('T')[0]` (UTC date) glued to
+    // `.getHours()/.getMinutes()` (LOCAL time) - near local midnight this
+    // could stamp a file with the UTC date but a local time that actually
+    // belongs to the NEXT day. All components below now come from the same
+    // LOCAL clock, so the date and time in the filename always agree.
+    const pad = (n) => n.toString().padStart(2, '0');
     const timestamp =
-      now.toISOString().split('T')[0] +
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
       '_' +
-      now.getHours().toString().padStart(2, '0') +
+      pad(now.getHours()) +
       '-' +
-      now.getMinutes().toString().padStart(2, '0');
+      pad(now.getMinutes());
 
     this.fileName =
       `TRANS_Meet${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;

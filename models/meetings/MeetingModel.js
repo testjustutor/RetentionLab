@@ -63,10 +63,23 @@ class MeetingModel {
             return resolve({ id: row.id, exists: true, skipped: true, status: 'completed' });
           }
           if (failedStatuses.includes(row.status)) {
-            db.run(
-              `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, calendar_account_id = ?, meeting_link = ?, scheduled_start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
-              [meetingData.platform, meetingData.passcode || null, meetingData.calendarAccountId || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.title, meetingData.eventId],
-              function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, reset: true, ...meetingData }); });
+            // Re-queue ONLY for an upcoming event occurrence. If this occurrence
+            // has already started (e.g. a late-joined bot just ended -> "stopped",
+            // or it was rejected / timed out), keep the terminal status so the
+            // 10s bot poller cannot re-launch it in a loop - without this guard
+            // the 1-minute calendar sync would re-queue the meeting forever
+            // (until it ages into "expired").
+            const occurrenceStart = new Date(meetingData.scheduled_start_time || 0).getTime();
+            const isUpcoming = !meetingData.scheduled_start_time || Number.isNaN(occurrenceStart) || occurrenceStart > Date.now();
+            if (isUpcoming) {
+              db.run(
+                `UPDATE meetings SET status = 'queued', platform = ?, passcode = ?, calendar_account_id = ?, meeting_link = ?, scheduled_start_time = ?, title = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ?`,
+                [meetingData.platform, meetingData.passcode || null, meetingData.calendarAccountId || null, meetingData.meetingLink, meetingData.scheduled_start_time, meetingData.title, meetingData.eventId],
+                function(updateErr) { if (updateErr) return reject(updateErr); resolve({ id: row.id, exists: true, reset: true, ...meetingData }); });
+            } else {
+              // Past occurrence - keep the terminal status, just refresh metadata.
+              resolve({ id: row.id, exists: true, skipped: true, kept: true, status: row.status, ...meetingData });
+            }
           } else {
             // Update existing meeting with fresh data from calendar sync
             db.run(
@@ -200,10 +213,11 @@ class MeetingModel {
     });
   }
 
-  static getLiveMeetingsByAccounts(emails) {
+  static getLiveMeetingsByAccounts(emails, leadMinutes = 3) {
     return new Promise((resolve, reject) => {
       if (!emails || !emails.length) return resolve([]);
       const now = Date.now();
+      const lead = Number(leadMinutes) > 0 ? Number(leadMinutes) : 3;
       const placeholders = emails.map(() => '?').join(',');
       db.all(
         `SELECT m.*, u.first_name, u.last_name, r.role_name FROM meetings m LEFT JOIN users u ON u.email = m.calendar_account_email LEFT JOIN roles r ON r.id = u.role_id WHERE m.calendar_account_email IS NOT NULL AND LOWER(m.calendar_account_email) IN (${placeholders}) AND m.scheduled_start_time IS NOT NULL AND m.status NOT IN ('failed','cancelled') ORDER BY m.scheduled_start_time ASC`,
@@ -215,7 +229,7 @@ class MeetingModel {
           // 2. Starting within the next 10 minutes (start <= now + 10min) - for launch
           // 3. Started within the last 30 minutes (to account for delayed end_time updates)
           const filterStart = now - 30 * 60 * 1000; // 30 minutes ago
-          const filterEnd = now + 10 * 60 * 1000;   // 10 minutes from now
+          const filterEnd = now + Math.max(10, lead) * 60 * 1000;   // >=10 min from now (scales up with launch lead)
           
           // Helper function to convert timezone-aware datetime to UTC timestamp
           const convertToUTC = (dateStr, timezone) => {
@@ -303,6 +317,11 @@ class MeetingModel {
               // Live page as a crash backstop for "joined but no session yet"
               // meetings (keeps polling only while the window is current).
               r._remaining_seconds = end === Infinity ? null : Math.round((end - now) / 1000);
+              // Server-computed seconds until the bot's expected auto-launch
+              // moment (scheduled start minus BOT_LAUNCH_LEAD_MINUTES), TZ-safe.
+              // Drives the Live page "Bot will join meeting within MM:SS" countdown.
+              // <= 0 means the launch window has already started.
+              r._seconds_until_launch = Math.round(((start) - lead * 60000 - now) / 1000);
             }
             return inWindow;
           });
@@ -456,11 +475,11 @@ class MeetingModel {
     });
   }
 
-  static getQueuedMeetings() {
+  static getQueuedMeetings(leadMinutes = 3) {
     return new Promise((resolve, reject) => {
       db.all(
-        `SELECT * FROM meetings WHERE status = 'queued' AND scheduled_start_time <= DATE_ADD(NOW(), INTERVAL 3 MINUTE) ORDER BY scheduled_start_time ASC LIMIT 10`,
-        [],
+        `SELECT * FROM meetings WHERE status = 'queued' AND scheduled_start_time <= DATE_ADD(NOW(), INTERVAL ? MINUTE) ORDER BY scheduled_start_time ASC LIMIT 10`,
+        [Number(leadMinutes) > 0 ? Number(leadMinutes) : 3],
         (err, rows) => { if (err) { logger.error('Model(MeetingModel): Error fetching queued meetings:', err); reject(err); } else resolve(rows); }
       );
     });

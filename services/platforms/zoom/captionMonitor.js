@@ -28,9 +28,15 @@ class CaptionMonitor {
     this.lastSavedText = "";
 
     const now = new Date();
-    const timestamp = now.toISOString().split('T')[0] + '_' + 
-                      now.getHours().toString().padStart(2, '0') + '-' + 
-                      now.getMinutes().toString().padStart(2, '0');
+    // FIX: was `.toISOString().split('T')[0]` (UTC date) glued to
+    // `.getHours()/.getMinutes()` (LOCAL time) - near local midnight this
+    // could stamp a file with the UTC date but a local time that actually
+    // belongs to the NEXT day. All components below now come from the same
+    // LOCAL clock, so the date and time in the filename always agree.
+    const pad = (n) => n.toString().padStart(2, '0');
+    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` + '_' +
+                      pad(now.getHours()) + '-' +
+                      pad(now.getMinutes());
 
     this.dirPath = path.join(__dirname, '../../../storage/transcripts');
     

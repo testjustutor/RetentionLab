@@ -34,9 +34,11 @@ from utils.logger_util import log_with_type
 
 from .rubric_loader import RubricLoader
 from .audit_storage import AuditStorage, _json_default
+from .audit_metrics import build_calculation_context
 from .audit_scoring import (
     compute_category_score_from_counts,
     compute_overall_from_category_rows,
+    resolve_calculation,
     STATUS_MET,
     STATUS_NOT_MET,
     STATUS_NOT_APPLICABLE,
@@ -124,6 +126,8 @@ class AuditService:
                         "value": ind.get("value") or 1,
                         "benchmark": ind.get("benchmark"),
                         "requires_video": ind["requires_video"],
+                        "requires_calculation": ind.get("requires_calculation", False),
+                        "calculation_config": ind.get("calculation_config"),
                     }
                     for ind in ind_by_cat.get(cat["id"], [])
                 ],
@@ -168,11 +172,24 @@ class AuditService:
         """The static "INDICATORS (code|benchmark):" block - identical on
         every call for a given rubric snapshot, and the thing get_or_create_
         cache() in gemini_cache.py caches so it's only sent to the provider
-        once per rubric version instead of on every single audit call."""
+        once per rubric version instead of on every single audit call.
+
+        Only indicators the AI can actually judge from a transcript go in
+        this block. An indicator is left out - purely because of its OWN
+        requires_video / requires_calculation flags, never its id/name/code
+        - when either is true:
+          - requires_video: no video evidence is available to this
+            transcript-only pipeline, so the AI could never score it.
+          - requires_calculation: its score is derived in code from a
+            pipeline metric (see audit_scoring.resolve_calculation), so
+            asking the AI for it would be redundant/wrong.
+        Both kinds are re-inserted with their real status in
+        _expand_compact_result() below, once for N/A and once for computed.
+        """
         ind_lines = ["INDICATORS (code|benchmark):"]
         for cat in rubric_schema:
             for ind in cat.get("indicators", []):
-                if ind.get("requires_video"):
+                if ind.get("requires_video") or ind.get("requires_calculation"):
                     continue
                 code = ind.get("indicator_id")
                 benchmark = (ind.get("benchmark") or "").strip()
@@ -201,7 +218,7 @@ class AuditService:
     # identically.
     # ------------------------------------------------------------------
     @staticmethod
-    def _expand_compact_result(rubric_schema, compact):
+    def _expand_compact_result(rubric_schema, compact, calculation_context=None):
         raw_scores = compact.get("scores") if isinstance(compact.get("scores"), dict) else {}
         evidence_quote = compact.get("evidence_quote", "") or ""
 
@@ -237,6 +254,7 @@ class AuditService:
                 code = ind.get("indicator_id")
                 name = ind.get("name")
                 requires_video = bool(ind.get("requires_video"))
+                requires_calculation = bool(ind.get("requires_calculation"))
                 is_gate = bool(ind.get("is_gate"))
                 entry = raw_scores.get(code)
                 score = None
@@ -255,12 +273,29 @@ class AuditService:
                     status = STATUS_MET if score == 1 else STATUS_NOT_MET
                     if is_gate and score == 0:
                         gate_set.add(code)
+                elif requires_video:
+                    # No video evidence is available to this transcript-only
+                    # pipeline - always N/A, regardless of any calculation
+                    # config the indicator might also carry.
+                    status = STATUS_NOT_APPLICABLE
+                    reason = reason or "requires video"
+                    evidence = "requires video"
+                elif requires_calculation:
+                    # Never sent to the AI (see _build_indicator_block) -
+                    # derive Met/Not Met/N/A from THIS indicator's own
+                    # calculation_config against the run's metrics context.
+                    # No indicator id/name is referenced here - only config.
+                    calc = resolve_calculation(ind.get("calculation_config"), calculation_context)
+                    status = calc["status"]
+                    reason = calc["reason"]
+                    evidence = evidence or reason
+                    if status != STATUS_NOT_APPLICABLE:
+                        score = 1 if status == STATUS_MET else 0
+                        if is_gate and status == STATUS_NOT_MET:
+                            gate_set.add(code)
                 else:
                     status = STATUS_NOT_APPLICABLE
-                    if requires_video:
-                        reason = reason or "requires video"
-                        evidence = "requires video"
-                    elif not reason:
+                    if not reason:
                         reason = "not observable from the provided transcript"
 
                 statuses.append(status)
@@ -281,6 +316,7 @@ class AuditService:
                     "reason": reason or None,
                     "evidence": evidence,
                     "requires_video": requires_video,
+                    "requires_calculation": requires_calculation,
                     "status_code": status,
                 }
 
@@ -390,7 +426,12 @@ class AuditService:
             }
 
         if isinstance(result, dict) and isinstance(result.get("scores"), dict):
-            result = self._expand_compact_result(rubric_schema, result)
+            # Metrics available to any requires_calculation indicator in this
+            # rubric snapshot - built once per run from whatever pipeline
+            # data is actually available (see audit_metrics.py). Which
+            # indicators consume which metric is entirely config, not code.
+            calculation_context = build_calculation_context(transcript_text, talk_ratio)
+            result = self._expand_compact_result(rubric_schema, result, calculation_context)
 
         result["rubric_schema"] = rubric_schema
 

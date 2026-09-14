@@ -23,6 +23,29 @@ def run_summary_task(context):
 
     try:
 
+        # Pre-audit transcript validation found nothing worth processing -
+        # skip summary generation/file write entirely rather than summarizing
+        # an empty or single-speaker-only transcript.
+        if getattr(context, "processing_skipped", False):
+
+            log_with_type(
+                "info",
+                f"Engine(task > summary > summary_task) : Skipping summary generation reason={context.skip_reason}",
+                "TASK",
+            )
+
+            context.summary_data = {
+                "summary": "",
+                "key_points": [],
+                "action_items": []
+            }
+
+            context.mark_task_completed("summary")
+
+            log_with_type("info", "Engine(task > summary > summary_task) : Summary task skipped (transcript validation)", "TASK")
+
+            return
+
         service = SummaryService()
 
         log_with_type("info", "Engine(task > summary > summary_task) : SummaryService initialized", "TASK")

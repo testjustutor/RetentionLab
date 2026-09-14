@@ -25,7 +25,7 @@ FINAL (OVERALL) SCORE:
     Weighted by each category's `weight` (cat_score) field — NEVER by the
     number of criteria in that category.
 """
-from typing import Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 STATUS_MET = 1
 STATUS_NOT_MET = 2
@@ -151,3 +151,93 @@ def compute_overall_from_category_rows(category_rows):
         total_weighted_percent += float(score or 0) * int(total or 0)
         total_criteria_all += int(total or 0)
     return round(total_weighted_percent / total_criteria_all, 2) if total_criteria_all else 0.0
+
+
+# ---------------------------------------------------------------------------
+# Config-driven calculation ("requires_calculation" indicators)
+#
+# An indicator flagged requires_calculation is never sent to the AI. Instead
+# its status is derived here by comparing a named metric (built by
+# audit_metrics.build_calculation_context) against a threshold, per the
+# indicator's OWN calculation_config JSON - e.g.
+#   {"metric": "talk_ratio_tutor_pct", "operator": "<=", "threshold": 40}
+# Nothing here ever references a specific indicator id/name/code: which
+# indicators use this path, which metric they read, and what threshold
+# applies are all configuration, so a new calculated indicator - or a
+# changed threshold on an existing one - never requires a code change.
+# ---------------------------------------------------------------------------
+_CALCULATION_OPERATORS = {
+    ">=": lambda value, threshold: value >= threshold,
+    "<=": lambda value, threshold: value <= threshold,
+    ">": lambda value, threshold: value > threshold,
+    "<": lambda value, threshold: value < threshold,
+    "==": lambda value, threshold: value == threshold,
+    "!=": lambda value, threshold: value != threshold,
+    "between": lambda value, threshold: threshold[0] <= value <= threshold[1],
+}
+
+
+def resolve_calculation(calculation_config, metrics_context) -> Dict[str, Any]:
+    """Evaluate one indicator's calculation_config against the available
+    metrics_context (see audit_metrics.build_calculation_context).
+
+    Returns {"status": STATUS_MET|STATUS_NOT_MET|STATUS_NOT_APPLICABLE,
+             "reason": <human-readable explanation>,
+             "metric_value": <float or None>}.
+
+    Falls back to STATUS_NOT_APPLICABLE - never raises, never silently
+    counts as a failure - whenever the config is missing/malformed, the
+    named metric isn't available for this run, or the operator/threshold
+    can't be evaluated. This mirrors how a requires_video indicator is
+    marked N/A when video evidence isn't available: an unresolvable
+    calculation is "not observable this run", not "Not Met".
+    """
+    if not isinstance(calculation_config, dict):
+        return {
+            "status": STATUS_NOT_APPLICABLE,
+            "reason": "no calculation configured for this indicator",
+            "metric_value": None,
+        }
+
+    metric_name = calculation_config.get("metric")
+    operator = str(calculation_config.get("operator") or "").strip().lower()
+    threshold = calculation_config.get("threshold")
+
+    metrics_context = metrics_context or {}
+    metric_value = metrics_context.get(metric_name) if metric_name else None
+
+    if metric_value is None:
+        return {
+            "status": STATUS_NOT_APPLICABLE,
+            "reason": f"metric '{metric_name}' not available for this session",
+            "metric_value": None,
+        }
+
+    operator_fn = _CALCULATION_OPERATORS.get(operator)
+    if operator_fn is None:
+        return {
+            "status": STATUS_NOT_APPLICABLE,
+            "reason": f"unsupported calculation operator '{operator}'",
+            "metric_value": metric_value,
+        }
+
+    try:
+        if operator == "between":
+            threshold_value = [float(t) for t in threshold]
+            if len(threshold_value) != 2:
+                raise ValueError("between requires a [min, max] threshold")
+        else:
+            threshold_value = float(threshold)
+        passed = bool(operator_fn(float(metric_value), threshold_value))
+    except (TypeError, ValueError, IndexError):
+        return {
+            "status": STATUS_NOT_APPLICABLE,
+            "reason": f"invalid threshold for metric '{metric_name}'",
+            "metric_value": metric_value,
+        }
+
+    return {
+        "status": STATUS_MET if passed else STATUS_NOT_MET,
+        "reason": f"{metric_name}={metric_value} {operator} {threshold} -> {'Met' if passed else 'Not Met'}",
+        "metric_value": metric_value,
+    }

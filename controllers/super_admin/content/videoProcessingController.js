@@ -17,6 +17,7 @@ const axios = require('axios');
 // SAME pipeline after video -> mp3 conversion instead of running its own
 // separate pipeline.py-based engine (see processAudio() below).
 const PythonBridge = require('../../../services/shared/pythonBridge');
+const TranscriptValidator = require('../../../services/shared/transcriptValidator');
 const { exec, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -827,6 +828,11 @@ const controller = {
         else if (!hasMp3) { status = 'pending'; canConvert = true; }
         else if (lastStatus === 'processing') status = 'processing';
         else if (lastStatus === 'failed') { status = 'failed'; canProcess = true; }
+        // Pre-audit transcript validation skipped this recording (empty/
+        // single-speaker-only) - its own distinct, non-error status rather
+        // than falling into "converted" (which would look re-processable
+        // with no explanation of why it never got a report).
+        else if (lastStatus === 'skipped') { status = 'skipped'; canProcess = true; }
         else { status = 'converted'; canProcess = true; }
 
         return {
@@ -978,6 +984,29 @@ async processAudio(req, res) {
           return res.json({ success: false, data: { success: false, error: (result && result.error) || 'Audio processing returned an error.' } });
         }
 
+        // Pre-audit transcript validation (services/engine/transcript_validation.py)
+        // found this recording empty/near-empty or single-speaker-only and the
+        // engine skipped the AI audit/summary/persistence entirely - NOT an
+        // error (nothing went wrong) and NOT "processed" (there's no report),
+        // so it gets its own friendly, non-error status/response.
+        if (result.skipped) {
+          await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'skipped', mp3Path, seed: trackSeed })).catch(() => {});
+          invalidateCaches();
+          return res.json({
+            success: true,
+            data: {
+              success: true,
+              skipped: true,
+              skipReason: result.skipReason || null,
+              skipMessage: result.skipMessage || 'This recording had no meaningful conversation to audit, so the report was skipped.',
+              mp3Path,
+              audioPath: audioLink(mp3Name),
+              meetingId: result.meetingId ?? meetingId,
+              sessionId: result.sessionId ?? sessionId
+            }
+          });
+        }
+
         await VideoProcessingModel.saveProcessingRecord(makeTrackRec({ fileName: mp3Name, status: 'processed', mp3Path, seed: trackSeed })).catch(() => {});
         invalidateCaches();
         return res.json({
@@ -1038,6 +1067,22 @@ async processAudio(req, res) {
         const dgMessage = dgErr.response?.data?.err_msg || dgErr.response?.data?.reason || dgErr.message || 'Deepgram request failed.';
         console.error('[VideoProcessingController] generateTranscript Deepgram error:', dgMessage);
         return res.json({ success: false, data: { success: false, error: 'Deepgram error: ' + dgMessage } });
+      }
+
+      // Skip persisting a blank/meaningless Deepgram transcript (e.g. a
+      // recording with little or no spoken content) - friendly, non-error
+      // outcome instead of saving a near-empty .json/.txt pair.
+      const validation = TranscriptValidator.validateTranscript(shaped.transcript);
+      if (!validation.valid) {
+        return res.json({
+          success: true,
+          data: {
+            success: true,
+            skipped: true,
+            skipReason: validation.reason,
+            skipMessage: validation.message
+          }
+        });
       }
 
       fs.writeFileSync(jsonPath, JSON.stringify({

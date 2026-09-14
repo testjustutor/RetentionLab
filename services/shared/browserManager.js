@@ -10,13 +10,23 @@ const fs = require('fs');
 const { promisify } = require('util');
 const { exec: execCb } = require('child_process');
 const exec = promisify(execCb);
+const ProfileManager = require('./profileManager');
 
 class BrowserManager {
-  constructor() {
+  constructor(config = {}) {
     this.browser = null;
     this.page = null;
     this.profileDir = null;
     this.deleteProfileOnClose = false;
+
+    // Chrome profile lifecycle tracking (services/shared/profileManager.js).
+    this.profileRecordId = null;   // chrome_profiles.id when this profile is DB-tracked
+    this.intentionalClose = false; // true once close() is called - distinguishes normal close from crash
+    this._browserPid = null;
+
+    // Lock-wait knobs (defaults preserve the original behaviour).
+    this.lockWaitMaxAttempts = config.lockWaitMaxAttempts ?? 5;
+    this.lockWaitDelayMs = config.lockWaitDelayMs ?? 1000;
   }
 
   async init(config = {}) {
@@ -31,6 +41,23 @@ class BrowserManager {
     const profileDir = config.userDataDir || settings.puppeteer.userDataDir;
 
     if (profileDir) {
+      // DB-tracked lifecycle applies ONLY to explicitly-requested profile dirs
+      // under the managed chrome-profiles root (legacy paths like ./user_data
+      // stay untouched). The existing profile_<id> naming is never changed -
+      // the directory is registered in the chrome_profiles table as-is.
+      if (config.userDataDir && ProfileManager.isManagedProfileDir(profileDir)) {
+        try {
+          const registration = await ProfileManager.registerProfile({
+            profilePath: profileDir,
+            botInstanceId: config.botInstanceId || null,
+            meetingId: config.meetingId || null
+          });
+          this.profileRecordId = registration.id;
+        } catch (err) {
+          logger.error(`Shared(browserManager): Failed to register Chrome profile in DB: ${err.message}`);
+        }
+      }
+
       if (!fs.existsSync(profileDir)) {
         fs.mkdirSync(profileDir, { recursive: true });
       }
@@ -38,6 +65,12 @@ class BrowserManager {
       launchOptions.userDataDir = profileDir;
       this.profileDir = profileDir;
       this.deleteProfileOnClose = config.deleteProfileOnClose ?? false;
+
+      // Every DB-tracked profile must end up cleaned reliably (crash-safe),
+      // so force deletion for tracked profiles regardless of the flag.
+      if (this.profileRecordId) {
+        this.deleteProfileOnClose = true;
+      }
 
       logger.info(
         `Shared(browserManager): INIT: Using Chrome profile -> ${profileDir}`
@@ -48,10 +81,39 @@ class BrowserManager {
       );
     }
 
-    this.browser = await puppeteer.launch(launchOptions);
+    try {
+      this.browser = await puppeteer.launch(launchOptions);
+    } catch (launchErr) {
+      // If the launch failed after the DB row was registered, leave cleanup
+      // to the profile sweeper (CLEANUP_PENDING -> retried -> CLEANED).
+      if (this.profileRecordId) {
+        await ProfileManager.onLaunchError(this.profileRecordId, launchErr).catch(() => {});
+      }
+      throw launchErr;
+    }
+
+    this._browserPid = this.browser.process() ? this.browser.process().pid : null;
+
+    // DB: ACTIVE once Chrome is actually running with this profile.
+    try {
+      await ProfileManager.markActive(this.profileRecordId, this._browserPid);
+    } catch (err) {
+      logger.warn(`Shared(browserManager): Failed to mark Chrome profile ACTIVE: ${err.message}`);
+    }
 
     this.browser.on('disconnected', () => {
       logger.error('Shared(browserManager): Chrome browser disconnected');
+
+      // If this was NOT an intentional close(), Chrome died on its own -
+      // funnel it into the CLEANUP_PENDING lifecycle immediately.
+      if (this.profileRecordId && !this.intentionalClose) {
+        ProfileManager.onUnexpectedDisconnect(this.profileRecordId, {
+          profilePath: this.profileDir,
+          browserPid: this._browserPid
+        }).catch(err => {
+          logger.error('Shared(browserManager): Unexpected-disconnect cleanup failed:', err);
+        });
+      }
     });
 
     this.pages = await this.browser.pages();
@@ -60,10 +122,9 @@ class BrowserManager {
       this.pages.length > 0
         ? this.pages[0]
         : await this.browser.newPage();
-        
+
     this.page.setDefaultTimeout(30000);
     this.page.setDefaultNavigationTimeout(60000);
-
 
     this.page.on('pageerror', err => {
       if (!err) return;
@@ -95,7 +156,7 @@ class BrowserManager {
       );
     });
 
-    // ✅ Stealth patch
+    // Stealth patch
     await this.page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', {
         get: () => false,
@@ -116,13 +177,50 @@ class BrowserManager {
   }
 
   async close() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
-      logger.info('Shared(browserManager): Browser session closed.');
+    // Intentional shutdown - the 'disconnected' handler must treat the
+    // upcoming browser.close() as expected, not as a crash.
+    this.intentionalClose = true;
+
+    if (this.profileRecordId) {
+      // Normal-close lifecycle: ACTIVE -> CLOSING -> (kill/wait/delete/verify)
+      // -> CLEANED.
+      try {
+        await ProfileManager.beginClose(this.profileRecordId);
+      } catch (err) {
+        logger.error(`Shared(browserManager): Failed to mark profile CLOSING: ${err.message}`);
+      }
     }
 
+    try {
+      if (this.browser) {
+        await this.browser.close();
+        this.browser = null;
+        this.page = null;
+        logger.info('Shared(browserManager): Browser session closed.');
+      }
+    } catch (err) {
+      // Browser already gone (e.g. it crashed) - cleanup below still runs.
+      this.browser = null;
+      this.page = null;
+      logger.warn(`Shared(browserManager): Browser close error (continuing cleanup): ${err.message}`);
+    }
+
+    if (this.profileRecordId && this.profileDir) {
+      // Cleanup is idempotent; if a crash-cleanup already handled it, this
+      // resolves as a no-op (CLEANED skip / in-flight lock).
+      try {
+        await ProfileManager.cleanupProfile(this.profileRecordId, {
+          profilePath: this.profileDir,
+          browserPid: this._browserPid
+        });
+        logger.info('Shared(browserManager): Profile cleanup done (DB lifecycle).');
+      } catch (err) {
+        logger.error(`Shared(browserManager): Profile cleanup failed: ${err.message}`);
+      }
+      return;
+    }
+
+    // Legacy non-DB path (e.g. standalone adapters using ./user_data).
     if (this.deleteProfileOnClose && this.profileDir) {
       await this.cleanupProfileDir();
     }
@@ -153,8 +251,8 @@ class BrowserManager {
   }
 
   async waitForNoChromeLock(profileDir) {
-    const maxAttempts = 5;
-    const delayMs = 1000;
+    const maxAttempts = this.lockWaitMaxAttempts;
+    const delayMs = this.lockWaitDelayMs;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const running = await this.isChromeUsingProfile(profileDir);
