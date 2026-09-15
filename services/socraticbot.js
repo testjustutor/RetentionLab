@@ -515,13 +515,26 @@ class SocraticBot {
           await joiner.startTranscriptMonitor();
         }
 
+        // INITIAL ROSTER CAPTURE (parity with google-meet/teams): records
+        // anyone already in the call right now instead of relying solely on
+        // monitorMeeting()'s own polling to notice them on its next tick.
+        // Only meaningful with a real participantTracker to record into.
+        const initialParticipants = participantTracker
+          ? await ZoomMonitor.captureInitialParticipants(
+              this.browserManager.page,
+              this.botName,
+              participantTracker
+            )
+          : [];
+
         if (platformFeatures.attendanceMonitor.enabled) {
           ZoomMonitor.monitorMeeting(
             this.browserManager.page,
             this.meetingDbId,
             this.botName,
             this.sessionId,
-            participantTracker
+            participantTracker,
+            initialParticipants
           )
             .then(() => this.stop())
             .catch(err =>

@@ -270,12 +270,9 @@ class BrowserManager {
   }
 
   async isChromeUsingProfile(profileDir) {
-    const normalizedProfileDir = profileDir.replace(/\\/g, '/');
-    const command = `wmic process where "CommandLine like '%--user-data-dir=${normalizedProfileDir}%'" get ProcessId`;
-
     try {
-      const { stdout } = await exec(command, { windowsHide: true });
-      return stdout.trim().split(/\r?\n/).some(line => /\d+/.test(line));
+      const processes = await listChromeProcesses(exec);
+      return processes.some(p => commandLineUsesProfile(p.commandLine, profileDir));
     } catch (err) {
       logger.warn('Shared(browserManager): Failed to query Chrome processes for profile lock, assuming no lock.', err);
       return false;
@@ -283,18 +280,11 @@ class BrowserManager {
   }
 
   async forceTerminateChromeProcesses(profileDir) {
-    const normalizedProfileDir = profileDir.replace(/\\/g, '/');
-    const command = `wmic process where "CommandLine like '%--user-data-dir=${normalizedProfileDir}%'" get ProcessId`;
-
     try {
-      const { stdout } = await exec(command, { windowsHide: true });
-      const pids = stdout
-        .trim()
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => /^\d+$/.test(line));
+      const processes = await listChromeProcesses(exec);
+      const matches = processes.filter(p => commandLineUsesProfile(p.commandLine, profileDir));
 
-      for (const pid of pids) {
+      for (const { pid } of matches) {
         try {
           await exec(`taskkill /PID ${pid} /F`, { windowsHide: true });
           logger.info(`Shared(browserManager): Force killed Chrome process PID=${pid}`);
@@ -308,4 +298,79 @@ class BrowserManager {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// FIX: isChromeUsingProfile()/forceTerminateChromeProcesses() previously
+// embedded the profile directory directly into a WQL `LIKE` clause
+// (`CommandLine like '%--user-data-dir=<path>%'`), after normalizing the
+// path to forward slashes. Two problems with that:
+//
+//   1. Puppeteer launches Chrome with the OS-native path, so on Windows the
+//      REAL --user-data-dir in a running process's CommandLine uses
+//      backslashes - the forward-slash-normalized LIKE pattern this file
+//      was searching for could never match it, so this could never reliably
+//      detect a truly-active profile.
+//   2. WQL's LIKE treats backslash as its own escape character, so an
+//      unescaped path (or a query wmic otherwise chokes on) can make the
+//      whole `wmic ... get ProcessId` call fail or emit non-tabular
+//      error/help text - and the old check (`/\d+/.test(line)` - "does this
+//      line contain ANY digit") would misread a numeric error/HRESULT code
+//      in that error text as a matching PID, i.e. a false "still in use".
+//      That false positive is what was seen after the ProfileManager
+//      startup-recovery fix started actually running this cleanup for the
+//      first time: three already-dead profiles ("process PID not found")
+//      still failed `waitForNoChromeLock` for all 5 attempts and were
+//      marked FAILED.
+//
+// FIX: query ALL chrome.exe processes with a trivial, always-valid WQL
+// clause (`Name='chrome.exe'`, no path/interpolation involved at all), then
+// do the "does this process belong to this profile" match in plain JS
+// against the process's own CommandLine, normalizing BOTH sides
+// (backslash/forward-slash + case) before comparing - sidestepping WQL
+// LIKE/escaping entirely - and only ever treat a line as a PID when it is
+// (after trimming) purely digits, not "contains a digit somewhere".
+// ──────────────────────────────────────────────────────────────────────────
+
+/** True when `commandLine` looks like it was launched against `profileDir`. */
+function commandLineUsesProfile(commandLine, profileDir) {
+  return normalizeForCompare(commandLine).includes(normalizeForCompare(profileDir));
+}
+
+function normalizeForCompare(p) {
+  return String(p || '').replace(/\\/g, '/').toLowerCase();
+}
+
+/**
+ * Returns every currently-running chrome.exe process as {pid, commandLine}.
+ * `execFn` is injectable (tests stub it instead of shelling out to wmic).
+ * Uses /VALUE output (`Prop=Value` blocks separated by blank lines) rather
+ * than the default table format - far easier to parse reliably than
+ * column-aligned or CSV-with-embedded-commas output, since a Chrome command
+ * line can itself contain commas.
+ */
+async function listChromeProcesses(execFn) {
+  const command = 'wmic process where "Name=\'chrome.exe\'" get ProcessId,CommandLine /VALUE';
+  const { stdout } = await execFn(command, { windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
+  return parseWmicValueOutput(stdout);
+}
+
+/** Exported for unit testing - pure parsing, no process access. */
+function parseWmicValueOutput(stdout) {
+  const blocks = String(stdout || '').split(/\r?\n\s*\r?\n/);
+  const processes = [];
+
+  for (const block of blocks) {
+    const pidMatch = block.match(/^ProcessId=(\d+)\s*$/m);
+    if (!pidMatch) continue; // header/blank/malformed block - not a process row
+
+    const cmdMatch = block.match(/^CommandLine=(.*)$/m);
+    processes.push({
+      pid: pidMatch[1],
+      commandLine: cmdMatch ? cmdMatch[1].trim() : '',
+    });
+  }
+
+  return processes;
+}
+
 module.exports = BrowserManager;
+module.exports._internal = { commandLineUsesProfile, normalizeForCompare, listChromeProcesses, parseWmicValueOutput };

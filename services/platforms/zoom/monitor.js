@@ -109,6 +109,19 @@ async function hasHumanJoined(page, botName) {
 async function trackAttendanceChanges(frame, botName, participantTracker, previousParticipants) {
   const currentParticipants = await getCurrentParticipantNames(frame, botName);
 
+  // GUARD: participantTracker is null whenever featureConfig.zoom.participantTracker.enabled
+  // is false (see socraticbot.js's zoom block) while attendanceMonitor.enabled can
+  // independently still be true. Previously this called
+  // participantTracker.handleParticipantJoin/Leave() unconditionally, throwing
+  // "Cannot read properties of null" on every roster change in that
+  // configuration (caught silently by monitorMeeting()'s try/catch, but it
+  // meant no attendance tracking ever actually ran). Still return the current
+  // roster so monitorMeeting()'s previousParticipants stays in sync — just
+  // skip the DB-writing calls below.
+  if (!participantTracker) {
+    return currentParticipants;
+  }
+
   for (const name of currentParticipants) {
     if (!previousParticipants.includes(name)) {
       await participantTracker.handleParticipantJoin(name);
@@ -124,10 +137,66 @@ async function trackAttendanceChanges(frame, botName, participantTracker, previo
   return currentParticipants;
 }
 
-async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker) {
+/**
+ * INITIAL ROSTER CAPTURE (join-time)
+ *
+ * Parity with google-meet/monitor.js's captureInitialParticipants() and
+ * teams' equivalent: runs ONCE right after the bot successfully joins, so
+ * anyone already in the call gets their attendance recorded immediately
+ * instead of waiting for monitorMeeting()'s next 5s poll. Deliberately kept
+ * self-contained and using ONLY this tracker's existing, stable API
+ * (handleParticipantJoin) rather than a new handleInitialRoster()-style
+ * method — teams/participantTracker.js is being actively developed toward
+ * that richer API elsewhere; zoom's tracker doesn't need to chase it to get
+ * the same DB-writing behavior at join time.
+ *
+ * Locates the zoom.us iframe itself (same lookup monitorMeeting() uses)
+ * since callers only have `page`, matching the (page, botName, tracker)
+ * signature the other two platforms' captureInitialParticipants() use.
+ */
+async function captureInitialParticipants(page, botName, tracker, snapshotTime = new Date()) {
+  if (!tracker) return [];
+
+  try {
+    const frame = page.frames().find(f => f.url().includes('zoom.us'));
+    if (!frame) {
+      logger.info('ZoomAdapter(monitor): INITIAL_ROSTER: zoom.us iframe not found yet — skipping initial capture.');
+      return [];
+    }
+
+    let names = await getCurrentParticipantNames(frame, botName);
+
+    // DOM can still be settling immediately after join; give it one retry
+    // rather than reporting "meeting was empty" on a false negative.
+    if (!names || names.length === 0) {
+      await new Promise(r => setTimeout(r, 1500));
+      names = await getCurrentParticipantNames(frame, botName);
+    }
+
+    for (const name of names) {
+      await tracker.handleParticipantJoin(name, snapshotTime);
+    }
+
+    if (names.length > 0) {
+      logger.info(`ZoomAdapter(monitor): INITIAL_ROSTER: recorded ${names.length} participant(s) already in the meeting at join time: ${names}`);
+    }
+
+    return names;
+  } catch (err) {
+    logger.error('ZoomAdapter(monitor): INITIAL_ROSTER: capture failed, continuing without it:', err.message);
+    return [];
+  }
+}
+
+async function monitorMeeting(page, meetingId, botName, sessionId, participantTracker, initialParticipants = []) {
   logger.info('ZoomAdapter(monitor): MONITOR: Stay-Alive loop started');
 
-  let previousParticipants = [];
+  // Seed the diff baseline with whoever captureInitialParticipants() already
+  // recorded before this loop started (parity with google-meet/teams), so
+  // the first poll doesn't log them again as "new" joins.
+  let previousParticipants = Array.isArray(initialParticipants)
+    ? [...new Set(initialParticipants)]
+    : [];
   let lastParticipantCheckTime = Date.now();
   const PARTICIPANT_CHECK_INTERVAL = 5000;
 
@@ -259,5 +328,6 @@ module.exports = {
   monitorMeeting,
   exportMeetingTranscript,
   getCurrentParticipantNames,
-  hasHumanJoined
+  hasHumanJoined,
+  captureInitialParticipants
 };

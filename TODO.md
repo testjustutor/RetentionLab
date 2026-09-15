@@ -1044,3 +1044,155 @@ for camera's `(Ctrl+Shift+O)`).
       fix built from that real data worked on the very next live run. Camera
       (and, per the same code path, mic) mute is confirmed working on the
       pre-join/lobby screens.
+
+## Zoom: participant tracker parity with google-meet/teams (services/platforms/zoom/) - 2026-09-14
+
+Request: bring Zoom to parity with Teams/Google Meet for mute mic/camera,
+participant tracking into `participants` + `participant_attendance_sessions`,
+and `featureConfig.js` setup.
+
+- [x] Mic/camera mute: user confirmed live ("wait i saw that in zoom
+      everything is working fine") that Zoom's existing mute/camera code
+      already works correctly. A shared-helper refactor (mirroring Teams'
+      `_toggleMediaControl()` confirmation-logging pattern) was drafted
+      locally but explicitly NOT applied/committed per the user's choice -
+      `zoomJoiner.js` on the device is untouched.
+- [x] `featureConfig.js`: zoom's section already fully populated
+      (media/attendanceMonitor/participantTracker/captionMonitor/
+      audioRecorder/screenRecorder), structurally identical to teams/
+      google-meet. No changes needed.
+- [x] `participantTracker.js`: already a mature implementation writing to
+      `participants` + `participant_attendance_sessions` via
+      `ParticipantModel` (`recordParticipantJoin`/`recordParticipantLeave`/
+      `recordParticipantRejoin`/`recordRejoinLeave`), with auto-recovery on
+      orphaned leave events and a `reset()` that closes out dangling
+      "joined" rows. No changes needed here either.
+- [x] FIX: `monitor.js`'s `trackAttendanceChanges()` crashed
+      (`Cannot read properties of null`) whenever `participantTracker` was
+      null (i.e. `featureConfig.zoom.participantTracker.enabled: false`)
+      while `attendanceMonitor.enabled` stayed true - it called
+      `participantTracker.handleParticipantJoin/Leave()` with no guard.
+      Now returns the current roster and skips the DB-writing calls when
+      `participantTracker` is null (silent no-op, matching the
+      "participantTracker disabled - skipping" log elsewhere).
+- [x] NEW: `captureInitialParticipants(page, botName, tracker, snapshotTime)`
+      added to `zoom/monitor.js` - parity with google-meet/teams' own
+      initial-roster capture, so anyone already in the call when the bot
+      joins gets recorded immediately instead of waiting for the first 5s
+      poll. Deliberately self-contained: locates the zoom.us frame itself,
+      reuses the existing `getCurrentParticipantNames()`, retries once if
+      the DOM is still settling, and records each name via the tracker's
+      existing `handleParticipantJoin(name, snapshotTime)` - NOT a new
+      `handleInitialRoster()`-style method (teams/participantTracker.js is
+      being actively developed toward that richer API elsewhere this
+      session; zoom's tracker doesn't need to chase it for the same DB-
+      writing outcome).
+- [x] `monitorMeeting()` signature extended with `initialParticipants = []`
+      (6th, optional param - fully backward compatible) to seed
+      `previousParticipants`, so the first poll doesn't log the initially-
+      captured names again as "new" joins.
+- [x] `socraticbot.js`'s zoom block wired to call
+      `ZoomMonitor.captureInitialParticipants(...)` (only when
+      `participantTracker` exists) right before the `attendanceMonitor`
+      block, and passes the result through to `monitorMeeting(...)` as the
+      6th arg - same call shape as the existing google-meet/teams blocks.
+- [x] Tests: `zoom_participant_test/test_monitor.js` (13/13 pass) - null
+      tracker -> `[]` with no crash, initial capture records all names with
+      the passed snapshot time, missing zoom.us frame handled without
+      throwing, one-retry-on-empty-DOM behavior, and `monitorMeeting()`
+      accepting a null tracker + seeded `initialParticipants` without
+      throwing.
+- [x] `node --check` passes on both files. Committed to device
+      (`services/platforms/zoom/monitor.js`, `services/socraticbot.js`) -
+      re-staged and verified afterward (grep for the new identifiers,
+      `node --check` on the device copies) - landed clean on the first
+      attempt this time, no retry needed.
+
+## Chrome profile cleanup: storage/chrome-profiles/ accumulating stale dirs - 2026-09-14
+
+User-reported: too many folders piling up under `storage/chrome-profiles/`.
+Their proposed approach (check the `chrome_profiles` DB table, check status,
+act accordingly) turned out to already be fully implemented in
+`services/shared/profileManager.js` + `models/bot/ChromeProfileModel.js` +
+migration `057_create_chrome_profiles_table.js` (CREATING -> ACTIVE ->
+CLOSING -> CLEANED lifecycle, `startupRecovery()`, `runPeriodicSweep()` /
+`retryPendingCleanups()` / `scanAndCleanOrphans()` for dirs with no DB row) -
+this was the other concurrent session's in-progress work, and it's correct
+and complete.
+
+- [x] ROOT CAUSE FOUND: `server.js` called
+      `ProfileManager.runStartupRecovery()` - that method does not exist;
+      the class only exports `startupRecovery()`. Calling a missing method
+      throws SYNCHRONOUSLY inside the `initDB().then(...)` callback, which
+      was swallowed by the `.catch(err => logger.warn('(ServerJS File):
+      Setup failed:', err))` a few lines down (this is the exact
+      `ProfileManager.runStartupRecovery is not a function` warning seen
+      earlier this session in the Teams work, at the time flagged as
+      unrelated/out of scope). Because the throw happened partway through
+      that `.then()` block, `scheduleChromeProfileSweep()` (a few lines
+      later in the SAME block) never ran either - so on every server start,
+      BOTH startup recovery AND the periodic sweep were silently skipped,
+      every time, which is why profile directories were never being cleaned
+      up at all.
+- [x] FIX: `server.js` now calls `ProfileManager.startupRecovery()` (the
+      real method name). One-line fix, `node --check` passes, committed to
+      device and re-staged/verified.
+- [ ] ACTION NEEDED: this only takes effect on the next server restart (and
+      then every `CHROME_PROFILE_SWEEP_INTERVAL_MIN`, default 10 min, after
+      that) - the currently-running server process still has the old
+      broken code loaded in memory. Restart the Node server for the
+      existing `profile_3`/`profile_4`/`profile_5` dirs (and any future
+      ones) to actually get swept.
+
+## Chrome profile cleanup, part 2: lock-detection false positive in browserManager.js - 2026-09-14
+
+After the `startupRecovery` typo fix (above) shipped and the server was
+restarted, startup recovery ran for the first time ever and correctly found
+the 3 stale profiles - but cleanup then failed for all 3 with "Chrome
+profile directory still in use after waiting", even though every stored
+`browser_pid` for them was already confirmed dead (`taskkill` reported
+"The process ... not found" for each one).
+
+- [x] ROOT CAUSE: `services/shared/browserManager.js`'s
+      `isChromeUsingProfile()`/`forceTerminateChromeProcesses()` built a WQL
+      `LIKE` clause with the profile path embedded directly in it, after
+      normalizing the path to forward slashes. Two compounding bugs: (1)
+      Puppeteer launches Chrome with the OS-native (backslash) path on
+      Windows, so a forward-slash search could never reliably match a truly
+      live process's real command line; (2) WQL's `LIKE` treats backslash as
+      its own escape character, and the old "in use?" check was
+      `/\d+/.test(line)` - ANY line containing a digit - so a malformed/
+      erroring wmic call's error text (HRESULT/error codes contain digits)
+      could be misread as "a PID was found", i.e. a false "still in use".
+      That false positive is exactly what surfaced once cleanup started
+      actually running.
+- [x] FIX (scoped - only these two methods touched, `settings.puppeteer`
+      launch config untouched): query ALL `chrome.exe` processes with a
+      trivial, always-valid WQL clause (`Name='chrome.exe'`, nothing
+      interpolated), parse PID+CommandLine out of `/VALUE` output (a
+      `parseWmicValueOutput()` helper - far more reliable than table/CSV
+      parsing since a Chrome command line can itself contain commas), then
+      match the target profile dir against each process's CommandLine in
+      plain JS via `commandLineUsesProfile()`, normalizing both sides
+      (backslash -> forward slash, lowercased) before comparing. A PID is
+      only ever read from an actual `ProcessId=<digits>` line, never "any
+      digit anywhere".
+- [x] Tests: `zoom_participant_test/test_browsermanager_lock.js` (11/11
+      pass) - realistic multi-process `/VALUE` parsing, empty/"No
+      Instance(s) Available." output, the exact false-positive scenario
+      (error text containing digits no longer counts as a match),
+      backslash-vs-forward-slash path matching, no over-broad substring
+      match (`profile_3` doesn't match `profile_30`), and the actual
+      production regression scenario end-to-end (a dead profile_3 with only
+      an unrelated profile_9 running is now correctly "not in use"; a
+      genuinely-active profile_3 is still correctly "in use").
+- [x] `node --check` passes. Committed to device and re-staged/verified -
+      landed clean on the first attempt.
+- [ ] ACTION NEEDED: `profile_3`/`profile_4`/`profile_5`'s DB rows are
+      already `FAILED` (cleanup_attempts exceeded maxRetries against the
+      OLD buggy check, before this fix). `runPeriodicSweep()` only retries
+      `CLEANUP_PENDING` rows, not `FAILED` ones, so these three won't be
+      swept by the periodic timer - only `startupRecovery()` re-inspects
+      `FAILED` rows too (via `getNonCleaned()`). **Needs one more server
+      restart** to actually clear `profile_3`/`4`/`5` off disk now that the
+      lock-detection bug behind their failure is fixed.

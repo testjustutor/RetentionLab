@@ -156,7 +156,20 @@ initDB()
 
     // Chrome profile startup recovery - clean stale/orphan profiles left by
     // crashes or restarts; the periodic sweep handles later retries/orphans.
-    ProfileManager.runStartupRecovery()
+    //
+    // FIX: this called the non-existent ProfileManager.runStartupRecovery()
+    // (the exported method is actually named startupRecovery() - see
+    // services/shared/profileManager.js). Calling a missing method throws
+    // synchronously, which was caught by the .catch() a few lines below
+    // ("(ServerJS File): Setup failed: ProfileManager.runStartupRecovery is
+    // not a function") - and because that throw happened INSIDE this .then()
+    // block, execution never reached scheduleChromeProfileSweep() either.
+    // Net effect: neither startup recovery nor the periodic sweep ever ran,
+    // on any server start, which is why storage/chrome-profiles/ accumulates
+    // stale profile directories indefinitely instead of being swept per the
+    // chrome_profiles table's CREATING/ACTIVE/CLOSING/CLEANED lifecycle that
+    // profileManager.js already implements.
+    ProfileManager.startupRecovery()
       .then(result => logger.info('[Startup] Chrome profile startup recovery complete', { inspected: result.inspected, cleaned: result.cleaned }))
       .catch(err => logger.error('[Startup] Chrome profile startup recovery failed:', err.message));
 
