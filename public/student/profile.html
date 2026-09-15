@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head><link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="dashboard-role" content="student">
+  <title>My Profile - Student</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/shared.css">
+  <script src="../js/student/tailwind-config.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <div id="header-placeholder"></div>
+    <div class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
+      <div class="flex-1 overflow-auto custom-scrollbar relative">
+        <div class="p-4">
+
+          <!-- Loading / empty state -->
+          <div id="profileLoading" class="rounded-lg border border-dashed border-slate-700/70 bg-slate-900/40 px-4 py-10 text-center text-slate-500 text-xs">
+            Loading profile...
+          </div>
+          <div id="profileEmpty" class="hidden bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-4 shadow-md">
+            <h3 class="text-[12px] font-bold text-amber-900 mb-1 uppercase tracking-wide">Not signed in</h3>
+            <p class="text-amber-800 text-xs">Please <a href="/login" class="font-bold text-amber-900 underline">log in</a> to view your profile.</p>
+          </div>
+
+          <!-- Profile content (filled by JS) -->
+          <div id="profileContent" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <!-- Identity -->
+            <div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-blue-900 mb-2 uppercase tracking-wide">Profile</h3>
+              <dl class="space-y-2 text-xs">
+                <div class="flex items-center justify-between border-b border-blue-200 pb-1.5">
+                  <dt class="font-semibold text-blue-800">Name</dt>
+                  <dd id="profileName" class="font-bold text-blue-950 text-right">—</dd>
+                </div>
+                <div class="flex items-center justify-between border-b border-blue-200 pb-1.5">
+                  <dt class="font-semibold text-blue-800">Email</dt>
+                  <dd id="profileEmail" class="font-bold text-blue-950 text-right break-all">—</dd>
+                </div>
+                <div class="flex items-center justify-between border-b border-blue-200 pb-1.5">
+                  <dt class="font-semibold text-blue-800">Role</dt>
+                  <dd id="profileRole" class="font-bold text-blue-950 text-right capitalize">—</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="font-semibold text-blue-800">Status</dt>
+                  <dd id="profileStatus" class="font-bold text-emerald-700 text-right capitalize">—</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Account -->
+            <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-violet-900 mb-2 uppercase tracking-wide">Account</h3>
+              <dl class="space-y-2 text-xs">
+                <div class="flex items-center justify-between border-b border-violet-200 pb-1.5">
+                  <dt class="font-semibold text-violet-800">User ID</dt>
+                  <dd id="profileUserId" class="font-bold text-violet-950 text-right">—</dd>
+                </div>
+                <div class="flex items-center justify-between border-b border-violet-200 pb-1.5">
+                  <dt class="font-semibold text-violet-800">Phone</dt>
+                  <dd id="profilePhone" class="font-bold text-violet-950 text-right">—</dd>
+                </div>
+                <div class="flex items-center justify-between border-b border-violet-200 pb-1.5">
+                  <dt class="font-semibold text-violet-800">Member Since</dt>
+                  <dd id="profileCreatedAt" class="font-bold text-violet-950 text-right">—</dd>
+                </div>
+                <div id="rowLastLogin" class="flex items-center justify-between">
+                  <dt class="font-semibold text-violet-800">Last Login</dt>
+                  <dd id="profileLastLogin" class="font-bold text-violet-950 text-right">—</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Email verification -->
+            <div id="profileEmailCard" class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md lg:col-span-2">
+              <h3 class="text-[12px] font-bold text-emerald-900 mb-2 uppercase tracking-wide">Email Verification</h3>
+              <dl class="space-y-2 text-xs">
+                <div class="flex items-center justify-between border-b border-emerald-200 pb-1.5">
+                  <dt class="font-semibold text-emerald-800">Email Verified</dt>
+                  <dd id="profileEmailVerified" class="font-bold text-emerald-950 text-right">—</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="font-semibold text-emerald-800">Verified At</dt>
+                  <dd id="profileEmailVerifiedAt" class="font-bold text-emerald-950 text-right">—</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/auth.js"></script>
+  <script src="../js/load-components.js"></script>
+  <script src="../js/student/profile.js"></script>
+</body>
+</html>

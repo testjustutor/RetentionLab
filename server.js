@@ -33,6 +33,7 @@ const CalendarVerificationModel = require('./models/calendar/CalendarVerificatio
 // LOCAL SERVICES
 // ============================================================================
 const botManager = require('./services/shared/botManager');
+const ProfileManager = require('./services/shared/profileManager');
 
 // ============================================================================
 // LOCAL CONTROLLERS
@@ -119,6 +120,20 @@ async function pollQueuedMeetings() {
   await BotPollingController.pollQueuedMeetings();
 }
 
+/**
+ * Chrome profile sweep - retries CLEANUP_PENDING deletions and removes orphan
+ * profile directories. Runs on a fixed interval (default 10 min) so profiles
+ * that failed to delete (crash/restart) eventually get cleaned up.
+ */
+function scheduleChromeProfileSweep() {
+  const intervalMin = parseInt(process.env.CHROME_PROFILE_SWEEP_INTERVAL_MIN || '10', 10);
+  setTimeout(function chromeProfileSweep() {
+    ProfileManager.runPeriodicSweep()
+      .catch(err => logger.error('Chrome profile sweep error:', err.message))
+      .finally(() => setTimeout(chromeProfileSweep, intervalMin * 60 * 1000));
+  }, intervalMin * 60 * 1000);
+}
+
 // ============================================================================
 // SERVER INITIALIZATION
 // ============================================================================
@@ -138,6 +153,27 @@ initDB()
     // Attach db to app.locals for use in controllers
     const { db } = require('./database/db');
     app.locals.db = db;
+
+    // Chrome profile startup recovery - clean stale/orphan profiles left by
+    // crashes or restarts; the periodic sweep handles later retries/orphans.
+    //
+    // FIX: this called the non-existent ProfileManager.runStartupRecovery()
+    // (the exported method is actually named startupRecovery() - see
+    // services/shared/profileManager.js). Calling a missing method throws
+    // synchronously, which was caught by the .catch() a few lines below
+    // ("(ServerJS File): Setup failed: ProfileManager.runStartupRecovery is
+    // not a function") - and because that throw happened INSIDE this .then()
+    // block, execution never reached scheduleChromeProfileSweep() either.
+    // Net effect: neither startup recovery nor the periodic sweep ever ran,
+    // on any server start, which is why storage/chrome-profiles/ accumulates
+    // stale profile directories indefinitely instead of being swept per the
+    // chrome_profiles table's CREATING/ACTIVE/CLOSING/CLEANED lifecycle that
+    // profileManager.js already implements.
+    ProfileManager.startupRecovery()
+      .then(result => logger.info('[Startup] Chrome profile startup recovery complete', { inspected: result.inspected, cleaned: result.cleaned }))
+      .catch(err => logger.error('[Startup] Chrome profile startup recovery failed:', err.message));
+
+    scheduleChromeProfileSweep();
   })
   .catch(err => logger.warn('(ServerJS File): Setup failed:', err))
   .then(() => {

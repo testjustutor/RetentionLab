@@ -178,7 +178,7 @@ const controller = {
       const data = rows.map(r => {
         let audioUrl = null;
         if (r.session_audio_file && r.session_audio_file.trim() !== '') {
-          audioUrl = '/storage/audio/' + r.session_audio_file.trim();
+          audioUrl = r.session_audio_file.trim();
         } else if (r.audio_path) {
           audioUrl = toUrl(r.audio_path);
         }
@@ -245,7 +245,7 @@ const controller = {
         let url = null;
         let hasTranscript = false;
         if (r.session_transcript_file) {
-          url = '/storage/transcripts/' + r.session_transcript_file;
+          url = r.session_transcript_file;
           hasTranscript = true;
         } else {
           url = r.transcript_path || r.whisper_path || null;

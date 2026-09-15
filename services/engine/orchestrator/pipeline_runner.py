@@ -1,10 +1,6 @@
-# root/services/engine/orchestrator/pipeline_runner.py
+# services/engine/orchestrator/pipeline_runner.py
 
 from utils.logger_util import log_with_type
-
-from services.engine.orchestrator.execution_graph import (
-    ExecutionGraph
-)
 
 from services.engine.orchestrator.execution_manager import (
     ExecutionManager

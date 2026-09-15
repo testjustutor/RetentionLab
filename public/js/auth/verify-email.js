@@ -1,6 +1,7 @@
 /**
- * root/public/js/auth/verify-email.js
+ * public/js/auth/verify-email.js
  */
+
 import AuthAPI from '../auth.js';
 
 const statusEl = document.getElementById('verifyMessage');

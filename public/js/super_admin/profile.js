@@ -1,9 +1,6 @@
 /**
- * root/public/js/super_admin/people/profile.js
- * Profile Management - Super Admin
+ * public/js/super_admin/profile.js
  */
-
-// ─── Load Profile Data ────────────────────────────────────────────────────────
 
 async function loadProfile() {
     try {

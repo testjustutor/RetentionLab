@@ -2,6 +2,7 @@
  * root/database/index.js
  * Main seeder runner - executes all seeders in order
  */
+
 const { seedRoles } = require('./seeders/001_roles');
 const { seedCompanies } = require('./seeders/002_companies');
 const { seedPermissions } = require('./seeders/003_permissions');
@@ -21,104 +22,112 @@ const { seedCalendarProviders } = require('./seeders/016_calendar_providers');
 const { seedMenuItems } = require('./seeders/017_menu_items');
 const { seedRoleMenuPermissions } = require('./seeders/018_role_menu_permissions');
 const { seedAiProviders } = require('./seeders/019_seed_ai_providers');
+const { seedAdminRubric } = require('./seeders/020_admin_rubric');
 
 const runSeeder = async () => {
+    const TOTAL_STEPS = 20;
+
     console.log('🚀 Starting database seeding...\n');
 
-    // Step 1: Seed roles (required for all other seeders)
-    console.log('📋 Step 1/15: Seeding roles...');
+    // Step 1: Seed roles
+    console.log(`📋 Step 1/${TOTAL_STEPS}: Seeding roles...`);
     await seedRoles();
     console.log('✅ Roles seeded\n');
 
     // Step 2: Seed companies
-    console.log('🏢 Step 2/15: Seeding companies...');
+    console.log(`🏢 Step 2/${TOTAL_STEPS}: Seeding companies...`);
     await seedCompanies();
     console.log('✅ Companies seeded\n');
 
-    // Step 3: Seed permissions (depends on roles)
-    console.log('🔐 Step 3/15: Seeding permissions...');
+    // Step 3: Seed permissions
+    console.log(`🔐 Step 3/${TOTAL_STEPS}: Seeding permissions...`);
     await seedPermissions();
     console.log('✅ Permissions seeded\n');
 
-    // Step 4: Seed super admin (depends on roles)
-    console.log('👑 Step 4/15: Seeding super admin...');
+    // Step 4: Seed super admin
+    console.log(`👑 Step 4/${TOTAL_STEPS}: Seeding super admin...`);
     await seedSuperAdmin();
     console.log('✅ Super admin seeded\n');
 
-    // Step 5: Seed admin user (depends on roles and companies)
-    console.log('👤 Step 5/15: Seeding admin user...');
+    // Step 5: Seed admin user
+    console.log(`👤 Step 5/${TOTAL_STEPS}: Seeding admin user...`);
     await seedAdminUser();
     console.log('✅ Admin user seeded\n');
 
-    // Step 5.5: Seed test users (instructor, solo_instructor, reviewer)
-    console.log('🧪 Step 5.5/15: Seeding test users...');
+    // Step 6: Seed test users
+    console.log(`🧪 Step 6/${TOTAL_STEPS}: Seeding test users...`);
     await seedTestUsers();
     console.log('✅ Test users seeded\n');
 
-    // Step 6: Seed rubric (depends on roles)
-    console.log('📊 Step 6/15: Seeding rubric...');
+    // Step 7: Seed rubric
+    console.log(`📊 Step 7/${TOTAL_STEPS}: Seeding rubric...`);
     await seedRubric();
     console.log('✅ Rubric seeded\n');
 
-    // Step 7: Seed settings (depends on users)
-    console.log('⚙️  Step 7/15: Seeding settings...');
+    // Step 8: Seed settings
+    console.log(`⚙️  Step 8/${TOTAL_STEPS}: Seeding settings...`);
     await seedSettings();
     console.log('✅ Settings seeded\n');
 
-    // Step 8: Seed header role configs (depends on roles)
-    console.log('🎨 Step 8/15: Seeding header role configs...');
+    // Step 9: Seed header role configs
+    console.log(`🎨 Step 9/${TOTAL_STEPS}: Seeding header role configs...`);
     await seedHeaderRoleConfigs();
     console.log('✅ Header role configs seeded\n');
 
-    // Step 9: Seed header menu items (depends on roles)
-    console.log('📑 Step 9/15: Seeding header menu items...');
+    // Step 10: Seed header menu items
+    console.log(`📑 Step 10/${TOTAL_STEPS}: Seeding header menu items...`);
     await seedHeaderMenuItems();
     console.log('✅ Header menu items seeded\n');
 
-    // Step 10: Seed header page configs (depends on roles)
-    console.log('📄 Step 10/15: Seeding header page configs...');
+    // Step 11: Seed header page configs
+    console.log(`📄 Step 11/${TOTAL_STEPS}: Seeding header page configs...`);
     await seedHeaderPageConfigs();
     console.log('✅ Header page configs seeded\n');
 
-    // Step 11: Seed session quality (depends on sessions)
-    console.log('🎓 Step 11/15: Seeding session quality...');
+    // Step 12: Seed session quality
+    console.log(`🎓 Step 12/${TOTAL_STEPS}: Seeding session quality...`);
     await seedSessionQuality();
     console.log('✅ Session quality seeded\n');
 
-    // Step 12: Seed user permissions (depends on users and permissions)
-    console.log('🔑 Step 12/15: Seeding user permissions...');
+    // Step 13: Seed user permissions
+    console.log(`🔑 Step 13/${TOTAL_STEPS}: Seeding user permissions...`);
     await seedUserPermissions();
     console.log('✅ User permissions seeded\n');
 
-    // Step 13: Seed subscriptions (depends on companies)
-    console.log('💳 Step 13/15: Seeding subscriptions...');
+    // Step 14: Seed subscriptions
+    console.log(`💳 Step 14/${TOTAL_STEPS}: Seeding subscriptions...`);
     await seedSubscriptions();
     console.log('✅ Subscriptions seeded\n');
 
-    // Step 14: Seed header configs
-    console.log('🎯 Step 14/15: Seeding header configs...');
+    // Step 15: Seed header configs
+    console.log(`🎯 Step 15/${TOTAL_STEPS}: Seeding header configs...`);
     await seedHeaderConfigs();
     console.log('✅ Header configs seeded\n');
 
-    // Step 15: Seed calendar providers
-    console.log('📅 Step 15/18: Seeding calendar providers...');
+    // Step 16: Seed calendar providers
+    console.log(`📅 Step 16/${TOTAL_STEPS}: Seeding calendar providers...`);
     await seedCalendarProviders();
     console.log('✅ Calendar providers seeded\n');
 
-    // Step 16: Seed menu items
-    console.log('📋 Step 16/18: Seeding menu items...');
+    // Step 17: Seed menu items
+    console.log(`📋 Step 17/${TOTAL_STEPS}: Seeding menu items...`);
     await seedMenuItems();
     console.log('✅ Menu items seeded\n');
 
-    // Step 17: Seed role menu permissions
-    console.log('🔐 Step 17/17: Seeding role menu permissions...');
+    // Step 18: Seed role menu permissions
+    console.log(`🔐 Step 18/${TOTAL_STEPS}: Seeding role menu permissions...`);
     await seedRoleMenuPermissions();
     console.log('✅ Role menu permissions seeded\n');
 
-    // Step 18: Seed AI providers (drives the AI Providers settings page)
-    console.log('🧠 Step 18/18: Seeding AI providers...');
+    // Step 19: Seed AI providers
+    console.log(`🧠 Step 19/${TOTAL_STEPS}: Seeding AI providers...`);
     await seedAiProviders();
     console.log('✅ AI providers seeded\n');
+
+    // Step 20: Seed admin rubric
+    console.log(`📊 Step 20/${TOTAL_STEPS}: Seeding admin rubric...`);
+    await seedAdminRubric();
+    console.log('✅ Admin rubric seeded\n');
 
     console.log('🎉 Database seeding completed successfully!');
 };
@@ -144,4 +153,5 @@ module.exports = {
     seedMenuItems,
     seedRoleMenuPermissions,
     seedAiProviders,
+    seedAdminRubric,
 };

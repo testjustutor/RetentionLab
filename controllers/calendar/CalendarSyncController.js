@@ -24,8 +24,9 @@ class CalendarSyncController {
         maxResults: 50
       });
 
-      // Process and store events
-      await CalendarEventController.processAndStoreEvents(user.email, events);
+      // Process and store events. Pass users.id so meetings.calendar_account_id
+      // maps to calendar_account_email exactly like the manual sync endpoint.
+      await CalendarEventController.processAndStoreEvents(user.email, events, user.user_id);
 
       logger.debug(`Sync complete for ${user.email}`);
       return { success: true, user: user.email, eventsProcessed: events.length };

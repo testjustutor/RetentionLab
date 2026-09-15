@@ -1,5 +1,6 @@
-// Tailwind CSS Configuration with Centralized Colors
-// This file overrides Tailwind's default color palette with centralized CSS variables
+/**
+ * public/css/tailwind-config.js
+ */
 
 tailwind.config = {
   theme: {

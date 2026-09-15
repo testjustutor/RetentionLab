@@ -88,6 +88,12 @@ const ROLE_DEFAULTS = {
     { setting_key: 'privacy_mode', setting_value: 'strict' },
     { setting_key: 'show_tips', setting_value: 'true' },
   ],
+  student: [
+    { setting_key: 'default_dashboard_view', setting_value: 'overview' },
+    { setting_key: 'default_items_per_page', setting_value: '10' },
+    { setting_key: 'privacy_mode', setting_value: 'strict' },
+    { setting_key: 'show_tips', setting_value: 'true' },
+  ],
 };
 
 const flattenSettings = (groups) => Object.values(groups).flat();

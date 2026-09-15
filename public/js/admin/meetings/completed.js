@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/meetings/completed.js
+ */
+
 var COL = ['violet','emerald','amber','rose','sky'];
 var PLAT = { 'google-meet':'Google Meet', 'zoom':'Zoom', 'teams':'Teams' };
 
@@ -77,6 +81,7 @@ async function loadCompleted() {
     var completedCount = 0;
     users.forEach(function(u){ u.events.forEach(function(e){ if(e.start&&e.end) totalDur += Math.round((new Date(e.end)-new Date(e.start))/60000); }); });
     document.getElementById('statConnected').textContent = json.connectedUsers || 0;
+    document.getElementById('statMeetingsTotal').textContent = json.totalMeetings || 0;
     document.getElementById('statMeetings').textContent = total;
     document.getElementById('statCompleted').textContent = total;
     document.getElementById('statDuration').textContent = totalDur >= 60 ? Math.floor(totalDur/60)+'h '+totalDur%60+'m' : totalDur+'m';
@@ -92,15 +97,17 @@ async function loadCompleted() {
               '<tr class="text-[10px] font-bold text-slate-950 uppercase border-b-2 border-slate-300 bg-slate-200">' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Instructor</th>' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Meeting</th>' +
+                '<th class="py-2 px-3 text-left font-bold tracking-wide">Session</th>' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Date & Time</th>' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Duration</th>' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Platform</th>' +
                 '<th class="py-2 px-3 text-left font-bold tracking-wide">Status</th>' +
+                '<th class="py-2 px-3 text-right font-bold tracking-wide">Actions</th>' +
               '</tr>' +
             '</thead>' +
             '<tbody>' +
               '<tr>' +
-                '<td colspan="6" class="px-4 py-12">' +
+                '<td colspan="8" class="px-4 py-12">' +
                   '<div class="flex flex-col items-center justify-center">' +
                     '<div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3">' +
                       '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">' +
@@ -185,19 +192,26 @@ async function loadCompleted() {
         html += '<div class="w-8 h-8 rounded-md bg-'+color+'-500/10 border border-'+color+'-500/20 flex items-center justify-center text-'+color+'-800 font-bold text-[10px]">'+(u.email||'?').charAt(0).toUpperCase()+'</div>';
         html += '<div class="flex-1 min-w-0"><p class="text-xs font-semibold truncate">'+escHtml(u.email)+'</p><p class="text-[10px] text-slate-500">'+escHtml(u.role_name||'instructor')+' &middot; '+events.length+' completed</p></div>';
         html += '<span class="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-'+color+'-500/10 text-'+color+'-800 border border-'+color+'-500/20">'+events.length+'</span></div>';
-        html += '<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="sticky top-0"><tr class="border-b-2 border-slate-300 bg-slate-200 text-[10px] font-bold text-slate-950 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3 text-right">Status</th></tr></thead><tbody class="divide-y divide-slate-200">';
+        html += '<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="sticky top-0"><tr class="border-b-2 border-slate-300 bg-slate-200 text-[10px] font-bold text-slate-950 uppercase tracking-wider"><th class="py-2 px-3">Meeting</th><th class="py-2 px-3">Session</th><th class="py-2 px-3">Date & Time</th><th class="py-2 px-3">Duration</th><th class="py-2 px-3">Platform</th><th class="py-2 px-3">Status</th><th class="py-2 px-3 text-right">Actions</th></tr></thead><tbody class="divide-y divide-slate-200">';
 
         events.forEach(function(e) {
           var dur = e.duration !== null && e.duration !== undefined ? fmtDurationFromMinutes(e.duration) : fmtDuration(e.start_time, e.end_time);
           var status = e.status || 'completed';
           var statusCls = status==='completed'?'bg-emerald-500/10 text-emerald-600 border-emerald-500/20':status==='failed'?'bg-red-500/10 text-red-400 border-red-500/20':'bg-amber-500/10 text-amber-800 border-amber-500/20';
           var platName = PLAT[e.platform] || (e.platform||'Unknown');
+          // Session label: one meeting can now have more than one recorded session
+          // (the bot rejoined, etc.), so this column identifies the specific session
+          // row distinct from the Meeting column's title. Falls back to '--' if this
+          // row has no session_id (LEFT JOIN found no meeting_sessions row).
+          var sessionLabel = e.session_id ? ('#' + e.session_id) : '--';
           html += '<tr class="hover:bg-slate-100 transition-colors">';
           html += '<td class="py-2 px-3"><p class="font-medium truncate max-w-[150px]">'+escHtml(e.title||'Untitled')+'</p></td>';
+          html += '<td class="py-2 px-3 text-slate-500">'+escHtml(sessionLabel)+'</td>';
           html += '<td class="py-2 px-3 text-slate-500">'+fmtTime(e.start_time)+'</td>';
           html += '<td class="py-2 px-3 text-slate-500">'+dur+'</td>';
           html += '<td class="py-2 px-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">'+escHtml(platName)+'</span></td>';
-          html += '<td class="py-2 px-3 text-right"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+statusCls+'">'+status+'</span></td>';
+          html += '<td class="py-2 px-3"><span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium '+statusCls+'">'+status+'</span></td>';
+          html += '<td class="py-2 px-3 text-right">'+renderAssetActions(e, u, platName)+'</td>';
           html += '</tr>';
         });
         
@@ -218,6 +232,98 @@ function escHtml(s) {
   div.textContent = String(s);
   return div.innerHTML;
 }
+
+// Renders the Recording / Transcript / Summary action buttons for one session
+// row. Each button carries its data via data-* attributes (rather than being
+// inlined into an onclick="..." string) so instructor/meeting titles containing
+// quotes can't break the markup; a single delegated click listener (bound once,
+// see below) reads them back and opens the shared asset modal.
+function renderAssetActions(e, u, platName) {
+  var items = [
+    { type: 'recording', label: 'Recording', url: e.recording_url },
+    { type: 'transcript', label: 'Transcript', url: e.transcript_url },
+    { type: 'summary', label: 'Summary', url: e.summary_url }
+  ];
+  var html = '<div class="flex flex-wrap gap-1 justify-end">';
+  items.forEach(function(it) {
+    if (it.url) {
+      html += '<button type="button" data-asset-type="' + it.type + '" data-title="' + escHtml(e.title || 'Untitled') + '"' +
+        ' data-instructor="' + escHtml(u.email || '') + '" data-platform="' + escHtml(platName || '') + '"' +
+        ' data-start="' + escHtml(e.start_time || '') + '" data-url="' + escHtml(it.url) + '"' +
+        ' class="whitespace-nowrap text-[10px] font-medium text-violet-600 hover:text-violet-700 px-1.5 py-0.5 rounded hover:bg-violet-50 border border-violet-200 transition-colors">' + it.label + '</button>';
+    } else {
+      html += '<span class="whitespace-nowrap text-[10px] text-slate-400 px-1.5 py-0.5 border border-slate-200 rounded">' + it.label + '</span>';
+    }
+  });
+  html += '</div>';
+  return html;
+}
+
+// Opens the shared asset modal (Recording/Transcript/Summary) — an <audio>
+// player for recordings, an <iframe> for transcripts/summaries — same
+// pattern as the popups on Admin > Content > Recordings/Transcripts/Summaries.
+window.viewAsset = function(type, title, instructor, platform, startTime, url) {
+  var labels = { recording: 'Recording', transcript: 'Transcript', summary: 'Summary' };
+  document.getElementById('modal-asset-title').textContent = (labels[type] || 'Asset') + ' - ' + (title || 'Untitled');
+  document.getElementById('modal-asset-meeting').textContent = title || '--';
+  document.getElementById('modal-asset-instructor').textContent = instructor || '--';
+  document.getElementById('modal-asset-platform').textContent = platform || '--';
+  document.getElementById('modal-asset-date').textContent = startTime ? new Date(startTime).toLocaleString() : '--';
+
+  var audioWrap = document.getElementById('modal-asset-audio-wrap');
+  var audioEl = document.getElementById('modal-asset-audio');
+  var iframeEl = document.getElementById('modal-asset-iframe');
+
+  if (type === 'recording') {
+    iframeEl.classList.add('hidden');
+    iframeEl.src = '';
+    audioWrap.classList.remove('hidden');
+    audioEl.src = url;
+    audioEl.load();
+  } else {
+    audioWrap.classList.add('hidden');
+    audioEl.pause();
+    audioEl.removeAttribute('src');
+    iframeEl.classList.remove('hidden');
+    iframeEl.src = url;
+  }
+
+  document.getElementById('asset-modal').classList.remove('hidden');
+  document.getElementById('asset-modal').classList.add('flex');
+};
+
+function closeAssetModal() {
+  var modal = document.getElementById('asset-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  var audioEl = document.getElementById('modal-asset-audio');
+  var iframeEl = document.getElementById('modal-asset-iframe');
+  if (audioEl) { audioEl.pause(); audioEl.removeAttribute('src'); }
+  if (iframeEl) iframeEl.src = '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Delegated click handler for every Recording/Transcript/Summary button —
+  // bound once on the container, works across re-renders since loadCompleted()
+  // replaces completedContainer's innerHTML rather than the container itself.
+  var container = document.getElementById('completedContainer');
+  if (container) {
+    container.addEventListener('click', function(ev) {
+      var btn = ev.target.closest('[data-asset-type]');
+      if (!btn) return;
+      window.viewAsset(btn.dataset.assetType, btn.dataset.title, btn.dataset.instructor, btn.dataset.platform, btn.dataset.start, btn.dataset.url);
+    });
+  }
+
+  document.getElementById('close-asset-modal')?.addEventListener('click', closeAssetModal);
+  document.getElementById('asset-modal')?.addEventListener('click', function(e) {
+    if (e.target === document.getElementById('asset-modal')) closeAssetModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !document.getElementById('asset-modal')?.classList.contains('hidden')) closeAssetModal();
+  });
+});
 
 // Initialize
 setDefaultDateRange();

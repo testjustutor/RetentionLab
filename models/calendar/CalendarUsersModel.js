@@ -3,6 +3,7 @@
  */
 const { getAsync, runAsync, allAsync, db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
+const { logThrottled } = require('../../utils/logThrottle');
 
 // Small promisified wrappers matching the MySQL shim's callback style
 const run = (sql, params = []) => new Promise((resolve, reject) => {
@@ -231,7 +232,20 @@ class CalendarUsersModel {
           logger.error('Model(CalendarUsersModel): Error fetching calendar integrations:', err);
           reject(err);
         } else {
-          logger.info(`Model(CalendarUsersModel): Fetched ${rows.length} calendar integrations`);
+          // THROTTLED: getAllUsers() is called on every poll of a ~5s-interval
+          // endpoint (the Live meetings view), so this line was previously
+          // written to the log file on every single poll. The query itself
+          // still runs exactly as often as before - only this log line is
+          // throttled to at most once per 60s (see utils/logThrottle.js).
+          // Keyed by (createdBy, status) rather than a single global key so
+          // two different admin-scoped queries don't suppress each other's
+          // first log line - each distinct scope still gets its own initial
+          // log and its own 60s cadence thereafter.
+          logThrottled(
+            'info',
+            `calendar-users:fetched-integrations:${createdBy || 'all'}:${status || 'any'}`,
+            `Model(CalendarUsersModel): Fetched ${rows.length} calendar integrations`
+          );
           resolve(rows);
         }
       });

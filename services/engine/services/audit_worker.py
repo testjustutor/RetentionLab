@@ -8,7 +8,24 @@ import time
 import traceback
 from decimal import Decimal
 from database.python_db import get_cursor, execute, fetch_all
-from services.engine.services.rubric_loader import RubricLoader
+# CLEANUP: was `from services.engine.services.rubric_loader import RubricLoader`
+# - a near-duplicate of services/engine/rubric_loader.py (the one the live
+# AuditService actually uses). Consolidated onto the single canonical
+# top-level module; the services-level duplicate has been removed.
+from services.engine.rubric_loader import RubricLoader
+
+# FIX: pull in the shared scoring math (audit_scoring.py) so this module's
+# category-score / weighted-overall calculation is IDENTICAL to
+# audit_service.py and tutor_eval_worker.py, instead of the previous
+# hand-rolled formula here that excluded the WRONG status from the
+# denominator (see _expand_compact_result below for details).
+from services.engine.audit_scoring import (
+    compute_category_score,
+    compute_weighted_overall,
+    STATUS_MET,
+    STATUS_NOT_MET,
+    STATUS_NOT_APPLICABLE,
+)
 
 
 _AUDIT_SYSTEM_INSTRUCTION = """Evaluate the tutoring transcript against the supplied indicators. Output ONLY JSON:
@@ -246,6 +263,22 @@ class AiAuditService:
         - Remaps s/e/r back to score/evidence/reason.
         - Re-attaches category + indicator names.
         - Recomputes gate_failures from scores (never trusts the LLM's math).
+
+        FIX: category score and weighted-overall math now go through the
+        SHARED functions in audit_scoring.py (STATUS_MET/STATUS_NOT_MET/
+        STATUS_NOT_APPLICABLE + compute_category_score + compute_weighted_overall)
+        instead of this module's own formula.
+
+        The previous formula here was:
+            cat_pct = Met / (Met + Not Met) x 100      <- WRONG
+        which excludes NOT APPLICABLE from the denominator. The spec (and
+        audit_scoring.py) requires:
+            cat_pct = Met / (Met + Not Applicable) x 100   <- excludes NOT MET
+        i.e. the exact OPPOSITE status should be excluded. The old formula
+        also silently dropped any all-NA category from BOTH the weighted
+        numerator and denominator (cat_pct=None -> skipped); the spec
+        requires an all-NA category to score 100% and be weighted normally,
+        which compute_category_score() already does correctly.
         """
         raw_scores = compact.get("scores") if isinstance(compact.get("scores"), dict) else {}
         evidence_quote = compact.get("evidence_quote", "") or ""
@@ -268,16 +301,15 @@ class AiAuditService:
 
         category_scores = {}
         gate_set = set()
-        num = 0.0
-        den = 0.0
+        category_pct_weight_pairs = []  # FIX: fed into compute_weighted_overall()
 
         for cat in rubric_schema:
             cat_name = cat.get("category")
             weight = float(cat.get("weight") or 0)
             indicators_out = {}
+            statuses = []          # FIX: status codes (1/2/3) for compute_category_score()
             scored_count = 0
             excluded_count = 0
-            score_sum = 0.0
 
             for ind in cat.get("indicators", []):
                 code = ind.get("indicator_id")
@@ -299,11 +331,12 @@ class AiAuditService:
                 if score is not None:
                     # Coerce any abnormal s to binary 0/1 (0 < score < 1 rounds to 0).
                     score = 1 if score >= 1 else 0
+                    status = STATUS_MET if score == 1 else STATUS_NOT_MET
                     scored_count += 1
-                    score_sum += score
                     if is_gate and score == 0:
                         gate_set.add(code)
                 else:
+                    status = STATUS_NOT_APPLICABLE
                     excluded_count += 1
                     if requires_video:
                         reason = reason or "requires video"
@@ -311,7 +344,13 @@ class AiAuditService:
                     elif not reason:
                         reason = "not observable from the provided transcript"
 
-                rating = "Met" if score == 1 else ("Not met" if score == 0 else "N/A")
+                statuses.append(status)
+
+                rating = (
+                    "Met" if status == STATUS_MET
+                    else "Not met" if status == STATUS_NOT_MET
+                    else "N/A"
+                )
 
                 indicators_out[name] = {
                     "indicator": code,
@@ -326,7 +365,11 @@ class AiAuditService:
                     "requires_video": requires_video,
                 }
 
-            cat_pct = round(score_sum / scored_count * 100, 2) if scored_count else None
+            # FIX: shared formula - Met / (Met + Not Applicable) x 100, with
+            # all-NA -> 100% and denom-0 -> 0%, matching audit_scoring.py
+            # exactly instead of the old inverted/edge-case-dropping formula.
+            cat_pct = compute_category_score(statuses)
+
             category_scores[cat_name] = {
                 "score": cat_pct,
                 "scored": scored_count,
@@ -335,11 +378,12 @@ class AiAuditService:
                 "excluded_indicator_count": excluded_count,
                 "indicators": indicators_out,
             }
-            if cat_pct is not None:
-                num += cat_pct * weight
-                den += weight
+            category_pct_weight_pairs.append((cat_pct, weight))
 
-        oqi_score = round(num / den, 2) if den else 0.0
+        # FIX: weighted by each category's `weight` field via the shared
+        # helper - every category (including all-NA ones, now correctly
+        # scored at 100%) is included in the weighted sum.
+        oqi_score = compute_weighted_overall(category_pct_weight_pairs)
 
         return {
             "category_scores": category_scores,

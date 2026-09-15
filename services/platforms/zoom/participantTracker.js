@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/participantTracker.js
+ * services/platforms/zoom/participantTracker.js
  *
  */
 const { logger } = require('../../../utils/logger');
@@ -282,8 +282,21 @@ class ParticipantTracker {
 
   /**
    * Reset tracker (e.g., at meeting end)
+   *
+   * FIX: previously this only cleared the in-memory map — any participant
+   * still marked "joined" when the meeting ended never got a "left"
+   * timestamp persisted to the DB, unlike teams/participantTracker.js's
+   * reset(), which already looped over dangling "joined" entries and
+   * called ParticipantModel.recordParticipantLeave() before clearing.
+   * Mirrors that fix here so Zoom participants get closed out the same way.
    */
-  reset() {
+  reset(meetingEndTime = new Date()) {
+    for (const [name, data] of this.trackedParticipants.entries()) {
+      if (data.status === 'joined') {
+        ParticipantModel.recordParticipantLeave(this.meetingId, this.sessionId, name, meetingEndTime)
+          .catch(err => logger.error(`ZoomAdapter(participantTracker): Cleanup leave failed for ${name}:`, err));
+      }
+    }
     this.trackedParticipants.clear();
     logger.info(
       `ZoomAdapter(participantTracker): Tracker reset for meeting ${this.meetingId}`

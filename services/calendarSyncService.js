@@ -1,5 +1,5 @@
 /**
- * root/services/calendarSyncService.js
+ * services/calendarSyncService.js
  * Calendar Sync Service
  * Syncs meetings from Google Calendar to local database
  *

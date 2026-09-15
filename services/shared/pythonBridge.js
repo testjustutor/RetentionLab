@@ -1,5 +1,5 @@
 /**
- * root/services/shared/pythonBridge.js
+ * services/shared/pythonBridge.js
  *
  */
 const appSettings = require('../../config/settings');
@@ -60,11 +60,15 @@ class PythonBridge {
         });
       });
 
-      // Real-time Error Stream Logging
+      // Real-time Error Stream Logging - Python writes normal progress
+      // output (tqdm progress bars, warnings.warn()) to stderr by design,
+      // not just actual errors, so this is colored blue (not red) to avoid
+      // looking like a failure. Actual failures still surface separately via
+      // the exit-code check below (logger.error on the 'close' handler).
       pyProcess.stderr.on('data', (data) => {
         const errStr = data.toString();
         errorData += errStr;
-        console.error(`\x1b[31m[Python STDERR Tracing]:\x1b[0m ${errStr.trim()}`);
+        console.error(`\x1b[34m[Python STDERR Tracing]:\x1b[0m ${errStr.trim()}`);
       });
 
       pyProcess.on('error', (err) => {
@@ -116,11 +120,11 @@ class PythonBridge {
 
   /**
    * Resolve meeting_id + session_id for the asset DB-sync.
-   * Prefers the values passed by the caller; otherwise derives the session id
-   * from the engine payload's meeting_id (e.g. "82014705313_Sess159_...") and
-   * reads the meeting id FROM the database via meeting_sessions.meeting_id
-   * (authoritative meetings.id), keyed by the session id. The meeting id is
-   * never fabricated — it always comes from meeting_sessions.
+   * Prefers the values passed by the caller; then prefers the engine's OWN
+   * resolved fields (executionMatrix.meeting_id / .session_id, now returned
+   * directly by pipeline_context.py's build_final_response - see FIX below);
+   * and only falls back to regex-parsing the legacy "<ext>_SessN_..." string
+   * shape for engines that don't yet supply session_id explicitly.
    *
    * FIX 6: this now returns a tagged result instead of silently returning
    * null on every failure path. Callers that NEED ids (i.e. weren't given
@@ -129,17 +133,30 @@ class PythonBridge {
    * session at all) from "should have resolved but didn't" (regex/DB lookup
    * failed unexpectedly) and react accordingly instead of always just
    * logging a warn and moving on.
+   *
+   * FIX (this pass): pipeline_context.py's build_final_response() used to
+   * return the filename-derived base_id as "meeting_id" (e.g.
+   * "82014705313_Sess159_2026-06-12_16-01"), so this function had to
+   * regex-parse that string to recover the session id, then look the real
+   * meeting id up in the DB a SECOND time even though Python had already
+   * resolved it. Now that the engine returns the already-resolved numeric
+   * meeting_id AND session_id directly, we use those first and only fall
+   * back to the old regex path for engine responses that predate this fix.
    */
-  static async resolveMeetingContext(meetingIdInput, sessionIdInput, engineMeetingId) {
+  static async resolveMeetingContext(meetingIdInput, sessionIdInput, engineMeetingId, engineSessionId) {
     if (meetingIdInput && sessionIdInput) {
       return { meetingId: meetingIdInput, sessionId: sessionIdInput, resolved: true, reason: 'caller_supplied' };
     }
 
-    // Determine session id: prefer the caller-supplied sessionId; otherwise
-    // parse the Sess<n> portion embedded in the engine's meeting_id string.
-    let sessionId = sessionIdInput;
+    // FIX: prefer the engine's own resolved session_id field directly -
+    // no regex needed when the engine already tells us.
+    let sessionId = sessionIdInput || engineSessionId || null;
     let parseFailed = false;
+
     if (!sessionId && engineMeetingId) {
+      // Legacy fallback: older engine responses (or callers still passing
+      // the filename-shaped string) encode the session in the meeting_id
+      // string itself as "<ext>_SessN_...".
       const m = /^[^_]+_Sess(\d+)_/.exec(String(engineMeetingId));
       if (m) {
         sessionId = Number(m[1]);
@@ -161,6 +178,13 @@ class PythonBridge {
         // change that deserves attention, not a silent skip).
         reason: parseFailed ? 'session_id_parse_failed' : 'no_session_id_available'
       };
+    }
+
+    // FIX: if the engine already resolved a numeric meeting_id (i.e. it's
+    // not just the filename-shaped base_id string), trust it directly and
+    // skip the redundant DB round-trip below entirely.
+    if (engineMeetingId && /^\d+$/.test(String(engineMeetingId))) {
+      return { meetingId: Number(engineMeetingId), sessionId, resolved: true, reason: 'engine_resolved' };
     }
 
     // meeting_sessions.meeting_id references meetings.id (the internal ID).
@@ -200,13 +224,26 @@ class PythonBridge {
 
     try {
       // 1. Pack environmental parameters into configuration payload mapping
+      // CONVERGENCE FIX: forward the caller-supplied meeting_id/session_id
+      // through to PipelineContext (services/engine/orchestrator/pipeline_context.py),
+      // which now prefers these explicit ids over its own filename-regex
+      // resolution. Both production callers already have the real DB ids at
+      // this point (SocraticBot for bot recordings, videoProcessingController
+      // for admin-uploaded videos) - passing them through makes meeting/session
+      // resolution authoritative instead of re-derived, and is REQUIRED for
+      // admin video filenames whose external_meeting_id segment can be a
+      // generic, non-unique token (e.g. "Regular"). test-engine.js ad-hoc runs
+      // still pass null/null here, so the engine's filename-regex fallback is
+      // unaffected for that case.
       const runtimeSettings = {
         ...aiProfile,
         pipeline_features: appSettings.pipeline_features || {},
         execution_context: "automated_test_engine",
         initialized_at: new Date().toISOString(),
         hf_token_configured: !!appSettings.HF_TOKEN,
-        hf_token: appSettings.HF_TOKEN || null
+        hf_token: appSettings.HF_TOKEN || null,
+        meeting_id: meetingId || null,
+        session_id: sessionId || null
       };
       const stringifiedConfig = JSON.stringify(runtimeSettings);
 
@@ -224,10 +261,36 @@ class PythonBridge {
       const executionMatrix = JSON.parse(standardJsonOutput);
       logger.info(`[Python Bridge] Execution data package parsed successfully.`);
 
+      // Pre-audit transcript validation (services/engine/transcript_validation.py,
+      // run from transcription_task.py) found this recording empty/near-empty or
+      // single-speaker-only. The engine already skipped the AI audit, summary
+      // generation, and its own DB persistence for exactly this reason - mirror
+      // that here by skipping the "Completed" + oqi_score asset DB-sync too,
+      // instead of falsely marking a skipped session as a completed report.
+      if (executionMatrix.skipped) {
+        logger.info(`[Python Bridge] Engine reported processing skipped reason="${executionMatrix.skip_reason}" for meetingId=${meetingId} sessionId=${sessionId} - skipping AI audit + asset DB-sync (transcript validation).`);
+        return {
+          success: true,
+          skipped: true,
+          skipReason: executionMatrix.skip_reason || null,
+          skipMessage: executionMatrix.skip_message || 'Processing was skipped for this recording.',
+          meetingId: meetingId || executionMatrix.meeting_id || null,
+          sessionId: sessionId || executionMatrix.session_id || null
+        };
+      }
+
       // Resolve meetingId/sessionId from the engine payload when the caller did
       // not supply them (e.g. socraticbot test runs), so the asset DB-sync below
       // is never skipped for a parseable meeting id.
-      const resolution = await this.resolveMeetingContext(meetingId, sessionId, executionMatrix.meeting_id);
+      // FIX: pass executionMatrix.session_id through directly (now returned
+      // by pipeline_context.py's build_final_response) instead of relying
+      // solely on regex-parsing executionMatrix.meeting_id.
+      const resolution = await this.resolveMeetingContext(
+        meetingId,
+        sessionId,
+        executionMatrix.meeting_id,
+        executionMatrix.session_id
+      );
       const syncMeetingId = resolution.resolved ? resolution.meetingId : meetingId;
       const syncSessionId = resolution.resolved ? resolution.sessionId : sessionId;
 

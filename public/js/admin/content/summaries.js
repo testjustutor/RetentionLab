@@ -1,3 +1,7 @@
+/**
+ * public/js/admin/content/summaries.js
+ */
+
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
 var allSummaries = [];
 var summariesTable = null;

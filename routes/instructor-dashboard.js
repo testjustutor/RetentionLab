@@ -1,16 +1,9 @@
 /**
- * root/routes/instructor-dashboard.js
+ * DEPRECATED: was mounted at /api/instructor-dashboard; moved to routes/instructor/dashboard.js (now /api/instructor/dashboard).
+ * This functionality was migrated to the dedicated per-role MVC folder structure
+ * (see routes/registry.js). The old URL for this file is no longer mounted anywhere,
+ * so this file is unreachable from any request. It is kept only as a thin re-export
+ * shim (rather than deleted) pointing at its new location, so nothing breaks if
+ * something still requires this old path directly.
  */
-const express = require('express');
-const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
-const instructorDashboardController = require('../controllers/instructor-dashboard/instructorDashboardController');
-
-router.use(requireAuth);
-
-router.get('/stats', instructorDashboardController.getDashboardStats);
-router.get('/recent-meetings', instructorDashboardController.getRecentMeetings);
-router.get('/score-trend', instructorDashboardController.getScoreTrend);
-router.get('/evaluation-breakdown', instructorDashboardController.getEvaluationBreakdown);
-
-module.exports = router;
+module.exports = require('./instructor/dashboard');

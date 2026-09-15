@@ -1,6 +1,7 @@
 /**
- * root/public/js/auth/reset-password.js
+ * public/js/auth/reset-password.js
  */
+
 import AuthAPI from '../auth.js';
 
 const form = document.getElementById('resetPasswordForm');

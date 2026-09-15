@@ -1,13 +1,15 @@
 /**
- * root/services/shared/botManager.js
+ * services/shared/botManager.js
  *
  */
 const { logger } = require('../../utils/logger');
 const SocraticBot = require('../socraticbot');
 const settings = require('../../config/settings');
+const { HostDeniedError, WaitingRoomTimeoutError } = require('../platforms/joinErrors');
 
 const MeetingSessionController = require('../../controllers/meetings/meeting-session/meetingSessionController');
 const MeetingAssetModel = require('../../models/meetings/assets/meetingAssetModel');
+const MeetingModel = require('../../models/meetings/MeetingModel');
 
 const ACTIVE_STATUSES = ['running', 'joining', 'starting', 'launching', 'live'];
 
@@ -115,7 +117,7 @@ class BotManager {
 
    */
   async launchFromDb(meetingRecord) {
-    let session = null;
+    let trackingId = null;
     try {
       const meetingId = meetingRecord.external_meeting_id;
       const meetingDbId = meetingRecord.id ?? null; // internal meetings.id (auto-increment PK)
@@ -131,10 +133,22 @@ class BotManager {
 
       logger.info(`Shared(botManager): Launching queued ${meetingId} (meetings.id=${meetingDbId})`);
 
-      // Create transcript session
-      session = await MeetingSessionController.createSession(meetingDbId);
-      
-      await MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'launching');
+      // meetings.status = bot join lifecycle. SocraticBot drives it onward:
+      // waiting_for_host -> joined (or host_rejected / waiting_timeout / failed).
+      if (meetingDbId) {
+        MeetingModel.updateMeetingStatusById(meetingDbId, 'bot_launching', { force: true }).catch(e => {
+          logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} bot_launching:`, e);
+        });
+      }
+
+      // NOTE: meeting_sessions is the HUMAN/CONVERSATION lifecycle — a row is
+      // only created once a real human participant is detected (inside
+      // SocraticBot.run(), after waitForHumanParticipant() succeeds). Bot
+      // waiting-room / rejected / timeout states leave NO row. trackingId is a
+      // local, non-DB handle used purely to track this bot instance in-memory
+      // (status/stop lookups) until then — SocraticBot swaps its own .sessionId
+      // to the real meeting_sessions.id once that row exists.
+      trackingId = `wait_${meetingDbId ?? meetingId}_${Date.now()}`;
 
       // 🔥 BUILD YOUR OWN LINK (NOT FROM DB)
       const meetingLink = this.buildMeetingLink(platform, meetingId, passcode);
@@ -149,17 +163,17 @@ class BotManager {
         meetingUrl: meetingLink,
         meetingId,
         meetingDbId,
-        sessionId: session.id,
+        sessionId: trackingId,
         passcode,
         botName: platformConfig?.botName || process.env.BOT_NAME,
         webhookUrl: meetingRecord.webhook_url || ''
       });
 
-      // Store instance (keyed by sessionId, indexed under meetingId)
+      // Store instance (keyed by trackingId, indexed under meetingId)
       // FIX 5: config shape now matches startBot() below — hasPasscode is
       // a boolean flag, and webhookUrl presence is also captured as a flag
       // for consistency with listInstances()/getStats() reporting.
-      this._registerInstance(meetingId, session.id, {
+      this._registerInstance(meetingId, trackingId, {
         bot,
         status: 'starting',
         startedAt: Date.now(),
@@ -175,23 +189,47 @@ class BotManager {
 
       // Launch async
       bot.run()
-        .then(() => {
-          const inst = this.instances.get(session.id);
-          if (inst) inst.status = 'completed';
-          MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'completed');
+        .then((result) => {
+          // bot.run() resolves { noParticipant: true } when the bot joined but
+          // no human ever appeared (socraticbot.js waitForHumanParticipant()/
+          // closeWithoutProcessing()). Session/meeting status writes are owned
+          // by SocraticBot (meetings.status drives the bot join lifecycle; the
+          // session reflects the actual end reason) — botManager only closes
+          // out its in-memory instance here and never blanket-overwrites.
+          const missed = !!(result && result.noParticipant);
+          const inst = this.instances.get(trackingId);
+          const realSessionId = bot.sessionId !== trackingId ? bot.sessionId : null;
+          if (inst) {
+            inst.status = missed ? 'ended_no_session' : 'completed';
+            if (realSessionId) inst.sessionId = realSessionId;
+          }
+          if (missed) {
+            logger.info(`Shared(botManager): ${meetingId} ended without a human conversation (no session created).`);
+          }
         })
         .catch(err => {
           logger.error(`Shared(botManager): Launch error ${meetingId}:`, err);
-          const inst = this.instances.get(session.id);
+          const inst = this.instances.get(trackingId);
           if (inst) inst.status = 'error';
-          MeetingSessionController.updateMeetingSessionStatus(meetingId, session.id, 'error');
+          const realSessionId = bot.sessionId !== trackingId ? bot.sessionId : null;
+          if (realSessionId) {
+            // Safety net for errors around session creation — SocraticBot
+            // already marks the session failed where it can.
+            MeetingSessionController.updateMeetingSessionStatus(meetingId, realSessionId, 'failed').catch(() => {});
+          }
+          // Typed join errors already set meetings.status in SocraticBot.run()
+          // (host_rejected / waiting_timeout) — don't clobber them to 'failed'.
+          if (meetingDbId && !(err instanceof HostDeniedError || err instanceof WaitingRoomTimeoutError)) {
+            MeetingModel.updateMeetingStatusById(meetingDbId, 'failed', { force: true }).catch(e => {
+              logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} failed:`, e);
+            });
+          }
         });
 
-      return { success: true, meetingId, sessionId: session.id };
+      return { success: true, meetingId, sessionId: trackingId };
 
     } catch (err) {
       logger.error('Shared(botManager): Launch from DB failed:', err);
-      await MeetingSessionController.updateMeetingSessionStatus(meetingRecord.meeting_id, session?.id ?? null, 'failed');
       return { success: false };
     }
   }
@@ -380,9 +418,20 @@ class BotManager {
 
       logger.info(`Shared(botManager):  IMMEDIATE LAUNCH: ${meetingId} (meetings.id=${meetingDbId}, pass:${!!passcode}, webhook:${!!webhookUrl})`);
 
-      // Create transcript session
-      const session = await MeetingSessionController.createSession(meetingDbId);
-      logger.info(`Shared(botManager): Session created: ${session.id} for immediate ${meetingId}`);
+      // NOTE: same human-conversation session approach as launchFromDb() —
+      // meeting_sessions rows are created by SocraticBot only once a human is
+      // detected. trackingId is a local, non-DB handle used purely to track
+      // this bot instance in-memory until SocraticBot swaps .sessionId to the
+      // real meeting_sessions.id.
+      const trackingId = `wait_${meetingDbId ?? meetingId}_${Date.now()}`;
+
+      // meetings.status = bot join lifecycle. SocraticBot drives it onward:
+      // waiting_for_host → joined (or host_rejected / waiting_timeout / failed).
+      if (meetingDbId) {
+        MeetingModel.updateMeetingStatusById(meetingDbId, 'bot_launching', { force: true }).catch(e => {
+          logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} bot_launching:`, e);
+        });
+      }
 
       // Create SocraticBot
       const bot = new SocraticBot({
@@ -390,17 +439,17 @@ class BotManager {
         meetingUrl: meetingLink,
         meetingId,
         meetingDbId,
-        sessionId: session.id,
+        sessionId: trackingId,
         passcode: passcode || '',
         botName: settings.platforms[platform]?.botName || process.env.BOT_NAME,
         webhookUrl: webhookUrl || ''
       });
 
-      // Store instance (keyed by sessionId, indexed under meetingId)
+      // Store instance (keyed by trackingId, indexed under meetingId)
       // FIX 5: config key renamed passcode -> hasPasscode to match
       // launchFromDb() above, so both instance-creation paths produce the
       // exact same config shape for listInstances()/getStats().
-      this._registerInstance(meetingId, session.id, {
+      this._registerInstance(meetingId, trackingId, {
         bot,
         status: 'starting',
         startedAt: Date.now(),
@@ -415,20 +464,38 @@ class BotManager {
       });
 
       // Launch async
-      bot.run().then(() => {
-        logger.info(`Shared(botManager): Immediate ${meetingId} completed`);
-        const inst = this.instances.get(session.id);
-        if (inst) inst.status = 'completed';
+      bot.run().then((result) => {
+        // Same policy as launchFromDb(): status ownership lives in SocraticBot;
+        // botManager only closes out its in-memory instance here.
+        const missed = !!(result && result.noParticipant);
+        logger.info(`Shared(botManager): Immediate ${meetingId} ${missed ? 'ended without a human conversation' : 'completed'}`);
+        const inst = this.instances.get(trackingId);
+        const realSessionId = bot.sessionId !== trackingId ? bot.sessionId : null;
+        if (inst) {
+          inst.status = missed ? 'ended_no_session' : 'completed';
+          if (realSessionId) inst.sessionId = realSessionId;
+        }
       }).catch(err => {
         logger.error(`Shared(botManager): Immediate ${meetingId} failed:`, err);
-        const inst = this.instances.get(session.id);
+        const inst = this.instances.get(trackingId);
         if (inst) inst.status = 'error';
+        const realSessionId = bot.sessionId !== trackingId ? bot.sessionId : null;
+        if (realSessionId) {
+          MeetingSessionController.updateMeetingSessionStatus(meetingId, realSessionId, 'failed').catch(() => {});
+        }
+        // Typed join errors already set meetings.status in SocraticBot.run()
+        // (host_rejected / waiting_timeout) — don't clobber them to 'failed'.
+        if (meetingDbId && !(err instanceof HostDeniedError || err instanceof WaitingRoomTimeoutError)) {
+          MeetingModel.updateMeetingStatusById(meetingDbId, 'failed', { force: true }).catch(e => {
+            logger.error(`Shared(botManager): Failed to mark meeting ${meetingId} failed:`, e);
+          });
+        }
       });
 
       return {
         success: true,
         meetingId,
-        sessionId: session.id,
+        sessionId: trackingId,
         status: 'starting',
         message: 'Bot launched immediately (no queue)',
         link: meetingLink

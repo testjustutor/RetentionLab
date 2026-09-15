@@ -1,13 +1,16 @@
 /**
- * root/services/platforms/google-meet/captionManager.js
+ * services/platforms/google-meet/captionManager.js
  *
  */
 const { logger } = require('../../../utils/logger');
 
 module.exports = async function enableCaptionsIfPossible() {
+  // NOTE: callers (e.g. meetJoiner.js's joinMeeting()) already set the
+  // 'enabling_captions' stage immediately before invoking this, so this
+  // only sets the two OUTCOME stages below rather than re-logging entry.
   logger.info('GoogleMeetJoiner(captionManager): ENTER enableCaptionsIfPossible');
 
-    return await this.page.evaluate(async () => {
+    const result = await this.page.evaluate(async () => {
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
       const log = (msg, data) => {
@@ -136,4 +139,18 @@ module.exports = async function enableCaptionsIfPossible() {
         debug: debugInfo
       };
     });
+
+    // STAGE: report the outcome at the Node/logger level - previously this
+    // just returned the page.evaluate() result silently, so a caller not
+    // reading the return value (or reading logs, not code) had no visibility
+    // into whether captions actually got turned on.
+    if (result?.status === 'CAPTIONS_ENABLED') {
+      if (typeof this._setStage === 'function') this._setStage('captions_enabled');
+      logger.info('GoogleMeetJoiner(captionManager): STAGE: captions ENABLED');
+    } else {
+      if (typeof this._setStage === 'function') this._setStage('captions_not_found');
+      logger.warn(`GoogleMeetJoiner(captionManager): STAGE: captions NOT FOUND after ${result?.debug?.attempts?.length || 0} attempt(s) - continuing without live captions`);
+    }
+
+    return result;
 };

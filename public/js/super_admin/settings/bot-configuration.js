@@ -1,4 +1,6 @@
-// Bot Configuration Page Logic
+/**
+ * public/js/super_admin/settings/bot-configuration.js
+ */
 
 document.addEventListener('DOMContentLoaded', () => {
   loadBotSettings();

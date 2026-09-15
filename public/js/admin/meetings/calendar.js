@@ -1,5 +1,33 @@
+/**
+ * public/js/admin/meetings/calendar.js
+ */
+
 var COLORS = {};
 var LABELS = {};
+// Provider color, keyed by the value actually stored on each connection row
+// (its display name, e.g. "Google Calendar") rather than the provider's
+// internal short name — COLORS/LABELS above are keyed by the short name and
+// don't match row.provider, which is why the Provider column couldn't just
+// reuse them directly.
+var PROVIDER_COLORS_BY_DISPLAY = {};
+
+// The calendar_providers table has no color column at all, so p.color was
+// always undefined and every provider fell back to the same flat 'slate' —
+// which is why every badge looked identical/dull. Assign real, distinct
+// colors here instead: familiar brand-ish colors for the common providers,
+// and a rotating palette for anything else so new providers still get a
+// color of their own instead of all collapsing to gray.
+var KNOWN_PROVIDER_COLORS = {
+  google: 'blue',
+  zoom: 'violet',
+  teams: 'indigo',
+  microsoft: 'indigo',
+  outlook: 'cyan',
+  office365: 'cyan',
+  apple: 'rose',
+  icloud: 'rose'
+};
+var PROVIDER_COLOR_PALETTE = ['blue', 'violet', 'emerald', 'amber', 'rose', 'cyan', 'indigo', 'fuchsia', 'teal', 'orange'];
 var allConnections = [];
 var connectionsTable = null;
 var calendarProviders = [];
@@ -16,15 +44,20 @@ async function loadProviders() {
     calendarProviders = providers;
     COLORS = {};
     LABELS = {};
-    providers.forEach(function(p) {
-      COLORS[p.name] = p.color || 'slate';
+    PROVIDER_COLORS_BY_DISPLAY = {};
+    providers.forEach(function(p, idx) {
+      var key = (p.name || '').toLowerCase();
+      var color = KNOWN_PROVIDER_COLORS[key] || PROVIDER_COLOR_PALETTE[idx % PROVIDER_COLOR_PALETTE.length];
+      COLORS[p.name] = color;
       LABELS[p.name] = p.display_name || p.name;
+      PROVIDER_COLORS_BY_DISPLAY[p.display_name || p.name] = color;
     });
   } catch(err) {
     console.error('Failed to load providers:', err);
     // Fallback to defaults
-    COLORS = { google: 'blue', zoom: 'emerald', teams: 'violet' };
+    COLORS = { google: 'blue', zoom: 'violet', teams: 'indigo' };
     LABELS = { google: 'Google Calendar', zoom: 'Zoom', teams: 'Microsoft Teams' };
+    PROVIDER_COLORS_BY_DISPLAY = { 'Google Calendar': 'blue', 'Zoom': 'violet', 'Microsoft Teams': 'indigo' };
   }
 }
 
@@ -41,9 +74,15 @@ async function loadConnections() {
       body: JSON.stringify({})
     });
     allConnections = json.data || [];
-    var active = allConnections.filter(function(x){return x.status==='active';});
+    // Compute stats from the SAME field the table itself uses to decide
+    // Connected vs Not Connected (Calendarstatus) — not a separate 'status'
+    // field that isn't even present on this data, which is why the count
+    // used to always show 0 regardless of how many rows the table marked
+    // Connected. Providers are only counted for rows that are actually
+    // connected, since a disconnected row has no real provider yet.
+    var active = allConnections.filter(function(x){ return x.Calendarstatus === 'active'; });
     var providers = {};
-    allConnections.forEach(function(x){ if(x.provider) providers[x.provider]=true; });
+    active.forEach(function(x){ if(x.provider) providers[x.provider]=true; });
 
     document.getElementById('statActive').textContent = active.length;
     document.getElementById('statTotal').textContent = allConnections.length;
@@ -89,26 +128,34 @@ function applySearchFilter() {
             '<span class="text-xs font-medium text-slate-900">' + escHtml(value) + '</span></div>';
         }},
         { label: 'Name', key: 'name', render: function(value) { return '<span class="text-xs text-slate-900">' + escHtml(value || '--') + '</span>'; }},
-        { label: 'Provider', key: 'provider', render: function(value) {
-          return '<span class="text-xs text-slate-700">' + escHtml(LABELS[value] || value || 'Calendar') + '</span>';
+        { label: 'Provider', key: 'provider', render: function(value, row) {
+          // Blank until actually connected — a disconnected row has no real
+          // provider yet, so showing a name (or the "Calendar" fallback) was
+          // misleading. Same condition the Calendar Connected column uses.
+          if (row.Calendarstatus !== 'active') return '<span class="text-xs text-slate-400">--</span>';
+          var color = PROVIDER_COLORS_BY_DISPLAY[value] || COLORS[value] || 'slate';
+          var label = LABELS[value] || value || 'Calendar';
+          // Solid pastel background (not a faint 10% tint) so each provider's
+          // color actually reads as different at a glance.
+          return '<span class="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold bg-' + color + '-100 text-' + color + '-800 border border-' + color + '-300">' + escHtml(label) + '</span>';
         }},
         { label: 'Status', key: 'Userstatus', render: function(value) {
           var text = value === 1 ? 'Active' : 'InActive';
           var cls = value === 1 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
           return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (text || 'unknown') + '</span>';
         }},
-        { label: 'Calendar Connected', key: 'Calendarstatus', render: function(value, row) {
+        { label: 'Calendar Connected', key: 'Calendarstatus', render: function(value) {
           if (value === 'active') {
-            return '<span class="text-xs font-medium text-emerald-600">Connected</span>';
+            return '<span class="text-xs font-semibold text-emerald-600">Connected</span>';
           }
-          return '<a href="#" class="text-xs text-blue-600 hover:text-blue-800 connect-link" data-email="' + escHtml(row.email) + '">Connect</a>';
+          return '<span class="text-xs font-semibold text-red-600">Not Connected</span>';
         }},
         { label: 'Token Expiry', key: 'token_expire_at', render: function(value) { return '<span class="text-xs text-slate-500">' + fmtDate(value) + '</span>'; }},
         { label: 'Last Resync', key: 'last_synced_at', render: function(value) { return '<span class="text-xs text-slate-500">' + fmtDate(value) + '</span>'; }},
-        { label: 'Sync', key: 'user_id', render: function(value, row) {
+        { label: 'Calendar Sync', key: 'user_id', render: function(value, row) {
           return '<button class="sync-btn inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-medium rounded transition-colors" data-user-id="' + value + '" data-email="' + escHtml(row.email) + '">' +
             '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>' +
-            'Sync' +
+            'Calendar Sync' +
           '</button>';
         }}
       ],
@@ -138,24 +185,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-// Connect link click handler - sends verification email to instructor
-document.addEventListener('click', async function(e) {
-  if (e.target.classList.contains('connect-link')) {
-    e.preventDefault();
-    var email = e.target.getAttribute('data-email');
-    try {
-      var res = await apiFetch('/api/admin/meetings/calendar/send-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
-      });
-      showToast('Verification email sent to ' + email);
-    } catch(err) {
-      showToast('Failed to send email: ' + (err.message || 'Unknown error'), true);
-    }
-  }
-});
-
+// NOTE: the "Connect" action was removed from this page's Calendar Connected
+// column (it now only shows a plain Connected/Not Connected status). Sending
+// the calendar verification email is done from Admin > People > Users instead
+// (see public/js/admin/people/users.js -> .connect-calendar-btn handler),
+// which hits the same /api/admin/meetings/calendar/send-verification endpoint.
 
 // Sync button click handler
 document.addEventListener('click', async function(e) {

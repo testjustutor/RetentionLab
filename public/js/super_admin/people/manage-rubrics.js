@@ -1,11 +1,5 @@
 /**
- * root/public/js/super_admin/people/manage-rubrics.js
- * Permission Rubrics - Super Admin
- * CRUD for rubric categories and indicators.
- *
- * Flow: HTML -> JS -> Routes(super_admin/people/manage-rubrics) -> Controller ->
- *       Model(ManageRubricsModel) -> DB
- * Tables use the centralized createTable (from common-ui-super-admin.js).
+ * public/js/super_admin/people/manage-rubrics.js
  */
 
 let allCategories = [];
@@ -345,4 +339,3 @@ document.getElementById('indicatorForm').addEventListener('submit', async (e) =>
 document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadCategories(), loadIndicators()]);
 });
-

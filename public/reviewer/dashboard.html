@@ -18,38 +18,45 @@
  <h1 class="text-xl font-bold mb-3">Reviewer Dashboard</h1>
           <p class="text-slate-400 text-xs mb-4">Overview of assigned reviews and workload.</p>
           
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
-              <h3 class="text-[12px] font-medium text-slate-400 mb-1">Pending</h3>
- <p id="pendingCount" class="text-lg font-bold ">-</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-blue-900 mb-1 uppercase tracking-wide">Pending</h3>
+              <p id="pendingCount" class="text-2xl font-bold text-blue-900">-</p>
             </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
-              <h3 class="text-[12px] font-medium text-slate-400 mb-1">In Progress</h3>
- <p id="inProgressCount" class="text-lg font-bold ">-</p>
+            <div class="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-amber-900 mb-1 uppercase tracking-wide">In Progress</h3>
+              <p id="inProgressCount" class="text-2xl font-bold text-amber-900">-</p>
             </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
-              <h3 class="text-[12px] font-medium text-slate-400 mb-1">Completed</h3>
- <p id="completedCount" class="text-lg font-bold ">-</p>
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-emerald-900 mb-1 uppercase tracking-wide">Completed</h3>
+              <p id="completedCount" class="text-2xl font-bold text-emerald-900">-</p>
             </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-2.5">
-              <h3 class="text-[12px] font-medium text-slate-400 mb-1">Avg Time</h3>
- <p id="avgTime" class="text-lg font-bold ">-</p>
+            <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-violet-900 mb-1 uppercase tracking-wide">Avg Time</h3>
+              <p id="avgTime" class="text-2xl font-bold text-violet-900">-</p>
             </div>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-3">
- <h3 class="text-sm font-semibold mb-2">Recent Assignments</h3>
-              <div id="recentAssignments" class="text-slate-400 text-xs">
-                <p>No recent assignments</p>
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-emerald-900 mb-2 uppercase tracking-wide">Recent Assignments</h3>
+              <div id="recentAssignments" class="text-emerald-900 text-xs">
+                <p class="text-emerald-800">No recent assignments</p>
               </div>
             </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-3">
- <h3 class="text-sm font-semibold mb-2">Overdue Reviews</h3>
-              <div id="overdueReviews" class="text-slate-400 text-xs">
-                <p>No overdue reviews</p>
+            <div class="bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-400 rounded-lg p-3 shadow-md">
+              <h3 class="text-[12px] font-bold text-rose-900 mb-2 uppercase tracking-wide">Overdue Reviews</h3>
+              <div id="overdueReviews" class="text-rose-900 text-xs">
+                <p class="text-rose-800">No overdue reviews</p>
               </div>
             </div>
+          </div>
+
+          <div class="mt-4">
+            <a href="/reviewer/evaluation-summary" class="block bg-gradient-to-br from-indigo-50 to-blue-100 border-2 border-indigo-400 rounded-lg p-3 shadow-md hover:border-indigo-500 hover:from-indigo-100 hover:to-blue-200 transition-all">
+              <h3 class="text-[12px] font-bold text-indigo-900 mb-1 uppercase tracking-wide">Evaluation Summary</h3>
+              <p class="text-indigo-800 text-xs">Store and view tutor-evaluation review-calculation values (Met / Not Met / N/A counts, category score, final score, red flag).</p>
+            </a>
           </div>
         </div>
       </div>

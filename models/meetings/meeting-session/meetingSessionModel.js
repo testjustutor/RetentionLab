@@ -24,24 +24,25 @@ const get = (sql, params = []) => new Promise((resolve, reject) => {
 
 class MeetingSessionModel {
   /**
-   * Create (or reuse) a meeting session row and return it.
-   * Uses INSERT IGNORE via ON DUPLICATE KEY for MySQL compatibility, then
-   * reads back the latest session for the meeting.
-   * @param {string} meetingId - meetings id
-   * @returns {Promise<Object>} session row or { id: null, meeting_id }
+   * Create a NEW meeting_sessions row for one human/conversation segment and
+   * return the created row (by its id). Every call inserts a fresh row - a new
+   * conversation segment must never reuse an old row, and bot waiting-room
+   * states intentionally do NOT create sessions.
+   * @param {string} meetingId - meetings id (internal PK)
+   * @param {string} initialStatus - starting session status (default 'human_detected')
+   * @returns {Promise<Object>} created session row or { id: null, meeting_id }
    */
-  static async createSession(meetingId) {
-    await run(
-      `INSERT INTO meeting_sessions (meeting_id, start_time) VALUES (?, CURRENT_TIMESTAMP)
-       ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`,
-      [meetingId]
+  static async createSession(meetingId, initialStatus = 'human_detected') {
+    const result = await run(
+      `INSERT INTO meeting_sessions (meeting_id, start_time, status) VALUES (?, CURRENT_TIMESTAMP, ?)`,
+      [meetingId, initialStatus]
     );
 
     const row = await get(
-      'SELECT id, meeting_id, transcript_file_name FROM meeting_sessions WHERE meeting_id = ? ORDER BY id DESC LIMIT 1',
-      [meetingId]
+      'SELECT id, meeting_id, transcript_file_name, audio_file_name, start_time, end_time, status FROM meeting_sessions WHERE id = ?',
+      [result.lastID]
     );
-    return row || { id: null, meeting_id: meetingId };
+    return row || { id: null, meeting_id: meetingId, status: initialStatus };
   }
   /**
    * Fetch a single session row by its id.
@@ -100,10 +101,18 @@ class MeetingSessionModel {
    * @returns {Promise<boolean>} true if a row was updated
    */
   static updateStatus(sessionId, status) {
+    // Terminal statuses also stamp end_time so the session keeps a clear
+    // start/end window for history/auditing purposes.
+    // 'no_activity' = a human was detected and a session row was created,
+    // but no real speech/transcript content was ever captured before the
+    // session ended — distinct from 'completed' (real conversation content
+    // was processed) so the status always reflects what actually happened.
+    const TERMINAL_STATUSES = ['completed', 'failed', 'no_activity'];
+    const endClause = TERMINAL_STATUSES.includes(status) ? ', end_time = CURRENT_TIMESTAMP' : '';
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE meeting_sessions
-         SET status = ?, updated_at = CURRENT_TIMESTAMP
+         SET status = ?, updated_at = CURRENT_TIMESTAMP${endClause}
          WHERE id = ?`,
         [status, sessionId],
         function (err) {

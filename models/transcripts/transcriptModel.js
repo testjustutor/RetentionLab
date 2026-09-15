@@ -7,6 +7,7 @@
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 const { normalizeStorageRef } = require('../../utils/storagePaths');
+const MeetingSessionModel = require('../meetings/meeting-session/meetingSessionModel');
 
 // Promisified run helper matching the MySQL shim's callback style
 const run = (sql, params = []) => new Promise((resolve, reject) => {
@@ -25,18 +26,9 @@ const get = (sql, params = []) => new Promise((resolve, reject) => {
 
 class TranscriptModel {
   static async createSession(meetingId) {
-    // Use INSERT IGNORE via ON DUPLICATE KEY for MySQL compatibility
-    await run(
-      `INSERT INTO meeting_sessions (meeting_id, start_time) VALUES (?, CURRENT_TIMESTAMP)
-       ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`,
-      [meetingId]
-    );
-
-    const row = await get(
-      'SELECT id, meeting_id, transcript_file_name FROM meeting_sessions WHERE meeting_id = ? ORDER BY id DESC LIMIT 1',
-      [meetingId]
-    );
-    return row || { id: null, meeting_id: meetingId };
+    // Delegate to the canonical session model so session creation has a single
+    // source of truth. meeting_sessions = human/conversation sessions ONLY.
+    return MeetingSessionModel.createSession(meetingId, 'human_detected');
   }
 
   static saveTranscriptFile(sessionId, fileName) {

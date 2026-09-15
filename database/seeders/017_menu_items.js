@@ -20,7 +20,8 @@ const MENU_ITEMS = [
   { menu_key: 'sa-content', label: 'Content', icon: 'folder', route_path: null, parent_id: null, sort_order: 3, role_id: 1,
     children: [
       { menu_key: 'sa-archives', label: 'Archives', icon: null, route_path: '/super_admin/content/archives', parent_id: 'sa-content', sort_order: 1, role_id: 1 },
-      { menu_key: 'sa-media-assets', label: 'Media Assets', icon: null, route_path: '/super_admin/content/assets', parent_id: 'sa-content', sort_order: 2, role_id: 1 }
+      { menu_key: 'sa-media-assets', label: 'Media Assets', icon: null, route_path: '/super_admin/content/assets', parent_id: 'sa-content', sort_order: 2, role_id: 1 },
+      { menu_key: 'sa-video-processing', label: 'Video Processing', icon: null, route_path: '/super_admin/content/video-processing', parent_id: 'sa-content', sort_order: 3, role_id: 1 }
     ]
   },
   { menu_key: 'sa-settings', label: 'Settings', icon: 'settings', route_path: null, parent_id: null, sort_order: 4, role_id: 1,
@@ -29,10 +30,8 @@ const MENU_ITEMS = [
       { menu_key: 'sa-ai-providers', label: 'AI Providers', icon: null, route_path: '/super_admin/settings/ai-providers', parent_id: 'sa-settings', sort_order: 2, role_id: 1 },
       { menu_key: 'sa-platforms', label: 'Platform Integrations', icon: null, route_path: '/super_admin/settings/platforms', parent_id: 'sa-settings', sort_order: 3, role_id: 1 },
       { menu_key: 'sa-user-defaults', label: 'User Defaults', icon: null, route_path: '/super_admin/settings/user-defaults', parent_id: 'sa-settings', sort_order: 4, role_id: 1 },
-      { menu_key: 'sa-table-controls', label: 'Table Controls', icon: null, route_path: '/super_admin/settings/table-controls', parent_id: 'sa-settings', sort_order: 5, role_id: 1 },
-      { menu_key: 'sa-video-processing', label: 'Video Processing', icon: null, route_path: '/super_admin/settings/video-processing', parent_id: 'sa-settings', sort_order: 6, role_id: 1 },
-      { menu_key: 'sa-deepgram-processing', label: 'Deepgram Processing', icon: null, route_path: '/super_admin/settings/deepgram-processing', parent_id: 'sa-settings', sort_order: 7, role_id: 1 }
-    ]  
+      { menu_key: 'sa-table-controls', label: 'Table Controls', icon: null, route_path: '/super_admin/settings/table-controls', parent_id: 'sa-settings', sort_order: 5, role_id: 1 }
+    ]
   },
   { menu_key: 'sa-monitoring', label: 'Monitoring', icon: 'activity', route_path: null, parent_id: null, sort_order: 5, role_id: 1,
     children: [
@@ -60,18 +59,16 @@ const MENU_ITEMS = [
   },
   { menu_key: 'admin-meetings', label: 'Meetings', icon: 'calendar', route_path: null, parent_id: null, sort_order: 10, role_id: 2,
     children: [
-      { menu_key: 'admin-calendar', label: 'Calendar', icon: null, route_path: '/admin/meetings/calendar', parent_id: 'admin-meetings', sort_order: 1, role_id: 2 },
-      { menu_key: 'admin-schedule', label: 'Schedule', icon: null, route_path: '/admin/meetings/schedule', parent_id: 'admin-meetings', sort_order: 2, role_id: 2 },
-      { menu_key: 'admin-live', label: 'Live Meetings', icon: null, route_path: '/admin/meetings/live', parent_id: 'admin-meetings', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-completed', label: 'Completed', icon: null, route_path: '/admin/meetings/completed', parent_id: 'admin-meetings', sort_order: 4, role_id: 2 }
+      { menu_key: 'admin-schedule', label: 'Schedule', icon: null, route_path: '/admin/meetings/schedule', parent_id: 'admin-meetings', sort_order: 1, role_id: 2 },
+      { menu_key: 'admin-live', label: 'Live Meetings', icon: null, route_path: '/admin/meetings/live', parent_id: 'admin-meetings', sort_order: 2, role_id: 2 },
+      { menu_key: 'admin-completed', label: 'Completed', icon: null, route_path: '/admin/meetings/completed', parent_id: 'admin-meetings', sort_order: 3, role_id: 2 }
     ]
   },
   { menu_key: 'admin-content', label: 'Content', icon: 'folder', route_path: null, parent_id: null, sort_order: 20, role_id: 2,
     children: [
       { menu_key: 'admin-recordings', label: 'Recordings', icon: null, route_path: '/admin/content/recordings', parent_id: 'admin-content', sort_order: 1, role_id: 2 },
-      { menu_key: 'admin-videos', label: 'Videos', icon: null, route_path: '/admin/content/videos', parent_id: 'admin-content', sort_order: 2, role_id: 2 },
-      { menu_key: 'admin-transcripts', label: 'Transcripts', icon: null, route_path: '/admin/content/transcripts', parent_id: 'admin-content', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-summaries', label: 'Summaries', icon: null, route_path: '/admin/content/summaries', parent_id: 'admin-content', sort_order: 4, role_id: 2 }
+      { menu_key: 'admin-transcripts', label: 'Transcripts', icon: null, route_path: '/admin/content/transcripts', parent_id: 'admin-content', sort_order: 2, role_id: 2 },
+      { menu_key: 'admin-summaries', label: 'Summaries', icon: null, route_path: '/admin/content/summaries', parent_id: 'admin-content', sort_order: 3, role_id: 2 }
     ]
   },
   { menu_key: 'admin-evaluation', label: 'Evaluation', icon: 'check-circle', route_path: null, parent_id: null, sort_order: 30, role_id: 2,
@@ -80,37 +77,6 @@ const MENU_ITEMS = [
       { menu_key: 'admin-reviews', label: 'Reviews', icon: null, route_path: '/admin/evaluation/reviews', parent_id: 'admin-evaluation', sort_order: 2, role_id: 2 },
       { menu_key: 'admin-scores', label: 'Scores', icon: null, route_path: '/admin/evaluation/scores', parent_id: 'admin-evaluation', sort_order: 3, role_id: 2 },
       { menu_key: 'admin-performance', label: 'Performance', icon: null, route_path: '/admin/evaluation/performance', parent_id: 'admin-evaluation', sort_order: 4, role_id: 2 }
-    ]
-  },
-  { menu_key: 'admin-insights', label: 'Insights', icon: 'lightbulb', route_path: null, parent_id: null, sort_order: 40, role_id: 2,
-    children: [
-      { menu_key: 'admin-engagement', label: 'Engagement', icon: null, route_path: '/admin/insights/engagement', parent_id: 'admin-insights', sort_order: 1, role_id: 2 },
-      { menu_key: 'admin-actions', label: 'Actions', icon: null, route_path: '/admin/insights/actions', parent_id: 'admin-insights', sort_order: 2, role_id: 2 },
-      { menu_key: 'admin-decisions', label: 'Decisions', icon: null, route_path: '/admin/insights/decisions', parent_id: 'admin-insights', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-risks', label: 'Risks', icon: null, route_path: '/admin/insights/risks', parent_id: 'admin-insights', sort_order: 4, role_id: 2 },
-      { menu_key: 'admin-analytics', label: 'Analytics', icon: null, route_path: '/admin/insights/analytics', parent_id: 'admin-insights', sort_order: 5, role_id: 2 }
-    ]
-  },
-  { menu_key: 'admin-reports', label: 'Reports', icon: 'bar-chart', route_path: null, parent_id: null, sort_order: 50, role_id: 2,
-    children: [
-      { menu_key: 'admin-meeting-reports', label: 'Meeting Reports', icon: null, route_path: '/admin/reports/meetings', parent_id: 'admin-reports', sort_order: 1, role_id: 2 },
-      { menu_key: 'admin-evaluation-reports', label: 'Evaluation Reports', icon: null, route_path: '/admin/reports/evaluations', parent_id: 'admin-reports', sort_order: 2, role_id: 2 },
-      { menu_key: 'admin-team-reports', label: 'Team Reports', icon: null, route_path: '/admin/reports/teams', parent_id: 'admin-reports', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-audit-reports', label: 'Audit Reports', icon: null, route_path: '/admin/reports/audits', parent_id: 'admin-reports', sort_order: 4, role_id: 2 }
-    ]
-  },
-  { menu_key: 'admin-session-quality', label: 'Session Quality', icon: 'check-circle', route_path: null, parent_id: null, sort_order: 60, role_id: 2,
-    children: [
-      { menu_key: 'admin-sq-hub', label: 'SQ Hub', icon: null, route_path: '/admin/session-quality/index', parent_id: 'admin-session-quality', sort_order: 1, role_id: 2 },
-      { menu_key: 'admin-sq-rubric', label: 'SQ Rubric', icon: null, route_path: '/admin/session-quality/rubric', parent_id: 'admin-session-quality', sort_order: 2, role_id: 2 },
-      { menu_key: 'admin-sq-analysis', label: 'SQ Analysis', icon: null, route_path: '/admin/session-quality/analysis', parent_id: 'admin-session-quality', sort_order: 3, role_id: 2 },
-      { menu_key: 'admin-sq-impact', label: 'SQ Impact', icon: null, route_path: '/admin/session-quality/impact', parent_id: 'admin-session-quality', sort_order: 4, role_id: 2 },
-      { menu_key: 'admin-sq-parent-summary', label: 'SQ Parent Summary', icon: null, route_path: '/admin/session-quality/parent-summary', parent_id: 'admin-session-quality', sort_order: 5, role_id: 2 },
-      { menu_key: 'admin-sq-coaching', label: 'SQ Coaching', icon: null, route_path: '/admin/session-quality/coaching', parent_id: 'admin-session-quality', sort_order: 6, role_id: 2 },
-      { menu_key: 'admin-sq-better-alt', label: 'SQ Better Alternatives', icon: null, route_path: '/admin/session-quality/better-alternatives', parent_id: 'admin-session-quality', sort_order: 7, role_id: 2 },
-      { menu_key: 'admin-sq-next-plan', label: 'SQ Next Plan', icon: null, route_path: '/admin/session-quality/next-plan', parent_id: 'admin-session-quality', sort_order: 8, role_id: 2 },
-      { menu_key: 'admin-sq-flags', label: 'SQ Flags', icon: null, route_path: '/admin/session-quality/flags', parent_id: 'admin-session-quality', sort_order: 9, role_id: 2 },
-      { menu_key: 'admin-sq-final-eval', label: 'SQ Final Evaluation', icon: null, route_path: '/admin/session-quality/final-eval', parent_id: 'admin-session-quality', sort_order: 10, role_id: 2 }
     ]
   },
   { menu_key: 'admin-settings', label: 'Settings', icon: 'settings', route_path: null, parent_id: null, sort_order: 70, role_id: 2,
@@ -142,7 +108,15 @@ const MENU_ITEMS = [
   { menu_key: 'reviewer-score', label: 'Score', icon: 'bar-chart', route_path: '/reviewer/score', parent_id: null, sort_order: 5, role_id: 4 },
   { menu_key: 'reviewer-analytics', label: 'Analytics', icon: 'activity', route_path: '/reviewer/analytics', parent_id: null, sort_order: 6, role_id: 4 },
   { menu_key: 'reviewer-profile', label: 'Profile', icon: 'user', route_path: '/reviewer/profile', parent_id: null, sort_order: 7, role_id: 4 },
-  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 4 }
+  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 4 },
+
+  // ========== Student (role_id = 6) ==========
+  // NOTE: role_id 5 is solo_instructor, which (like here) has no dedicated
+  // entries in this seeder yet — see 008_header_role_configs.js note.
+  { menu_key: 'student-dashboard', label: 'Dashboard', icon: 'grid', route_path: '/student/dashboard', parent_id: null, sort_order: 1, role_id: 6 },
+  { menu_key: 'student-report', label: 'Reports', icon: 'bar-chart', route_path: '/student/reports', parent_id: null, sort_order: 2, role_id: 6 },
+  { menu_key: 'student-profile', label: 'Profile', icon: 'user', route_path: '/student/profile', parent_id: null, sort_order: 3, role_id: 6 },
+  { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 6 }
 ];
 
 const seedMenuItems = async () => {

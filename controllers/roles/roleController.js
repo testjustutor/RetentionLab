@@ -25,7 +25,11 @@ const roleController = {
   async list(req) {
     try {
       let rows = await RolesModel.getAllRoles();
-      // Filter out restricted roles for non-super_admin users
+      // Filter out restricted roles for non-super_admin users. Kept in sync
+      // with the creation rule in usersController.create/update ("Admin may
+      // create reviewer, instructor and student accounts") — only
+      // super_admin, solo_instructor and admin stay hidden from an admin's
+      // own role dropdown; 'student' is allowed through.
       if (req.user && req.user.role_name !== 'super_admin') {
         rows = rows.filter(r => !['super_admin', 'solo_instructor', 'admin'].includes(r.role_name));
       }

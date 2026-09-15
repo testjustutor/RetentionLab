@@ -4,27 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="dashboard-role" content="reviewer">
-  <title>Reviewer â€” Dashboard</title>
+  <title>Reviewer — Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../css/shared.css">
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-100 antialiased">
   <div class="mx-auto p-4">    <div id="header-placeholder"></div>
 <section class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div class="card">
-        <h2 class="text-lg font-semibold mb-2">Reviewer</h2>
+      <div class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+        <h2 class="text-[13px] font-bold uppercase tracking-wide text-blue-900 mb-2">Reviewer</h2>
         <dl class="info-dl">
-          <div><dt class="text-[12px]">Name</dt><dd id="userName" class="text-xs">â€”</dd></div>
-          <div><dt class="text-[12px]">Email</dt><dd id="userEmail" class="text-xs">â€”</dd></div>
-          <div><dt class="text-[12px]">Role</dt><dd id="userRole" class="text-xs">â€”</dd></div>
+          <div><dt class="text-[12px] font-semibold text-blue-800">Name</dt><dd id="userName" class="text-xs font-bold text-blue-950">—</dd></div>
+          <div><dt class="text-[12px] font-semibold text-blue-800">Email</dt><dd id="userEmail" class="text-xs font-bold text-blue-950">—</dd></div>
+          <div><dt class="text-[12px] font-semibold text-blue-800">Role</dt><dd id="userRole" class="text-xs font-bold text-blue-950">—</dd></div>
         </dl>
       </div>
 
-      <div class="card">
-        <h2 class="text-lg font-semibold mb-2">Actions</h2>
+      <div class="bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-lg p-3 shadow-md">
+        <h2 class="text-[13px] font-bold uppercase tracking-wide text-violet-900 mb-2">Actions</h2>
         <div class="flex flex-col gap-2">
-          <a href="/reviewer/score" class="link-button-secondary block rounded-lg px-3 py-2 text-xs">Review Scores</a>
-          <a href="/archives" class="link-button-secondary block rounded-lg px-3 py-2 text-xs">Archives</a>
+          <a href="/reviewer/score" class="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition">Review Scores</a>
+          <a href="/archives" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition">Archives</a>
         </div>
       </div>
     </section>

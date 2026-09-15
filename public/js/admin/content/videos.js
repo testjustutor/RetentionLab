@@ -1,6 +1,5 @@
 /**
  * public/js/admin/content/videos.js
- * Frontend logic for video recordings page - uses common components
  */
 
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
@@ -203,4 +202,3 @@ loadInstructors();
 
 // Auto-load data on page load
 setTimeout(function() { loadVideos(); }, 500);
-

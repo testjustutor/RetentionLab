@@ -15,7 +15,8 @@ const seedRoles = async () => {
         { role_name: 'admin', display_name: 'Admin', description: 'Company-level administrator' },
         { role_name: 'instructor', display_name: 'Instructor', description: 'Instructor or tutor being reviewed' },
         { role_name: 'reviewer', display_name: 'Reviewer', description: 'Meeting reviewer' },
-        { role_name: 'solo_instructor', display_name: 'Solo Instructor', description: 'Self-registered individual instructor with their own workspace' }
+        { role_name: 'solo_instructor', display_name: 'Solo Instructor', description: 'Self-registered individual instructor with their own workspace' },
+        { role_name: 'student', display_name: 'Student', description: 'Learner who attends sessions and tracks their learning progress' }
     ];
 
     for (const role of rolesToSeed) {

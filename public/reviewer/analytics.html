@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="dark">
 <head><link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta charset="UTF-8">
@@ -13,19 +13,133 @@
   <div class="flex-1 flex flex-col overflow-hidden">
     <div id="header-placeholder"></div>
     <div class="flex-1 overflow-x-hidden overflow-y-auto p-4 bg-slate-950">
-      <div class="flex-1 overflow-auto custom-scrollbar relative">
-        <div class="p-4">
- <h1 class="text-xl font-bold mb-3">Review Analytics</h1>
-          <p class="text-slate-400 text-xs mb-4">Track reviewer activity and review quality.</p>
-          <div class="bg-slate-800/50 border border-slate-700/50 rounded-md p-3">
-            <p class="text-slate-400 text-xs">No analytics data available</p>
+      <div class="max-w-7xl mx-auto space-y-4">
+
+        <!-- Filters: date -> meeting -> session -> Get Data -->
+        <section class="bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-lg p-3 shadow-md">
+          <div class="flex flex-wrap items-end gap-3">
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="fromDate">From Date</label>
+              <input id="fromDate" type="date" class="input-field w-44">
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="toDate">To Date</label>
+              <input id="toDate" type="date" class="input-field w-44">
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="meetingFilter">Meeting ID</label>
+              <select id="meetingFilter" class="input-field w-52">
+                <option value="">All Meetings</option>
+              </select>
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-blue-900 text-xs font-semibold" for="sessionFilter">Session ID</label>
+              <select id="sessionFilter" class="input-field w-44">
+                <option value="">All Sessions</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="getDataBtn" class="rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition">Get Data</button>
+              <button id="resetBtn" type="button" class="rounded-lg bg-slate-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-500 transition">Reset</button>
+            </div>
           </div>
+          <div id="filterStatus" class="mt-2 text-xs text-blue-900"></div>
+        </section>
+
+        <!-- Compact summary bar -->
+        <div id="summaryBar" class="hidden bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md px-3 py-2">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-blue-700 uppercase tracking-wide">Total Reviews</span>
+              <span id="kpiTotal" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-amber-700 uppercase tracking-wide">Pending</span>
+              <span id="kpiPending" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-violet-700 uppercase tracking-wide">In Progress</span>
+              <span id="kpiActive" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-emerald-700 uppercase tracking-wide">Completed</span>
+              <span id="kpiCompleted" class="font-bold text-slate-900">0</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="font-bold text-emerald-700 uppercase tracking-wide">Avg Score</span>
+              <span id="kpiAvgScore" class="font-bold text-slate-900">0</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Detail cards -->
+        <div id="detailCards" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-3">
+
+          <!-- Status distribution -->
+          <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+            <div class="px-3 py-2 bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-400 rounded-t-lg">
+              <h3 class="text-[12px] font-bold text-blue-900 uppercase tracking-wide">Review Status</h3>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+              <table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0">
+                  <tr class="border-b-2 border-blue-300 bg-blue-200">
+                    <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase tracking-wider">Status</th>
+                    <th class="py-2 px-2 text-[10px] font-bold text-blue-950 uppercase tracking-wider text-right">Count</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-blue-200" id="statusBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Scores -->
+          <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+            <div class="px-3 py-2 bg-gradient-to-br from-violet-50 to-purple-100 border-2 border-violet-400 rounded-t-lg">
+              <h3 class="text-[12px] font-bold text-violet-900 uppercase tracking-wide">Session Scores</h3>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+              <table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0">
+                  <tr class="border-b-2 border-violet-300 bg-violet-200">
+                    <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase tracking-wider">Metric</th>
+                    <th class="py-2 px-2 text-[10px] font-bold text-violet-950 uppercase tracking-wider text-right">Value</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-violet-200" id="scoresBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Evaluations -->
+          <div class="bg-slate-900/60 backdrop-blur-md rounded-lg border border-slate-800/80 shadow-md overflow-hidden">
+            <div class="px-3 py-2 bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-400 rounded-t-lg">
+              <h3 class="text-[12px] font-bold text-emerald-900 uppercase tracking-wide">Evaluations</h3>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto max-h-64 custom-scrollbar">
+              <table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0">
+                  <tr class="border-b-2 border-emerald-300 bg-emerald-200">
+                    <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase tracking-wider">Metric</th>
+                    <th class="py-2 px-2 text-[10px] font-bold text-emerald-950 uppercase tracking-wider text-right">Value</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-emerald-200" id="evalsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="noData" class="hidden bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-400 rounded-lg p-4 shadow-md">
+          <h3 class="text-[12px] font-bold text-amber-900 uppercase tracking-wide">No analytics data</h3>
+          <p class="text-amber-800 text-xs mt-1">No review activity matches the selected filters. Adjust filters and click <strong>Get Data</strong>.</p>
         </div>
       </div>
     </div>
   </div>
+
   <script type="module" src="/js/auth.js"></script>
   <script src="../js/load-components.js"></script>
+  <script src="../js/reviewer/analytics.js"></script>
 </body>
 </html>
-

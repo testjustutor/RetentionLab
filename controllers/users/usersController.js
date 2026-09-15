@@ -75,12 +75,15 @@ const userController = {
       const data = req.body;
       if (!data.email) return err('Email is required', 400);
 
-      // Validate role access
+      // Validate role access. Kept in sync with the same rule enforced again
+      // (defense in depth) in UsersModel.createUser(): admin may create
+      // reviewer, instructor and student accounts — only super_admin can
+      // create admin/super_admin/solo_instructor accounts.
       if (data.role_id) {
         const role = await RolesModel.getRoleById(data.role_id);
         if (!role) return err('Role not found', 400);
-        if (req.user.role_name === 'admin' && !['reviewer', 'instructor'].includes(role.role_name)) {
-          return err('Admin may only create reviewer and instructor accounts', 403);
+        if (req.user.role_name === 'admin' && !['reviewer', 'instructor', 'student'].includes(role.role_name)) {
+          return err('Admin may only create reviewer, instructor and student accounts', 403);
         }
       }
 
@@ -122,12 +125,13 @@ const userController = {
 
       if (!Object.keys(changes).length) return err('No fields to update', 400);
 
-      // Validate role if being changed
+      // Validate role if being changed. Kept in sync with the create() rule
+      // above and with UsersModel.createUser()'s own check.
       if (changes.role_id) {
         const role = await RolesModel.getRoleById(changes.role_id);
         if (!role) return err('Role not found', 400);
-        if (req.user.role_name === 'admin' && !['reviewer', 'instructor'].includes(role.role_name)) {
-          return err('Admin may only assign reviewer and instructor roles', 403);
+        if (req.user.role_name === 'admin' && !['reviewer', 'instructor', 'student'].includes(role.role_name)) {
+          return err('Admin may only assign reviewer, instructor and student roles', 403);
         }
       }
 

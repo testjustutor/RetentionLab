@@ -1,6 +1,7 @@
 /**
- * root/public/js/assets.bundle.js
-*/
+ * public/js/super_admin/content/assets.bundle.js
+ */
+
 document.addEventListener('DOMContentLoaded', () => {
     // Select first folder by default
     const firstBtn = document.querySelector('.sidebar-btn');

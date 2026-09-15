@@ -56,6 +56,13 @@ class MediaService:
             validated
         )
 
+        # NOTE: "audio_path" is the CANONICAL recording (storage/recordings/REC_...)
+        # - this is what gets persisted to meeting_assets.audio_path, so it must
+        # stay the original recording, not the extracted cache file. The
+        # normalized/mono 16kHz WAV that Whisper actually needs is returned
+        # separately as "wav_audio_path" (an internal cache artifact only -
+        # there is no DB column for it).
         return {
-            "audio_path": wav_audio
+            "audio_path": validated,
+            "wav_audio_path": wav_audio
         }

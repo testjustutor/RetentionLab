@@ -9,6 +9,14 @@ const UsersModel = require('../../models/users/UsersModel');
 const { signToken, JWT_EXPIRES_MS, verifyToken } = require('../../middleware/auth');
 const { sendMail } = require('../../utils/mailer');
 const { logger } = require('../../utils/logger');
+// FIX: users.email_verified_at / password_reset_expires_at /
+// email_verification_expires_at are DATETIME columns that sit next to
+// created_at/updated_at (CURRENT_TIMESTAMP, local server time). Writing
+// a raw `.toISOString()` (UTC) string into them stores the wrong wall-clock
+// value and shifts expiry checks by the server's UTC offset - see
+// utils/dateFormat.js for the full explanation. Use toMySQLLocalDateTime()
+// for every value bound into one of these columns.
+const { toMySQLLocalDateTime } = require('../../utils/dateFormat');
 
 // Response helpers
 function sendResponse(res, result) {
@@ -81,10 +89,10 @@ const authController = {
 
       const created = await AuthModel.register({ email: normalizedEmail, password, first_name, last_name, company_name });
       const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const expiresAt = toMySQLLocalDateTime(new Date(Date.now() + 24 * 60 * 60 * 1000));
       const verificationData = process.env.SMTP_HOST
         ? { email_verification_token: token, email_verification_expires_at: expiresAt, email_verified: 0, email_verified_at: null }
-        : { email_verified: 1, email_verified_at: new Date().toISOString() };
+        : { email_verified: 1, email_verified_at: toMySQLLocalDateTime(new Date()) };
 
       await UsersModel.updateUser(created.id, verificationData);
       const user = await UsersModel.getUserById(created.id);
@@ -142,7 +150,7 @@ const authController = {
       const user = await UsersModel.getUserByEmail(normalizedEmail);
       if (!user) { logger.info(`Password reset requested for non-existent email: ${normalizedEmail}`); return sendResponse(res, success({}, 'If an account exists, a reset email will be sent', 200)); }
       const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const expiresAt = toMySQLLocalDateTime(new Date(Date.now() + 60 * 60 * 1000));
       await UsersModel.updateUser(user.id, { password_reset_token: token, password_reset_expires_at: expiresAt });
       await sendResetEmail({ ...user, password_reset_token: token }, req);
       logger.info(`Password reset email sent to: ${normalizedEmail}`);
@@ -165,7 +173,7 @@ const authController = {
       if (!user.password_reset_expires_at || new Date(user.password_reset_expires_at).getTime() < Date.now()) return sendResponse(res, failure('Password reset token expired', 400));
 
       const password_hash = AuthModel.hashPassword(password);
-      await UsersModel.updateUser(user.id, { password_hash, password_reset_token: null, password_reset_expires_at: null, email_verified: 1, email_verified_at: new Date().toISOString() });
+      await UsersModel.updateUser(user.id, { password_hash, password_reset_token: null, password_reset_expires_at: null, email_verified: 1, email_verified_at: toMySQLLocalDateTime(new Date()) });
       const updatedUser = await UsersModel.getUserById(user.id);
       const jwtToken = signToken(updatedUser);
       const isSecure = process.env.NODE_ENV === 'production';
@@ -185,7 +193,7 @@ const authController = {
       const user = await UsersModel.findByEmailVerificationToken(token);
       if (!user) return sendResponse(res, failure('Invalid email verification token', 400));
       if (!user.email_verification_expires_at || new Date(user.email_verification_expires_at).getTime() < Date.now()) return sendResponse(res, failure('Email verification token expired', 400));
-      await UsersModel.updateUser(user.id, { email_verified: 1, email_verified_at: new Date().toISOString(), email_verification_token: null, email_verification_expires_at: null });
+      await UsersModel.updateUser(user.id, { email_verified: 1, email_verified_at: toMySQLLocalDateTime(new Date()), email_verification_token: null, email_verification_expires_at: null });
       logger.info(`Email verified for user: ${user.email}`);
       return sendResponse(res, success({}, 'Email verified successfully', 200));
     } catch (err) {

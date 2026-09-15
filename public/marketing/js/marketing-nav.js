@@ -1,21 +1,6 @@
 /**
- * RetentionLab - Marketing Navigation & Footer
- * ===========================================
- * 
- * Dynamic injection of navigation bar and footer with
- * Replit-inspired design and smooth animations.
- * 
- * Features:
- * - Animated logo with gradient
- * - Smooth hover effects
- * - Mobile-responsive hamburger menu
- * - Active page highlighting
- * - CTA buttons for login/register
+ * public/marketing/js/marketing-nav.js
  */
-
-// ==========================================
-// INITIALIZATION
-// ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
   try {

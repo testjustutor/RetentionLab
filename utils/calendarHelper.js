@@ -154,7 +154,7 @@ class CalendarHelper {
   /**
    * Store meeting from calendar event into database
    */
-  static async storeMeetingFromEvent(e, email, platformType, link) {
+  static async storeMeetingFromEvent(e, email, platformType, link, calendarAccountId = null) {
     const meetingId = null;
     const { meetingId: extractedId, passcode } = CalendarHelper.extractMeetingId(
       link, platformType, e.description || '', e.location || ''
@@ -162,12 +162,29 @@ class CalendarHelper {
 
     if (extractedId && extractedId !== 'unknown' && extractedId !== 'null') {
       const MeetingModel = require('../models/meetings/MeetingModel');
+
+      // Map the calendar account email to the internal users.id so that
+      // meetings.calendar_account_id is populated exactly like the manual
+      // /api/admin/meeting-schedule/sync path. Callers that already know the
+      // user id (e.g. the background auto-sync) pass it in directly.
+      let resolvedAccountId = calendarAccountId || null;
+      if (!resolvedAccountId && email) {
+        try {
+          const UsersModel = require('../models/users/UsersModel');
+          const userRow = await UsersModel.getUserByEmail(email);
+          resolvedAccountId = userRow ? userRow.id : null;
+        } catch (resolveErr) {
+          resolvedAccountId = null;
+        }
+      }
+
       await MeetingModel.getMeetingByIdOrCreate({
         meetingId: extractedId,
         platform: platformType,
         eventId: e.id,
         passcode: passcode,
         account: email,
+        calendarAccountId: resolvedAccountId,
         meetingLink: link,
         scheduled_start_time: e.start.dateTime || e.start.date,
         scheduled_end_time: e.end.dateTime || e.end.date,

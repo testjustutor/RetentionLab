@@ -1,8 +1,5 @@
 /**
- * root/public/js/user-profile-cache.js
- * 
- * Unified session cache management.
- * Provides get/set/clear for the user profile stored in sessionStorage.
+ * public/js/user-profile-cache.js
  */
 
 const CACHE_KEY = 'cached_user';

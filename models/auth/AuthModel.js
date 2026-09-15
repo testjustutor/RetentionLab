@@ -97,4 +97,9 @@ class AuthModel {
 }
 
 AuthModel.hashPassword = hashPassword;
+// NOTE: previously only hashPassword was attached here even though authenticate()
+// uses a local verifyPassword() internally — any external caller doing
+// AuthModel.verifyPassword(...) (e.g. a profile "change password" controller)
+// would hit `undefined is not a function`. Exporting it fixes that.
+AuthModel.verifyPassword = verifyPassword;
 module.exports = AuthModel;

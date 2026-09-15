@@ -15,7 +15,7 @@ function handle(fn) {
 }
 
 router.get('/instructors', handle(ctrl.getInstructors));
-router.get('/summary', handle(ctrl.getSummary));
+router.post('/summary', handle(ctrl.getSummary));
 router.get('/session/:sessionId', handle(ctrl.getSessionReport));
 
 module.exports = router;

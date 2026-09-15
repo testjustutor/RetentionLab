@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/reactiveJoinFlow.js
+ * services/platforms/zoom/reactiveJoinFlow.js
  *
  */
 const path = require('path');

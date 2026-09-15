@@ -1,4 +1,4 @@
-# root/services/engine/task/summary/summary_task.py
+# services/engine/task/summary_task.py
 
 from utils.logger_util import log_with_type
 
@@ -22,6 +22,29 @@ def run_summary_task(context):
     log_with_type("info", "Engine(task > summary > summary_task) : Summary task started", "TASK")
 
     try:
+
+        # Pre-audit transcript validation found nothing worth processing -
+        # skip summary generation/file write entirely rather than summarizing
+        # an empty or single-speaker-only transcript.
+        if getattr(context, "processing_skipped", False):
+
+            log_with_type(
+                "info",
+                f"Engine(task > summary > summary_task) : Skipping summary generation reason={context.skip_reason}",
+                "TASK",
+            )
+
+            context.summary_data = {
+                "summary": "",
+                "key_points": [],
+                "action_items": []
+            }
+
+            context.mark_task_completed("summary")
+
+            log_with_type("info", "Engine(task > summary > summary_task) : Summary task skipped (transcript validation)", "TASK")
+
+            return
 
         service = SummaryService()
 
@@ -79,7 +102,9 @@ def run_summary_task(context):
 
         log_with_type("info", "Engine(task > summary > summary_task) : Summary task completed", "TASK")
 
-    except Exception:
+    # FIX: was `except Exception:` with `str(e)` in the log line below -
+    # `e` was never bound, masking the real summary-generation failure.
+    except Exception as e:
 
         context.mark_task_failed(
             "summary"

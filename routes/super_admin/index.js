@@ -36,8 +36,16 @@ const botConfig = require('./settings/bot-configuration');
 const platformsConfig = require('./settings/platforms');
 const aiproviders = require('./settings/ai-providers');
 const userdefaults = require('./settings/user-defaults');
-const videoprocessing = require('./settings/video-processing');
-const deepgramprocessing = require('./settings/deepgram-processing');
+const videoprocessing = require('./content/video-processing');
+// deepgramprocessing DISABLED — routes/super_admin/content/deepgram-processing.js,
+// its controller, and its model were deleted (see chat). Requiring a path that no
+// longer exists throws synchronously and crashes the ENTIRE super_admin router,
+// not just this feature, so this require + its mount below are commented out as
+// an immediate stopgap. The "AI Transcript" button on Video Processing calls
+// POST /api/super_admin/content/deepgram-processing/process, which will 404 (its
+// frontend catch handles that as a normal failed-request toast) until this
+// feature is restored or rebuilt.
+// const deepgramprocessing = require('./content/deepgram-processing');
 const tablecontrols = require('./settings/table-controls');
 const monitoringserver = require('./monitoring/server');
 const monitoringaudit = require('./monitoring/audit');
@@ -150,8 +158,8 @@ router.use('/settings/user-defaults', requireAuth, requireSuperAdmin, userdefaul
 
 // ── Settings (video-processing page) - Video to audio processing ─────────────
 // GET /, POST /process, GET /history
-router.use('/settings/video-processing', requireAuth, requireSuperAdmin, videoprocessing);
-router.use('/settings/deepgram-processing', requireAuth, requireSuperAdmin, deepgramprocessing);
+router.use('/content/video-processing', requireAuth, requireSuperAdmin, videoprocessing);
+// router.use('/content/deepgram-processing', requireAuth, requireSuperAdmin, deepgramprocessing); // DISABLED — see require() comment above.
 
 // ── Settings (table-controls page) - Table Controls (list + update) ───────────
 // GET /, GET /:tableId, PUT/POST /:tableId

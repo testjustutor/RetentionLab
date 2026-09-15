@@ -1,15 +1,9 @@
 /**
- * root/routes/reviewer-dashboard.js
- * Dashboard API for reviewers
+ * DEPRECATED: was mounted at /api/reviewer-dashboard; moved to routes/reviewer/dashboard.js (now /api/reviewer/dashboard).
+ * This functionality was migrated to the dedicated per-role MVC folder structure
+ * (see routes/registry.js). The old URL for this file is no longer mounted anywhere,
+ * so this file is unreachable from any request. It is kept only as a thin re-export
+ * shim (rather than deleted) pointing at its new location, so nothing breaks if
+ * something still requires this old path directly.
  */
-const express = require('express');
-const router = express.Router();
-const { requireAuth, requireRole } = require('../middleware/auth');
-const reviewerDashboardController = require('../controllers/reviewer-dashboard/reviewerDashboardController');
-
-router.get('/stats', requireAuth, requireRole('reviewer'), reviewerDashboardController.getStats);
-router.get('/recent-assignments', requireAuth, requireRole('reviewer'), reviewerDashboardController.getRecentAssignments);
-router.get('/overdue', requireAuth, requireRole('reviewer'), reviewerDashboardController.getOverdue);
-router.get('/performance', requireAuth, requireRole('reviewer'), reviewerDashboardController.getPerformance);
-
-module.exports = router;
+module.exports = require('./reviewer/dashboard');

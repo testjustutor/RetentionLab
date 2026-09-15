@@ -10,7 +10,19 @@
 # lightweight `webrtcvad.py` stub that lives in the Python site-packages, or
 # install Resemblyzer with:  python -m pip install --no-deps resemblyzer
 
+
 # ---- Python Core Libraries -------------------------------------------------
+winget source reset --force
+winget source update 
+winget install Python.Python.3.11
+py --list
+py -3.11 -m venv .venv311 
+.\.venv311\Scripts\Activate.ps1  || .\.venv311\Scripts\activate.bat
+python -m pip install --upgrade pip setuptools wheel  
+python -m pip install resemblyzer 
+python -m pip install webrtcvad-wheels
+python -m pip install resemblyzer --no-deps
+python -m pip install librosa numpy torch scipy typing
 python -m pip install -U openai-whisper
 python -m pip install -U openai
 python -m pip install mysql-connector-python
@@ -19,4 +31,14 @@ python -m pip install -U moviepy
 python -m pip install -U soundfile
 python -m pip install -U deepgram-sdk
 python -m pip install noisereduce
-python -m pip install resemblyzer
+
+# spaCy: local/offline NLP used for BOTH:
+#   1) NER fallback in services/python_deepgram/name_detector.py (detect the
+#      student's real name from the transcript - no LLM/API calls - regex cues
+#      are tried first, spaCy PERSON-entity recognition is the fallback).
+#   2) Local extractive meeting summary in services/engine/services/summary_worker.py
+#      (150-250 word summary generated offline - no LLM/API calls).
+# The model download (en_core_web_sm) is a ONE-TIME install; afterwards it all
+# runs fully offline from the local site-packages copy.
+python -m pip install -U spacy
+python -m spacy download en_core_web_sm

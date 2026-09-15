@@ -1,6 +1,5 @@
 /**
- * root/public/js/super_admin/people/add-user.js
- * Admin Management - Super Admin
+ * public/js/super_admin/people/add-user.js
  */
 
 let adminRoleId = null;

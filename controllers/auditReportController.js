@@ -27,20 +27,23 @@ const controller = {
       // 3) Build audit entries from both sources
       const audits = [];
 
-      // From ai_audit_results
+      // From ai_audit_results (new status_code schema:
+      //   1=Met, 2=Not Met, 3=N/A(excluded))
       auditResults.forEach(r => {
-        const score = r.ai_score || 0;
-        const maxScore = r.ai_max_score || 5;
-        const pct = maxScore > 0 ? (score / maxScore * 100) : 0;
+        const sc = Number(r.status_code);
+        const isMet = sc === 1;
+        const isNotMet = sc === 2;
+        const rating = isMet ? 'Met' : (isNotMet ? 'Not Met' : 'N/A');
+        const evidence = r.ai_evidence || r.reason || '';
         audits.push({
           id: `audit-${r.id}`,
           type: 'accuracy',
           category: r.category_id || 'General',
           description: `AI Audit for ${r.meeting_title || 'meeting'}`,
-          findings: `Score: ${score}/${maxScore} (${pct.toFixed(0)}%) - ${r.evidence_quote ? r.evidence_quote.substring(0, 100) : 'No evidence'}`,
-          score: (score / Math.max(maxScore, 1) * 5).toFixed(1),
-          maxScore: '5',
-          status: pct >= 70 ? 'pass' : 'fail',
+          findings: `Outcome: ${rating}${evidence ? ` - ${evidence.substring(0, 100)}` : ''}`,
+          score: isMet ? '5' : isNotMet ? '0' : '3',
+          maxScore: isMet ? '5' : isNotMet ? '5' : '3',
+          status: isMet ? 'pass' : 'fail',
           date: r.scored_at || r.meeting_date
         });
       });

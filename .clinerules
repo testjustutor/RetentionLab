@@ -4,6 +4,7 @@ Build reliable, secure, and maintainable software with clean, readable, producti
 Development Rules:
 
 ### Highest Priority (Must Always Follow)
+- Do not search in those folder which define in .gitignore file
 - Always understand the existing codebase before making any changes.
 - Always create a `TODO.md` file before starting any task and update it after each completed task using checkboxes (`[ ]` / `[x]`).
 - Work on one task at a time. Implement, verify, and test in small, manageable chunks. Do not perform large changes or testing in a single step.

@@ -1,7 +1,10 @@
-// Fetch dashboard stats
+/**
+ * public/js/reviewer/dashboard.js
+ */
+
 async function loadDashboardData() {
   try {
-    const res = await fetch('/api/reviewer-dashboard/stats', {
+    const res = await fetch('/api/reviewer/dashboard/stats', {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -20,7 +23,7 @@ async function loadDashboardData() {
 // Fetch recent assignments
 async function loadRecentAssignments() {
   try {
-    const res = await fetch('/api/reviewer-dashboard/recent-assignments?limit=5', {
+    const res = await fetch('/api/reviewer/dashboard/recent-assignments?limit=5', {
       credentials: 'include'
     });
     if (!res.ok) throw new Error('Failed');
@@ -33,12 +36,12 @@ async function loadRecentAssignments() {
     }
     
     container.innerHTML = data.map(a => `
-      <div class="flex items-center justify-between py-1.5 border-b border-slate-700/50 last:border-0">
+      <div class="flex items-center justify-between py-1.5 border-b border-emerald-200 last:border-0">
         <div class="min-w-0">
-          <p class="text-white text-xs font-medium truncate">${a.meeting_title || 'Untitled Meeting'}</p>
-          <p class="text-[10px] text-slate-500">${new Date(a.assigned_at).toLocaleDateString()}</p>
+          <p class="text-emerald-950 text-xs font-bold truncate">${a.meeting_title || 'Untitled Meeting'}</p>
+          <p class="text-[10px] text-emerald-800">${new Date(a.assigned_at).toLocaleDateString()}</p>
         </div>
-        <span class="text-[10px] px-1.5 py-0.5 rounded ml-2 flex-shrink-0 ${a.review_status === 'completed' ? 'bg-emerald-900/50 text-emerald-400' : a.review_status === 'in_progress' ? 'bg-amber-900/50 text-amber-800' : 'bg-slate-700/50 text-slate-400'}">${a.review_status}</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded ml-2 flex-shrink-0 ${a.review_status === 'completed' ? 'bg-emerald-600 text-white' : a.review_status === 'in_progress' ? 'bg-amber-500 text-white' : 'bg-emerald-200 text-emerald-900'}">${a.review_status}</span>
       </div>
     `).join('');
   } catch (err) {
@@ -49,7 +52,7 @@ async function loadRecentAssignments() {
 // Fetch overdue reviews
 async function loadOverdueReviews() {
   try {
-    const res = await fetch('/api/reviewer-dashboard/overdue', {
+    const res = await fetch('/api/reviewer/dashboard/overdue', {
       credentials: 'include'
     });
     if (!res.ok) throw new Error('Failed');
@@ -62,12 +65,12 @@ async function loadOverdueReviews() {
     }
     
     container.innerHTML = data.map(r => `
-      <div class="flex items-center justify-between py-1.5 border-b border-slate-700/50 last:border-0">
+      <div class="flex items-center justify-between py-1.5 border-b border-rose-200 last:border-0">
         <div class="min-w-0">
-          <p class="text-white text-xs font-medium truncate">${r.meeting_title || 'Untitled Meeting'}</p>
-          <p class="text-[10px] text-slate-500">Assigned: ${new Date(r.assigned_at).toLocaleDateString()}</p>
+          <p class="text-rose-950 text-xs font-bold truncate">${r.meeting_title || 'Untitled Meeting'}</p>
+          <p class="text-[10px] text-rose-800">Assigned: ${new Date(r.assigned_at).toLocaleDateString()}</p>
         </div>
-        <span class="text-[10px] text-red-400 ml-2 flex-shrink-0">⚠ Overdue</span>
+        <span class="text-[10px] text-rose-700 ml-2 flex-shrink-0">⚠ Overdue</span>
       </div>
     `).join('');
   } catch (err) {

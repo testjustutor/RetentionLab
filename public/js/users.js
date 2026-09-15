@@ -1,7 +1,7 @@
 /**
- * root/public/js/users.js
-*/
-// Frontend helpers for user management
+ * public/js/users.js
+ */
+
 import AuthAPI from './auth.js';
 
 const UsersAPI = {

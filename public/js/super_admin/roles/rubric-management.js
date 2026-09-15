@@ -1,3 +1,7 @@
+/**
+ * public/js/super_admin/roles/rubric-management.js
+ */
+
 let currentCategories = [];
 let currentIndicators = [];
 let currentAdmins = [];

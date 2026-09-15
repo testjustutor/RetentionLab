@@ -1,9 +1,42 @@
+/**
+ * public/js/admin/content/recordings.js
+ */
+
 var PLAT = { 'google-meet':'Google Meet','zoom':'Zoom','teams':'Teams' };
 var allRecordings = [];
 var recordingsTable = null;
 
 function fmtTime(iso){if(!iso)return'--';var d=new Date(iso);return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 function fmtDuration(s,e){if(!s||!e)return'--';var m=Math.round((new Date(e)-new Date(s))/60000);if(m<60)return m+'m';var h=Math.floor(m/60);m=m%60;return h+'h'+(m>0?' '+m+'m':'');}
+
+// Map a file extension (from the audio URL) to a proper MIME type for the
+// <source type="..."> attribute. Previously this was hardcoded to
+// "audio/wav" regardless of the actual file extension, which can cause
+// browsers to refuse playback of non-wav files (e.g. .mp3).
+function getAudioMimeType(url) {
+  var ext = (String(url).split('.').pop() || '').toLowerCase().split('?')[0];
+  switch (ext) {
+    case 'mp3': return 'audio/mpeg';
+    case 'wav': return 'audio/wav';
+    case 'ogg': return 'audio/ogg';
+    case 'm4a': return 'audio/mp4';
+    case 'aac': return 'audio/aac';
+    case 'flac': return 'audio/flac';
+    default: return 'audio/mpeg';
+  }
+}
+
+// Normalizes an audio URL coming back from the API so the browser resolves
+// it against the site root instead of the current page path. Without this,
+// a relative path like "storage/recordings/foo.mp3" gets resolved against
+// whatever page you're on (e.g. /admin/content/...), producing a broken
+// URL such as /admin/content/storage/recordings/foo.mp3 -> 404.
+function normalizeAudioUrl(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url; // already absolute (has protocol)
+  if (url.startsWith('/')) return url; // already root-relative
+  return '/' + url.replace(/^\.?\/+/, ''); // strip leading "./" or "/" then re-root
+}
 
 function getFilterParams() {
   const fromDate = document.getElementById('filterFromDate')?.value || '';
@@ -123,21 +156,58 @@ function applySearchFilter() {
           var cls = value === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-800 border-amber-500/20';
           return '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ' + cls + '">' + (value || 'unknown') + '</span>';
         }},
-        { label: 'Play', key: 'has_recording', render: function(value, row) {
-          const audioUrl = row.play_url || row.audio_url;
-          return value && audioUrl 
-            ? '<audio controls preload="none" class="h-6 w-32"><source src="' + audioUrl + '" type="audio/wav"></audio>'
-            : '<span class="text-[10px] text-slate-600">--</span>';
-        }}
+        {
+          label: 'Play',
+          key: 'has_recording',
+          // Fixed: the <source type="..."> was hardcoded to "audio/wav"
+          // regardless of the actual file extension (e.g. .mp3), which can
+          // cause some browsers to refuse playback even when the file
+          // itself loads. MIME type is now derived from the URL's
+          // extension, the URL is normalized to be root-relative (fixes
+          // 404s caused by relative paths resolving against the current
+          // page instead of the site root) and escaped, and each row gets
+          // a unique audio element id so we can attach an error listener
+          // that surfaces a message if the file 404s or fails to decode
+          // (previously it just failed silently).
+          render: function(value, row) {
+            const rawAudioUrl = row.play_url || row.audio_url;
+            if (!(value && rawAudioUrl)) {
+              return '<span class="text-[10px] text-slate-600">--</span>';
+            }
+            var audioUrl = normalizeAudioUrl(rawAudioUrl);
+            var mime = getAudioMimeType(audioUrl);
+            var audioId = 'rec-audio-' + (row.meeting_id || row.id || Math.random().toString(36).slice(2));
+            return '<div class="flex flex-col gap-0.5">' +
+              '<audio id="' + audioId + '" controls preload="none" class="h-6 w-32" data-audio-id="' + audioId + '"><source src="' + escHtml(audioUrl) + '" type="' + mime + '"></audio>' +
+              '<span id="' + audioId + '-error" class="hidden text-[9px] text-red-500">Failed to load audio</span>' +
+            '</div>';
+          }
+        }
       ],
       data: filtered,
       emptyMessage: 'No recordings found',
       pagination: { perPage: 10 }
     });
     recordingsTable.render();
+    attachAudioErrorHandlers();
   } else {
     recordingsTable.setData(filtered);
+    attachAudioErrorHandlers();
   }
+}
+
+// Attaches an 'error' listener to every rendered <audio> element so a
+// failed load (404, missing file, unsupported format, etc.) shows a
+// visible message next to the player instead of failing with no feedback.
+function attachAudioErrorHandlers() {
+  document.querySelectorAll('audio[data-audio-id]').forEach(function(audioEl) {
+    if (audioEl.dataset.errorBound) return; // avoid double-binding on re-render
+    audioEl.dataset.errorBound = 'true';
+    audioEl.addEventListener('error', function() {
+      var errorEl = document.getElementById(audioEl.dataset.audioId + '-error');
+      if (errorEl) errorEl.classList.remove('hidden');
+    });
+  });
 }
 
 async function loadRecordings() {

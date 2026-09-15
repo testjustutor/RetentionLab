@@ -1,10 +1,11 @@
-# root/services/engine/task/persist/persist_results_task.py
+# services/engine/task/persist_results_task.py
+
 """
 Persist results task.
 
 Runs AFTER summary and audit have completed and persists the
-structured results (summary text + rubric answers + scores + metrics)
-into MySQL via database/python_db.py.
+structured results (summary text + diarization talk-ratio + meeting_assets
+bookkeeping) into MySQL via database/python_db.py.
 
 Pipeline contract:
 
@@ -13,15 +14,25 @@ Pipeline contract:
          -> [summary + audit]   (parallel)
          -> persist_results              (this task)
          -> complete
+
+IMPORTANT (FIX): per-indicator rubric persistence (ai_audit_results,
+session_rubric_summary) is now handled ONLY by
+services/engine/audit_storage.py, called from audit_service.py during the
+"audit" task. This file used to ALSO delete+reinsert those same rows in
+_persist_audit() with a different (older) scoring/rating derivation, which
+ran AFTER audit_task.py and silently overwrote the canonical result with a
+second, slightly different computation. That duplicate writer has been
+removed. If you need to change rubric persistence, change
+audit_storage.py - not this file.
 """
 
 from utils.logger_util import log_with_type
 
 import json
 
-from database.python_db import execute
+from database.python_db import execute, fetch_one
 
-from services.engine.services.rubric_loader import RubricLoader
+from services.engine.services.transcript_builder import TranscriptBuilder
 
 
 def run_persist_results_task(context):
@@ -30,18 +41,71 @@ def run_persist_results_task(context):
     log_with_type("info", "Engine(task > persist > persist_results_task) : Persist results task started", "TASK")
 
     try:
-        meeting_id = context.meeting_id or context.base_id
+        # Pre-audit transcript validation found nothing worth processing -
+        # skip DB persistence entirely (mirrors the _meeting_exists/
+        # _session_exists early-return pattern below) so a skipped session
+        # never gets a misleading "Completed" meeting_assets row or empty
+        # rubric rows written for it.
+        if getattr(context, "processing_skipped", False):
+            log_with_type(
+                "info",
+                f"Engine(task > persist > persist_results_task) : "
+                f"processing was skipped (reason={context.skip_reason}) - "
+                f"skipping DB persistence entirely.",
+                "TASK",
+            )
+            context.mark_task_completed("persist_results")
+            return
+
+        # IMPORTANT: only use the REAL resolved meetings.id (context.meeting_id,
+        # set in pipeline_context.py via _resolve_meeting_id()). Do NOT fall
+        # back to context.base_id - base_id is a filename-derived string and
+        # is never a valid meetings.id.
+        meeting_id = context.meeting_id
         session_id = context.session_id
 
-        # 1. PERSIST SUMMARY (structured)
-        summary_data = getattr(context, "summary_data", None) or {}
-        if summary_data:
-            _persist_summary(context, meeting_id, session_id, summary_data)
+        if not _meeting_exists(meeting_id):
+            log_with_type(
+                "warning",
+                f"Engine(task > persist > persist_results_task) : "
+                f"meeting_id={meeting_id!r} is missing or not found in meetings table - "
+                f"skipping DB persistence (summary/audit results were still "
+                f"computed and are present in the JSON response).",
+                "TASK",
+            )
+            context.mark_task_completed("persist_results")
+            return
 
-        # 2. PERSIST AUDIT RUBRIC RESULTS + METRICS
+        # FIX: meeting_assets.session_id is NOT NULL with an FK to
+        # meeting_sessions - previously nothing verified session_id was a
+        # real row before the INSERT, which would raise an unhandled FK
+        # violation whenever context.session_id was None/stale.
+        if not _session_exists(session_id):
+            log_with_type(
+                "warning",
+                f"Engine(task > persist > persist_results_task) : "
+                f"session_id={session_id!r} is missing or not found in "
+                f"meeting_sessions table - skipping DB persistence.",
+                "TASK",
+            )
+            context.mark_task_completed("persist_results")
+            return
+
+        summary_data = getattr(context, "summary_data", None) or {}
         audit_results = context.audit_results or {}
-        if audit_results:
-            _persist_audit(context, meeting_id, session_id, audit_results)
+
+        # ONE upsert into meeting_assets covering every column we have data
+        # for (audio_path, transcript_path, summary_path, oqi_score,
+        # audit_summary, audit_completed_at, video_path, status).
+        _persist_meeting_assets(context, meeting_id, session_id, summary_data, audit_results)
+
+        # FIX: talk_ratio used to be JSON-encoded and bound to
+        # ai_audit_results.talk_ratio, which is a decimal(5,2) column - that
+        # either throws under strict SQL mode or gets silently truncated to
+        # 0.00/NULL. talk_ratio has its own dedicated table
+        # (session_diarization, longtext columns) that was never written to -
+        # write it there instead.
+        _persist_diarization(context, meeting_id, session_id)
 
         log_with_type("info", "Engine(task > persist > persist_results_task) : Persist results task completed", "TASK")
         context.mark_task_completed("persist_results")
@@ -52,225 +116,161 @@ def run_persist_results_task(context):
         raise
 
 
-def _persist_summary(context, meeting_id, session_id, summary_data):
-    """Upsert structured summary into MySQL (meeting_assets.summary_path)."""
+def _meeting_exists(meeting_id):
+    """Return True only if meeting_id is a real, existing row in `meetings`.
+
+    Never raises: a DB lookup failure here should not itself crash the
+    pipeline - it just means we can't confirm existence, so we treat it
+    as "not found" and let the caller skip persistence safely.
+    """
+    if meeting_id is None:
+        return False
+    try:
+        meeting_id_int = int(meeting_id)
+    except (TypeError, ValueError):
+        # Non-numeric (e.g. a filename/base_id string) can never be a
+        # valid meetings.id - fail fast without hitting the DB.
+        return False
+
+    try:
+        row = fetch_one("SELECT id FROM meetings WHERE id = %s LIMIT 1", (meeting_id_int,))
+        return bool(row)
+    except Exception as e:
+        log_with_type(
+            "warning",
+            f"Engine(task > persist > persist_results_task) : "
+            f"could not verify meeting_id={meeting_id_int} existence ({e}) - treating as missing",
+            "TASK",
+        )
+        return False
+
+
+def _session_exists(session_id):
+    """Return True only if session_id is a real, existing row in
+    `meeting_sessions`. Mirrors _meeting_exists() - never raises."""
+    if session_id is None:
+        return False
+    try:
+        session_id_int = int(session_id)
+    except (TypeError, ValueError):
+        return False
+
+    try:
+        row = fetch_one("SELECT id FROM meeting_sessions WHERE id = %s LIMIT 1", (session_id_int,))
+        return bool(row)
+    except Exception as e:
+        log_with_type(
+            "warning",
+            f"Engine(task > persist > persist_results_task) : "
+            f"could not verify session_id={session_id_int} existence ({e}) - treating as missing",
+            "TASK",
+        )
+        return False
+
+
+def _persist_meeting_assets(context, meeting_id, session_id, summary_data, audit_results):
+    """Single upsert into meeting_assets covering ALL of its columns that we
+    actually have data for: audio_path, transcript_path, summary_path,
+    oqi_score, audit_summary, audit_completed_at, video_path.
+
+    meeting_assets.oqi_score is STILL decimal(5,2) (only ai_audit_results.oqi_score
+    became TEXT) - keep this value numeric.
+    """
     if not isinstance(summary_data, dict):
         summary_data = {"summary": str(summary_data)}
-
     summary_text = summary_data.get("summary", "")
 
-    execute(
-        """INSERT INTO meeting_assets (meeting_id, session_id, summary_path, status, processed_at)
-           VALUES (%s, %s, %s, 'Completed', CURRENT_TIMESTAMP)
-           ON DUPLICATE KEY UPDATE summary_path = VALUES(summary_path), status = 'Completed', processed_at = CURRENT_TIMESTAMP""",
-        (meeting_id, session_id, getattr(context, "summary_path", None) or f"SUMMARY_{context.base_id}.txt")
-    )
-    log_with_type("info", f"Engine(task > persist) : Summary persisted for meeting={meeting_id} chars={len(summary_text or '')}", "TASK")
+    oqi_score = audit_results.get("overall_score") or audit_results.get("oqi_score")
+    audit_summary_json = json.dumps(audit_results.get("category_scores") or {}, default=str)
 
-
-def _persist_audit(context, meeting_id, session_id, audit_results):
-    """Persist EVERY rubric category + indicator (with weight/value + AI values)
-    into ai_audit_results, plus the session_rubric_summary aggregate row."""
-    if session_id is None:
-        log_with_type("info", "Engine(task > persist) : session_id is None, skipping audit persistence", "TASK")
-        return
-
-    # session_rubric_summary - aggregate metrics row (session_id based)
-    overall_score = audit_results.get("overall_score") or audit_results.get("oqi_score") or 0
-    percentage = audit_results.get("percentage") or overall_score
-    gate_status = "all_passed"
-    if audit_results.get("metrics", {}).get("failed", 0) > 0:
-        gate_status = "gate_failed"
-    if audit_results.get("gate_failures"):
-        # AI explicitly flagged gate indicators that scored 0.
-        gate_status = "gate_failed"
+    # FIX: video_path/audit_completed_at were previously left permanently
+    # NULL by this task (only pythonBridge.js's MettingAssetController wrote
+    # audit_completed_at, and nothing wrote video_path at all). Pull both
+    # from context when available so a single writer covers every column.
+    video_path = getattr(context, "video_path", None)
 
     execute(
-        """INSERT INTO session_rubric_summary (session_id, weighted_score_pct, gate_status, overall_rating, confidence_level)
-           VALUES (%s, %s, %s, %s, %s)
+        """INSERT INTO meeting_assets
+           (meeting_id, session_id, audio_path, transcript_path, summary_path,
+            video_path, oqi_score, audit_summary, status, audit_completed_at, processed_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'Completed',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
            ON DUPLICATE KEY UPDATE
-             weighted_score_pct = VALUES(weighted_score_pct),
-             gate_status = VALUES(gate_status),
-             overall_rating = VALUES(overall_rating),
-             confidence_level = VALUES(confidence_level)""",
-        (session_id, percentage, gate_status, _overall_rating(percentage), "Medium")
+             audio_path = VALUES(audio_path),
+             transcript_path = VALUES(transcript_path),
+             summary_path = VALUES(summary_path),
+             video_path = COALESCE(VALUES(video_path), video_path),
+             oqi_score = VALUES(oqi_score),
+             audit_summary = VALUES(audit_summary),
+             status = 'Completed',
+             audit_completed_at = CURRENT_TIMESTAMP,
+             processed_at = CURRENT_TIMESTAMP""",
+        (
+            meeting_id, session_id,
+            getattr(context, "audio_path", None),
+            getattr(context, "transcript_path", None),
+            getattr(context, "summary_path", None) or f"SUMMARY_{context.base_id}.txt",
+            video_path,
+            oqi_score,
+            audit_summary_json,
+        )
     )
-
-    # Load the FULL rubric (categories + indicators with weight/value) from the DB.
-    try:
-        raw_rubric = RubricLoader().load_rubric()
-    except Exception as e:
-        log_with_type("warning", f"Engine(task > persist) : Could not load rubric schema: {e}", "TASK")
-        raw_rubric = None
-
-    categories = (raw_rubric or {}).get("categories", []) or []
-    indicators = (raw_rubric or {}).get("indicators", []) or []
-    if not categories or not indicators:
-        log_with_type("warning", "Engine(task > persist) : Rubric schema empty — no per-indicator audit rows written.", "TASK")
-        return
-
-    # Build a lookup of AI per-indicator scores (by indicator_id or indicator name).
-    score_by_indicator = {}
-    for item in (audit_results.get("rubric") or []):
-        if not isinstance(item, dict):
-            continue
-        key = item.get("rubric_id") or item.get("question")
-        if key:
-            score_by_indicator[key] = {
-                # Preserve null score (excluded indicator) — do not coerce to 0.
-                "score": item.get("score"),
-                "max_score": item.get("max_score", 0),
-                "evidence": item.get("evidence", "")
-            }
-    for cat_name, cat_data in (audit_results.get("category_scores") or {}).items():
-        if not isinstance(cat_data, dict):
-            continue
-        for ind_name, ind_data in (cat_data.get("indicators") or {}).items():
-            if not isinstance(ind_data, dict):
-                continue
-            score_by_indicator[ind_name] = {
-                "score": ind_data.get("score"),
-                "max_score": ind_data.get("max_score", 0),
-                "evidence": ind_data.get("evidence", "")
-            }
-
-    # Clear previous rows for this meeting + session, then insert one row per indicator.
-    execute("DELETE FROM ai_audit_results WHERE meeting_id = %s AND session_id = %s", (meeting_id, session_id))
-
-    oqi = audit_results.get("overall_score") or audit_results.get("oqi_score") or 0
-    evidence_quote = audit_results.get("evidence_quote", "")
-    talk_ratio_json = json.dumps(audit_results.get("talk_ratio") or {})
-
-    insert_count = 0
-    for cat in categories:
-        category_code = cat.get("category_code")  # e.g. 'A'
-        category_id = cat.get("id")  # numeric rubric_categories.id
-        category_weight = cat.get("weight", 0)
-        cat_name = cat.get("name")
-        for ind in indicators:
-            if ind.get("category_id") != category_id:  # numeric FK == cat id
-                continue
-            indicator_code = ind.get("indicator_code")  # e.g. 'A1.1'
-            indicator_id = ind.get("id")  # numeric rubric_indicators.id
-            max_value = ind.get("value") or 1
-
-            ai_score = None
-            ai_max = float(max_value)
-            evidence = ""
-
-            hit = score_by_indicator.get(indicator_code) or score_by_indicator.get(ind.get("name"))
-            if hit and hit.get("score") is not None:
-                ai_score = float(hit.get("score") or 0)
-                if hit.get("max_score"):
-                    ai_max = float(hit["max_score"])
-                evidence = hit.get("evidence") or ""
-            elif hit:
-                # score is null (e.g. video-gated / not scorable): store NULL so it
-                # is excluded from aggregation rather than penalized as a zero.
-                if hit.get("max_score"):
-                    ai_max = float(hit["max_score"])
-                evidence = hit.get("evidence") or ""
-
-            # Derive the Met/Not Met rating + reason/benchmark so the columns are
-            # never empty even when the AI omits them. benchmark comes from the
-            # rubric itself; reason is the AI's per-indicator evidence.
-            rating = _derive_rating(ai_score, ai_max)
-            reason = (hit or {}).get("evidence") or evidence or None
-            benchmark = ind.get("benchmark")
-
-            try:
-                execute(
-                    """INSERT INTO ai_audit_results
-                       (meeting_id, session_id, category_id, indicator_id,
-                        category_name, category_weight, indicator_name, indicator_value, is_gate,
-                        ai_score, ai_max_score, ai_evidence, rating, reason, benchmark,
-                        ai_raw_response, oqi_score, evidence_quote, talk_ratio)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                       ON DUPLICATE KEY UPDATE
-                        category_name = VALUES(category_name),
-                        category_weight = VALUES(category_weight),
-                        indicator_name = VALUES(indicator_name),
-                        indicator_value = VALUES(indicator_value),
-                        is_gate = VALUES(is_gate),
-                        ai_score = VALUES(ai_score),
-                        ai_max_score = VALUES(ai_max_score),
-                        ai_evidence = VALUES(ai_evidence),
-                        rating = VALUES(rating),
-                        reason = VALUES(reason),
-                        benchmark = VALUES(benchmark),
-                        ai_raw_response = VALUES(ai_raw_response),
-                        oqi_score = VALUES(oqi_score),
-                        evidence_quote = VALUES(evidence_quote),
-                        talk_ratio = VALUES(talk_ratio)""",
-                    (
-                        meeting_id, session_id, category_id, indicator_id,
-                        cat_name, float(category_weight or 0), ind.get("name"),
-                        float(max_value), 1 if ind.get("is_gate") else 0,
-                        ai_score, ai_max, evidence, rating, reason, benchmark,
-                        json.dumps({
-                            "rubric_category_id": category_code,
-                            "rubric_indicator_id": indicator_code,
-                            "category_id": category_id,
-                            "category_name": cat_name,
-                            "category_weight": float(category_weight or 0),
-                            "indicator_id": indicator_id,
-                            "indicator_name": ind.get("name"),
-                            "indicator_value": float(max_value),
-                            "is_gate": bool(ind.get("is_gate")),
-                            "answer": evidence
-                        }),
-                        oqi,
-                        evidence_quote, talk_ratio_json
-                    )
-                )
-                insert_count += 1
-            except Exception as ind_err:
-                log_with_type("warning", f"Engine(task > persist) : Failed to persist indicator {indicator_id}: {ind_err}", "TASK")
-
     log_with_type(
         "info",
-        f"Engine(task > persist) : Persisted {insert_count} rubric indicator rows into ai_audit_results for meeting={meeting_id} session={session_id}",
-        "TASK"
+        f"Engine(task > persist) : meeting_assets persisted for meeting={meeting_id} chars={len(summary_text or '')}",
+        "TASK",
     )
 
 
-def _overall_rating(percentage):
-    """Map a percentage to an overall rating string."""
-    try:
-        pct = float(percentage)
-    except (TypeError, ValueError):
-        return "Developing"
-    if pct >= 90:
-        return "Exemplary"
-    if pct >= 75:
-        return "Proficient"
-    if pct >= 50:
-        return "Developing"
-    return "Beginning"
+def _persist_diarization(context, meeting_id, session_id):
+    """Write talk-ratio + speaker segments into session_diarization -
+    previously computed in memory (transcript_builder.compute_talk_ratio /
+    context.diarization_data) but only ever written to files, never to this
+    table.
 
+    Both columns are `longtext` so JSON-encoding is correct here (unlike the
+    old ai_audit_results.talk_ratio decimal(5,2) column).
 
-def _derive_rating(ai_score, ai_max):
+    NOTE: in the current DAG flow, transcription_task.py calls
+    TranscriptionService.transcribe() (plain text only) and never calls
+    .diarize(), so context.diarization_data / context.talk_ratio may still
+    be empty at this point. This function persists whatever is available and
+    is a no-op (skips cleanly) when both are empty, so wiring up diarization
+    later "just works" without touching this file again.
     """
-    Derive a Met / Partial / Not met / N/A rating from a numeric score and its
-    max value so the rating column is populated even when the AI omits it.
+    diarization_data = getattr(context, "diarization_data", None)
+    talk_ratio = getattr(context, "talk_ratio", None)
 
-    - score is None (excluded, e.g. video-gated) -> "N/A"
-    - score >= max                              -> "Met"
-    - 0 < score < max                           -> "Partial"
-    - score == 0                                -> "Not met"
-    """
-    if ai_score is None:
-        return "N/A"
+    if not diarization_data and not talk_ratio:
+        log_with_type(
+            "info",
+            "Engine(task > persist) : no diarization/talk_ratio data available - skipping session_diarization",
+            "TASK",
+        )
+        return
+
     try:
-        s = float(ai_score)
-    except (TypeError, ValueError):
-        return "N/A"
-    try:
-        m = float(ai_max or 0)
-    except (TypeError, ValueError):
-        m = 0.0
-    if m and s >= m:
-        return "Met"
-    if s > 0:
-        return "Partial"
-    return "Not met"
+        execute(
+            """INSERT INTO session_diarization
+               (meeting_id, session_id, talk_ratio, speaker_segments)
+               VALUES (%s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                 talk_ratio = VALUES(talk_ratio),
+                 speaker_segments = VALUES(speaker_segments),
+                 updated_at = CURRENT_TIMESTAMP""",
+            (
+                meeting_id, session_id,
+                json.dumps(talk_ratio or {}, default=str),
+                json.dumps(diarization_data or [], default=str),
+            )
+        )
+        log_with_type(
+            "info",
+            f"Engine(task > persist) : session_diarization persisted for meeting={meeting_id} session={session_id}",
+            "TASK",
+        )
+    except Exception as e:
+        log_with_type(
+            "warning",
+            f"Engine(task > persist) : failed to persist session_diarization -> {e}",
+            "TASK",
+        )

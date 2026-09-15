@@ -1,4 +1,7 @@
-// ── Filter Helpers ──
+/**
+ * public/js/admin/meetings/schedule.js
+ */
+
 function getDateFilterParams() {
   // For Get Data: From Date, To Date, Instructor
   const fromDate = document.getElementById('filterFromDate')?.value || '';
@@ -30,26 +33,27 @@ function setDefaultDateRange() {
 }
 
 async function loadInstructors() {
-  // Use searchable select component for instructor filter
+  // Optional deep-link: /admin/meetings/schedule?instructor=<email> preselects
+  // that instructor in the filter and shows only their meetings. Used by the
+  // Admin > People > Users "View Meetings" button on connected instructors.
+  const params = new URLSearchParams(window.location.search);
+  const targetInstructor = (params.get('instructor') || '').toLowerCase();
+
+  let instructors = [];
+  try {
+    const json = await apiFetch('/api/admin/content/instructors');
+    instructors = json.instructors || [];
+  } catch (err) {
+    console.error('Failed to load instructors:', err);
+    instructors = [];
+  }
+
+  // Use the already-fetched array as the data source (Select2 filters
+  // client-side), keeping pre-selection race-free.
   const instructorFilter = createSearchableSelect({
     containerId: 'instructorFilterContainer',
     placeholder: 'Select instructor...',
-    dataSource: async (searchTerm) => {
-      try {
-        const json = await apiFetch('/api/admin/content/instructors');
-        let instructors = json.instructors || [];
-        if (searchTerm) {
-          const term = searchTerm.toLowerCase();
-          instructors = instructors.filter(inst => 
-            (inst.name || '').toLowerCase().includes(term) ||
-            (inst.email || '').toLowerCase().includes(term)
-          );
-        }
-        return instructors;
-      } catch {
-        return [];
-      }
-    },
+    dataSource: instructors,
     displayField: 'name',
     valueField: 'uuid',
     onSelect: (selectedId) => {
@@ -60,6 +64,16 @@ async function loadInstructors() {
 
   // Store reference globally for getDateFilterParams
   window.instructorFilter = instructorFilter;
+
+  // Apply the deep-link pre-selection once the options are rendered, then
+  // reload so only that instructor's meetings show.
+  if (targetInstructor && instructorFilter) {
+    const match = instructors.find(i => (i.email || '').toLowerCase() === targetInstructor);
+    if (match) {
+      instructorFilter.setValue(match.uuid);
+      loadFromDB();
+    }
+  }
 }
 
 // ── Initial load from DB only (no sync) ──

@@ -1,7 +1,5 @@
 /**
- * root/public/js/super_admin/settings/sidebar-menu-management.js
- * Sidebar Menu Management - Super Admin
- * Manages role-level and user-level menu permissions
+ * public/js/super_admin/settings/sidebar-menu-management.js
  */
 
 let currentRoleId = null;

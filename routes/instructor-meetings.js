@@ -1,30 +1,9 @@
 /**
- * root/routes/instructor-meetings.js
- * Instructor-scoped meetings endpoints.
- * All endpoints filter by req.user.email from the auth session.
+ * DEPRECATED: was mounted at /api/admin/instructor-meetings; moved to routes/instructor/meetings.js (now /api/instructor/meetings).
+ * This functionality was migrated to the dedicated per-role MVC folder structure
+ * (see routes/registry.js). The old URL for this file is no longer mounted anywhere,
+ * so this file is unreachable from any request. It is kept only as a thin re-export
+ * shim (rather than deleted) pointing at its new location, so nothing breaks if
+ * something still requires this old path directly.
  */
-const express = require('express');
-const router = express.Router();
-const { requireAuth, requireRole } = require('../middleware/auth');
-const ctrl = require('../controllers/meetings/instructorMeetingsController');
-
-const allowedRoles = ['solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'];
-
-router.use(requireAuth, requireRole(...allowedRoles));
-
-router.get('/upcoming',  (req, res) => wrap(ctrl.getUpcoming,  req, res));
-router.get('/live',      (req, res) => wrap(ctrl.getLive,      req, res));
-router.get('/completed', (req, res) => wrap(ctrl.getCompleted, req, res));
-router.get('/stats',     (req, res) => wrap(ctrl.getStats,     req, res));
-
-function wrap(fn, req, res) {
-  Promise.resolve(fn(req)).then(result => {
-    const status = result.statusCode || 500;
-    if (!result.success) return res.status(status).json(result);
-    res.json(result);
-  }).catch(e => {
-    res.status(500).json({ success: false, error: e.message });
-  });
-}
-
-module.exports = router;
+module.exports = require('./instructor/meetings');

@@ -3,10 +3,10 @@
  *
  * Seeds the master permission catalog and default role->permission mappings.
  *
- * role_name values below ('super_admin', 'admin', 'reviewer', 'instructor')
- * match root/database/roles.js exactly. Unknown role names are skipped
- * with a console warning rather than failing the seed run, in case
- * roles.js changes later.
+ * role_name values below ('super_admin', 'admin', 'reviewer', 'instructor',
+ * 'solo_instructor', 'student') match root/database/roles.js exactly. Unknown
+ * role names are skipped with a console warning rather than failing the seed
+ * run, in case roles.js changes later.
  */
 const { runAsync, allAsync } = require('../seedHelpers');
 
@@ -86,6 +86,12 @@ const DEFAULT_ROLE_PERMISSIONS = {
         'calendar.connect',
         'reports.view_own',
         'archive.view',
+        'profile.edit',
+    ],
+    // Learner who attends sessions — own-data only, no management features.
+    student: [
+        'meetings.view_own',
+        'reports.view_own',
         'profile.edit',
     ],
 };

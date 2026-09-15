@@ -1,10 +1,7 @@
 /**
- * root/public/js/super_admin/people/user-settings.js
- * User Management Settings - Super Admin
- * Supports both global defaults and per-user overrides
+ * public/js/super_admin/people/user-settings.js
  */
 
-// Settings configuration mapping
 const GLOBAL_SETTINGS_MAP = {
   // Registration & Access
   allowRegistration: { key: 'user_allow_registration', type: 'string' },

@@ -5,7 +5,6 @@ Handles business logic for meeting session scores API endpoints.
 
 from typing import Dict, Any, List, Optional
 from models.python.python_session_scores_model import SessionScoresModel, get_session_scores_model
-from config import get_config
 from flask import jsonify, request
 
 # Configure logger
@@ -20,8 +19,16 @@ class SessionScoresController:
     """
     
     def __init__(self):
+        # FIX: this used to also do `self.config = get_config()`, importing
+        # `from config import get_config` at the top of this file. No Python
+        # `config` module exists anywhere in this repo (the root `config/`
+        # directory only holds settings.js, a Node file) - so this import
+        # failed at module load time, and since routes/session_scores.py
+        # instantiates this controller at IMPORT time (not per-request),
+        # simply importing that route file crashed the whole Flask app
+        # before it could start. self.config was never read anywhere else
+        # in this class, so it's removed rather than stubbed.
         self.model = SessionScoresModel()
-        self.config = get_config()
     
     def upsert_score(self, req) -> Any:
         """

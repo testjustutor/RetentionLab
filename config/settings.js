@@ -119,6 +119,37 @@ module.exports = {
     ],
   },
 
+  // Named audio-DEVICE selection for the Teams bot's own Speaker/Microphone
+  // pickers on the pre-join/lobby screens (services/platforms/teams/
+  // teamsJoiner.js's selectAudioDevices()) — distinct from muteMicOnJoin/
+  // disableCameraOnJoin in featureConfig.js, which only toggle mic/camera
+  // ON/OFF and never change which device is selected. Left on the
+  // machine's default, Teams can pick real hardware (e.g. a physical
+  // headset), risking feedback/echo in the meeting, so these point it at
+  // the VB-Audio Virtual Cable pair instead:
+  //   speakerDeviceName -> Teams plays meeting audio INTO this device
+  //     (default "CABLE Input (VB-Audio Virtual Cable)")
+  //   micDeviceName -> Teams captures the bot's mic FROM this device
+  //     (default "CABLE Output (VB-Audio Virtual Cable)")
+  // speakerDeviceName deliberately matches the OTHER end of the same cable
+  // pair that audio.deviceName above already records FROM — this is what
+  // puts the meeting's own audio onto that cable in the first place.
+  // Override per-machine via TEAMS_SPEAKER_DEVICE_NAME / TEAMS_MIC_DEVICE_NAME
+  // in .env; set either to an empty string to skip selecting that device
+  // and leave Teams' default in place. This does NOT affect the shared
+  // `puppeteer` launch config above — it's read only by teamsJoiner.js's
+  // page-level device-selection helper.
+  teamsAudio: {
+    speakerDeviceName:
+      process.env.TEAMS_SPEAKER_DEVICE_NAME !== undefined
+        ? process.env.TEAMS_SPEAKER_DEVICE_NAME
+        : 'CABLE Input (VB-Audio Virtual Cable)',
+    micDeviceName:
+      process.env.TEAMS_MIC_DEVICE_NAME !== undefined
+        ? process.env.TEAMS_MIC_DEVICE_NAME
+        : 'CABLE Output (VB-Audio Virtual Cable)',
+  },
+
   screen: {
     framerate: '15',      // 15fps is plenty for meeting recordings, saves disk space
     crf: '28',            // compression quality — 18–28 is good range
@@ -181,6 +212,7 @@ module.exports = {
     media_extraction: true,
     transcription: true,
     ai_audit: true,
+    tutor_eval: true,
     summary_generation: true,
     persist_results: true
   },
@@ -191,5 +223,46 @@ module.exports = {
     captionCapture: true,
     transcription: true,
     summarizer: true
+  },
+
+  // NEW: bot join-gating config (see socraticbot.js waitForHumanParticipant()).
+  // How long the bot waits, AFTER it has already been admitted into the
+  // meeting, for a real human participant to actually show up in the
+  // roster before giving up, closing the browser, and marking the meeting
+  // 'missed' instead of starting recording/Python processing.
+  //
+  // This is a SEPARATE stage/timeout from hostWaitTimeoutMs below (that one
+  // covers the lobby/waiting-room wait, BEFORE the bot is even let in).
+  // If HUMAN_JOIN_TIMEOUT_MS isn't set explicitly, this falls back to the
+  // same value as BOT_HOST_WAIT_TIMEOUT_MS (so configuring just that one
+  // .env var, as most people do, also extends this stage) rather than a
+  // hardcoded 60s — a bare 60-second window was routinely too short for
+  // real participants to actually join after the bot did, causing bots to
+  // give up and close even though people did show up a bit later.
+  bot: {
+    humanJoinTimeoutMs: parseInt(
+      process.env.HUMAN_JOIN_TIMEOUT_MS || process.env.BOT_HOST_WAIT_TIMEOUT_MS || '60000',
+      10
+    ),
+
+    // How long the bot waits for the host to allow/admit it into the meeting
+    // (lobby / waiting room) before giving up. This is the single knob that
+    // drives ALL platform joiners (zoom / google-meet / teams) — see
+    // BOT_HOST_WAIT_TIMEOUT_MS in .env / .env.example.
+    // Default 900000 ms = 15 minutes.
+    hostWaitTimeoutMs: parseInt(process.env.BOT_HOST_WAIT_TIMEOUT_MS || '900000', 10),
+
+    // How many minutes BEFORE the meeting start time the bot auto-launches /
+    // auto-joins. Single knob for the queued-meeting launch window and the
+    // "Bot will join meeting within MM:SS" countdown on Admin > Meetings >
+    // Live. See BOT_LAUNCH_LEAD_MINUTES in .env / .env.example.
+    // Default 3 minutes (launch window = 1-3 minutes before start).
+    autoJoinLeadMinutes: Math.max(1, parseInt(process.env.BOT_LAUNCH_LEAD_MINUTES || '3', 10)),
+
+    // How long (minutes) past a QUEUED meeting's scheduled_start_time
+    // BotPollingController.pollQueuedMeetings() will keep retrying before
+    // giving up and marking it 'expired' instead of launching a bot. See
+    // BOT_QUEUED_EXPIRE_MINUTES in .env / .env.example. Default 5.
+    queuedExpireMinutes: parseInt(process.env.BOT_QUEUED_EXPIRE_MINUTES || '5', 10)
   }
 };

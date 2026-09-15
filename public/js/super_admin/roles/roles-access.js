@@ -1,6 +1,5 @@
 /**
- * root/public/js/super_admin/roles/roles-access.js
- * Roles & Access Management - Super Admin
+ * public/js/super_admin/roles/roles-access.js
  */
 
 let allRoles = [];

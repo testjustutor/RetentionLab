@@ -1,6 +1,5 @@
 /**
- * public/js/admin/rubrics.js
- * Frontend logic for admin rubric management
+ * public/js/admin/evaluation/rubrics.js
  */
 
 (function() {

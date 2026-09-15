@@ -1,6 +1,6 @@
-// AI Providers Configuration Page Logic
-// All provider data is loaded from the ai_providers table via the API
-// (HTML -> JS -> routes -> controller -> model -> DB). No hardcoded cards.
+/**
+ * public/js/super_admin/settings/ai-providers.js
+ */
 
 document.addEventListener('DOMContentLoaded', () => {
   loadAIProviders();

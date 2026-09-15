@@ -1,9 +1,128 @@
-# root/services/engine/orchestrator/pipeline_context.py
+# services/engine/orchestrator/pipeline_context.py
 
 import os
 import re
 import json
 from threading import Lock
+
+
+def compute_base_id(input_file):
+    """Derive the shared `base_id` naming stem from an input recording's
+    filename (bare name or full path - only the leaf name is used).
+
+    This is the SAME stem used to name every cached artifact across the
+    pipeline (WAV_<base_id>.wav, AUDIO_TRANS_<base_id>.txt, AUDIT_<base_id>.json,
+    etc.) - factored out here so any caller that needs to name a file the same
+    way a PipelineContext would (e.g. the admin video-processing pipeline in
+    services/engine/pipeline.py) gets IDENTICAL results without re-implementing
+    this logic.
+    """
+    filename_no_ext = os.path.splitext(os.path.basename(input_file))[0]
+    return (
+        filename_no_ext.replace("REC_", "")
+        if filename_no_ext.startswith("REC_")
+        else filename_no_ext
+    )
+
+
+def build_storage_paths(project_root):
+    """Build (and create) the shared storage cache folders used across the
+    whole engine. Factored out of PipelineContext._setup_directories so any
+    caller that needs to write into the SAME established folders (e.g. the
+    admin video-processing pipeline) reuses this instead of hard-coding its
+    own paths/folders.
+    """
+    storage_base = os.path.join(
+        project_root,
+        "storage"
+    )
+
+    dirs = {
+        "recordings": os.path.join(
+            storage_base,
+            "recordings"
+        ),
+
+        "summaries": os.path.join(
+            storage_base,
+            "summaries"
+        ),
+
+        # ==========================================
+        # AUDIO + TRANSCRIPTION CACHE
+        # ==========================================
+
+        "wav_audio": os.path.join(
+            storage_base,
+            "cache_wav_audio"
+        ),
+
+        "cache_whisper": os.path.join(
+            storage_base,
+            "cache_whisper"
+        ),
+
+        "cache_audio_transcripts": os.path.join(
+            storage_base,
+            "cache_audio_transcripts"
+        ),
+
+        # ==========================================
+        # AI / NLP CACHE
+        # ==========================================
+
+        "cache_llm_prompts": os.path.join(
+            storage_base,
+            "cache_llm_prompts"
+        ),
+
+        # Split-cache response side: one RESPONSE_<base_id>_<call>.json per
+        # LLM call, paired with the REQUEST file of the same name under
+        # "cache_llm_prompts" above. See services/engine/llm_cache.py.
+        "cache_llm_prompts_responce": os.path.join(
+            storage_base,
+            "cache_llm_prompts_responce"
+        ),
+
+        "audits": os.path.join(
+            storage_base,
+            "cache_audits"
+        ),
+
+        "cache_audits": os.path.join(
+            storage_base,
+            "cache_audits"
+        ),
+
+        # ==========================================
+        # DIARIZATION / CAPTIONS CACHE
+        # ==========================================
+        # Used by TranscriptionCacheManager.save_diarization_output /
+        # save_voice_activity / save_raw_captions (services/engine/task/cache_manager.py).
+        # These keys were previously missing here, so any caller of those
+        # methods would hit a KeyError - added so they work if/when
+        # diarization gets wired back into the DAG.
+
+        "cache_diarization": os.path.join(
+            storage_base,
+            "cache_diarization"
+        ),
+
+        "cache_voice_activity": os.path.join(
+            storage_base,
+            "cache_voice_activity"
+        ),
+
+        "cache_captions_raw": os.path.join(
+            storage_base,
+            "cache_captions_raw"
+        )
+    }
+
+    for path in dirs.values():
+        os.makedirs(path, exist_ok=True)
+
+    return dirs
 
 
 class PipelineContext:
@@ -25,21 +144,41 @@ class PipelineContext:
         self.ai_config = ai_config
         self.project_root = project_root
 
-        filename_no_ext = os.path.splitext(input_file)[0]
-
-        self.base_id = (
-            filename_no_ext.replace("REC_", "")
-            if filename_no_ext.startswith("REC_")
-            else filename_no_ext
-        )
+        # base_id is used for all file naming - see compute_base_id() above.
+        self.base_id = compute_base_id(input_file)
 
         # Backwards-compatibility aliases used by audit and other task handlers.
         # NOTE: meeting_id is resolved to the REAL numeric meetings.id (via
-        # meeting_sessions) so ai_audit_results / meeting_assets store the FK id
-        # instead of the filename-derived base_id. base_id is still used for all
-        # file naming.
-        self.session_id = self._resolve_session_id(filename_no_ext)
-        self.meeting_id = self._resolve_meeting_id(self.session_id) or self.base_id
+        # meeting_sessions, with a meetings.external_meeting_id fallback that
+        # also CREATES the meeting_sessions mapping row when missing - see
+        # _resolve_meeting_id/_ensure_session_row below) so ai_audit_results /
+        # meeting_assets store the FK id instead of the filename-derived base_id.
+        # base_id is still used for all file naming.
+        #
+        # CONVERGENCE: a caller that already knows the real DB ids (Node
+        # resolves them server-side before invoking the engine - both the
+        # bot-recording flow via services/socraticbot.js and the admin
+        # video-processing flow via videoProcessingController.js now forward
+        # them through pythonBridge.js as ai_config["meeting_id"] / ["session_id"])
+        # takes priority over filename-regex resolution. This is REQUIRED for
+        # admin-uploaded "named video" recordings, whose filenames can encode a
+        # generic, non-unique external_meeting_id token (e.g. "Regular") that
+        # would otherwise risk resolving to the WRONG meetings row via the
+        # unscoped DB fallback in _resolve_meeting_id() below. Filename-regex
+        # resolution remains the fallback for callers that don't supply ids
+        # (e.g. test-engine.js ad-hoc runs with no DB context at all).
+        explicit_session_id = self._coerce_int(self.ai_config.get("session_id"))
+        explicit_meeting_id = self._coerce_int(self.ai_config.get("meeting_id"))
+
+        if explicit_session_id is not None:
+            self.session_id = explicit_session_id
+        else:
+            self.session_id = self._resolve_session_id(self.base_id)
+
+        if explicit_meeting_id is not None:
+            self.meeting_id = explicit_meeting_id
+        else:
+            self.meeting_id = self._resolve_meeting_id(self.session_id) or self.base_id
 
         self.storage_paths = self._setup_directories()
 
@@ -84,15 +223,33 @@ class PipelineContext:
         self.audit_json_path = None
         self.summary_path = None
 
+        # Internal cache-only artifacts (no meeting_assets column - never
+        # persisted). audio_path/transcript_path above are the CANONICAL
+        # storage/recordings and storage/transcripts paths written to the DB;
+        # these hold the Whisper-facing working copies instead.
+        self.wav_audio_path = None
+        self.whisper_transcript_cache_path = None
+
         self.labeled_transcript = ""
         self.diarization_data = None
         self.talk_ratio = None
 
         self.audit_results = {}
 
-        # Structured outputs produced by the AI tasks and consumed by
-        # the persist_results task.
+        # of the AI tasks and consumed by the persist_results task.
         self.summary_data = {}
+
+        # ==========================================
+        # PROCESSING SKIP STATE (pre-audit transcript validation)
+        # Set by transcription_task.py (services/engine/transcript_validation.py)
+        # when the transcript is empty/near-empty or single-speaker-only, so
+        # audit_task.py / summary_task.py / persist_results_task.py can all
+        # skip their work cleanly instead of wasting an LLM call or persisting
+        # a garbage result. Surfaced to Node via build_final_response() below.
+        # ==========================================
+        self.processing_skipped = False
+        self.skip_reason = None
+        self.skip_message = None
 
         # ==========================================
         # CAPTIONS TRANSCRIPT (Teams / Zoom / Meet)
@@ -119,8 +276,33 @@ class PipelineContext:
         self.execution_metadata = {
             "started_tasks": [],
             "completed_tasks": [],
-            "failed_tasks": []
+            "failed_tasks": [],
+            # FIX: RuntimeManager used to ALSO append its own richer
+            # {task, duration_seconds} / {task, error, traceback} dicts into
+            # completed_tasks/failed_tasks above (on top of the plain task-name
+            # strings mark_task_completed/mark_task_failed already append below).
+            # Since every task handler (audit_task.py, transcription_task.py,
+            # etc.) calls mark_task_completed/mark_task_failed itself - and also
+            # runs standalone outside the orchestrator (e.g. test_ai_evaluation.py),
+            # where RuntimeManager never runs at all - completed_tasks/failed_tasks
+            # must stay a clean list of plain strings. RuntimeManager's extra
+            # timing/error detail now goes into these two dedicated lists instead.
+            "task_durations": [],
+            "task_failures": []
         }
+
+    @staticmethod
+    def _coerce_int(val):
+        """Best-effort int coercion for a caller-supplied meeting_id/session_id,
+        which may arrive as a JSON number, a numeric string, None, or simply be
+        absent from ai_config. Returns None when val is falsy/blank or not
+        coercible, so callers can cleanly fall back to filename-regex resolution."""
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def str_to_bool(val, default=True):
@@ -225,7 +407,14 @@ class PipelineContext:
 
         Resolution order:
           1. meeting_sessions.meeting_id for the given session_id (fast path).
-          
+          2. Fallback: the filename encodes the platform's external meeting id
+             as the leading segment before "_SessN" (e.g.
+             "82014705313_Sess159_..."). Resolve THAT via
+             meetings.external_meeting_id, and if found, create the
+             meeting_sessions mapping row via _ensure_session_row() so every
+             future lookup for this session_id hits the fast path above
+             instead of repeating this fallback every run.
+
         Returns:
             meetings.id (int) if resolvable/created, otherwise None (the caller
             falls back to base_id so file writes never break).
@@ -233,7 +422,7 @@ class PipelineContext:
         if not session_id:
             return None
         try:
-            from database.python_db import fetch_one, execute, insert
+            from database.python_db import fetch_one
 
             # 1) Fast path: existing session row already maps to meetings.id
             row = fetch_one(
@@ -242,6 +431,35 @@ class PipelineContext:
             )
             if row and row.get("meeting_id"):
                 return row["meeting_id"]
+
+            # 2) Fallback: resolve via meetings.external_meeting_id parsed from
+            # the filename, then create the mapping row so this doesn't have
+            # to be repeated on every future run for this session.
+            m = re.match(r"^([^_]+)_Sess\d+", self.base_id)
+            if m:
+                external_id = m.group(1)
+                meeting_row = fetch_one(
+                    "SELECT id FROM meetings WHERE external_meeting_id = %s LIMIT 1",
+                    (external_id,)
+                )
+                if meeting_row and meeting_row.get("id"):
+                    resolved_meeting_id = meeting_row["id"]
+                    self._ensure_session_row(session_id, resolved_meeting_id)
+                    return resolved_meeting_id
+                else:
+                    print(
+                        f"[PIPELINE CONTEXT] WARNING: No meetings row for "
+                        f"external_meeting_id={external_id!r} (session={session_id}). "
+                        f"meeting_id cannot be resolved; falling back to base_id.",
+                        flush=True
+                    )
+            else:
+                print(
+                    f"[PIPELINE CONTEXT] WARNING: base_id={self.base_id!r} does not "
+                    f"match the '<external_id>_SessN' pattern; cannot derive "
+                    f"external_meeting_id for session={session_id}.",
+                    flush=True
+                )
 
         except Exception as e:
             print(
@@ -253,7 +471,11 @@ class PipelineContext:
 
     def _ensure_session_row(self, session_id, meeting_id):
         """Upsert a meeting_sessions row linking session_id -> meetings.id so
-        downstream resolution (ai_audit_results + Node bridge) sees the mapping."""
+        downstream resolution (ai_audit_results + Node bridge) sees the mapping.
+
+        Called from _resolve_meeting_id() the first time a session_id has no
+        existing meeting_sessions row but a meeting was found via
+        external_meeting_id, so subsequent runs hit the fast path directly."""
         from database.python_db import execute
         execute(
             "INSERT INTO meeting_sessions (id, meeting_id, start_time, status) "
@@ -263,65 +485,7 @@ class PipelineContext:
         )
 
     def _setup_directories(self):
-        storage_base = os.path.join(
-            self.project_root,
-            "storage"
-        )
-
-        dirs = {
-            "recordings": os.path.join(
-                storage_base,
-                "recordings"
-            ),
-
-            "summaries": os.path.join(
-                storage_base,
-                "summaries"
-            ),
-
-            # ==========================================
-            # AUDIO + TRANSCRIPTION CACHE
-            # ==========================================
-
-            "wav_audio": os.path.join(
-                storage_base,
-                "cache_wav_audio"
-            ),
-
-            "cache_whisper": os.path.join(
-                storage_base,
-                "cache_whisper"
-            ),
-
-            "cache_audio_transcripts": os.path.join(
-                storage_base,
-                "cache_audio_transcripts"
-            ),
-
-            # ==========================================
-            # AI / NLP CACHE
-            # ==========================================
-
-            "cache_llm_prompts": os.path.join(
-                storage_base,
-                "cache_llm_prompts"
-            ),
-
-            "audits": os.path.join(
-                storage_base,
-                "cache_audits"
-            ),
-
-            "cache_audits": os.path.join(
-                storage_base,
-                "cache_audits"
-            )
-        }
-
-        for path in dirs.values():
-            os.makedirs(path, exist_ok=True)
-
-        return dirs
+        return build_storage_paths(self.project_root)
 
     # ==========================================
     # THREAD SAFE HELPERS
@@ -347,12 +511,29 @@ class PipelineContext:
     # ==========================================
 
     def build_final_response(self):
+        # FIX: this used to return self.base_id (the filename-derived string,
+        # e.g. "82014705313_Sess159_2026-06-12_16-01") as "meeting_id", even
+        # though __init__ already resolves the REAL numeric meetings.id into
+        # self.meeting_id (falling back to base_id only when resolution truly
+        # fails). pythonBridge.js on the Node side then had to re-derive the
+        # session id by regex-parsing this string a second time
+        # (resolveMeetingContext), which was redundant and broke if the
+        # filename format ever changed.
+        #
+        # Now: "meeting_id" is the already-resolved value (numeric id, or
+        # base_id ONLY as a genuine last resort), and session_id/base_id are
+        # surfaced explicitly so callers never need to re-parse anything.
         return {
             "success": True,
-            "meeting_id": self.base_id,
+            "meeting_id": self.meeting_id,
+            "session_id": self.session_id,
+            "base_id": self.base_id,
             "audio_path": self.audio_path,
             "transcript_path": self.transcript_path,
             "audit_json_path": self.audit_json_path,
             "summary_path": self.summary_path,
-            "oqi_score": self.audit_results.get("oqi_score", 0)
+            "oqi_score": self.audit_results.get("oqi_score", 0),
+            "skipped": self.processing_skipped,
+            "skip_reason": self.skip_reason,
+            "skip_message": self.skip_message
         }

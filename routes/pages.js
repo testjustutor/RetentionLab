@@ -51,7 +51,8 @@ function redirectToDashboard(req, res) {
   if (role === 'admin') return res.redirect('/admin/');
   if (role === 'reviewer') return res.redirect('/reviewer/dashboard');
   if (role === 'instructor' || role === 'solo_instructor') return res.redirect('/instructor/');
-  return res.redirect('/dashboard');
+  if (role === 'student') return res.redirect('/student/dashboard');
+  return res.redirect('/login');
 }
 
 // ---------------------------------------------------------
@@ -215,19 +216,21 @@ router.get('/super_admin/:page?', pageAuth, requirePageRole('super_admin'), (req
 });
 
 
-// Reviewer pages
-router.get('/reviewer/:page?', pageAuth, requirePageRole('reviewer', 'admin', 'super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
-  if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `reviewer/${page}.html`);
-});
+// NOTE: Reviewer pages moved to routes/reviewer/pages.js (dedicated MVC scaffold,
+// mirrors routes/super_admin/pages.js), mounted at /reviewer in routes/registry.js
+// BEFORE the catch-all pages router below, so it takes priority over this file.
 
-// instructor pages
-router.get('/instructor/:page?', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {
-  let page = req.params.page || 'index';
-  if (page.endsWith('.html')) page = page.slice(0, -5);
-  serveHTML(req, res, `instructor/${page}.html`);
-});
+// NOTE: Instructor's own /instructor/:page? pages moved to routes/instructor/pages.js
+// (dedicated MVC scaffold, mirrors routes/reviewer/pages.js), mounted at /instructor in
+// routes/registry.js BEFORE the catch-all pages router below, so it takes priority over
+// this file. The bare shared routes below (/meetings, /evaluations, /reports, /profile,
+// /content/:page, /insights/:page) are NOT moved — they serve the same public/instructor/
+// files but are used by BOTH instructor and solo_instructor via seeded sidebar menu hrefs
+// that point directly at these bare paths, so they must stay here.
+
+// NOTE: Student pages moved to routes/student/pages.js (dedicated MVC scaffold,
+// mirrors routes/super_admin/pages.js), mounted at /student in routes/registry.js
+// BEFORE the catch-all pages router below, so it takes priority over this file.
 
 // Solo instructor shared routes (served from instructor folder to match side menu URLs)
 router.get('/meetings', pageAuth, requirePageRole('solo_instructor', 'instructor', 'reviewer', 'admin', 'super_admin'), (req, res) => {

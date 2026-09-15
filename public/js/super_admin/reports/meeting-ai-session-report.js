@@ -1,8 +1,7 @@
 /**
  * public/js/super_admin/reports/meeting-ai-session-report.js
- * Displays the full AI-generated audit data for one session (ai_audit_results rows
- * plus meeting/session context). Reads session_id from the URL query string.
  */
+
 (function () {
   const params = new URLSearchParams(window.location.search);
   const sessionId = params.get('session_id');
@@ -11,7 +10,7 @@
     document.getElementById('sessionMeta').innerHTML =
       '<div class="text-red-700 font-semibold">Missing session_id parameter.</div>';
     document.getElementById('auditBody').innerHTML =
-      '<tr><td colspan="9" class="py-6 px-2 text-red-700 text-center">No session selected.</td></tr>';
+      '<tr><td colspan="5" class="py-6 px-2 text-red-700 text-center">No session selected.</td></tr>';
     return;
   }
 
@@ -24,10 +23,14 @@ async function loadSessionReport() {
     const session = data.session || {};
     const results = data.results || [];
     const stats = data.stats || {};
+    const categoryScores = data.categoryScores || [];
+    const overallSummary = data.overallSummary || null;
 
     renderMeta(session);
     renderStats(stats);
     renderTable(session, results);
+    renderCategoryScores(categoryScores);
+    renderOverallSummary(overallSummary);
 
     if (!results.length) {
       showToast('No AI audit results found for this session', true);
@@ -37,7 +40,11 @@ async function loadSessionReport() {
     document.getElementById('sessionMeta').innerHTML =
       '<div class="text-red-700 font-semibold">Failed to load session report: ' + escHtml(e.message) + '</div>';
     document.getElementById('auditBody').innerHTML =
-      '<tr><td colspan="9" class="py-6 px-2 text-red-700 text-center">Failed to load data.</td></tr>';
+      '<tr><td colspan="5" class="py-6 px-2 text-red-700 text-center">Failed to load data.</td></tr>';
+    document.getElementById('categoryScoresBody').innerHTML =
+      '<tr><td colspan="7" class="py-6 px-2 text-red-700 text-center">Failed to load data.</td></tr>';
+    document.getElementById('overallSummaryBody').innerHTML =
+      '<div class="text-red-700 font-semibold">Failed to load data.</div>';
     showToast('Failed to load session report: ' + e.message, true);
   }
 }
@@ -90,43 +97,116 @@ function renderStats(stats) {
 function renderTable(session, results) {
   const body = document.getElementById('auditBody');
   if (!results.length) {
-    body.innerHTML = '<tr><td colspan="9" class="py-6 px-2 text-blue-800 text-center">No AI audit results found for this session</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="py-6 px-2 text-blue-800 text-center">No AI audit results found for this session</td></tr>';
     return;
   }
 
   let html = '';
   results.forEach((r) => {
-    // Excluded indicator (e.g. video-gated, not scorable from transcript) has a
-    // null ai_score. Render as "N/A" instead of coercing to 0 / crashing.
-    const isExcluded = r.ai_score === null || r.ai_score === undefined;
-    const score = isExcluded ? null : Number(r.ai_score) || 0;
-    const max = Number(r.ai_max_score) || 0;
-    const pct = !isExcluded && max > 0 ? Math.round((score / max) * 100) : null;
-    const pctColor = pct === null ? 'text-slate-500' : pct >= 70 ? 'text-emerald-700' : pct >= 50 ? 'text-amber-700' : 'text-red-700';
-    const scoreText = isExcluded ? 'N/A' : score.toFixed(2);
-    const pctText = pct === null ? 'N/A' : `${pct}%`;
+    // AI Outcome: the DB stores the label directly (Met / Not met / N/A),
+    // but a numeric code is also accepted for source-data compatibility:
+    //   1 = Met, 2 = Not met, 3 = N/A
+    let outcome;
+    const rating = r.rating;
+    if (rating === null || rating === undefined || rating === '') {
+      outcome = 'N/A';
+    } else if (rating === 1 || rating === '1') outcome = 'Met';
+    else if (rating === 2 || rating === '2') outcome = 'Not met';
+    else if (rating === 3 || rating === '3') outcome = 'N/A';
+    else if (/^n\/?a$/i.test(String(rating)) || /not applicable/i.test(String(rating))) outcome = 'N/A';
+    else if (rating === true) outcome = 'Met';
+    else if (rating === false) outcome = 'Not met';
+    else outcome = String(rating).trim();
 
-    const raw = r.ai_raw_response;
-    let rawText = '';
-    try {
-      const parsed = typeof raw === 'object' ? raw : JSON.parse(raw || '{}');
-      rawText = escHtml(parsed.answer || JSON.stringify(parsed));
-    } catch (err) {
-      rawText = escHtml(typeof raw === 'string' ? raw : '');
-    }
+    const outcomeColor = outcome === 'Met' ? 'text-emerald-700'
+      : outcome === 'Not met' ? 'text-red-700'
+      : 'text-slate-500';
+
+    const weight = (r.category_weight !== null && r.category_weight !== undefined && r.category_weight !== '')
+      ? r.category_weight : (r.indicator_value || '-');
+
+    const quote = r.ai_evidence || r.evidence_quote || '-';
 
     html += `<tr class="border-b border-blue-200 hover:bg-blue-100/70 transition-colors align-top">
       <td class="py-2 px-2 text-[11px] font-semibold text-blue-950">${escHtml(r.category_name || r.category_id || 'Other')}</td>
       <td class="py-2 px-2 text-[11px] text-blue-900">${escHtml(r.indicator_name || r.indicator_id || '-')}</td>
-      <td class="py-2 px-2 text-[11px] text-blue-800 text-right">${escHtml(r.category_weight != null ? r.category_weight : '-')}</td>
-      <td class="py-2 px-2 text-[11px] font-bold text-blue-950 text-right">${scoreText}</td>
-      <td class="py-2 px-2 text-[11px] text-blue-800 text-right">${max}</td>
-      <td class="py-2 px-2 text-[11px] font-bold text-right ${pctColor}">${pctText}</td>
-      <td class="py-2 px-2 text-[11px] text-slate-800 max-w-xs">${rawText || escHtml(r.ai_evidence || '-')}</td>
-      <td class="py-2 px-2 text-[11px] italic text-slate-600 max-w-xs">${escHtml(r.evidence_quote || '-')}</td>
-      <td class="py-2 px-2 text-[11px] text-blue-800 whitespace-nowrap">${formatDateTime(r.scored_at)}</td>
+      <td class="py-2 px-2 text-[11px] text-blue-800 text-right">${escHtml(weight)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-right ${outcomeColor}">${escHtml(outcome)}</td>
+      <td class="py-2 px-2 text-[11px] italic text-slate-600 max-w-xs break-words">${escHtml(quote)}</td>
     </tr>`;
   });
+  body.innerHTML = html;
+}
+
+// ai_audit_category_scores: one row per rubric category (A-H) for this session.
+function renderCategoryScores(categoryScores) {
+  const body = document.getElementById('categoryScoresBody');
+  if (!categoryScores.length) {
+    body.innerHTML = '<tr><td colspan="7" class="py-6 px-2 text-violet-800 text-center">No category scores found for this session</td></tr>';
+    return;
+  }
+
+  let html = '';
+  categoryScores.forEach((c) => {
+    const scoreColor = c.categoryScore >= 70 ? 'text-emerald-700'
+      : c.categoryScore >= 40 ? 'text-amber-700'
+      : 'text-red-700';
+    const weightDisplay = (c.category_weight !== null && c.category_weight !== undefined)
+      ? (Number(c.category_weight) * 100).toFixed(0) + '%' : '-';
+
+    html += `<tr class="border-b border-violet-200 hover:bg-violet-100/70 transition-colors">
+      <td class="py-2 px-2 text-[11px] font-semibold text-violet-950">${escHtml(c.category_name)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-800 text-right">${escHtml(weightDisplay)}</td>
+      <td class="py-2 px-2 text-[11px] text-emerald-700 text-right font-semibold">${escHtml(c.countMet)}</td>
+      <td class="py-2 px-2 text-[11px] text-red-700 text-right font-semibold">${escHtml(c.countNotMet)}</td>
+      <td class="py-2 px-2 text-[11px] text-slate-500 text-right">${escHtml(c.countNotApplicable)}</td>
+      <td class="py-2 px-2 text-[11px] text-violet-800 text-right">${escHtml(c.totalCriteria)}</td>
+      <td class="py-2 px-2 text-[11px] font-bold text-right ${scoreColor}">${escHtml(c.categoryScore.toFixed(1))}%</td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+// ai_audit_overall_summary: the single session-level rollup row.
+function renderOverallSummary(overallSummary) {
+  const card = document.getElementById('overallSummaryCard');
+  const body = document.getElementById('overallSummaryBody');
+
+  if (!overallSummary) {
+    body.innerHTML = '<div class="text-slate-500">No overall summary found for this session</div>';
+    return;
+  }
+
+  const scoreColor = overallSummary.finalScore >= 70 ? 'text-emerald-700'
+    : overallSummary.finalScore >= 40 ? 'text-amber-700'
+    : 'text-red-700';
+
+  card.classList.toggle('border-red-400', overallSummary.redFlag);
+  card.classList.toggle('from-red-50', overallSummary.redFlag);
+  card.classList.toggle('to-red-100', overallSummary.redFlag);
+
+  let html = `
+    <div class="flex flex-wrap items-center gap-x-8 gap-y-2 mb-2">
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Final Score</p>
+        <p class="text-lg font-bold ${scoreColor}">${escHtml(overallSummary.finalScore.toFixed(2))}%</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Total Criteria</p>
+        <p class="text-sm font-bold text-slate-900">${escHtml(overallSummary.totalCriteriaAll)}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Gate Status</p>
+        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${overallSummary.redFlag ? 'bg-red-200 text-red-800' : 'bg-emerald-100 text-emerald-700'}">
+          ${overallSummary.redFlag ? 'RED FLAG' : 'All Gates Passed'}
+        </span>
+      </div>
+    </div>`;
+
+  if (overallSummary.overallSummaryText) {
+    html += `<div class="text-[11px] text-slate-700 border-t border-slate-300 pt-2 mt-1">${escHtml(overallSummary.overallSummaryText)}</div>`;
+  }
+
   body.innerHTML = html;
 }
 

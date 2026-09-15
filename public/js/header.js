@@ -1,13 +1,6 @@
 /**
- * root/public/js/header.js
- * 
- * Merged header utilities:
- *  - Header config API
- *  - Header controller
- *  - Header role common (profile dropdown, logout)
+ * public/js/header.js
  */
-
-// ========== HEADER CONFIG API ==========
 
 const BASE = '/api/header-config';
 
@@ -529,7 +522,25 @@ function detectPageId() {
   // Extract path segments
   const parts = path.split('/').filter(Boolean);
   if (!parts.length) return 'dashboard';
-  
+
+  // Reviewer section: /reviewer/<page> must map to the `reviewer`-prefixed
+  // header_page_configs keys (reviewerSessions, reviewerReviews, ...).
+  // Detect any page matching an existing `reviewerX` config so titles/descriptions
+  // populate for every reviewer page.
+  const reviewerKey = (name) => {
+    const camel = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    return `reviewer${camel.charAt(0).toUpperCase()}${camel.slice(1)}`;
+  };
+  if (parts[0] === 'reviewer' && parts.length === 2) {
+    const page = parts[1].replace(/\.\w+$/, '');
+    if (page === 'index.html' || page === 'index') return 'reviewerDashboard';
+    const candidate = reviewerKey(page);
+    // Prefer the reviewer-prefixed key when the DB has it; otherwise fall back
+    // to the plain key (e.g. a page without a seeded reviewer config).
+    if (headerConfig?.pages?.[candidate]) return candidate;
+    return page.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  }
+
   // Check for index files
   const lastPart = parts[parts.length - 1];
   if (lastPart === 'index.html' || lastPart === 'index') {
@@ -716,14 +727,28 @@ async function populateHeader() {
   }
 
   const pageId  = detectPageId();
-  const pageCfg = headerConfig.pages?.[pageId] || headerConfig.pages?.dashboard;
+
+  // The page config may be missing because the browser is using a stale cached
+  // header config from sessionStorage (e.g. configs were added server-side after
+  // the user's first visit). Clear the cache and re-fetch once so new page
+  // configs (reviewer pages) show their title/description immediately.
+  if (!headerConfig.pages?.[pageId]) {
+    try { sessionStorage.removeItem(HEADER_CONFIG_CACHE_KEY); } catch { /* ignore */ }
+    const freshConfig = await fetchHeaderConfig();
+    if (freshConfig) {
+      headerConfig = freshConfig;
+    }
+  }
+
+  // Re-resolve the page config now that we may have reloaded a fresh header config.
+  const resolvedPageCfg = headerConfig.pages?.[pageId] || headerConfig.pages?.dashboard;
 
   // ── Step 4: apply page config (always, even without a matched role) ───────────
 
-  if (pageCfg) {
+  if (resolvedPageCfg) {
     applyTitleAndDescription(pageId);
-    hideOrShowStats(pageCfg);
-    initOptionalButtons(pageCfg);
+    hideOrShowStats(resolvedPageCfg);
+    initOptionalButtons(resolvedPageCfg);
   }
 
   // ── Step 5: apply nav links (only when we have a confirmed role) ──────────────

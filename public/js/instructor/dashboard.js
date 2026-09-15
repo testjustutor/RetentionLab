@@ -1,8 +1,9 @@
 /**
- * root/public/js/instructor/dashboard.js
+ * public/js/instructor/dashboard.js
  */
+
 (function () {
-  const API_BASE = '/api/instructor-dashboard';
+  const API_BASE = '/api/instructor/dashboard';
 
   async function apiFetch(path) {
     const res = await fetch(API_BASE + path, {

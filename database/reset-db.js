@@ -4,9 +4,9 @@
  * DEVELOPMENT ONLY — Drops all tables, runs migrations, then seeds.
  * 
  * Database Structure:
- * - Migrations: 57 files (001-057) creating tables for roles, users, meetings,
+ * - Migrations: 56 files (001-055, 057) creating tables for roles, users, meetings,
  *   sessions, transcripts, rubrics, calendar, archives, and more
- * - Seeders: 19 files (001-019) seeding roles, companies, permissions, users,
+ * - Seeders: 20 files (001-020) seeding roles, companies, permissions, users,
  *   settings, menu items, and role-based menu permissions
  * 
  * Usage: npm run db:reset
@@ -106,7 +106,7 @@ const runMigrations = async () => {
     .filter(f => f.endsWith('.js'))
     .sort();
   
-  console.log(`   Found ${files.length} migration files (001-057)`);
+  console.log(`   Found ${files.length} migration files (001-055, 057)`);
   
   let success = 0;
   let fail = 0;
@@ -207,24 +207,6 @@ const resetDB = async () => {
     await run('SET FOREIGN_KEY_CHECKS = 0');
     await runMigrations();
     
-    // Ensure critical tables exist (some migration files have syntax issues)
-    console.log('   Verifying critical tables...');
-    const criticalTables = [
-      { name: 'meeting_sessions', sql: 'CREATE TABLE IF NOT EXISTS meeting_sessions (id INT AUTO_INCREMENT PRIMARY KEY, meeting_id VARCHAR(255), transcript_file_name TEXT, audio_file_name TEXT, start_time DATETIME DEFAULT CURRENT_TIMESTAMP, end_time DATETIME DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' },
-      { name: 'session_rubric_summary', sql: 'CREATE TABLE IF NOT EXISTS session_rubric_summary (id INT AUTO_INCREMENT PRIMARY KEY, session_id INT NOT NULL UNIQUE, weighted_score_pct DECIMAL(5,2) DEFAULT 0, gate_status VARCHAR(50) DEFAULT \"all_passed\", overall_rating VARCHAR(50) DEFAULT \"Developing\", confidence_level VARCHAR(255) DEFAULT \"\", red_flag TINYINT(1) DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' },
-      { name: 'user_settings', sql: 'CREATE TABLE IF NOT EXISTS user_settings (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, setting_key VARCHAR(255) NOT NULL, setting_value TEXT, setting_type VARCHAR(50) DEFAULT "string", created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_user_id (user_id), INDEX idx_setting_key (setting_key), UNIQUE KEY unique_user_setting (user_id, setting_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' }
-    ];
-    
-    for (const table of criticalTables) {
-      try {
-        await runAsync(table.sql);
-        console.log(`   ✓ ${table.name} (verified)`);
-      } catch (err) {
-        console.log(`   ⚠️  ${table.name}: ${err.message.substring(0, 50)}`);
-      }
-    }
-    
-    await run('SET FOREIGN_KEY_CHECKS = 1');
     console.log('   ✅ Migrations complete\n');
   } catch (err) {
     console.error('   ❌ Migrations failed:', err.message);

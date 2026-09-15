@@ -292,11 +292,13 @@ Step 6 : .\.venv\Scripts\Activate.ps1
 
 Step 7 : python -m pip install --upgrade pip
 
-Step 8 :    pip install openai-whisper
-            pip install openai
-            pip install sentence-transformers
-            pip install -U google-genai
-            pip install deepgram-sdk
+Step 8 :    python -m pip install openai-whisper
+            python -m pip install openai
+            python -m pip install sentence-transformers
+            python -m pip install -U google-genai
+            python -m pip install deepgram-sdk
+            python -m pip install resemblyzer
+
 
 Step 8 : Copy paste .dll file from ffmppeg (8.1.1-full_build-shared) to C://ffmpeg/bin/
 

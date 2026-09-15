@@ -14,7 +14,7 @@ const DEFAULT_NAV_BY_ROLE = {
   },
   admin: {
     home: { label: 'Dashboard', href: '/admin' },
-    events: { label: 'Calendar', href: '/admin/meetings/calendar' },
+    events: { label: 'Calendar', href: '/admin/meetings/schedule' },
     archives: { label: 'Content', href: '/admin/content/recordings' },
     profile: { label: 'Profile', href: '/admin/profile' },
     settings: { label: 'Settings', href: '/admin/settings/organization' }
@@ -24,14 +24,14 @@ const DEFAULT_NAV_BY_ROLE = {
     events: { label: 'Reviews', href: '/reviewer/reviews' },
     archives: { label: 'Sessions', href: '/reviewer/sessions' },
     profile: { label: 'Profile', href: '/reviewer/profile' },
-    settings: { label: 'Profile', href: '/reviewer/profile' }
+    settings: { label: 'settings', href: '/reviewer/settings' }
   },
   instructor: {
     home: { label: 'Dashboard', href: '/instructor' },
     events: { label: 'Upcoming', href: '/meetings?tab=upcoming' },
     archives: { label: 'Completed', href: '/meetings?tab=completed' },
     profile: { label: 'Profile', href: '/instructor/profile' },
-    settings: { label: 'Profile', href: '/instructor/profile' }
+    settings: { label: 'settings', href: '/instructor/settings' }
   },
   // NOTE: solo_instructor has no role_id entry in 017_menu_items.js.
   // Left as-is; confirm this role is still active before relying on it.
@@ -41,6 +41,11 @@ const DEFAULT_NAV_BY_ROLE = {
     archives: { label: 'Content', href: '/content/recordings' },
     profile: { label: 'Profile', href: '/profile' },
     settings: { label: 'Settings', href: '/settings' }
+  },
+  student: {
+    home: { label: 'Dashboard', href: '/student' },
+    profile: { label: 'Profile', href: '/student/profile' },
+    settings: { label: 'settings', href: '/student/settings' }
   }
 };
 

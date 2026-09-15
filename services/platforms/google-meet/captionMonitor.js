@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/google-meet/captionMonitor.js
+ * services/platforms/google-meet/captionMonitor.js
  *
  */
 const TranscriptModel = require('../../../models/transcripts/transcriptModel.js');
@@ -36,15 +36,21 @@ class CaptionMonitor {
 
     const now = new Date();
 
+    // FIX: was `.toISOString().split('T')[0]` (UTC date) glued to
+    // `.getHours()/.getMinutes()` (LOCAL time) - near local midnight this
+    // could stamp a file with the UTC date but a local time that actually
+    // belongs to the NEXT day. All components below now come from the same
+    // LOCAL clock, so the date and time in the filename always agree.
+    const pad = (n) => n.toString().padStart(2, '0');
     const timestamp =
-      now.toISOString().split('T')[0] +
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
       '_' +
-      now.getHours().toString().padStart(2, '0') +
+      pad(now.getHours()) +
       '-' +
-      now.getMinutes().toString().padStart(2, '0');
+      pad(now.getMinutes());
 
     this.fileName =
-      `TRANS_${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
+      `TRANS_Meet${this.meetingId}_Sess${this.sessionId}_${timestamp}.txt`;
 
     this.dirPath = path.resolve(
       __dirname,
@@ -85,19 +91,12 @@ class CaptionMonitor {
         `GoogleMeetAdapter(captionMonitor): File Created: storage/transcripts/${this.fileName}`
       );
 
-      if (this.sessionId) {
-
-        TranscriptModel
-          .saveTranscriptFile(
-            this.sessionId,
-            this.fileName
-          )
-          .catch(err =>
-            logger.error(
-              `GoogleMeetAdapter(captionMonitor): Error saving transcript file metadata: ${err.message}`
-            )
-          );
-      }
+      // NOTE: meeting_sessions.transcript_file_name is intentionally NOT written
+      // here — this file only has a header at this point, no real transcript yet.
+      // Google Meet's actual caption capture happens in transcriptEngine.js
+      // (via this joiner), which links the file to meeting_sessions the first
+      // time a real caption line is captured, so the row only reflects a real
+      // transcript rather than an empty placeholder.
 
     } catch (err) {
 

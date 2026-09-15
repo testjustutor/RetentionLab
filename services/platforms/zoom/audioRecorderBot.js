@@ -1,5 +1,5 @@
 /**
- * root/services/platforms/zoom/audioRecorderBot.js
+ * services/platforms/zoom/audioRecorderBot.js
  *
  */
 const puppeteer = require('puppeteer');

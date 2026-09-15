@@ -1,6 +1,7 @@
 /**
- * root/public/js/load-components.js
+ * public/js/load-components.js
  */
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Load shared sidebar template (role-aware)
   // Guard against double-injection when multiple scripts/placeholders run.
