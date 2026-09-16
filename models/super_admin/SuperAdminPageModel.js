@@ -14,14 +14,27 @@ class SuperAdminPageModel {
     return {
       nested: {
         'dashboard': ['index'],
-        'monitoring': ['server', 'platforms', 'audit'],
-        'people': ['access-control', 'add-user', 'manage-rubrics', 'manage-users', 'profile', 'user-settings'],
+        // FIX: 'platforms' removed - no public/super_admin/monitoring/platforms.html
+        // exists (only server.html and audit.html do). The settings section below
+        // has its own separate 'platforms' entry, which does map to a real file
+        // (public/super_admin/settings/platforms.html) and is unaffected.
+        'monitoring': ['server', 'audit'],
+        'people': ['add-user', 'manage-rubrics', 'manage-users', 'profile', 'user-settings'],
         'reports': ['meeting-ai-evaluation-report', 'meeting-ai-session-report'],
         'roles': ['roles-access', 'rubric-management'],
-        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms'],
-        'content': ['archives', 'assets', 'video-processing', 'deepgram-processing']
+        'settings': ['bot-configuration', 'header-management', 'sidebar-menu-management', 'table-controls', 'user-defaults', 'ai-providers', 'platforms', 'calendar-integrations'],
+        // FIX: 'deepgram-processing' removed - no matching .html file exists under
+        // public/super_admin/content (only archives.html, assets.html and
+        // video-processing.html do).
+        'content': ['archives', 'assets', 'video-processing']
       },
-      single: ['index', 'dashboard']
+      // FIX: was ['index', 'dashboard'], but neither public/super_admin/index.html
+      // nor public/super_admin/dashboard.html exists (dashboard/ is a directory
+      // containing dashboard/index.html, served via the nested registry above).
+      // isSingle() always returned false for every real request anyway, so this
+      // was dead config; emptied out so resolveSingleFile() explicitly always
+      // falls back to dashboard/index.html, matching actual behavior.
+      single: []
     };
   }
 

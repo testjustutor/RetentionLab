@@ -1,36 +1,10 @@
 /**
- * root/models/RolesModel.js
+ * models/super_admin/roles/RolesModel.js
+ * FIX: was a byte-for-byte copy of models/roles/RolesModel.js (only the
+ * require() path depth differed) - one of sixteen such super_admin/
+ * duplicate pairs identified in a codebase audit. See
+ * models/super_admin/admin/AdminModel.js for the full rationale. Re-exporting
+ * the top-level model directly instead, so there is only one copy of this
+ * logic to maintain.
  */
-const { db } = require('../../../database/db');
-const { logger } = require('../../../utils/logger');
-
-class RolesModel {
-  static getAllRoles() {
-    return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM roles ORDER BY role_name', [], (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
-  }
-
-  static getRoleByName(name) {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM roles WHERE role_name = ?', [name], (err, row) => err ? reject(err) : resolve(row || null));
-    });
-  }
-
-  static getRoleById(id) {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM roles WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row || null));
-    });
-  }
-
-  static createRole(role_name, description) {
-    return new Promise((resolve, reject) => {
-      db.run('INSERT IGNORE INTO roles (role_name, description, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [role_name, description || null], function(err) {
-        if (err) return reject(err);
-        resolve({ id: this.lastID });
-      });
-    });
-  }
-}
-
-module.exports = RolesModel;
+module.exports = require('../../roles/RolesModel');

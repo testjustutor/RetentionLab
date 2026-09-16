@@ -10,7 +10,7 @@ from database.python_db import get_cursor
 from utils.logger_util import log_with_type
 from services.engine.audit_scoring import (
     compute_category_score_from_counts,
-    compute_overall_from_category_rows,
+    compute_weighted_overall,
 )
 from services.engine.llm_cache import build_messages, generation_params
 
@@ -106,12 +106,19 @@ class AuditStorage:
         rewrite. Category/indicator display fields resolve via
         rubric_categories / rubric_indicators join.
 
-        The rollup tables follow review_calculation_logic.txt:
+        Per-category score follows review_calculation_logic.txt's 'submit' rule:
           - calc_source='submit'  -> category = Met/(Met+NA), all-NA -> 100%
           - calc_source='update'  -> category = Met/(Met+NotMet), all-Not-Met -> 100%
         The AI pass is a single fresh evaluation, so it is persisted with
         calc_source='submit' (the 'update' quirk is stored only when a review
         update flow writes it later).
+
+        The OVERALL/final score, however, is a weighted average of the
+        category scores by each category's CONFIGURED rubric weight
+        (falls back to 1 when unweighted) — matching computeFinalScore() in
+        controllers/reviewer/tutorEvaluationController.js — not by criteria
+        count as review_calculation_logic.txt originally documented. See
+        TODO.md for why this changed.
         """
         if not meeting_id:
             return 0
@@ -137,7 +144,8 @@ class AuditStorage:
             )
 
             indicator_count = 0
-            category_rows = []  # (category_score, total_criteria) for overall
+            category_rows = []           # (category_score, category_weight) — drives final_score
+            category_rows_by_count = []  # (category_score, total_criteria) — informational columns only
             with get_cursor() as cur:
                 for cat_name, cat_data in category_scores.items():
                     indicators_data = cat_data.get("indicators", {}) if isinstance(cat_data, dict) else {}
@@ -219,7 +227,9 @@ class AuditStorage:
                         continue
                     cat_score = compute_category_score_from_counts(met, not_met, na, calc_source="submit")
                     cat_total = met + not_met + na
-                    category_rows.append((cat_score, cat_total))
+                    weight_for_overall = category_weight if category_weight > 0 else 1
+                    category_rows.append((cat_score, weight_for_overall))
+                    category_rows_by_count.append((cat_score, cat_total))
                     cur.execute(
                         """INSERT INTO ai_audit_category_scores
                            (meeting_id, session_id, category_id,
@@ -240,17 +250,22 @@ class AuditStorage:
                         ),
                     )
 
-                # Overall rollup (review_calculation_logic.txt — identical math
-                # in both flows, weighted by criteria COUNT per category):
-                #   total_weighted_percent += category_score * total_criteria
-                #   total_criteria_all     += total_criteria
-                #   Final Score = total_weighted_percent / total_criteria_all
-                total_criteria_all = sum(t for _, t in category_rows)
+                # Overall rollup: final_score is now a weighted average of
+                # category scores by each category's CONFIGURED rubric weight
+                # (category_rows holds (category_score, weight) pairs — see
+                # the weight_for_overall assignment above), matching
+                # computeFinalScore() in tutorEvaluationController.js.
+                #
+                # total_weighted_percent / total_criteria_all remain the
+                # original criteria-count-based figures (informational only —
+                # NOT what final_score is derived from) so existing readers of
+                # those two columns are unaffected by this change.
+                total_criteria_all = sum(t for _, t in category_rows_by_count)
                 total_weighted_percent = sum(
                     (float(score or 0) * int(total or 0))
-                    for score, total in category_rows
+                    for score, total in category_rows_by_count
                 )
-                final_score = compute_overall_from_category_rows(category_rows)
+                final_score = compute_weighted_overall(category_rows)
                 cur.execute(
                     """INSERT INTO ai_audit_overall_summary
                        (meeting_id, session_id, final_score,

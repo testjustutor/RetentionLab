@@ -1,6 +1,14 @@
 const jwt = require('jsonwebtoken');
 
-const CALENDAR_LINK_SECRET = process.env.CALENDAR_LINK_SECRET || process.env.JWT_SECRET || 'calendar_link_secret_change_me';
+// FIX: was `process.env.CALENDAR_LINK_SECRET || process.env.JWT_SECRET ||
+// 'calendar_link_secret_change_me'` - same class of bug as JWT_SECRET's old
+// hardcoded fallback. Now requires its own explicit value at startup rather
+// than silently degrading to a guessable default.
+const CALENDAR_LINK_SECRET = process.env.CALENDAR_LINK_SECRET;
+if (!CALENDAR_LINK_SECRET) {
+  throw new Error('CALENDAR_LINK_SECRET environment variable is required - refusing to start with an insecure default.');
+}
+// Not a secret, so a sensible default is safe here.
 const CALENDAR_LINK_EXPIRES_IN = process.env.CALENDAR_LINK_EXPIRES_IN || '7d';
 
 function signCalendarLink(data) {

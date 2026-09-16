@@ -191,6 +191,18 @@ const controller = {
         return err('User not found', 404);
       }
 
+      // Super-admin kill switch (Settings > Calendar Integrations) — the
+      // 'google-meet' calendar_providers row is Google Calendar's provider
+      // record (see CalendarVerificationModel.resolveProviderId). Checked
+      // here (not just hidden in the UI) so the admin-triggered send-
+      // verification endpoint can't be used to bypass a disabled provider.
+      const CalendarProvidersModel = require('../../models/calendar/CalendarProvidersModel');
+      const googleProviderRows = await CalendarProvidersModel.getByName('google-meet');
+      const googleProvider = googleProviderRows && googleProviderRows[0];
+      if (!googleProvider || !googleProvider.is_active) {
+        return err('Google Calendar integration is currently disabled by the administrator.', 403);
+      }
+
       // Sign a JWT token (encrypted, expiring, single-use)
       // NOTE: This JWT MUST be the same value stored in calendar_connections.token,
       // otherwise verifyToken() cannot find the row and status will stay 'pending'.
@@ -319,6 +331,16 @@ const controller = {
       const { email } = req.body;
       if (!email) {
         return res.status(400).json({ success: false, error: 'Email is required' });
+      }
+
+      // Super-admin kill switch (Settings > Calendar Integrations) — see the
+      // matching check in sendVerification() above for why this looks up
+      // 'google-meet' specifically.
+      const CalendarProvidersModel = require('../../models/calendar/CalendarProvidersModel');
+      const googleProviderRows = await CalendarProvidersModel.getByName('google-meet');
+      const googleProvider = googleProviderRows && googleProviderRows[0];
+      if (!googleProvider || !googleProvider.is_active) {
+        return res.status(403).json({ success: false, error: 'Google Calendar integration is currently disabled by the administrator.' });
       }
 
       const normalizedEmail = String(email).trim().toLowerCase();
@@ -660,7 +682,11 @@ const controller = {
       logger.debug(`[InstructorCalendar] Token data - has access_token: ${!!integration.access_token}, has refresh_token: ${!!integration.refresh_token}, token_expires_at: ${integration.token_expires_at}`);
       
       const CalendarSyncController = require('../../controllers/calendar/CalendarSyncController');
-      const syncResult = await CalendarSyncController.syncUserCalendar({ email: integration.email });
+      // integration.provider (from CalendarUsersModel.getUser()'s calendar_providers
+      // join) tells CalendarSyncController which API to call — 'teams' routes to
+      // Microsoft Graph, anything else (including undefined) defaults to Google,
+      // preserving this endpoint's original Google-only behavior.
+      const syncResult = await CalendarSyncController.syncUserCalendar({ email: integration.email, provider_name: integration.provider });
       
       logger.info(`[InstructorCalendar] Sync result for ${integration.email}: success=${syncResult.success}, eventsProcessed=${syncResult.eventsProcessed || 0}, error=${syncResult.error || 'none'}`);
       

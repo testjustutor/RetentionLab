@@ -122,8 +122,8 @@
             <form id="categoryForm" class="p-3 space-y-2">
                 <input type="hidden" id="categoryId" value="">
                 <div>
-                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Category ID</label>
-                    <input type="text" id="category_id" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="CAT_xxx">
+                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Category Code</label>
+                    <input type="text" id="category_code" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="CAT_xxx">
                 </div>
                 <div>
                     <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Name *</label>
@@ -131,8 +131,8 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Weight</label>
-                        <input type="number" id="categoryWeight" step="0.1" min="0" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="0">
+                        <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Weight (0–1, e.g. 0.25)</label>
+                        <input type="number" id="categoryWeight" step="0.01" min="0" max="1" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="0.0">
                     </div>
                     <div>
                         <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Status</label>
@@ -170,8 +170,8 @@
             <form id="indicatorForm" class="p-3 space-y-2">
                 <input type="hidden" id="indicatorId" value="">
                 <div>
-                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Indicator ID</label>
-                    <input type="text" id="indicator_id" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="IND_xxx">
+                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Indicator Code</label>
+                    <input type="text" id="indicator_code" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="IND_xxx">
                 </div>
                 <div>
                     <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Name *</label>
@@ -182,6 +182,10 @@
                     <select id="indicatorCategory" required class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500">
                         <option value="">Select category...</option>
                     </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Subgroup</label>
+                    <input type="text" id="indicatorSubgroup" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional subgroup name">
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
@@ -195,6 +199,10 @@
                         <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Value</label>
                         <input type="number" id="indicatorValue" step="0.1" min="0" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="1">
                     </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Benchmark</label>
+                    <textarea id="indicatorBenchmark" rows="2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="What 'meeting this indicator' looks like"></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
@@ -210,6 +218,25 @@
                             <span class="text-[10px] text-slate-600">Is Gate</span>
                         </label>
                     </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex items-center pb-1">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="indicatorRequiresVideo" class="w-3 h-3 rounded border-slate-300 bg-white text-cyan-600 focus:ring-cyan-500">
+                            <span class="text-[10px] text-slate-600">Requires Video</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center pb-1">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="indicatorRequiresCalculation" onchange="toggleCalculationConfigField()" class="w-3 h-3 rounded border-slate-300 bg-white text-cyan-600 focus:ring-cyan-500">
+                            <span class="text-[10px] text-slate-600">Requires Calculation</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="calculationConfigField" class="hidden">
+                    <label class="block text-[10px] font-medium text-slate-500 mb-0.5">Calculation Config (JSON)</label>
+                    <textarea id="indicatorCalculationConfig" rows="2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder='{"metric":"talk_ratio_tutor_pct","operator":"<=","threshold":70}'></textarea>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Read by the AI audit engine's config-driven scoring (rubric_loader.py) — leave blank unless this indicator is calculated from a metric rather than scored directly.</p>
                 </div>
                 <div class="flex gap-2 pt-1.5">
                     <button type="submit" class="flex-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded transition">Save</button>

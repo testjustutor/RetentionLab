@@ -73,7 +73,22 @@ const masterRubricController = {
   /** POST /api/rubrics/master/indicators — Create a new master indicator */
   async createIndicator(req) {
     try {
-      const { indicator_id, category_id, name, type, is_gate, value } = req.body;
+      // FIX: this controller previously only destructured/forwarded
+      // indicator_id/category_id/name/type/is_gate/value from req.body, so
+      // benchmark/requires_video/requires_calculation/calculation_config were
+      // silently dropped even though MasterRubricModel.createIndicator has
+      // supported all four since the calculation_config fix earlier this
+      // session (see models/rubrics/MasterRubricModel.js). Ported the
+      // complete field list from controllers/super_admin/rubrics/masterRubricController.js,
+      // which already had it. (Neither this controller's create/update nor
+      // its super_admin counterpart's are wired to a live route today - see
+      // routes/rubrics.js and routes/super_admin/index.js - but fixing this
+      // now avoids the drift resurfacing incorrectly the moment either gets
+      // wired up.)
+      const {
+        indicator_id, category_id, name, type, is_gate, value,
+        benchmark, requires_video, requires_calculation, calculation_config
+      } = req.body;
       if (!indicator_id || !category_id || !name) return err('indicator_id, category_id, and name are required', 400);
       const result = await MasterRubricModel.createIndicator({
         indicator_id,
@@ -81,7 +96,11 @@ const masterRubricController = {
         name: name.trim(),
         type: type || 'HUMAN',
         is_gate: is_gate ? 1 : 0,
-        value: parseFloat(value) || 1
+        value: parseFloat(value) || 1,
+        benchmark,
+        requires_video: requires_video ? 1 : 0,
+        requires_calculation: requires_calculation ? 1 : 0,
+        calculation_config
       });
       return ok({ result }, 'Master indicator created');
     } catch (e) { return err(e.message); }
@@ -97,6 +116,12 @@ const masterRubricController = {
       if (req.body.is_gate !== undefined) updates.is_gate = req.body.is_gate ? 1 : 0;
       if (req.body.category_id !== undefined) updates.category_id = req.body.category_id;
       if (req.body.value !== undefined) updates.value = parseFloat(req.body.value);
+      // FIX: same gap as createIndicator above - these four were previously
+      // never read from req.body here even though the model supports them.
+      if (req.body.benchmark !== undefined) updates.benchmark = req.body.benchmark;
+      if (req.body.requires_video !== undefined) updates.requires_video = req.body.requires_video ? 1 : 0;
+      if (req.body.requires_calculation !== undefined) updates.requires_calculation = req.body.requires_calculation ? 1 : 0;
+      if (req.body.calculation_config !== undefined) updates.calculation_config = req.body.calculation_config;
       if (req.body.status !== undefined) updates.status = req.body.status;
       const result = await MasterRubricModel.updateIndicator(indicatorId, updates);
       return ok({ result }, 'Master indicator updated');

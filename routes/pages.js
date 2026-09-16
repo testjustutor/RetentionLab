@@ -129,15 +129,13 @@ router.get('/verify-email.html', (req, res) => {
 // PUBLIC MARKETING PAGES (UNPROTECTED)
 // ---------------------------------------------------------
 router.get('/', (req, res) => { serveHTML(req, res, 'marketing/index.html'); });
-router.get('/about', (req, res) => { serveHTML(req, res, 'marketing/about.html'); });
-router.get('/services', (req, res) => { serveHTML(req, res, 'marketing/services.html'); });
-router.get('/blog', (req, res) => { serveHTML(req, res, 'marketing/blog.html'); });
-router.get('/faq', (req, res) => { serveHTML(req, res, 'marketing/faq.html'); });
-router.get('/contact', (req, res) => { serveHTML(req, res, 'marketing/contact.html'); });
-router.get('/privacy-policy', (req, res) => { serveHTML(req, res, 'marketing/privacy.html'); });
-router.get('/terms-conditions', (req, res) => { serveHTML(req, res, 'marketing/terms.html'); });
-router.get('/support', (req, res) => { serveHTML(req, res, 'marketing/support.html'); });
-router.get('/404', (req, res) => { serveHTML(req, res, 'marketing/404.html'); });
+// FIX: the other 9 marketing routes that used to live here (about, services,
+// blog, faq, contact, privacy-policy, terms-conditions, support, 404) each
+// pointed at a public/marketing/*.html file that does not exist on disk -
+// only marketing/index.html does. They were dead routes that would 500 on
+// res.sendFile's ENOENT if ever hit, and nothing in marketing/index.html
+// links to any of them. Removed rather than left as broken links; add them
+// back if/when the corresponding marketing pages are actually built.
 
 // ---------------------------------------------------------
 // LOGOUT ROUTE (direct access for sidebar links)
@@ -269,17 +267,29 @@ router.get('*', (req, res, next) => {
 });
 
 // General protected pages (in public root)
+// FIX: safeRootPages used to list 8 names (schedule-intelligence,
+// meeting-overview, archives, assets, audit, bot, calendar-accounts,
+// calendar-events) but none of them has a matching .html file directly under
+// public/ - every real page for these topics lives under a role-scoped
+// folder instead (e.g. public/admin/archives.html via the /admin/:page
+// route above, or public/super_admin/monitoring/audit.html via the nested
+// super_admin route). Hitting any of these 8 root paths would call
+// res.sendFile on a nonexistent file and error instead of cleanly 404-ing.
+// Emptied the list rather than deleting the route, since the auth-gate
+// behavior (redirect to /login when unauthenticated) may still be relied on
+// by callers probing these paths; next() now always falls through to
+// express.static/404 for any :page value, matching what already happened
+// for every one of these 8 names in practice.
 router.get('/:page', pageAuth, (req, res, next) => {
 
   let page = req.params.page;
   if (page.endsWith('.html')) page = page.slice(0, -5);
-  
+
   // Ignore API routes and static assets that haven't been caught yet
   if (page.startsWith('api') || page.startsWith('storage')) return next();
-  
-  // Safe list of root pages that need auth
-  const safeRootPages = ['schedule-intelligence', 'meeting-overview', 'archives', 'assets', 'audit', 'bot', 'calendar-accounts', 'calendar-events'];
-  
+
+  const safeRootPages = [];
+
   if (safeRootPages.includes(page)) {
     serveHTML(req, res, `${page}.html`);
   } else {

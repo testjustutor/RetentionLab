@@ -51,32 +51,18 @@ async function loadBotSettings() {
 async function saveAllSettings() {
   try {
     const settings = [
-      // Puppeteer Configuration
-      { key: 'bot.default_viewport', value: document.getElementById('defaultViewport').value, type: 'string' },
-      { key: 'bot.protocol_timeout', value: document.getElementById('protocolTimeout').value, type: 'number' },
-      { key: 'bot.slow_mo', value: document.getElementById('slowMo').value, type: 'number' },
-      { key: 'bot.ignore_default_args', value: document.getElementById('ignoreDefaultArgs').value, type: 'string' },
-      { key: 'bot.user_data_dir', value: document.getElementById('userDataDir').value, type: 'string' },
-      { key: 'bot.headless_mode', value: document.getElementById('headlessMode').checked ? 'true' : 'false', type: 'boolean' },
-      
-      // Audio Configuration
-      { key: 'bot.audio_device_name', value: document.getElementById('audioDeviceName').value, type: 'string' },
-      { key: 'bot.audio_bitrate', value: document.getElementById('audioBitrate').value, type: 'string' },
-      { key: 'bot.audio_sample_rate', value: document.getElementById('audioSampleRate').value, type: 'number' },
-      { key: 'bot.audio_channels', value: document.getElementById('audioChannels').value, type: 'number' },
-      { key: 'bot.audio_format', value: document.getElementById('audioFormat').value, type: 'string' },
-      { key: 'bot.audio_enhancement', value: document.getElementById('audioEnhancement').checked ? 'true' : 'false', type: 'boolean' },
-      
-      // Screen Configuration
-      { key: 'bot.screen_framerate', value: document.getElementById('screenFramerate').value, type: 'number' },
-      { key: 'bot.screen_crf', value: document.getElementById('screenCrf').value, type: 'number' },
-      
       // Bot Engine Settings
       { key: 'bot.auto_launch', value: document.getElementById('botAutoLaunch').checked ? 'true' : 'false', type: 'boolean' },
       { key: 'bot.polling_enabled', value: document.getElementById('pollingEnabled').checked ? 'true' : 'false', type: 'boolean' },
       { key: 'bot.max_concurrent', value: document.getElementById('maxConcurrentBots').value, type: 'number' },
       { key: 'bot.launch_window', value: document.getElementById('botLaunchWindow').value, type: 'number' },
-      
+
+      // Bot Timing (live - these actually drive config/settings.js)
+      { key: 'bot.host_wait_timeout_ms', value: document.getElementById('host_wait_timeout_ms').value, type: 'number' },
+      { key: 'bot.human_join_timeout_ms', value: document.getElementById('human_join_timeout_ms').value, type: 'number' },
+      { key: 'bot.launch_lead_minutes', value: document.getElementById('launch_lead_minutes').value, type: 'number' },
+      { key: 'bot.queued_expire_minutes', value: document.getElementById('queued_expire_minutes').value, type: 'number' },
+
       // Error Handling & Retries
       { key: 'bot.max_retries', value: document.getElementById('maxRetries').value, type: 'number' },
       { key: 'bot.retry_delay', value: document.getElementById('retryDelay').value, type: 'number' },
@@ -111,33 +97,19 @@ async function saveAllSettings() {
 // Reset to default values
 function resetToDefaults() {
   if (!confirm('Reset all settings to default values?')) return;
-  
-  // Puppeteer Configuration
-  document.getElementById('defaultViewport').value = 'null';
-  document.getElementById('protocolTimeout').value = 180000;
-  document.getElementById('slowMo').value = 0;
-  document.getElementById('ignoreDefaultArgs').value = '--mute-audio';
-  document.getElementById('userDataDir').value = './storage/chrome-profiles';
-  document.getElementById('headlessMode').checked = true;
-  
-  // Audio Configuration
-  document.getElementById('audioDeviceName').value = 'audio=CABLE Output (VB-Audio Virtual Cable)';
-  document.getElementById('audioBitrate').value = '128k';
-  document.getElementById('audioSampleRate').value = '48000';
-  document.getElementById('audioChannels').value = '1';
-  document.getElementById('audioFormat').value = 'libmp3lame';
-  document.getElementById('audioEnhancement').checked = true;
-  
-  // Screen Configuration
-  document.getElementById('screenFramerate').value = 15;
-  document.getElementById('screenCrf').value = 28;
-  
+
   // Bot Engine Settings
   document.getElementById('botAutoLaunch').checked = true;
   document.getElementById('pollingEnabled').checked = true;
   document.getElementById('maxConcurrentBots').value = 50;
   document.getElementById('botLaunchWindow').value = 3;
-  
+
+  // Bot Timing (live)
+  document.getElementById('host_wait_timeout_ms').value = 900000;
+  document.getElementById('human_join_timeout_ms').value = 600000;
+  document.getElementById('launch_lead_minutes').value = 3;
+  document.getElementById('queued_expire_minutes').value = 50;
+
   // Error Handling & Retries
   document.getElementById('maxRetries').value = 3;
   document.getElementById('retryDelay').value = 5;

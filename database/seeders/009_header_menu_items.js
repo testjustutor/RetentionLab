@@ -14,7 +14,6 @@ const DEFAULT_MENU_BY_ROLE = {
     { id: 'sa-people', label: 'People & Access', icon: 'users', href: null, submenu: [
       { id: 'sa-add-user', label: 'Add User', href: '/super_admin/people/add-user' },
       { id: 'sa-manage-users', label: 'Manage Users', href: '/super_admin/people/manage-users' },
-      { id: 'sa-access-control', label: 'Access Control', href: '/super_admin/people/access-control' },
       { id: 'sa-manage-rubrics', label: 'Manage Rubrics', href: '/super_admin/people/manage-rubrics' }
     ]},
 

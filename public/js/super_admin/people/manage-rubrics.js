@@ -82,8 +82,8 @@ function renderCategories() {
     if (!container) return;
 
     const rows = allCategories.map(cat => ({
-        id: cat.category_id,
-        category_id: cat.category_id,
+        id: cat.id,
+        category_code: cat.category_code,
         name: cat.name,
         weight: cat.weight,
         status: cat.status
@@ -98,11 +98,11 @@ function renderCategories() {
             exportFilename: 'rubric-categories',
             emptyMessage: 'No categories found',
             headers: [
-                { label: 'ID', key: 'category_id', width: '18%', render: (val) => '<span class="text-violet-700 text-xs font-mono">' + escHtml(val) + '</span>' },
+                { label: 'Code', key: 'category_code', width: '18%', render: (val) => '<span class="text-violet-700 text-xs font-mono">' + escHtml(val) + '</span>' },
                 { label: 'Name', key: 'name', width: '34%', render: (val) => '<span class="text-violet-950 text-xs font-semibold">' + escHtml(val) + '</span>' },
-                { label: 'Weight', key: 'weight', width: '12%', align: 'right', render: (val) => '<span class="text-violet-900 text-xs">' + (val || 0) + '%</span>' },
+                { label: 'Weight', key: 'weight', width: '12%', align: 'right', render: (val) => '<span class="text-violet-900 text-xs">' + (val || 0) + '</span>' },
                 { label: 'Status', key: 'status', width: '16%', render: (val) => statusBadge(val) },
-                { label: 'Actions', key: 'category_id', width: '20%', align: 'right', render: (val) => {
+                { label: 'Actions', key: 'category_code', width: '20%', align: 'right', render: (val) => {
                     return '<div class="flex gap-1 justify-end">' +
                         '<button onclick="editCategory(\'' + escHtml(val) + '\')" class="px-1.5 py-0.5 bg-white hover:bg-violet-50 text-violet-700 text-[9px] rounded border border-slate-300 hover:border-violet-300 transition" title="Edit">' + EDIT_ICON + '</button>' +
                         '<button onclick="deleteCategory(\'' + escHtml(val) + '\')" class="px-1.5 py-0.5 bg-white hover:bg-rose-50 text-rose-600 text-[9px] rounded border border-slate-300 hover:border-rose-300 transition" title="Delete">' + DELETE_ICON + '</button>' +
@@ -122,9 +122,9 @@ function renderIndicators() {
     if (!container) return;
 
     const rows = allIndicators.map(ind => ({
-        indicator_id: ind.indicator_id,
+        indicator_code: ind.indicator_code,
         name: ind.name,
-        category: ind.category_name || ind.category_id || 'N/A',
+        category: ind.category_name || ind.category_code || 'N/A',
         type: ind.type || 'HUMAN',
         value: ind.value,
         status: ind.status
@@ -139,13 +139,13 @@ function renderIndicators() {
             exportFilename: 'rubric-indicators',
             emptyMessage: 'No indicators found',
             headers: [
-                { label: 'ID', key: 'indicator_id', width: '14%', render: (val) => '<span class="text-cyan-700 text-xs font-mono">' + escHtml(val) + '</span>' },
+                { label: 'Code', key: 'indicator_code', width: '14%', render: (val) => '<span class="text-cyan-700 text-xs font-mono">' + escHtml(val) + '</span>' },
                 { label: 'Name', key: 'name', width: '26%', render: (val) => '<span class="text-cyan-950 text-xs font-semibold">' + escHtml(val) + '</span>' },
                 { label: 'Category', key: 'category', width: '16%', render: (val) => '<span class="text-cyan-900 text-xs">' + escHtml(val) + '</span>' },
                 { label: 'Type', key: 'type', width: '10%', render: (val) => '<span class="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 border border-blue-200">' + escHtml(val) + '</span>' },
                 { label: 'Value', key: 'value', width: '10%', align: 'right', render: (val) => '<span class="text-cyan-900 text-xs">' + (val || 1) + '</span>' },
                 { label: 'Status', key: 'status', width: '12%', render: (val) => statusBadge(val) },
-                { label: 'Actions', key: 'indicator_id', width: '12%', align: 'right', render: (val) => {
+                { label: 'Actions', key: 'indicator_code', width: '12%', align: 'right', render: (val) => {
                     return '<div class="flex gap-1 justify-end">' +
                         '<button onclick="editIndicator(\'' + escHtml(val) + '\')" class="px-1.5 py-0.5 bg-white hover:bg-cyan-50 text-cyan-700 text-[9px] rounded border border-slate-300 hover:border-cyan-300 transition" title="Edit">' + EDIT_ICON + '</button>' +
                         '<button onclick="deleteIndicator(\'' + escHtml(val) + '\')" class="px-1.5 py-0.5 bg-white hover:bg-rose-50 text-rose-600 text-[9px] rounded border border-slate-300 hover:border-rose-300 transition" title="Delete">' + DELETE_ICON + '</button>' +
@@ -170,12 +170,12 @@ function openCategoryModal() {
 
 window.openCategoryModal = openCategoryModal;
 
-function editCategory(categoryId) {
-    const cat = allCategories.find(c => c.category_id === categoryId);
+function editCategory(categoryCode) {
+    const cat = allCategories.find(c => c.category_code === categoryCode);
     if (!cat) return;
 
     document.getElementById('categoryId').value = cat.id || '';
-    document.getElementById('category_id').value = cat.category_id;
+    document.getElementById('category_code').value = cat.category_code;
     document.getElementById('categoryName').value = cat.name;
     document.getElementById('categoryWeight').value = cat.weight;
     document.getElementById('categoryStatus').value = cat.status;
@@ -185,10 +185,10 @@ function editCategory(categoryId) {
 
 window.editCategory = editCategory;
 
-async function deleteCategory(categoryId) {
-    if (!confirm(`Are you sure you want to delete category "${categoryId}"?`)) return;
+async function deleteCategory(categoryCode) {
+    if (!confirm(`Are you sure you want to delete category "${categoryCode}"?`)) return;
     try {
-        const response = await fetch(`/api/super_admin/people/manage-rubrics/categories/${categoryId}`, {
+        const response = await fetch(`/api/super_admin/people/manage-rubrics/categories/${categoryCode}`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -210,7 +210,7 @@ document.getElementById('categoryForm').addEventListener('submit', async (e) => 
     e.preventDefault();
     const id = document.getElementById('categoryId').value;
     const payload = {
-        category_id: document.getElementById('category_id').value || 'CAT_' + Date.now(),
+        category_code: document.getElementById('category_code').value || 'CAT_' + Date.now(),
         name: document.getElementById('categoryName').value,
         weight: parseFloat(document.getElementById('categoryWeight').value) || 0,
         status: document.getElementById('categoryStatus').value
@@ -240,15 +240,24 @@ document.getElementById('categoryForm').addEventListener('submit', async (e) => 
 
 // ─── Indicators CRUD ──────────────────────────────────────────────────────────
 
+function toggleCalculationConfigField() {
+    const show = document.getElementById('indicatorRequiresCalculation').checked;
+    document.getElementById('calculationConfigField').classList.toggle('hidden', !show);
+}
+
+window.toggleCalculationConfigField = toggleCalculationConfigField;
+
 function openIndicatorModal() {
     document.getElementById('indicatorForm').reset();
     document.getElementById('indicatorId').value = '';
     document.getElementById('indicatorModalTitle').textContent = 'Add Indicator';
+    document.getElementById('calculationConfigField').classList.add('hidden');
+    document.getElementById('indicatorCalculationConfig').value = '';
 
     const categorySelect = document.getElementById('indicatorCategory');
     categorySelect.innerHTML = '<option value="">Select category...</option>';
     allCategories.forEach(cat => {
-        categorySelect.innerHTML += `<option value="${escHtml(cat.category_id)}">${escHtml(cat.name)}</option>`;
+        categorySelect.innerHTML += `<option value="${escHtml(cat.category_code)}">${escHtml(cat.name)}</option>`;
     });
 
     document.getElementById('indicatorModal').classList.remove('hidden');
@@ -256,34 +265,42 @@ function openIndicatorModal() {
 
 window.openIndicatorModal = openIndicatorModal;
 
-function editIndicator(indicatorId) {
-    const ind = allIndicators.find(i => i.indicator_id === indicatorId);
+function editIndicator(indicatorCode) {
+    const ind = allIndicators.find(i => i.indicator_code === indicatorCode);
     if (!ind) return;
 
     document.getElementById('indicatorId').value = ind.id || '';
-    document.getElementById('indicator_id').value = ind.indicator_id;
+    document.getElementById('indicator_code').value = ind.indicator_code;
     document.getElementById('indicatorName').value = ind.name;
 
     const categorySelect = document.getElementById('indicatorCategory');
     categorySelect.innerHTML = '<option value="">Select category...</option>';
     allCategories.forEach(cat => {
-        categorySelect.innerHTML += `<option value="${escHtml(cat.category_id)}" ${cat.category_id === ind.category_id ? 'selected' : ''}>${escHtml(cat.name)}</option>`;
+        categorySelect.innerHTML += `<option value="${escHtml(cat.category_code)}" ${cat.category_code === ind.category_code ? 'selected' : ''}>${escHtml(cat.name)}</option>`;
     });
 
+    document.getElementById('indicatorSubgroup').value = ind.subgroup_name || '';
     document.getElementById('indicatorType').value = ind.type || 'HUMAN';
     document.getElementById('indicatorValue').value = ind.value;
+    document.getElementById('indicatorBenchmark').value = ind.benchmark || '';
     document.getElementById('indicatorStatus').value = ind.status;
     document.getElementById('indicatorGate').checked = ind.is_gate == 1;
+    document.getElementById('indicatorRequiresVideo').checked = ind.requires_video == 1;
+    document.getElementById('indicatorRequiresCalculation').checked = ind.requires_calculation == 1;
+    document.getElementById('indicatorCalculationConfig').value = ind.calculation_config
+        ? (typeof ind.calculation_config === 'string' ? ind.calculation_config : JSON.stringify(ind.calculation_config))
+        : '';
+    toggleCalculationConfigField();
     document.getElementById('indicatorModalTitle').textContent = 'Edit Indicator';
     document.getElementById('indicatorModal').classList.remove('hidden');
 }
 
 window.editIndicator = editIndicator;
 
-async function deleteIndicator(indicatorId) {
-    if (!confirm(`Are you sure you want to delete indicator "${indicatorId}"?`)) return;
+async function deleteIndicator(indicatorCode) {
+    if (!confirm(`Are you sure you want to delete indicator "${indicatorCode}"?`)) return;
     try {
-        const response = await fetch(`/api/super_admin/people/manage-rubrics/indicators/${indicatorId}`, {
+        const response = await fetch(`/api/super_admin/people/manage-rubrics/indicators/${indicatorCode}`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -303,14 +320,30 @@ window.deleteIndicator = deleteIndicator;
 document.getElementById('indicatorForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('indicatorId').value;
+    const requiresCalculation = document.getElementById('indicatorRequiresCalculation').checked;
+    const rawConfig = document.getElementById('indicatorCalculationConfig').value.trim();
+    let calculationConfig = null;
+    if (requiresCalculation && rawConfig) {
+        try {
+            calculationConfig = JSON.parse(rawConfig);
+        } catch (parseErr) {
+            alert('Calculation Config must be valid JSON, e.g. {"metric":"talk_ratio_tutor_pct","operator":"<=","threshold":70}');
+            return;
+        }
+    }
     const payload = {
-        indicator_id: document.getElementById('indicator_id').value || 'IND_' + Date.now(),
+        indicator_code: document.getElementById('indicator_code').value || 'IND_' + Date.now(),
         name: document.getElementById('indicatorName').value,
         category_id: document.getElementById('indicatorCategory').value,
+        subgroup_name: document.getElementById('indicatorSubgroup').value || null,
         type: document.getElementById('indicatorType').value,
         value: parseFloat(document.getElementById('indicatorValue').value) || 1,
+        benchmark: document.getElementById('indicatorBenchmark').value || null,
         status: document.getElementById('indicatorStatus').value,
-        is_gate: document.getElementById('indicatorGate').checked ? 1 : 0
+        is_gate: document.getElementById('indicatorGate').checked ? 1 : 0,
+        requires_video: document.getElementById('indicatorRequiresVideo').checked ? 1 : 0,
+        requires_calculation: requiresCalculation ? 1 : 0,
+        calculation_config: calculationConfig
     };
     try {
         const url = id

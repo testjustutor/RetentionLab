@@ -1,68 +1,50 @@
 /**
  * public/js/super_admin/settings/platforms.js
+ *
+ * Which platforms exist and their display labels come from the
+ * calendar_providers DB table; every configurable field (which settings
+ * exist per platform, their current value, and whether they're editable)
+ * comes from the system_settings rows returned alongside them. Nothing
+ * about WHICH platforms/settings exist is hardcoded here — only pure
+ * presentation (icon glyph/color) and a couple of generic rendering rules
+ * live in this file, since no DB column represents those.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     loadPlatforms();
 });
 
-// ─── Platform Definitions ─────────────────────────────────────────────────────
+// ─── Presentation-only helpers (not business data) ────────────────────────
 
-const PLATFORM_DEFS = {
-    'zoom': {
-        label: 'Zoom',
-        icon: 'Z',
-        iconBg: 'from-blue-500 to-blue-700',
-        description: 'Video conferencing with web client',
-        fields: [
-            { key: 'enabled', type: 'toggle', label: 'Enabled', desc: 'Enable Zoom integration' },
-            { key: 'base_url', type: 'text', label: 'Base URL', placeholder: 'https://us05web.zoom.us/wc/', editable: false },
-            { key: 'bot_name', type: 'text', label: 'Bot Name', placeholder: 'RetentionLab Bot' },
-            { key: 'requires_passcode', type: 'toggle', label: 'Requires Passcode', desc: 'Bot will extract passcode from meeting' },
-            { key: 'auto_enable_captions', type: 'toggle', label: 'Auto-Enable Captions', desc: 'Automatically enable captions in meetings' }
-        ]
-    },
-    'google-meet': {
-        label: 'Google Meet',
-        icon: 'G',
-        iconBg: 'from-red-500 to-yellow-500',
-        description: 'Google Workspace video conferencing',
-        fields: [
-            { key: 'enabled', type: 'toggle', label: 'Enabled', desc: 'Enable Google Meet integration' },
-            { key: 'base_url', type: 'text', label: 'Base URL', placeholder: 'https://meet.google.com/', editable: false },
-            { key: 'bot_name', type: 'text', label: 'Bot Name', placeholder: 'RetentionLab Bot' },
-            { key: 'auto_join', type: 'toggle', label: 'Auto Join', desc: 'Automatically join scheduled meetings' },
-            { key: 'auto_enable_captions', type: 'toggle', label: 'Auto-Enable Captions', desc: 'Automatically enable captions in meetings' }
-        ]
-    },
-    'teams': {
-        label: 'Microsoft Teams',
-        icon: 'T',
-        iconBg: 'from-purple-500 to-indigo-700',
-        description: 'Microsoft 365 collaboration',
-        fields: [
-            { key: 'enabled', type: 'toggle', label: 'Enabled', desc: 'Enable Teams integration' },
-            { key: 'base_url', type: 'text', label: 'Base URL', placeholder: 'https://teams.live.com/meet/', editable: false },
-            { key: 'bot_name', type: 'text', label: 'Bot Name', placeholder: 'RetentionLab Bot' },
-            { key: 'auto_join', type: 'toggle', label: 'Auto Join', desc: 'Automatically join scheduled meetings' },
-            { key: 'auto_enable_captions', type: 'toggle', label: 'Auto-Enable Captions', desc: 'Automatically enable captions in meetings' }
-        ]
-    }
-};
+// Rotating icon colors — purely cosmetic, cycles for however many platforms
+// the database actually returns (not tied to specific platform names).
+const ICON_PALETTE = [
+    'from-blue-500 to-blue-700',
+    'from-red-500 to-yellow-500',
+    'from-purple-500 to-indigo-700',
+    'from-emerald-500 to-teal-700',
+    'from-orange-500 to-amber-700'
+];
 
-// ─── Recording Settings Definition ───────────────────────────────────────────
+// Setting keys that must never render as editable here regardless of what's
+// in the database — their values are wired into platform-adapter code
+// elsewhere, not something to hand-edit from this page. (Currently empty —
+// base_url used to be the one entry here, but it's fully hidden below now
+// instead of just locked. Kept as a hook for any future read-only field.)
+const LOCKED_FIELD_KEYS = new Set([]);
 
-const RECORDING_DEFS = {
-    label: 'Recording Settings',
-    icon: 'R',
-    iconBg: 'from-pink-500 to-rose-600',
-    description: 'Configure audio, video, and transcript recording',
-    fields: [
-        { key: 'audio_recording', type: 'toggle', label: 'Audio Recording', desc: 'Record meeting audio' },
-        { key: 'video_recording', type: 'toggle', label: 'Video Recording', desc: 'Record meeting video/screen' },
-        { key: 'transcript_recording', type: 'toggle', label: 'Transcript Recording', desc: 'Generate meeting transcripts' }
-    ]
-};
+// Setting keys not shown on this page at all (still exist in system_settings
+// and still saved/read normally elsewhere — just not surfaced in this card
+// per the owner's request). Only "Enabled" is shown on a platform card now.
+const HIDDEN_FIELD_KEYS = new Set(['bot_name', 'base_url', 'auto_join', 'auto_enable_captions', 'requires_passcode']);
+
+function humanizeKey(key) {
+    return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isBooleanValue(value) {
+    return value === 'true' || value === 'false';
+}
 
 // ─── Load Platforms from DB ───────────────────────────────────────────────────
 
@@ -73,26 +55,15 @@ async function loadPlatforms() {
 
         if (result.success && result.data) {
             const settings = result.data;
-            
-            // Extract which platforms exist in the database
-            const platformKeys = new Set();
-            settings.forEach(s => {
-                const parts = s.setting_key.replace('platforms.', '').split('.');
-                if (parts.length >= 2) {
-                    platformKeys.add(parts[0]);
-                }
-            });
+            const providers = result.providers || [];
 
-            // Build platform cards only for platforms in DB
             const grid = document.getElementById('platformsGrid');
             let html = '';
-            
-            // Build platform cards
-            platformKeys.forEach(platformId => {
-                const def = PLATFORM_DEFS[platformId];
-                if (!def) return;
 
-                // Get settings for this platform
+            // Build one card per platform row from calendar_providers — the
+            // platform list is whatever the database says it is.
+            providers.forEach((provider, index) => {
+                const platformId = provider.name;
                 const platformSettings = settings.filter(s => s.setting_key.startsWith(`platforms.${platformId}.`));
                 const settingsMap = {};
                 platformSettings.forEach(s => {
@@ -100,10 +71,11 @@ async function loadPlatforms() {
                     settingsMap[key] = { value: s.setting_value, editable: s.is_editable !== false };
                 });
 
-                html += buildPlatformCard(platformId, def, settingsMap);
+                html += buildPlatformCard(platformId, provider.display_name || platformId, settingsMap, index);
             });
 
-            // Build recording settings card (global, not per-platform)
+            // Recording settings (global, not per-platform) — still driven
+            // entirely by whichever recording.* rows exist in the DB.
             const recordingSettings = settings.filter(s => s.setting_key.startsWith('recording.'));
             if (recordingSettings.length > 0) {
                 const recordingSettingsMap = {};
@@ -128,79 +100,66 @@ async function loadPlatforms() {
     }
 }
 
-// ─── Build Platform Card ──────────────────────────────────────────────────────
+// ─── Build Platform Card (fields = whatever exists in system_settings) ────────
 
-function buildPlatformCard(platformId, def, settings) {
+function buildPlatformCard(platformId, label, settings, colorIndex) {
     const isEnabled = settings['enabled']?.value === 'true';
     const enabledChecked = isEnabled ? 'checked' : '';
+    const icon = (label.charAt(0) || '?').toUpperCase();
+    const iconBg = ICON_PALETTE[colorIndex % ICON_PALETTE.length];
 
     let fieldsHtml = '';
-    def.fields.forEach(field => {
-        const setting = settings[field.key];
-        const value = setting?.value || '';
-        // Check both database is_editable flag and field definition editable property
-        const isEditable = (field.editable !== false) && (setting?.editable !== false);
-        const disabledAttr = isEditable ? '' : 'disabled';
-        const disabledClass = isEditable ? '' : 'opacity-50 cursor-not-allowed';
+    Object.keys(settings)
+        .filter(key => key !== 'enabled' && !HIDDEN_FIELD_KEYS.has(key))
+        .sort()
+        .forEach(key => {
+            const setting = settings[key];
+            const value = setting.value || '';
+            const isEditable = !LOCKED_FIELD_KEYS.has(key) && setting.editable !== false;
+            const disabledAttr = isEditable ? '' : 'disabled';
+            const disabledClass = isEditable ? '' : 'opacity-50 cursor-not-allowed';
+            const settingKey = `platforms.${platformId}.${key}`;
 
-        if (field.type === 'toggle') {
-            const checked = value === 'true' ? 'checked' : '';
-            fieldsHtml += `
-                <div class="flex items-center justify-between ${disabledClass}">
-                    <div>
-                        <label class="block text-xs font-bold text-blue-900">${field.label}</label>
-                        ${field.desc ? `<p class="text-[10px] text-slate-500">${field.desc}</p>` : ''}
+            if (isBooleanValue(value)) {
+                const checked = value === 'true' ? 'checked' : '';
+                fieldsHtml += `
+                    <div class="flex items-center justify-between ${disabledClass}">
+                        <div>
+                            <label class="block text-xs font-bold text-blue-900">${humanizeKey(key)}</label>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" data-setting-key="${settingKey}" data-setting-type="boolean" ${checked} ${disabledAttr}>
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="${platformId}-${field.key}" ${checked} ${disabledAttr}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            `;
-        } else if (field.type === 'select') {
-            const options = field.options.map(opt => 
-                `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt.charAt(0).toUpperCase() + opt.slice(1).replace('-', ' ')}</option>`
-            ).join('');
-            fieldsHtml += `
-                <div>
-                    <label class="block text-xs font-bold text-blue-900 mb-1">${field.label}</label>
-                    <select id="${platformId}-${field.key}" class="w-full bg-white border border-blue-300 focus:border-blue-500 rounded px-2 py-1 text-xs text-slate-900 outline-none ${disabledClass}" ${disabledAttr}>
-                        ${options}
-                    </select>
-                </div>
-            `;
-        } else {
-            const displayValue = value || '';
-            fieldsHtml += `
-                <div>
-                    <label class="block text-xs font-bold text-blue-900 mb-1">${field.label}</label>
-                    <input type="text" id="${platformId}-${field.key}" value="${displayValue}" placeholder="${field.placeholder}"
-                        class="w-full bg-white border border-blue-300 focus:border-blue-500 rounded px-2 py-1 text-xs text-slate-900 outline-none font-mono ${disabledClass}" ${disabledAttr}>
-                </div>
-            `;
-        }
-    });
+                `;
+            } else {
+                fieldsHtml += `
+                    <div>
+                        <label class="block text-xs font-bold text-blue-900 mb-1">${humanizeKey(key)}</label>
+                        <input type="text" data-setting-key="${settingKey}" data-setting-type="string" value="${value}"
+                            class="w-full bg-white border border-blue-300 focus:border-blue-500 rounded px-2 py-1 text-xs text-slate-900 outline-none font-mono ${disabledClass}" ${disabledAttr}>
+                    </div>
+                `;
+            }
+        });
 
     return `
         <div class="platform-card bg-white border-2 border-blue-200 rounded overflow-hidden shadow-md" data-platform="${platformId}">
             <div class="px-3 py-2 border-b-2 border-blue-200 bg-blue-50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 bg-gradient-to-br ${def.iconBg} rounded flex items-center justify-center text-white font-bold text-sm">${def.icon}</div>
+                    <div class="w-7 h-7 bg-gradient-to-br ${iconBg} rounded flex items-center justify-center text-white font-bold text-sm">${icon}</div>
                     <div>
-                        <h3 class="text-sm font-bold text-blue-950">${def.label}</h3>
-                        <p class="text-[10px] text-blue-700">${def.description}</p>
+                        <h3 class="text-sm font-bold text-blue-950">${label}</h3>
                     </div>
                 </div>
                 <label class="toggle-switch">
-                    <input type="checkbox" id="${platformId}-enabled" ${enabledChecked}>
+                    <input type="checkbox" data-setting-key="platforms.${platformId}.enabled" data-setting-type="boolean" ${enabledChecked}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
             <div class="p-3 space-y-2">
                 ${fieldsHtml}
-                <button onclick="testPlatform('${platformId}')" class="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition">
-                    Test Connection
-                </button>
             </div>
         </div>
     `;
@@ -210,21 +169,21 @@ function buildPlatformCard(platformId, def, settings) {
 
 function buildRecordingCard(settings) {
     let fieldsHtml = '';
-    RECORDING_DEFS.fields.forEach(field => {
-        const value = settings[field.key]?.value || '';
-        const isEditable = settings[field.key]?.editable !== false;
+    Object.keys(settings).sort().forEach(key => {
+        const setting = settings[key];
+        const value = setting.value || '';
+        const isEditable = setting.editable !== false;
         const disabledAttr = isEditable ? '' : 'disabled';
         const disabledClass = isEditable ? '' : 'opacity-50 cursor-not-allowed';
-
         const checked = value === 'true' ? 'checked' : '';
+
         fieldsHtml += `
             <div class="flex items-center justify-between ${disabledClass}">
                 <div>
-                    <label class="block text-xs font-bold text-blue-900">${field.label}</label>
-                    ${field.desc ? `<p class="text-[10px] text-slate-500">${field.desc}</p>` : ''}
+                    <label class="block text-xs font-bold text-blue-900">${humanizeKey(key)}</label>
                 </div>
                 <label class="toggle-switch">
-                    <input type="checkbox" id="recording-${field.key}" ${checked} ${disabledAttr}>
+                    <input type="checkbox" data-setting-key="recording.${key}" data-setting-type="boolean" ${checked} ${disabledAttr}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
@@ -235,10 +194,9 @@ function buildRecordingCard(settings) {
         <div class="platform-card bg-white border-2 border-blue-200 rounded overflow-hidden shadow-md" data-platform="recording">
             <div class="px-3 py-2 border-b-2 border-blue-200 bg-blue-50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 bg-gradient-to-br ${RECORDING_DEFS.iconBg} rounded flex items-center justify-center text-white font-bold text-sm">${RECORDING_DEFS.icon}</div>
+                    <div class="w-7 h-7 bg-gradient-to-br from-pink-500 to-rose-600 rounded flex items-center justify-center text-white font-bold text-sm">R</div>
                     <div>
-                        <h3 class="text-sm font-bold text-blue-950">${RECORDING_DEFS.label}</h3>
-                        <p class="text-[10px] text-blue-700">${RECORDING_DEFS.description}</p>
+                        <h3 class="text-sm font-bold text-blue-950">Recording Settings</h3>
                     </div>
                 </div>
             </div>
@@ -252,48 +210,14 @@ function buildRecordingCard(settings) {
 // ─── Save All Platforms ───────────────────────────────────────────────────────
 
 async function saveAllPlatforms() {
-    const cards = document.querySelectorAll('.platform-card');
+    const inputs = document.querySelectorAll('[data-setting-key]');
     const settings = [];
 
-    cards.forEach(card => {
-        const platformId = card.dataset.platform;
-        
-        // Handle recording settings card
-        if (platformId === 'recording') {
-            RECORDING_DEFS.fields.forEach(field => {
-                const el = document.getElementById(`recording-${field.key}`);
-                if (!el) return;
-                const value = el.checked ? 'true' : 'false';
-                settings.push({
-                    key: `recording.${field.key}`,
-                    value: value,
-                    type: 'boolean'
-                });
-            });
-            return;
-        }
-
-        // Handle platform cards
-        const def = PLATFORM_DEFS[platformId];
-        if (!def) return;
-
-        def.fields.forEach(field => {
-            const el = document.getElementById(`${platformId}-${field.key}`);
-            if (!el) return;
-
-            let value;
-            if (field.type === 'toggle') {
-                value = el.checked ? 'true' : 'false';
-            } else {
-                value = el.value;
-            }
-
-            settings.push({
-                key: `platforms.${platformId}.${field.key}`,
-                value: value,
-                type: field.type === 'toggle' ? 'boolean' : 'string'
-            });
-        });
+    inputs.forEach(el => {
+        const key = el.dataset.settingKey;
+        const type = el.dataset.settingType || 'string';
+        const value = type === 'boolean' ? (el.checked ? 'true' : 'false') : el.value;
+        settings.push({ key, value, type });
     });
 
     try {
@@ -315,24 +239,6 @@ async function saveAllPlatforms() {
         console.error('Error saving platforms:', error);
         showToast('Error saving platforms', 'error');
     }
-}
-
-// ─── Test Platform ────────────────────────────────────────────────────────────
-
-async function testPlatform(platform) {
-    showToast(`Testing ${platform} connection...`, 'info');
-    setTimeout(() => {
-        showToast(`${platform} connection test completed`, 'success');
-    }, 1500);
-}
-
-async function testAllPlatforms() {
-    showToast('Testing all platform connections...', 'info');
-    const cards = document.querySelectorAll('.platform-card');
-    for (const card of cards) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    showToast('All platform tests completed', 'success');
 }
 
 // ─── Toast Notification ───────────────────────────────────────────────────────

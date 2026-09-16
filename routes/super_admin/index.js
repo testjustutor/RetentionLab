@@ -28,12 +28,12 @@ const sidebarMenu = require('../../controllers/super_admin/sidebar/sidebarMenuAd
 
 const addUser = require('./people/add-user');
 const manageUsers = require('./people/manage-users');
-const accessControl = require('./people/access-control');
 const manageRubrics = require('./people/manage-rubrics');
 const contentArchives = require('./content/archives');
 const contentAssets = require('./content/assets');
 const botConfig = require('./settings/bot-configuration');
 const platformsConfig = require('./settings/platforms');
+const calendarIntegrationsConfig = require('./settings/calendar-integrations');
 const aiproviders = require('./settings/ai-providers');
 const userdefaults = require('./settings/user-defaults');
 const videoprocessing = require('./content/video-processing');
@@ -87,10 +87,6 @@ router.use('/people/add-user', requireAuth, requireSuperAdmin, addUser);
 // ── People (manage-users page) - User Directory (list/update) ──────────
 // GET /roles, GET /companies, POST /users (list), PUT /users/:id (update)
 router.use('/people/manage-users', requireAuth, requireSuperAdmin, manageUsers);
-
-// ── People (access-control page) - User Access (list/update) ───────────
-// GET /roles, GET /companies, POST /users (list), PUT /users/:id (update)
-router.use('/people/access-control', requireAuth, requireSuperAdmin, accessControl);
 
 // ── People (manage-rubrics page) - Permission Rubrics (CRUD) ───────────
 // GET/POST /categories(:id), GET/POST/PUT/DELETE /indicators(:id)
@@ -147,6 +143,11 @@ router.use('/settings/bot-configuration', requireAuth, requireSuperAdmin, botCon
 // ── Settings (platforms page) - Platform settings (get + save) ────────────────
 // GET /settings, POST /settings/bulk
 router.use('/settings/platforms', requireAuth, requireSuperAdmin, platformsConfig);
+
+// ── Settings (calendar-integrations page) - Google/Microsoft Calendar OAuth
+// enable/disable toggle (calendar_providers.is_active) ─────────────────────────
+// GET /settings, POST /settings/toggle
+router.use('/settings/calendar-integrations', requireAuth, requireSuperAdmin, calendarIntegrationsConfig);
 
 // ── Settings (ai-providers page) - AI Providers (get + save) ──────────────────
 // GET /settings, POST /settings/bulk

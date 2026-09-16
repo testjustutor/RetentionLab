@@ -5,6 +5,18 @@ AI provider client for the consolidated python_engine audit. Reads provider
 credentials from the environment (root .env via python-dotenv) and calls the
 active provider (anthropic / gemini / openai / ollama).
 
+Which provider/model/temperature/max_tokens is actually used: the
+Super Admin > Settings > AI Providers page (ai_providers DB table) is
+consulted FIRST. If, and only if, the table has EXACTLY ONE row with
+enabled = 1, that row's provider_key/default_model/default_temperature/
+default_max_tokens win. Any other case - the table is unreachable, empty,
+has zero enabled rows, or (a known seed-data issue) has more than one row
+enabled at once, which makes "the active provider" ambiguous - falls back
+to the original .env-only behavior (AI_PROVIDER / <PROVIDER>_MODEL / etc.)
+untouched. This is deliberately conservative: a DB lookup is an
+enhancement, never something that can break or silently redirect an
+already-working install.
+
 Exposes a single method `ask_ai(prompt, system_instruction)` returning the
 model's raw text, plus `provider`/`model` for metadata.
 
@@ -42,11 +54,65 @@ from utils.logger_util import log_with_type
 AI_CALL_TIMEOUT = int(os.getenv("AI_CALL_TIMEOUT", "180"))
 
 
+def _load_enabled_provider_from_db():
+    """Look up the Super Admin > Settings > AI Providers table (ai_providers).
+
+    Returns the single enabled row (dict) if, and only if, exactly one row
+    has enabled = 1. Returns None in every other case - table unreachable,
+    empty, zero enabled rows, or more than one enabled row (ambiguous,
+    matches the current seed data which enables all four providers) - so
+    __init__ can fall back to the original .env-only behavior untouched.
+    Any DB error is caught here and treated as "no override", never raised,
+    so a DB/connectivity problem can't break an already-working install.
+    """
+    try:
+        from database.python_db import fetch_all
+        rows = fetch_all(
+            "SELECT provider_key, default_model, default_temperature, default_max_tokens "
+            "FROM ai_providers WHERE enabled = 1"
+        )
+    except Exception as e:
+        log_with_type(
+            "warning",
+            f"audit/ai_client: ai_providers DB lookup failed ({e}) - using .env config",
+            "PYTHON_ENGINE",
+        )
+        return None
+
+    if not rows:
+        return None
+    if len(rows) > 1:
+        log_with_type(
+            "warning",
+            f"audit/ai_client: {len(rows)} ai_providers rows are enabled at once "
+            f"({[r.get('provider_key') for r in rows]}) - ambiguous, using .env config instead",
+            "PYTHON_ENGINE",
+        )
+        return None
+    return rows[0]
+
+
 class AiClient:
     def __init__(self):
-        self.provider = (os.getenv("AI_PROVIDER") or "openai").lower()
+        db_row = _load_enabled_provider_from_db()
+        self._db_row = db_row
+
+        if db_row and db_row.get("provider_key"):
+            self.provider = str(db_row["provider_key"]).lower()
+        else:
+            self.provider = (os.getenv("AI_PROVIDER") or "openai").lower()
+
         self.model = self._resolve_model()
-        log_with_type("info", f"audit/ai_client: provider={self.provider} model={self.model}", "PYTHON_ENGINE")
+        self.temperature = self._resolve_temperature()
+        self.max_tokens = self._resolve_max_tokens()
+
+        source = "ai_providers DB" if db_row else ".env"
+        log_with_type(
+            "info",
+            f"audit/ai_client: provider={self.provider} model={self.model} "
+            f"temperature={self.temperature} max_tokens={self.max_tokens} (source={source})",
+            "PYTHON_ENGINE",
+        )
 
     def _resolve_model(self):
         key = {
@@ -55,7 +121,34 @@ class AiClient:
             "openai": "OPENAI_MODEL",
             "ollama": "OLLAMA_MODEL",
         }.get(self.provider)
-        return os.getenv(key) or (os.getenv("OLLAMA_MODEL") if self.provider == "ollama" else "")
+        env_model = os.getenv(key) or (os.getenv("OLLAMA_MODEL") if self.provider == "ollama" else "")
+
+        if self._db_row and self._db_row.get("default_model"):
+            return self._db_row["default_model"]
+        return env_model
+
+    def _resolve_temperature(self):
+        """Temperature, only when the DB row supplies it (no prior .env
+        equivalent existed for this - it was never wired to any provider
+        call before now, so there's nothing to fall back to but "unset")."""
+        if self._db_row and self._db_row.get("default_temperature") is not None:
+            try:
+                return float(self._db_row["default_temperature"])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _resolve_max_tokens(self):
+        """Max tokens, only when the DB row supplies it. When it doesn't,
+        return None and let each _ask_* method keep using its own existing
+        .env-based default (ANTHROPIC_MAX_TOKENS / GEMINI_MAX_OUTPUT_TOKENS),
+        exactly as before this change."""
+        if self._db_row and self._db_row.get("default_max_tokens") is not None:
+            try:
+                return int(self._db_row["default_max_tokens"])
+            except (TypeError, ValueError):
+                return None
+        return None
 
     def _ask_anthropic(self, prompt, system_instruction):
         api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -64,10 +157,12 @@ class AiClient:
         url = "https://api.anthropic.com/v1/messages"
         payload = {
             "model": self.model,
-            "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "1024")),
+            "max_tokens": self.max_tokens if self.max_tokens is not None else int(os.getenv("ANTHROPIC_MAX_TOKENS", "1024")),
             "system": system_instruction,
             "messages": [{"role": "user", "content": prompt}],
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
         req = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
@@ -113,8 +208,10 @@ class AiClient:
         from google import genai
         client = genai.Client(api_key=api_key)
 
-        max_output_tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
+        max_output_tokens = self.max_tokens if self.max_tokens is not None else int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
         config_kwargs = {"max_output_tokens": max_output_tokens}
+        if self.temperature is not None:
+            config_kwargs["temperature"] = self.temperature
 
         # Disable "thinking"/extended-reasoning tokens for this call. On
         # thinking-capable Gemini models, max_output_tokens caps thinking +

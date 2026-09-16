@@ -8,6 +8,7 @@ const MeetingModel = require('../../models/meetings/MeetingModel');
 const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const botManager = require('../../services/shared/botManager');
 const PlatformFactory = require('../../services/platforms/platformFactory');
+const PlatformsModel = require('../../models/super_admin/settings/platforms/PlatformsModel');
 
 const controller = {
   async list(req, res) {
@@ -45,6 +46,10 @@ const controller = {
       const { platform, meetingId, meetingUrl, passcode, botName, webhookUrl } = req.body;
       if (!platform || !meetingId || !meetingUrl) {
         return res.status(400).json({ status: 'error', message: 'Missing required fields: platform, meetingId, meetingUrl' });
+      }
+      const platformEnabled = await PlatformsModel.isPlatformEnabled(String(platform).toLowerCase());
+      if (!platformEnabled) {
+        return res.status(403).json({ status: 'error', message: `The ${platform} integration is currently disabled by the administrator.` });
       }
       logger.info(`Controller(meeting): API: Attempting to join ${platform} meeting: ${meetingId}`);
       const result = await PlatformFactory.startBot({ platform, meetingId, meetingUrl, passcode, botName: botName || `Bot-${platform}`, webhookUrl });

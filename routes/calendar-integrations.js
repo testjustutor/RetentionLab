@@ -12,6 +12,11 @@ const ctrl = require('../controllers/calendar/calendarIntegrationController');
 // Read-only: Get integration status for admin settings page
 router.get('/integration-status', requireAuth, requireRole('admin'), (req, res) => ctrl.getIntegrationStatus(req, res));
 
+// Read-only, any authenticated role: which calendar providers are enabled
+// (super-admin toggle). Used by instructor/admin frontend JS to decide
+// whether to show Connect Google/Connect Microsoft UI.
+router.get('/provider-flags', requireAuth, (req, res) => ctrl.getProviderFlags(req, res));
+
 // Dynamic: Get connected accounts (users) for a provider
 // GET /api/calendar-integrations/connections?provider_id=1&status=all
 router.get('/connections', requireAuth, requireRole('admin'), (req, res) => ctrl.getConnectedAccounts(req, res));

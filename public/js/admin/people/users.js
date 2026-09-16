@@ -9,6 +9,11 @@ let tableObj = null;
 // email (lowercase) -> Calendarstatus ('active' | 'disconnected'), from the same
 // source the Admin > Meetings > Calendar page uses to decide Connect vs Connected.
 let calendarConnectionsByEmail = {};
+// Which calendar OAuth providers are enabled (super-admin Settings >
+// Calendar Integrations toggle). Defaults fail open for Google (the
+// long-working default) and closed for Microsoft (not configured yet) so a
+// failed fetch doesn't suddenly surface a broken Connect button.
+let calendarProviderFlags = { google: true, microsoft: false };
 
 // ── Modal setup ──
 setupModal('userModal', 'openUserModalBtn', ['closeUserModalBtn', 'cancelUserModalBtn']);
@@ -67,6 +72,23 @@ async function loadCalendarConnections() {
   } catch (err) {
     console.error('Failed to load calendar connection status:', err);
     calendarConnectionsByEmail = {};
+  }
+}
+
+// ── Load which calendar providers are enabled (super-admin toggle) ──
+// Any-authenticated-role endpoint (see controllers/calendar/calendarIntegrationController.js
+// getProviderFlags) — deliberately separate from the admin-only
+// /integration-status endpoint used elsewhere, since this page just needs
+// the two booleans to decide whether to render each Connect button.
+async function loadCalendarProviderFlags() {
+  try {
+    const json = await apiFetch('/api/calendar-integrations/provider-flags');
+    if (json.success && json.data) {
+      calendarProviderFlags = json.data;
+    }
+  } catch (err) {
+    console.error('Failed to load calendar provider flags:', err);
+    // Keep the existing (fail-open-for-Google/fail-closed-for-Microsoft) defaults.
   }
 }
 
@@ -268,11 +290,27 @@ const tableHeaders = [
           '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' +
           'View Meetings</a>';
     } else if (isInstructor) {
-      calendarAction = '<button data-connect-calendar data-email="' + escHtml(row.email || '') + '" ' +
-          'class="connect-calendar-btn inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 ' +
-          'text-[10px] font-semibold shadow-sm ring-2 ring-emerald-300 transition-colors whitespace-nowrap flex-shrink-0" title="Send a calendar connection email to this instructor">' +
-          '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' +
-          'Connect Calendar</button>';
+      // Each button only renders while the super-admin Settings > Calendar
+      // Integrations toggle has that provider enabled — kept in sync with
+      // the backend check in instructorCalendarController.selfRequest /
+      // instructorMicrosoftCalendarController.selfRequest, which refuses
+      // the request even if this button were reached some other way.
+      if (calendarProviderFlags.google) {
+        calendarAction += '<button data-connect-calendar data-email="' + escHtml(row.email || '') + '" ' +
+            'class="connect-calendar-btn inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 ' +
+            'text-[10px] font-semibold shadow-sm ring-2 ring-emerald-300 transition-colors whitespace-nowrap flex-shrink-0" title="Send a Google Calendar connection email to this instructor">' +
+            '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' +
+            'Connect Google</button>';
+      }
+      // Microsoft counterpart — independent connection, own provider row
+      // (calendar_providers 'teams'), same "send a connect email" pattern.
+      if (calendarProviderFlags.microsoft) {
+        calendarAction += '<button data-connect-calendar-microsoft data-email="' + escHtml(row.email || '') + '" ' +
+            'class="connect-calendar-microsoft-btn inline-flex items-center gap-1 px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 ' +
+            'text-[10px] font-semibold shadow-sm ring-2 ring-indigo-300 transition-colors whitespace-nowrap flex-shrink-0" title="Send a Microsoft Calendar connection email to this instructor">' +
+            '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' +
+            'Connect Microsoft</button>';
+      }
     }
 
     // Status toggle (replaces the old Delete button) — shows the CURRENT
@@ -305,15 +343,18 @@ async function loadUsers() {
     if (fromDate) body.from_date = fromDate;
     if (toDate) body.to_date = toDate;
 
-    // Refresh calendar connection status alongside the user list so the
-    // Connect/Connected state in the Actions column stays current.
+    // Refresh calendar connection status + provider enable/disable flags
+    // alongside the user list so the Actions column's Connect buttons stay
+    // current with both the per-instructor connection state and the
+    // super-admin Calendar Integrations toggle.
     const [usersJson] = await Promise.all([
       apiFetch('/api/admin/users/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       }),
-      loadCalendarConnections()
+      loadCalendarConnections(),
+      loadCalendarProviderFlags()
     ]);
 
     const rawUsers = (usersJson.data || []).filter(u => u.id !== currentUserId);
@@ -524,6 +565,42 @@ document.addEventListener('click', async function(e) {
       body: JSON.stringify({ email: email })
     });
     showToast('Calendar connection email sent to ' + email);
+  } catch (err) {
+    showToast('Failed to send email: ' + (err.message || 'Unknown error'), true);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-60', 'cursor-not-allowed');
+    btn.innerHTML = originalHtml;
+  }
+});
+
+// ── Connect Microsoft Calendar button click handler (instructors only) ──
+// Mirrors the Google handler above, but hits the Microsoft-specific
+// send-verification endpoint (routes/meetings-calendar.js ->
+// instructorMicrosoftCalendarController.sendVerification).
+document.addEventListener('click', async function(e) {
+  const btn = e.target.closest('.connect-calendar-microsoft-btn');
+  if (!btn) return;
+  e.preventDefault();
+
+  const email = btn.getAttribute('data-email');
+  if (!email) {
+    showToast('No email on file for this instructor', true);
+    return;
+  }
+
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add('opacity-60', 'cursor-not-allowed');
+  btn.innerHTML = '<svg class="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending...';
+
+  try {
+    await apiFetch('/api/admin/meetings/calendar/send-verification-microsoft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    showToast('Microsoft Calendar connection email sent to ' + email);
   } catch (err) {
     showToast('Failed to send email: ' + (err.message || 'Unknown error'), true);
   } finally {

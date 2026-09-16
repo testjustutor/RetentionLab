@@ -6,6 +6,9 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
 const ctrl = require('../controllers/calendar/instructorCalendarController');
+// Microsoft counterpart to ctrl above — same admin-triggered "send a connect
+// email to this instructor" action, but for the Microsoft ('teams') provider.
+const msCtrl = require('../controllers/instructor/instructorMicrosoftCalendarController');
 
 function handle(fn) {
   return (req, res) => fn(req).then(r => res.status(r.statusCode || (r.success === false ? 400 : 200)).json(r));
@@ -18,12 +21,19 @@ const requireAdmin = requireRole('admin', 'super_admin');
 router.get('/calendar-providers', requireAuth, requireAdmin, handle(ctrl.listProviders));
 
 // POST /api/admin/meetings/calendar/calendar-connections - calendar connections
+// (provider-agnostic — already returns whichever provider each instructor is
+// connected to, Google or Microsoft, via the calendar_providers join)
 router.post('/calendar-connections', requireAuth, requireAdmin, handle(ctrl.listConnections));
 
-// POST /api/admin/meetings/calendar/send-verification - send verification email to instructor
+// POST /api/admin/meetings/calendar/send-verification - send Google verification email to instructor
 router.post('/send-verification', requireAuth, requireAdmin, handle(ctrl.sendVerification));
 
+// POST /api/admin/meetings/calendar/send-verification-microsoft - send Microsoft verification email to instructor
+router.post('/send-verification-microsoft', requireAuth, requireAdmin, handle(msCtrl.sendVerification));
+
 // POST /api/admin/meetings/calendar/sync-user - sync calendar for a single user
+// (provider-aware — CalendarSyncController.syncUserCalendar branches on the
+// connection's provider, so this already works for Microsoft connections too)
 router.post('/sync-user', requireAuth, requireAdmin, handle(ctrl.syncUserCalendar));
 
 module.exports = router;

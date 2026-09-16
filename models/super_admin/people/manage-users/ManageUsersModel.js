@@ -15,7 +15,7 @@ const CompaniesModel = require('../../../companies/CompaniesModel');
 // Mirrors UsersModel.hashPassword (scrypt, "salt:derived") so reset passwords are compatible.
 function hashPassword(password, salt = null) {
   salt = salt || crypto.randomBytes(16).toString('hex');
-  const secretKey = process.env.PASSWORD_SECRET_KEY || '';
+  const secretKey = process.env.PASSWORD_SECRET_KEY;
   const peppered = secretKey + password;
   const derived = crypto.scryptSync(peppered, salt, 64).toString('hex');
   return `${salt}:${derived}`;

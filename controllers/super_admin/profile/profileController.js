@@ -44,11 +44,33 @@ const controller = {
     }
   },
 
-  /** PUT /api/super_admin/people/profile/:id — update own fields */
+  /** PUT /api/super_admin/people/profile/:id — update own fields (self only) */
   async update(req) {
     try {
       const id = req.params.id;
-      const changes = req.body;
+      // FIX: this endpoint had no self-only check and forwarded req.body
+      // untouched, unlike its 3 siblings (controllers/instructor,
+      // controllers/reviewer, controllers/student /profile/profileController.js
+      // update()), which all reject id !== req.user.id and strip
+      // role_id/company_id/status/password_hash before calling UsersModel so
+      // this self-service route can never be used to re-role, re-company,
+      // reactivate/deactivate, or overwrite the password hash of the caller's
+      // own account. Ported both checks here; the UsersModel.updateUser call
+      // keeps its existing 3-arg (actor, id, changes) form — unlike the
+      // siblings' 2-arg form — because models/super_admin/users/UsersModel.js's
+      // updateUser requires the actor for its internal admin-permission
+      // checks (a super_admin actor already has unrestricted permission
+      // there, so this is a no-op for a legitimate self-update and only
+      // matters as defense in depth).
+      if (String(id) !== String(req.user.id)) return err('You may only update your own profile', 403);
+
+      const changes = { ...(req.body || {}) };
+      // Self-service can never change role, company, status or password this way.
+      delete changes.role_id;
+      delete changes.company_id;
+      delete changes.status;
+      delete changes.password_hash;
+
       if (!Object.keys(changes).length) return err('No fields to update', 400);
       const result = await UsersModel.updateUser(req.user, id, changes);
       if (!result.updated) return err('User not found or no changes', 404);

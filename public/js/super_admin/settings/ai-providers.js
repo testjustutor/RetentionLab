@@ -48,17 +48,13 @@ function renderProviders(providers) {
     // No data in the database — tell the user.
     if (empty) empty.classList.remove('hidden');
     updateActiveProviderBanner(null);
-    const testBtn = document.getElementById('testAllProvidersBtn');
     const saveBtn = document.getElementById('saveAllProvidersBtn');
-    if (testBtn) testBtn.disabled = true;
     if (saveBtn) saveBtn.disabled = true;
     return;
   }
 
   if (empty) empty.classList.add('hidden');
-  const testBtn = document.getElementById('testAllProvidersBtn');
   const saveBtn = document.getElementById('saveAllProvidersBtn');
-  if (testBtn) testBtn.disabled = false;
   if (saveBtn) saveBtn.disabled = false;
 
   providers.forEach((provider) => {
@@ -80,6 +76,10 @@ function buildProviderCard(provider) {
   const card = document.createElement('div');
   card.className = 'provider-card bg-white border-2 border-indigo-200 rounded overflow-hidden shadow-md';
   card.dataset.provider = key;
+  // Server URL is no longer shown/editable on this page, but its DB value
+  // still needs to round-trip unchanged on save — kept here rather than in
+  // an input so saveAllProviders() doesn't blank it out. See there.
+  card.dataset.baseUrl = provider.base_url || '';
 
   const modelOptions = Array.isArray(provider.model_options) ? provider.model_options : [];
   const modelOptionsHtml = modelOptions.map((opt) => {
@@ -88,15 +88,6 @@ function buildProviderCard(provider) {
     const selected = provider.default_model === opt.value ? 'selected' : '';
     return `<option value="${value}" ${selected}>${label}</option>`;
   }).join('');
-
-  // Only show the Server URL field when the provider has a base_url in the DB
-  const urlHtml = provider.base_url
-    ? `<div>
-        <label class="block text-xs font-bold text-indigo-900 mb-1">Server URL</label>
-        <input type="text" id="${key}-url" value="${escHtml(provider.base_url)}"
-          class="w-full bg-white border border-indigo-300 focus:border-indigo-500 rounded px-2 py-1.5 text-xs text-slate-900 outline-none font-mono" ${disabledAttr}>
-      </div>`
-    : '';
 
   card.innerHTML = `
     <div class="px-3 py-2 border-b-2 border-indigo-200 bg-indigo-50 flex items-center justify-between">
@@ -115,7 +106,6 @@ function buildProviderCard(provider) {
       </label>
     </div>
     <div class="p-3 space-y-2">
-      ${urlHtml}
       <div>
         <label class="block text-xs font-bold text-indigo-900 mb-1">Model</label>
         <select id="${key}-model" class="w-full bg-white border border-indigo-300 focus:border-indigo-500 rounded px-2 py-1.5 text-xs text-slate-900 outline-none ${editable ? '' : 'bg-slate-100 text-slate-400'}" ${disabledAttr}>
@@ -134,10 +124,6 @@ function buildProviderCard(provider) {
             class="w-full bg-white border border-indigo-300 focus:border-indigo-500 rounded px-2 py-1.5 text-xs text-slate-900 outline-none" ${disabledAttr}>
         </div>
       </div>
-      <button type="button" data-test-provider="${key}"
-        class="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold transition-colors">
-        Test Connection
-      </button>
     </div>
   `;
 
@@ -158,12 +144,6 @@ function buildProviderCard(provider) {
         updateActiveProviderBanner(null);
       }
     });
-  }
-
-  // Wire the per-card Test Connection button
-  const testBtn = card.querySelector('[data-test-provider="' + key + '"]');
-  if (testBtn) {
-    testBtn.addEventListener('click', () => testProvider(key));
   }
 
   return card;
@@ -192,7 +172,6 @@ async function saveAllProviders() {
     const toggle = card.querySelector('input[type="checkbox"]');
     const model = card.querySelector('select');
     const numbers = card.querySelectorAll('input[type="number"]');
-    const url = card.querySelector('input[type="text"]');
 
     // Respect the DB is_editable flag — skip providers that are read-only
     if (toggle && toggle.disabled) return;
@@ -203,7 +182,10 @@ async function saveAllProviders() {
       default_model: model ? model.value : '',
       default_temperature: numbers[0] ? parseFloat(numbers[0].value) : null,
       default_max_tokens: numbers[1] ? parseInt(numbers[1].value, 10) : null,
-      base_url: url ? url.value : null
+      // Server URL is no longer an editable field on this page — round-trip
+      // the DB's existing value unchanged instead of sending null and
+      // wiping it out on every save (see card.dataset.baseUrl above).
+      base_url: card.dataset.baseUrl || null
     });
   });
 
@@ -232,33 +214,6 @@ async function saveAllProviders() {
     console.error('Error saving providers:', error);
     showToast('Error saving providers', 'error');
   }
-}
-
-// Test individual provider connection
-async function testProvider(provider) {
-  showToast(`Testing ${provider} connection...`, 'info');
-  // In a real implementation this would call the provider API; for now simulate.
-  setTimeout(() => {
-    showToast(`${provider} connection successful!`, 'success');
-  }, 1200);
-}
-
-// Test all providers
-async function testAllProviders() {
-  const cards = document.querySelectorAll('#providersGrid .provider-card');
-  const providers = Array.from(cards).map((c) => c.dataset.provider).filter(Boolean);
-
-  if (!providers.length) {
-    showToast('No AI providers to test', 'error');
-    return;
-  }
-
-  showToast('Testing all provider connections...', 'info');
-  for (const provider of providers) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    console.log(`Testing ${provider}...`);
-  }
-  showToast('All provider tests completed', 'success');
 }
 
 // Page-local toast notification

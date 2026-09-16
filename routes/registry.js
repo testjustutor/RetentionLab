@@ -103,6 +103,9 @@ const routeRegistry = [
   // Google Credentials (legacy)
   { method: 'use', path: '/api/google-credentials', handler: 'google-credentials' },
 
+  // Microsoft (Azure AD / Graph) Credentials — mirrors google-credentials above
+  { method: 'use', path: '/api/microsoft-credentials', handler: 'microsoft-credentials' },
+
   { method: 'use', path: '/api/admin/meetings/calendar', handler: 'meetings-calendar' },
 
   // Instructor Portal (dedicated MVC folders: controllers/instructor, models/instructor, routes/instructor)

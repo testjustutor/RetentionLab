@@ -7,17 +7,33 @@ const CalendarUsersModel = require('../../models/calendar/CalendarUsersModel');
 const MeetingModel = require('../../models/meetings/MeetingModel');
 const CalendarAuthModel = require('../../models/calendar/CalendarAuthModel');
 const CalendarEventController = require('./CalendarEventController');
+const MicrosoftCalendarEventController = require('./MicrosoftCalendarEventController');
 const CalendarHelper = require('../../utils/calendarHelper');
 const { logger } = require('../../utils/logger');
 
+// calendar_providers.name values that route through the Microsoft Graph
+// event controller instead of the Google one. Anything else (including no
+// provider info at all, for backward compatibility with callers that don't
+// pass it) falls through to Google, which was this controller's only
+// supported provider before Microsoft support was added.
+const MICROSOFT_PROVIDER_NAMES = ['teams', 'microsoft-teams', 'microsoft'];
+
 class CalendarSyncController {
   /**
-   * Sync calendar events for a single user
+   * Sync calendar events for a single user.
+   * @param {Object} user - { email, user_id, provider_name? } — provider_name
+   *   (or the legacy `provider` field some callers use) picks which calendar
+   *   API to call; omitted/unrecognized values default to Google, matching
+   *   this controller's original Google-only behavior.
    */
   static async syncUserCalendar(user) {
+    const providerName = (user.provider_name || user.provider || '').toLowerCase();
+    const isMicrosoft = MICROSOFT_PROVIDER_NAMES.includes(providerName);
+    const EventController = isMicrosoft ? MicrosoftCalendarEventController : CalendarEventController;
+
     try {
       // Fetch next 24 hours
-      const events = await CalendarEventController.getEvents(user.email, {
+      const events = await EventController.getEvents(user.email, {
         timeMin: new Date().toISOString(),
         timeMax: new Date(Date.now() + 24 * 3600000).toISOString(),
         singleEvents: true,
@@ -26,9 +42,9 @@ class CalendarSyncController {
 
       // Process and store events. Pass users.id so meetings.calendar_account_id
       // maps to calendar_account_email exactly like the manual sync endpoint.
-      await CalendarEventController.processAndStoreEvents(user.email, events, user.user_id);
+      await EventController.processAndStoreEvents(user.email, events, user.user_id);
 
-      logger.debug(`Sync complete for ${user.email}`);
+      logger.debug(`Sync complete for ${user.email} (${isMicrosoft ? 'microsoft' : 'google'})`);
       return { success: true, user: user.email, eventsProcessed: events.length };
     } catch (userErr) {
       logger.error(`Failed to sync for ${user.email}: ${userErr.message}`);

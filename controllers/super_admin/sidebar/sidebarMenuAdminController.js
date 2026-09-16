@@ -1,30 +1,10 @@
 /**
- * controllers/sidebar/sidebarMenuAdminController.js
- * Sidebar menu admin controller
+ * controllers/super_admin/sidebar/sidebarMenuAdminController.js
+ * FIX: was a byte-for-byte copy of
+ * controllers/sidebar/sidebarMenuAdminController.js (only the require()
+ * path depth differed) - one of sixteen such super_admin/ duplicate pairs
+ * identified in a codebase audit. See models/super_admin/admin/AdminModel.js
+ * for the full rationale. Re-exporting the top-level controller directly
+ * instead, so there is only one copy of this logic to maintain.
  */
-const MenuModel = require('../../../models/super_admin/menu/MenuModel');
-const RolesModel = require('../../../models/super_admin/roles/RolesModel');
-
-const controller = {
-  async getRoles(req, res) {
-    try {
-      const roles = await RolesModel.getAllRoles();
-      res.json({ count: roles.length, data: roles });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  },
-
-  async getItems(req, res) {
-    try {
-      const roleId = parseInt(req.params.roleId);
-      const items = await MenuModel.getAllMenuItems(roleId);
-      const tree = await MenuModel.getResolvedMenuForUser(roleId);
-      res.json({ count: items.length, flat: items, tree });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  }
-};
-
-module.exports = controller;
+module.exports = require('../../sidebar/sidebarMenuAdminController');

@@ -164,6 +164,97 @@ class CalendarUsersModel {
   }
 
   /**
+   * Get a user's calendar connection row scoped to ONE specific provider
+   * (e.g. 'google-meet' or 'teams'). Unlike getUser()/getUserByEmail() above
+   * (which don't filter by provider and can return an arbitrary row when a
+   * user has connections to more than one provider), this always returns
+   * the exact row for that provider — used by the Microsoft calendar flow
+   * (controllers/calendar/MicrosoftCalendarAuthModel.js,
+   * controllers/instructor/instructorMicrosoftCalendarController.js) so a
+   * user's Google and Microsoft connections never get mixed up.
+   * @param {number} userId
+   * @param {string} providerName - calendar_providers.name, e.g. 'teams'
+   */
+  static async getUserByProviderName(userId, providerName) {
+    if (!userId) throw new Error('Missing userId');
+    if (!providerName) throw new Error('Missing providerName');
+    return new Promise((resolve, reject) => {
+      db.get(`
+        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, cp.name as provider
+        FROM calendar_connections ci
+        JOIN users u ON u.id = ci.user_id
+        JOIN calendar_providers cp ON cp.id = ci.provider_id
+        WHERE ci.user_id = ? AND cp.name = ?
+      `, [userId, providerName], (err, row) => {
+        if (err) {
+          logger.error('Model(CalendarUsersModel): Error fetching calendar integration by provider:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  /**
+   * Same as getUserByProviderName() above, looked up by email instead of user id.
+   * @param {string} email
+   * @param {string} providerName - calendar_providers.name, e.g. 'teams'
+   */
+  static async getUserByEmailAndProviderName(email, providerName) {
+    if (!email) throw new Error('Missing email');
+    if (!providerName) throw new Error('Missing providerName');
+    return new Promise((resolve, reject) => {
+      db.get(`
+        SELECT ci.*, u.email, u.first_name, u.last_name, u.status as user_status, cp.name as provider
+        FROM calendar_connections ci
+        JOIN users u ON u.id = ci.user_id
+        JOIN calendar_providers cp ON cp.id = ci.provider_id
+        WHERE u.email = ? AND cp.name = ?
+      `, [email, providerName], (err, row) => {
+        if (err) {
+          logger.error('Model(CalendarUsersModel): Error fetching calendar integration by email+provider:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  /**
+   * Delete only ONE provider's connection row for a user (e.g. disconnect
+   * Microsoft without touching that same user's Google connection). Plain
+   * deleteUser() above deletes ALL of a user's calendar_connections rows
+   * regardless of provider, which is correct for the Google flow (a user is
+   * only ever expected to have one connection there today) but would be
+   * wrong here once a user can have both a Google and a Microsoft connection.
+   * @param {number} userId
+   * @param {string} providerName - calendar_providers.name, e.g. 'teams'
+   */
+  static deleteUserProvider(userId, providerName) {
+    if (!userId) throw new Error('Missing userId');
+    if (!providerName) throw new Error('Missing providerName');
+    return new Promise((resolve, reject) => {
+      db.run(
+        `DELETE ci FROM calendar_connections ci
+         JOIN calendar_providers cp ON cp.id = ci.provider_id
+         WHERE ci.user_id = ? AND cp.name = ?`,
+        [userId, providerName],
+        function (err) {
+          if (err) {
+            logger.error('Model(CalendarUsersModel): Error deleting calendar integration by provider:', err);
+            reject(err);
+          } else {
+            logger.info(`Model(CalendarUsersModel): Calendar integration deleted for user_id: ${userId}, provider: ${providerName}, changes: ${this.changes}`);
+            resolve({ changes: this.changes, user_id: userId, provider: providerName });
+          }
+        }
+      );
+    });
+  }
+
+  /**
    * Get all calendar integrations with optional filtering.
    * @param {Object} options
    * @param {number|null} options.createdBy - Filter by users created by this admin ID
@@ -264,9 +355,11 @@ class CalendarUsersModel {
   static async getConnectedUsers() {
     return new Promise((resolve, reject) => {
       const sql = `
-        SELECT ci.user_id AS user_id, u.email, ci.access_token, ci.refresh_token, ci.token_expires_at
+        SELECT ci.user_id AS user_id, ci.provider_id, u.email, ci.access_token, ci.refresh_token, ci.token_expires_at,
+               cp.name AS provider_name
         FROM calendar_connections ci
         JOIN users u ON u.id = ci.user_id
+        LEFT JOIN calendar_providers cp ON cp.id = ci.provider_id
         WHERE ci.access_token IS NOT NULL
           AND ci.refresh_token IS NOT NULL
           AND ci.token_expires_at IS NOT NULL
@@ -280,11 +373,16 @@ class CalendarUsersModel {
           logger.error('Model(CalendarUsersModel): Error fetching connected users:', err);
           return reject(err);
         }
-        // Dedupe by user_id (a user may have multiple provider rows)
+        // Dedupe by user_id + provider_id (NOT user_id alone) — a user can
+        // now have an independent, simultaneously-valid connection per
+        // provider (e.g. Google AND Microsoft), and each one needs its own
+        // background sync pass. Deduping by user_id alone would silently
+        // drop every provider after the first for a multi-connected user.
         const seen = new Set();
         const unique = [];
         for (const r of rows || []) {
-          if (!seen.has(r.user_id)) { seen.add(r.user_id); unique.push(r); }
+          const key = r.user_id + ':' + (r.provider_id || '');
+          if (!seen.has(key)) { seen.add(key); unique.push(r); }
         }
         resolve(unique);
       });

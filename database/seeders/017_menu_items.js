@@ -13,8 +13,7 @@ const MENU_ITEMS = [
     children: [
       { menu_key: 'sa-add-user', label: 'Add User', icon: null, route_path: '/super_admin/people/add-user', parent_id: 'sa-people', sort_order: 1, role_id: 1 },
       { menu_key: 'sa-manage-users', label: 'Manage Users', icon: null, route_path: '/super_admin/people/manage-users', parent_id: 'sa-people', sort_order: 2, role_id: 1 },
-      { menu_key: 'sa-access-control', label: 'Access Control', icon: null, route_path: '/super_admin/people/access-control', parent_id: 'sa-people', sort_order: 3, role_id: 1 },
-      { menu_key: 'sa-manage-rubrics', label: 'Manage Rubrics', icon: null, route_path: '/super_admin/people/manage-rubrics', parent_id: 'sa-people', sort_order: 4, role_id: 1 }
+      { menu_key: 'sa-manage-rubrics', label: 'Manage Rubrics', icon: null, route_path: '/super_admin/people/manage-rubrics', parent_id: 'sa-people', sort_order: 3, role_id: 1 }
     ]
   },
   { menu_key: 'sa-content', label: 'Content', icon: 'folder', route_path: null, parent_id: null, sort_order: 3, role_id: 1,
@@ -29,8 +28,9 @@ const MENU_ITEMS = [
       { menu_key: 'sa-bot-config', label: 'Bot Configuration', icon: null, route_path: '/super_admin/settings/bot-configuration', parent_id: 'sa-settings', sort_order: 1, role_id: 1 },
       { menu_key: 'sa-ai-providers', label: 'AI Providers', icon: null, route_path: '/super_admin/settings/ai-providers', parent_id: 'sa-settings', sort_order: 2, role_id: 1 },
       { menu_key: 'sa-platforms', label: 'Platform Integrations', icon: null, route_path: '/super_admin/settings/platforms', parent_id: 'sa-settings', sort_order: 3, role_id: 1 },
-      { menu_key: 'sa-user-defaults', label: 'User Defaults', icon: null, route_path: '/super_admin/settings/user-defaults', parent_id: 'sa-settings', sort_order: 4, role_id: 1 },
-      { menu_key: 'sa-table-controls', label: 'Table Controls', icon: null, route_path: '/super_admin/settings/table-controls', parent_id: 'sa-settings', sort_order: 5, role_id: 1 }
+      { menu_key: 'sa-calendar-integrations', label: 'Calendar Integrations', icon: null, route_path: '/super_admin/settings/calendar-integrations', parent_id: 'sa-settings', sort_order: 4, role_id: 1 },
+      { menu_key: 'sa-user-defaults', label: 'User Defaults', icon: null, route_path: '/super_admin/settings/user-defaults', parent_id: 'sa-settings', sort_order: 5, role_id: 1 },
+      { menu_key: 'sa-table-controls', label: 'Table Controls', icon: null, route_path: '/super_admin/settings/table-controls', parent_id: 'sa-settings', sort_order: 6, role_id: 1 }
     ]
   },
   { menu_key: 'sa-monitoring', label: 'Monitoring', icon: 'activity', route_path: null, parent_id: null, sort_order: 5, role_id: 1,
@@ -119,8 +119,30 @@ const MENU_ITEMS = [
   { menu_key: 'logout', label: 'Logout', icon: 'log-out', route_path: '/logout', parent_id: null, sort_order: 999, role_id: 6 }
 ];
 
+// menu_keys removed from MENU_ITEMS above but that may still exist in an
+// already-seeded live database (this seeder's insert loop below only runs
+// once - it skips entirely once menu_items has any rows - so removing a row
+// from the MENU_ITEMS array never removes it from an already-seeded DB on
+// its own). removeStaleMenuItems() runs every time this seeder executes
+// (unlike the insert loop) so re-running it also cleans up an existing
+// install. Deletes role_menu_permissions first (FK dependency) then the
+// menu_items row itself; a no-op if the key is already gone.
+const REMOVED_MENU_KEYS = ['sa-access-control'];
+
+const removeStaleMenuItems = async () => {
+  for (const menuKey of REMOVED_MENU_KEYS) {
+    const row = await getAsync('SELECT id FROM menu_items WHERE menu_key = ?', [menuKey]);
+    if (!row) continue;
+    await runAsync('DELETE FROM role_menu_permissions WHERE menu_item_id = ?', [row.id]);
+    await runAsync('DELETE FROM menu_items WHERE id = ?', [row.id]);
+    console.log(`[Seed] ✓ Removed stale menu item '${menuKey}' (and its role_menu_permissions rows)`);
+  }
+};
+
 const seedMenuItems = async () => {
   console.log('[Seed] Starting menu items seed...');
+
+  await removeStaleMenuItems();
 
   const { count } = await getAsync(`SELECT COUNT(*) as count FROM menu_items`);
   if (count > 0) {

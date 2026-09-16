@@ -79,6 +79,74 @@ class MenuModel {
   }
 
   /**
+   * Get all active menu items for a role together with that role's saved
+   * permission (is_visible / sort_order / parent_id override) in a SINGLE
+   * query, instead of two separate queries (getAllMenuItems +
+   * getRoleMenuPermissions) merged together in JS. Used by the read/list
+   * side of the Sidebar Menu Management page
+   * (POST /api/super_admin/sidebar-menu-management/permissions) to cut
+   * that endpoint down to one DB round trip.
+   *
+   * Preserves the same parent_id resolution rule as getRoleMenuPermissions:
+   * role_menu_permissions.parent_id can reference either a menu_item_id or
+   * another role_menu_permissions.id, so a row-id -> menu_item_id map is
+   * still built (from this same result set) before resolving it.
+   *
+   * @param {number} roleId
+   * @returns {Array} One row per menu item: { id, menu_key, label, icon,
+   *   route_path, parent_id, is_visible, sort_order, has_permission }
+   */
+  static async getMenuItemsWithPermissions(roleId) {
+    const { allAsync } = this.getHelpers();
+    const rows = await allAsync(
+      `SELECT
+         mi.id AS menu_item_id, mi.menu_key, mi.label, mi.icon, mi.route_path,
+         mi.parent_id AS default_parent_id, mi.sort_order AS default_sort_order,
+         rmp.id AS permission_id,
+         rmp.is_visible AS permission_is_visible,
+         rmp.sort_order AS permission_sort_order,
+         rmp.parent_id AS permission_parent_id
+       FROM menu_items mi
+       LEFT JOIN role_menu_permissions rmp
+         ON rmp.menu_item_id = mi.id AND rmp.role_id = ?
+       WHERE mi.is_active = 1 AND mi.role_id = ?
+       ORDER BY mi.sort_order ASC, mi.id ASC`,
+      [roleId, roleId]
+    );
+
+    const permissionRowIdToMenuItemId = {};
+    for (const row of rows) {
+      if (row.permission_id != null) {
+        permissionRowIdToMenuItemId[row.permission_id] = row.menu_item_id;
+      }
+    }
+
+    return rows.map(row => {
+      const hasPermission = row.permission_id != null;
+
+      let parentId = hasPermission ? row.permission_parent_id : null;
+      if (parentId && permissionRowIdToMenuItemId[parentId]) {
+        parentId = permissionRowIdToMenuItemId[parentId];
+      }
+      if (parentId === null || parentId === undefined) {
+        parentId = row.default_parent_id;
+      }
+
+      return {
+        id: row.menu_item_id,
+        menu_key: row.menu_key,
+        label: row.label,
+        icon: row.icon,
+        route_path: row.route_path,
+        parent_id: parentId,
+        is_visible: hasPermission ? row.permission_is_visible : 0,
+        sort_order: hasPermission ? row.permission_sort_order : row.default_sort_order,
+        has_permission: hasPermission
+      };
+    });
+  }
+
+  /**
    * Build nested tree structure from flat menu items
    * Only includes items that have an explicit permission entry for the role.
    * Uses the parent_id from the permissionsMap (role-level hierarchy).
@@ -89,12 +157,11 @@ class MenuModel {
    */
   static buildMenuTree(menuItems, permissionsMap, roleId = null) {
     const itemMap = {};
-    const tree = [];
 
     // First pass: create map and apply permissions
     for (const item of menuItems) {
       const permission = permissionsMap[item.id];
-      
+
       // Skip items that have no permission entry at all
       if (!permission) {
         console.warn(
@@ -105,7 +172,7 @@ class MenuModel {
         );
         continue;
       }
-      
+
       // Skip hidden items
       if (!permission.is_visible) continue;
 
@@ -117,25 +184,77 @@ class MenuModel {
       };
     }
 
-    // Second pass: build tree
-    for (const item of Object.values(itemMap)) {
-      if (item.parent_id && itemMap[item.parent_id]) {
-        // Add as child
-        itemMap[item.parent_id].children.push(item);
+    return this._nestByParentId(Object.values(itemMap));
+  }
+
+  /**
+   * Shared second pass used by every "flat list -> nested tree" builder in
+   * this model: group nodes under their parent_id (already-resolved to a
+   * menu_item_id) and sort every level by sort_order. Nodes must already
+   * have a `children: []` array. Extracted out of buildMenuTree so
+   * getRoleMenuTree() below can reuse the exact same nesting/sorting rule
+   * instead of re-implementing it.
+   * @param {Array} nodes - flat nodes, each with id, parent_id, sort_order, children
+   * @returns {Array} top-level nodes, each with nested `children`
+   */
+  static _nestByParentId(nodes) {
+    const nodeById = {};
+    for (const node of nodes) {
+      nodeById[node.id] = node;
+    }
+
+    const tree = [];
+    for (const node of nodes) {
+      if (node.parent_id && nodeById[node.parent_id]) {
+        nodeById[node.parent_id].children.push(node);
       } else {
-        // Top-level item
-        tree.push(item);
+        tree.push(node);
       }
     }
 
-    // Sort each level by sort_order
-    const sortByOrder = (nodes) => {
-      nodes.sort((a, b) => a.sort_order - b.sort_order);
-      nodes.forEach(node => sortByOrder(node.children));
+    const sortByOrder = (list) => {
+      list.sort((a, b) => a.sort_order - b.sort_order);
+      list.forEach(node => sortByOrder(node.children));
     };
     sortByOrder(tree);
 
     return tree;
+  }
+
+  /**
+   * Get a role's FULL menu as a nested tree — including hidden items,
+   * unlike buildMenuTree()/getResolvedMenuForUser() which only build the
+   * tree the sidebar actually renders (visible items only). This is what
+   * the Sidebar Menu Management admin page needs: every item, in its real
+   * hierarchy, each carrying its own is_visible flag so the page can offer
+   * a single show/hide toggle per row without the frontend re-deriving the
+   * parent/child structure itself.
+   *
+   * Data-fetching approach: ONE joined DB query
+   * (getMenuItemsWithPermissions), then the tree is nested/sorted in
+   * application code via the same _nestByParentId() helper buildMenuTree
+   * uses — no second query, no route/route-scanning per node.
+   *
+   * @param {number} roleId
+   * @returns {Array} nested tree; each node has
+   *   { id, menu_key, label, icon, route_path, parent_id, sort_order, is_visible, children }
+   */
+  static async getRoleMenuTree(roleId) {
+    const items = await this.getMenuItemsWithPermissions(roleId);
+
+    const nodes = items.map(item => ({
+      id: item.id,
+      menu_key: item.menu_key,
+      label: item.label,
+      icon: item.icon,
+      route_path: item.route_path,
+      parent_id: item.parent_id,
+      sort_order: item.sort_order,
+      is_visible: !!item.is_visible,
+      children: []
+    }));
+
+    return this._nestByParentId(nodes);
   }
 
   /**
@@ -172,19 +291,33 @@ class MenuModel {
    */
   static async saveRoleMenuPermissions(roleId, permissions) {
     const { runAsync } = this.getHelpers();
-    
+
     // Delete existing permissions for this role
     await runAsync(
       `DELETE FROM role_menu_permissions WHERE role_id = ?`,
       [roleId]
     );
 
-    // Insert new permissions
-    for (const perm of permissions) {
+    // Bulk insert new permissions in a single round trip instead of
+    // one INSERT per row (was N sequential awaited queries — the cause
+    // of this endpoint being slow for roles with many menu items).
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      const valuesSql = permissions.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const params = [];
+      for (const perm of permissions) {
+        params.push(
+          roleId,
+          perm.menu_item_id,
+          perm.is_visible ? 1 : 0,
+          perm.sort_order || 0,
+          perm.parent_id || null
+        );
+      }
+
       await runAsync(
         `INSERT INTO role_menu_permissions (role_id, menu_item_id, is_visible, sort_order, parent_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [roleId, perm.menu_item_id, perm.is_visible ? 1 : 0, perm.sort_order || 0, perm.parent_id || null]
+         VALUES ${valuesSql}`,
+        params
       );
     }
 

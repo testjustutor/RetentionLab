@@ -19,11 +19,11 @@ const controller = {
 
   async createCategory(req, res) {
     try {
-      const { category_id, name, weight, status } = req.body || {};
+      const { category_code, category_id, name, weight, status } = req.body || {};
       if (!name || !name.trim()) {
         return res.status(400).json({ success: false, error: 'Category name is required' });
       }
-      const created = await ManageRubricsModel.createCategory({ category_id, name, weight, status });
+      const created = await ManageRubricsModel.createCategory({ category_code, category_id, name, weight, status });
       return res.status(201).json({ success: true, data: created, message: 'Category created' });
     } catch (err) {
       console.error('[ManageRubrics] createCategory error:', err);
@@ -64,11 +64,17 @@ const controller = {
 
   async createIndicator(req, res) {
     try {
-      const { indicator_id, category_id, name, type, is_gate, value, status } = req.body || {};
+      const {
+        indicator_code, indicator_id, category_id, name, type, is_gate, value, status,
+        subgroup_name, benchmark, requires_video, requires_calculation, calculation_config
+      } = req.body || {};
       if (!category_id || !name || !name.trim()) {
         return res.status(400).json({ success: false, error: 'Category and indicator name are required' });
       }
-      const created = await ManageRubricsModel.createIndicator({ indicator_id, category_id, name, type, is_gate, value, status });
+      const created = await ManageRubricsModel.createIndicator({
+        indicator_code, indicator_id, category_id, name, type, is_gate, value, status,
+        subgroup_name, benchmark, requires_video, requires_calculation, calculation_config
+      });
       return res.status(201).json({ success: true, data: created, message: 'Indicator created' });
     } catch (err) {
       console.error('[ManageRubrics] createIndicator error:', err);

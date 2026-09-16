@@ -1,10 +1,10 @@
 /**
  * services/calendarSyncService.js
  * Calendar Sync Service
- * Syncs meetings from Google Calendar to local database
+ * Syncs meetings from Google Calendar / Microsoft Calendar to local database
  *
  * ─────────────────────────────────────────────────────────────
- * PROCESS FLOW
+ * PROCESS FLOW (syncGoogleCalendar)
  *   User has Google Calendar connected
  *      │
  *      ▼
@@ -15,10 +15,18 @@
  *   5. Ignore invalid/all-day events
  *   6. Create/update local meeting  ──► meetings table
  * ─────────────────────────────────────────────────────────────
+ * syncMicrosoftCalendar() below follows the exact same 6 steps against
+ * Microsoft Graph instead of the Google Calendar API — see
+ * controllers/calendar/MicrosoftCalendarEventController.js for the shared
+ * token-refresh logic this mirrors.
+ * ─────────────────────────────────────────────────────────────
  */
 
 const { google } = require('googleapis');
+const axios = require('axios');
 const MeetingsController = require('../controllers/meetings/meetingsController');
+const CalendarUsersModel = require('../models/calendar/CalendarUsersModel');
+const MicrosoftCalendarAuthModel = require('../models/calendar/MicrosoftCalendarAuthModel');
 const { logger } = require('../utils/logger');
 
 /**
@@ -158,6 +166,140 @@ async function syncGoogleCalendar(userEmail, userId, daysBack = 30, daysForward 
   }
 }
 
+/**
+ * Sync meetings from Microsoft (Outlook/Teams) Calendar to local database.
+ * Mirrors syncGoogleCalendar() above step-for-step, against Microsoft Graph.
+ * @param {string} userEmail - User's email
+ * @param {number} userId - User's ID
+ * @param {number} daysBack - How many days back to fetch (default: 30)
+ * @param {number} daysForward - How many days forward to fetch (default: 90)
+ */
+async function syncMicrosoftCalendar(userEmail, userId, daysBack = 30, daysForward = 90) {
+  try {
+    // =========================================================
+    // STEP 1 — Get user's saved Microsoft OAuth tokens
+    // Scoped to the 'teams' provider so this never picks up the same
+    // user's Google connection row by accident.
+    // =========================================================
+    const calendarUser = await CalendarUsersModel.getUserByProviderName(userId, MicrosoftCalendarAuthModel.PROVIDER_NAME);
+    if (!calendarUser || !calendarUser.access_token) {
+      logger.info(`[CalendarSync] No Microsoft calendar connection for user ${userId}`);
+      return { synced: 0, message: 'Calendar not connected' };
+    }
+
+    // Calculate time range
+    const now = new Date();
+    const timeMin = new Date(now);
+    timeMin.setDate(timeMin.getDate() - daysBack);
+    const timeMax = new Date(now);
+    timeMax.setDate(timeMax.getDate() + daysForward);
+
+    // =========================================================
+    // STEP 2 — Check/refresh expired token
+    // =========================================================
+    let accessToken = calendarUser.access_token;
+    if (calendarUser.token_expires_at && new Date(calendarUser.token_expires_at).getTime() < Date.now()) {
+      logger.info(`[CalendarSync] Refreshing Microsoft token for user ${userId}`);
+      const config = await MicrosoftCalendarAuthModel.getOAuthConfig();
+      const body = new URLSearchParams({
+        client_id: config.client_id,
+        client_secret: config.client_secret,
+        grant_type: 'refresh_token',
+        refresh_token: calendarUser.refresh_token,
+        scope: (config.scopes || []).join(' ')
+      });
+      const { data } = await axios.post(config.token_uri, body.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+
+      accessToken = data.access_token;
+      const newExpiry = Date.now() + (Number(data.expires_in || 3600) * 1000);
+
+      // Save new tokens using user_id (provider_id preserved)
+      await MeetingsController.saveCalendarUserTokens(userId, {
+        access_token: accessToken,
+        refresh_token: data.refresh_token || calendarUser.refresh_token,
+        expiry_date: newExpiry,
+        provider: MicrosoftCalendarAuthModel.PROVIDER_NAME,
+        provider_id: calendarUser.provider_id
+      });
+    }
+
+    // =========================================================
+    // STEP 3 — Ask Microsoft Graph for events
+    // =========================================================
+    const config = await MicrosoftCalendarAuthModel.getOAuthConfig();
+    const { data: eventsResponse } = await axios.get(`${config.graph_base_url}/me/calendarview`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Prefer: 'outlook.timezone="UTC"'
+      },
+      params: {
+        startDateTime: timeMin.toISOString(),
+        endDateTime: timeMax.toISOString(),
+        $orderby: 'start/dateTime',
+        $top: 100
+      }
+    });
+
+    const events = eventsResponse.value || [];
+    logger.info(`[CalendarSync] Found ${events.length} Microsoft events for user ${userId}`);
+
+    let synced = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    // =========================================================
+    // STEP 4 — Loop through events
+    // =========================================================
+    for (const event of events) {
+      const eventId = event.id || 'unknown';
+      const eventTitle = event.subject || 'Untitled';
+      try {
+        // -----------------------------------------------
+        // STEP 5 — Ignore invalid/all-day events
+        // -----------------------------------------------
+        if (!event.start?.dateTime || !event.end?.dateTime) {
+          logger.info(`[CalendarSync] Skipping Microsoft event ${eventId} (${eventTitle}): no start/end times`);
+          skipped++;
+          continue;
+        }
+
+        if (event.isAllDay) {
+          logger.info(`[CalendarSync] Skipping Microsoft event ${eventId} (${eventTitle}): all-day event`);
+          skipped++;
+          continue;
+        }
+
+        // -------------------------------------------------
+        // STEP 6 — Create/update local meeting
+        // -------------------------------------------------
+        await MeetingsController.syncMeetingFromCalendar({
+          title: eventTitle,
+          platform: 'Microsoft Calendar',
+          startTime: event.start.dateTime,
+          endTime: event.end.dateTime,
+          userId,
+          calendarAccount: userEmail
+        });
+
+        synced++;
+      } catch (err) {
+        failed++;
+        logger.error(`[CalendarSync] Error syncing Microsoft event ${eventId} (${eventTitle}):`, err);
+      }
+    }
+
+    logger.info(`[CalendarSync] Microsoft sync completed for ${userEmail}: synced=${synced}, skipped=${skipped}, failed=${failed}, total=${events.length}`);
+    return { synced, skipped, failed, total: events.length };
+
+  } catch (err) {
+    logger.error(`[CalendarSync] Error syncing Microsoft calendar for ${userEmail}:`, err.response?.data || err.message);
+    throw err;
+  }
+}
+
 module.exports = {
-  syncGoogleCalendar
+  syncGoogleCalendar,
+  syncMicrosoftCalendar
 };

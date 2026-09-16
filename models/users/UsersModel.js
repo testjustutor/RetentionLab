@@ -5,10 +5,17 @@ const crypto = require('crypto');
 const { db } = require('../../database/db');
 const { logger } = require('../../utils/logger');
 
+// FIX: see models/auth/AuthModel.js for the full rationale - hoisted to a
+// guarded module-level constant instead of an inline read with no fallback
+// and no check.
+const PASSWORD_SECRET_KEY = process.env.PASSWORD_SECRET_KEY;
+if (!PASSWORD_SECRET_KEY) {
+  throw new Error('PASSWORD_SECRET_KEY environment variable is required - refusing to start with an insecure default.');
+}
+
 function hashPassword(password, salt = null) {
   salt = salt || crypto.randomBytes(16).toString('hex');
-  const secretKey = process.env.PASSWORD_SECRET_KEY || '';
-  const pepperedPassword = secretKey + password;
+  const pepperedPassword = PASSWORD_SECRET_KEY + password;
   const derived = crypto.scryptSync(pepperedPassword, salt, 64).toString('hex');
   return `${salt}:${derived}`;
 }

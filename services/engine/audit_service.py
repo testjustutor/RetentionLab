@@ -37,7 +37,7 @@ from .audit_storage import AuditStorage, _json_default
 from .audit_metrics import build_calculation_context
 from .audit_scoring import (
     compute_category_score_from_counts,
-    compute_overall_from_category_rows,
+    compute_weighted_overall,
     resolve_calculation,
     STATUS_MET,
     STATUS_NOT_MET,
@@ -240,9 +240,14 @@ class AuditService:
 
         category_scores = {}
         gate_set = set()
-        # (category_score, total_criteria_in_category) pairs, per
-        # review_calculation_logic.txt — the overall score is weighted by
-        # criteria COUNT, never by category weight.
+        # (category_score, category_weight) pairs. The overall OQI score is a
+        # weighted average by each category's configured rubric weight
+        # (falls back to 1 when no weight is configured) — never by criteria
+        # count. This matches computeFinalScore() in
+        # controllers/reviewer/tutorEvaluationController.js so the AI-audit
+        # and manual-review paths always agree on the same rubric inputs.
+        # (Previously this weighted by criteria count, per the now-superseded
+        # review_calculation_logic.txt "submit" behavior — see TODO.md.)
         category_rows = []
 
         for cat in rubric_schema:
@@ -327,6 +332,10 @@ class AuditService:
                 met_count, not_met_count, na_count, calc_source="submit"
             )
 
+            category_weight = float(cat.get("weight") or 0)
+            if category_weight <= 0:
+                category_weight = 1  # unconfigured weight still counts (matches tutorEvaluationController.js)
+
             category_scores[cat_name] = {
                 "score": cat_pct,
                 "scored": met_count + not_met_count,
@@ -335,9 +344,9 @@ class AuditService:
                 "excluded_indicator_count": na_count,
                 "indicators": indicators_out,
             }
-            category_rows.append((cat_pct, met_count + not_met_count + na_count))
+            category_rows.append((cat_pct, category_weight))
 
-        oqi_score = compute_overall_from_category_rows(category_rows)
+        oqi_score = compute_weighted_overall(category_rows)
         return {
             "category_scores": category_scores,
             "oqi_score": oqi_score,

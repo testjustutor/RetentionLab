@@ -81,7 +81,13 @@ const sidebarConfig = {
             {
               id: 'profile',
               label: 'Profile',
-              href: '/super_admin/profile'
+              // FIX: was '/super_admin/profile' - that single-segment URL falls
+              // through to SuperAdminPageModel.resolveSingleFile(), whose 'single'
+              // list is intentionally empty, so it silently resolved to the
+              // dashboard instead of the profile page. The real page lives at
+              // public/super_admin/people/profile.html, registered under the
+              // nested 'people' section, so it's reachable at this URL instead.
+              href: '/super_admin/people/profile'
             }
           ]
         }

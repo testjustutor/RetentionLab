@@ -21,7 +21,6 @@ const DEFAULT_PAGES = {
   // Super Admin pages
   addUser:          { title: 'Add User',           description: 'Create new users and assign roles.',                         roleTitle: 'Super Admin', showStats: false, buttons: [] },
   manageUsers:      { title: 'Manage Users',       description: 'View, update, and delete user accounts.',                   roleTitle: 'Super Admin', showStats: false, buttons: [] },
-  accessControl:    { title: 'Access Control',      description: 'Define and manage user roles and permissions.',             roleTitle: 'Super Admin', showStats: false, buttons: [] },
   rolesAccess:      { title: 'Roles & Access',      description: 'Define and manage user roles and permissions.',             roleTitle: 'Super Admin', showStats: false, buttons: [] },
   userSettings:     { title: 'User Settings',      description: 'Configure global user-related settings.',                  roleTitle: 'Super Admin', showStats: false, buttons: [] },
   userDefaults:     { title: 'User Defaults',      description: 'Configure default settings applied to new user accounts.', roleTitle: 'Super Admin', showStats: false, buttons: [] },
@@ -114,7 +113,22 @@ const DEFAULT_PAGES = {
   reviewerEvaluationSummary: { title: 'Evaluation Summary', description: 'Score a session against the rubric and save the evaluation summary.', roleTitle: 'Reviewer', showStats: false, buttons: [] }
 };
 
+// page_keys removed from DEFAULT_PAGES above but that may still exist in an
+// already-seeded live database - the insert loop below uses INSERT IGNORE,
+// so it never removes a row on its own. Runs every time this seeder
+// executes (unlike a one-shot insert) so re-running it also cleans up an
+// existing install; a no-op if the key is already gone.
+const REMOVED_PAGE_KEYS = ['accessControl'];
+
+const removeStalePageConfigs = async () => {
+    for (const pageKey of REMOVED_PAGE_KEYS) {
+        await runAsync('DELETE FROM header_page_configs WHERE page_key = ?', [pageKey]);
+    }
+};
+
 const seedHeaderPageConfigs = async () => {
+    await removeStalePageConfigs();
+
     const roles = await new Promise((resolve, reject) => {
         db.all(`SELECT id, role_name FROM roles`, [], (err, rows) => {
             if (err) return reject(err);

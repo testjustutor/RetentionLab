@@ -117,8 +117,34 @@ const disconnectConnection = async (req, res) => {
   res.json({ success: true, message: 'Connection disconnected', changes: result.changes });
 };
 
+// Lightweight status check: which calendar OAuth providers are enabled
+// (super-admin Settings > Calendar Integrations toggle), for any
+// authenticated role — instructor and admin frontend JS both use this to
+// decide whether to show "Connect Google"/"Connect Microsoft" UI. This is
+// deliberately separate from getIntegrationStatus above, which is
+// admin-only and returns full per-provider connection stats.
+const getProviderFlags = async (req, res) => {
+  try {
+    const providers = await CalendarProvidersModel.getAll({ includeInactive: true });
+    const byName = {};
+    for (const p of providers || []) byName[p.name] = !!p.is_active;
+
+    res.json({
+      success: true,
+      data: {
+        google: byName['google-meet'] || false,
+        microsoft: byName['teams'] || false
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching calendar provider flags:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch calendar provider flags' });
+  }
+};
+
 module.exports = {
   getIntegrationStatus: handle(getIntegrationStatus),
   getConnectedAccounts: handle(getConnectedAccounts),
-  disconnectConnection: handle(disconnectConnection)
+  disconnectConnection: handle(disconnectConnection),
+  getProviderFlags: handle(getProviderFlags)
 };

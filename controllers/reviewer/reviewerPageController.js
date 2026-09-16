@@ -12,7 +12,13 @@ const path = require('path');
 const ReviewerPageModel = require('../../models/reviewer/ReviewerPageModel');
 
 const REVIEWER_DIR = path.join(__dirname, '..', '..', 'public', 'reviewer');
-const HOME_FILE = 'index.html';
+// FIX: was 'index.html', which is a thin static shell (profile card + 2
+// links, no data-loading script). 'dashboard.html' is the real dashboard -
+// stat tiles (pending/in-progress/completed/avg time), recent assignments,
+// overdue reviews, all populated by js/reviewer/dashboard.js - so GET
+// /reviewer and /reviewer/ were serving the wrong page. index.html is still
+// reachable directly at /reviewer/index for anyone who wants the shell.
+const HOME_FILE = 'dashboard.html';
 
 /** Resolve + serve an HTML file, falling back to index if it doesn't exist. */
 function serveOrFallback(res, file) {

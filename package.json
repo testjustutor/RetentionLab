@@ -41,7 +41,7 @@
     "googleapis": "^129.0.0",
     "jsonwebtoken": "^9.0.1",
     "mysql2": "^3.22.5",
-    "nodemailer": "^8.0.10",
+    "nodemailer": "^10.0.10",
     "openai": "^6.38.0",
     "puppeteer": "^23.5.3",
     "puppeteer-stream": "^3.0.4",

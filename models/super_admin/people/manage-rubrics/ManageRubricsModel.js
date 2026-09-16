@@ -23,6 +23,11 @@ class ManageRubricsModel {
 
   static updateCategory(id, data) {
     const updates = {};
+    // category_code (accept the legacy category_id name too, same fallback
+    // used by createCategory) was previously silently dropped here even
+    // though MasterRubricModel.updateCategory supports updating it.
+    const categoryCode = data.category_code !== undefined ? data.category_code : data.category_id;
+    if (categoryCode !== undefined) updates.category_code = categoryCode;
     if (data.name !== undefined) updates.name = data.name;
     if (data.weight !== undefined) updates.weight = parseFloat(data.weight) || 0;
     if (data.status !== undefined) updates.status = data.status;
@@ -50,18 +55,31 @@ class ManageRubricsModel {
       status: data.status || 'active',
       subgroup_name: data.subgroup_name,
       benchmark: data.benchmark,
-      requires_video: data.requires_video ? 1 : 0
+      requires_video: data.requires_video ? 1 : 0,
+      requires_calculation: data.requires_calculation ? 1 : 0,
+      calculation_config: data.calculation_config
     });
   }
 
   static updateIndicator(id, data) {
     const updates = {};
+    // indicator_code (legacy indicator_id fallback, same as createIndicator)
+    // and subgroup_name/benchmark/requires_video/requires_calculation/
+    // calculation_config were all previously silently dropped here even
+    // though MasterRubricModel.updateIndicator supports every one of them.
+    const indicatorCode = data.indicator_code !== undefined ? data.indicator_code : data.indicator_id;
+    if (indicatorCode !== undefined) updates.indicator_code = indicatorCode;
     if (data.category_id !== undefined) updates.category_id = data.category_id;
     if (data.name !== undefined) updates.name = data.name;
     if (data.type !== undefined) updates.type = data.type;
     if (data.is_gate !== undefined) updates.is_gate = data.is_gate ? 1 : 0;
     if (data.value !== undefined) updates.value = parseFloat(data.value) || 1;
     if (data.status !== undefined) updates.status = data.status;
+    if (data.subgroup_name !== undefined) updates.subgroup_name = data.subgroup_name;
+    if (data.benchmark !== undefined) updates.benchmark = data.benchmark;
+    if (data.requires_video !== undefined) updates.requires_video = data.requires_video ? 1 : 0;
+    if (data.requires_calculation !== undefined) updates.requires_calculation = data.requires_calculation ? 1 : 0;
+    if (data.calculation_config !== undefined) updates.calculation_config = data.calculation_config;
     if (Object.keys(updates).length === 0) return Promise.resolve({ updated: false });
     return MasterRubricModel.updateIndicator(id, updates);
   }

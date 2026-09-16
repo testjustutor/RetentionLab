@@ -1,23 +1,10 @@
 /**
- * controllers/companiesController.js
- * Company management logic.
+ * controllers/super_admin/companies/companiesController.js
+ * FIX: was a byte-for-byte copy of controllers/companies/companiesController.js
+ * (only the require() path depth differed) - one of sixteen such
+ * super_admin/ duplicate pairs identified in a codebase audit. See
+ * models/super_admin/admin/AdminModel.js for the full rationale. Re-exporting
+ * the top-level controller directly instead, so there is only one copy of
+ * this logic to maintain.
  */
-const CompaniesModel = require('../../../models/super_admin/companies/CompaniesModel');
-
-function ok(data, msg) { return { success: true, message: msg || null, ...(data || {}) }; }
-function err(msg, code) { return { success: false, error: msg, statusCode: code || 500 }; }
-
-const controller = {
-  async list(req, res) {
-    try {
-      const rows = await CompaniesModel.getAllCompanies();
-      if (res) return res.json({ count: rows.length, data: rows });
-      return ok({ companies: rows }, 'Companies fetched');
-    } catch (e) {
-      if (res) return res.status(500).json({ error: e.message });
-      return err(e.message, 500);
-    }
-  }
-};
-
-module.exports = controller;
+module.exports = require('../../companies/companiesController');

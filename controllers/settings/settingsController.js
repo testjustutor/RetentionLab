@@ -58,7 +58,12 @@ function isSensitiveKey(key) {
   const SENSITIVE_PATTERNS = [
     'api_key', 'api.secret', 'client_secret', 'client_id', 
     'secret', 'token', 'password', 'hf_token', 'jwt_secret',
-    'gemini_api_key', 'openai_api_key', 'cloude_api_key',
+    // FIX: 'xai_api_key' was missing here even though it's a real setting key
+    // (see public/super_admin/settings/ai-providers.html) - the super_admin
+    // copy of this file already redacted it, but this top-level copy didn't,
+    // so an admin-facing settings response could leak an xAI/Grok API key
+    // unmasked. Added to match.
+    'gemini_api_key', 'openai_api_key', 'cloude_api_key', 'xai_api_key',
     'webhookurl', 'webhook_url'
   ];
   const k = key.toLowerCase().replace(/[._]/g, '');

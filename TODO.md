@@ -1,1198 +1,1101 @@
 # TODO
 
-## Task: Live page — configurable bot launch lead time + "Bot will join meeting within MM:SS" countdown
-
-- [x] Config: settings.js bot.autoJoinLeadMinutes (BOT_LAUNCH_LEAD_MINUTES, default 3); .env already has BOT_LAUNCH_LEAD_MINUTES=3 + BOT_QUEUED_EXPIRE_MINUTES=30; .env.example documents both
-- [x] MeetingModel: getQueuedMeetings(leadMinutes) parameterizes launch window; getLiveMeetingsByAccounts(emails, leadMinutes) scales live filter + exposes _seconds_until_launch (TZ-safe)
-- [x] BotPollingController: launch window uses settings.bot.autoJoinLeadMinutes
-- [x] meetingScheduleController /live payload: seconds_until_launch
-- [x] live.js: "Bot will join meeting within MM:SS" countdown chip (status strip + busy action) for pre-join statuses with 1s in-place ticker
-- [x] Verify: node --check on all 5 touched JS files passed; settings resolve from .env (autoJoinLeadMinutes=3, queuedExpireMinutes=30); countdown helper logic unit-checked (fmt/skip scenarios). Server restart (PID 16124) still needed to load new settings/controller/model code — live.js is served fresh so the UI picks it up without restart
-## Task: Audit requires_calculation / calculation_config values against the code (rubric_indicators + admin_rubric_indicators)
-
-User provided a live phpMyAdmin export and asked to verify `requires_calculation`/
-`calculation_config` in both tables match what `services/engine/audit_scoring.py`
-can actually resolve, and fix the seeder if not.
-
-Finding: exactly one indicator, `F4.2` ("Allows sufficient learner talk time"),
-had `requires_calculation=1` with `calculation_config=
-{"metric":"talk_ratio_student_pct","operator":">=","threshold":50}` in both
-tables (admin table is a straight clone of the master via
-`020_admin_rubric.js`, so both were consistent with each other - just both
-wrong). The metric name can never resolve because (1) `context.talk_ratio` is
-never populated in the live DAG - `transcription_task.py` never runs
-diarization, only `transcript_builder.py::build_plain_text()` - and (2) even
-when talk_ratio IS computed, its keys are raw speaker identities (a
-diarization label or a resolved real name), never a semantic "student"/
-"tutor" role - nothing in this codebase assigns which speaker is the student.
-As configured this indicator could only ever resolve to Not Applicable
-(`resolve_calculation()`'s safe fallback for an unresolvable metric name).
-
-User's call: revert F4.2 to a normal (non-calculated) indicator until real
-speaker-role detection exists, rather than leaving dead configuration in
-place or picking a substitute metric that would change what the indicator
-actually measures.
-
-- [x] Diff `admin_rubric_indicators`/`rubric_indicators` from the user's SQL
-      export against `services/engine/audit_scoring.py::resolve_calculation()`
-      and `services/engine/audit_metrics.py::build_calculation_context()` -
-      confirmed F4.2 is the only indicator with requires_calculation=1, and its
-      metric name can never appear in metrics_context
-- [x] `database/seeders/006_rubric.js`: dropped `requires_calculation`/
-      `calculation_config` from the F4.2 entry (reverts to `ind.requires_calculation
-      ? 1 : 0` / `ind.calculation_config ? ... : null` defaulting to 0/NULL);
-      confirmed no other indicator in the seeder sets these fields
-- [x] Fix moved into the SEEDERS (standalone migration `056_fix_f42_calculation_metric.js`
-      was removed per request): `006_rubric.js` and `020_admin_rubric.js` now each
-      include an idempotent UPDATE (both use `WHERE indicator_code = 'F4.2' AND
-      requires_calculation = 1`) so already-seeded rows in `rubric_indicators` and
-      `admin_rubric_indicators` self-heal on the next seeder run (`020_admin_rubric.js`
-      runs the UPDATE before its existing-clone skip, since cloning only happens on
-      first seed)
-- [x] `database/reset-db.js`: migration-count comment/log range now "(001-055, 057)"
-      after removing 056 (56 migration files in total)
-- [x] Verify: `node --check` on all 3 files; confirmed migration auto-discovery
-      (`fs.readdirSync(migrationsDir).sort()`) needs no manual registration
-- [x] Deliver changed files back to the device
-
-## Task: Skip AI audit for empty / single-speaker-only transcripts (pre-audit transcript validation)
-
-Goal: detect a transcript with no meaningful conversation (empty/near-empty) or
-only one speaker BEFORE the AI audit LLM call, so Whisper's output is never
-sent to an audit that can't produce a real result, and the frontend gets a
-friendly, non-error "skipped" outcome instead of a garbage report.
-
-Corrected an assumption in the original plan during investigation: real
-Google Meet/Deepgram captions use a TIME-RANGE bracket
-(`[19:12:52 - 19:12:52] Name: text`), not a single timestamp like
-Teams/Zoom (`[4:02:24 PM] Name: text`) — confirmed against
-`services/platforms/teams/captionMonitor.js` and real
-`storage/transcripts/TRANS_*.txt` files. Speaker detection therefore uses one
-generic "`[...] Name:`" line pattern (works for both shapes, and the unused
-diarization `build()` float-second format) instead of hardcoded per-platform
-regexes.
-
-Confirmed `video_processing.status` (models/super_admin/content/VideoProcessingModel.js)
-is a free-form `VARCHAR(50)`, not an ENUM — a new `'skipped'` status value
-needs no migration.
-
-Scope decision: a Node-side pre-flight check (skip spawning Python entirely
-for a cached transcript) was considered but dropped — reliably locating the
-matching TRANS_*.txt from Node would duplicate pipeline_context.py's fuzzy
-session-matching logic for a marginal win (Whisper still needs to run to
-produce the authoritative transcript the audit would use), so validation
-stays a single source of truth on the Python side, right after transcription
-and before the audit call. The Deepgram "AI Transcript" endpoint has no
-Python pipeline at all, so it gets its own lightweight Node-side check.
-
-- [x] Investigate current flow end-to-end (pipeline_context.py, transcription_task.py,
-      audit_task.py, summary_task.py, persist_results_task.py, engine_main.py,
-      pythonBridge.js, videoProcessingController.js, video-processing.js) and
-      the real caption/transcript formats (TRANS_*.txt examples + captionMonitor.js)
-- [x] New `services/engine/transcript_validation.py`: `strip_boilerplate()`,
-      `meaningful_word_count()` (`MIN_MEANINGFUL_WORDS=10`, env-overridable via
-      `TRANSCRIPT_MIN_MEANINGFUL_WORDS`), `detect_speaker_count()` (generic
-      `[...] Name:` regex against the captions file, NOT the unlabeled Whisper
-      text), `validate_transcript()` -> `{valid: true}` or
-      `{valid: false, reason: 'empty_transcript'|'single_speaker', message}`
-- [x] `pipeline_context.py`: add `processing_skipped` / `skip_reason` / `skip_message`
-      attrs; surface them in `build_final_response()`
-- [x] `transcription_task.py`: call `validate_transcript()` right after
-      `context.labeled_transcript` is set (using the captions file content when
-      available); set the skip attrs on the context
-- [x] `audit_task.py`: skip the LLM call when `context.processing_skipped`,
-      write a skip-record `AUDIT_<base_id>.json` so `audit_json_path` still resolves
-- [x] `summary_task.py`: skip summary generation/file write when skipped
-- [x] `persist_results_task.py`: skip DB persistence entirely when skipped
-      (mirrors the existing `_meeting_exists`/`_session_exists` early-return pattern)
-- [x] Verify: py_compile all touched Python files + stubbed-import integration
-      test exercising both the skip and non-skip paths (real code, mysql.connector/
-      openai/whisper stubbed as the only external boundaries - same technique
-      test_ai_evaluation.py already documents for services.engine.transcriber/.client)
-- [x] New `services/shared/transcriptValidator.js` (Node mirror of the word-count
-      check only, for the Deepgram endpoint, which has no Python pipeline) -
-      verified against the same real TRANS_*.txt examples, matches Python 1:1
-- [x] `pythonBridge.js` `runFullAudioPipeline()`: read `executionMatrix.skipped`/
-      `skip_reason`/`skip_message`; skip the `MettingAssetController.updateAssets()`
-      "Completed" call when skipped; return `{success:true, skipped:true, skipReason, skipMessage, meetingId, sessionId}`
-- [x] `videoProcessingController.js` `processAudio()`: handle `result.skipped` ->
-      save `status:'skipped'`, return a non-error `{success:true, data:{skipped:true, skipMessage}}`
-- [x] `videoProcessingController.js` `getAllVideos()`: pass a `skipped` `lastStatus`
-      through to the table as its own status (not lumped into "converted")
-- [x] `videoProcessingController.js` `generateTranscript()`: use `transcriptValidator`
-      to skip writing a blank/meaningless Deepgram transcript file
-- [x] `public/js/.../video-processing.js`: `processAudio()` shows an amber/info
-      (not red-error) message + toast for a skipped result and keeps the modal
-      unlocked correctly; `statusLabel()`/`statusLabelColor()` add a `skipped` case
-- [x] Verify: `node --check` all touched JS files
-- [x] Deliver all new/changed files back to the device
-
-## Task: Live meetings page - bot status tracking + participants + transcript/audio activity (DB-driven)
-
-- [x] Model: add `MeetingModel.getLiveMeetingsEnrichment(meetingIds)` (latest `meeting_sessions` row + `participants` attendance per meeting)
-- [x] Controller: `meetingScheduleController.getLiveMeetings` attaches `bot_status`, `session`, `participants`, `participant_count` to each event
-- [x] Frontend JS: render per-meeting bot status badge (joining / waiting for host / joined / host_rejected / waiting_timeout / failed), participant list + count (DB excludes bot), transcript-running + audio-recording chips
-- [x] Frontend JS: poll `/api/admin/meeting-schedule/live` every 5s (silent refresh; preserve Join Bot launched state)
-- [x] Verify: `node --check` passed on all 3 edited JS files; enrichment query verified read-only against DB; authed API E2E returns bot_status/session/participants; server restarted (PID 2404) with clean boot and serves updated live.js
-- [x] Polish: status strip uses distinct text colors (`[BOT]`=status color, `[TRANSCRIPT]`=sky, `[AUDIO]`=amber), ASCII `[BOT]/[TRANSCRIPT]/[AUDIO]` prefixes replace emoji, dots removed, and the three items are aligned on a single line
-- [x] Font size bump on live page: `text-[10px]` -> `text-xs` (12px), `text-xs` -> `text-sm` (14px) across instructor header, LIVE badge, meeting title/time, status strip, participants, Join Bot button, empty/error states
-- [x] Status strip colors: darker, clearer 600-level shades for `[BOT]` (emerald-600), `[TRANSCRIPT]` (sky-600), `[AUDIO]` (amber-600) + `font-bold` for legibility
-- [x] Meeting-card layout polish: title + Join Bot aligned in header row, meta collapsed to one line (`time | started | remaining | platform`), status strip single-line with `|` separators + section dividers, tidier participants list (bold ASCII +/- marker, name + status), removed redundant progress bar
-- [x] Join Bot action states (DB-driven): `joined` -> disabled "Bot joined"; busy states (joining/waiting_for_host/...) -> disabled "Bot joining..."; stopped (failed/stopped/host_rejected/waiting_timeout/expired/completed or terminal session) -> "Bot stopped" + no re-join; guard in `startBot()` against re-join. Verified via branch simulation (10 cases) + served-file check
-- [x] Re-added meeting progress bar (elapsed/total window, safe 0-100% calc, 60m fallback when no end time)
-- [x] Live page participants: show join time (from `participant_attendance_sessions.joined_at`, fallback `participants.created_at`) and left time (`participant_attendance_sessions.left_at`) in the Participants (N) list. Verified: enrichment returns joined_at/left_at for meeting 8 participants; server restarted clean (PID 15596)
-
-## Task: Remove orphaned services/sessionQualityGenerator.js
-
-- [x] Audited usage: only self doc-comment + TODO.md heads-up + project_structure_only.txt listing (no code imports/callers; the whole session-quality module it belonged to was already deleted)
-- [x] Deleted `services/sessionQualityGenerator.js` via `git rm` (staged deletion; file was tracked and unmodified)
-- [x] Dropped it from the TODO.md "removed session_* tables" heads-up; removed stale line from `project_structure_only.txt`
-- [x] Verified: `git grep "sessionQualityGenerator"` now matches only this TODO log entry; deletion staged in git
-
-## Task: Users page - View Meetings button for calendar-connected instructors
-
-- [x] `users.js` Actions column: the connected instructor's static `Connected` badge is now a friendly `View Meetings` button/link → `/admin/meetings/schedule?instructor=<email>` (same button style as Connect Calendar)
-- [x] `schedule.js` `loadInstructors()` supports the `?instructor=<email>` deep-link: pre-selects that instructor in the filter and reloads so only their meetings show (array data source keeps pre-selection race-free; Select2 still filters client-side)
-- [x] `/api/admin/content/instructors` confirmed to return `{ uuid, name, email }`; email used as the stable identifier across both pages
-- [x] Admin nested route `/admin/:section/:page` confirms `/admin/meetings/schedule` serves with query string intact
-- [x] `node --check` passes for both edited files
-- [ ] Live browser check when dev server runs on :3000 (static JS served from disk - refresh is enough)
-
-## Task: Database migrations re-index + reset-db update + seeder audit
-
-- [x] Migrations renumbered sequentially 001-055 (removed gaps 021/033/044, deduped duplicate 027/028 pairs) via `git mv`
-- [x] `reset-db.js` updated: header counts + count string now 55 files (001-055); seeders 20 files (001-020)
-- [x] Seeder audit: only `database/seeders/011_session_quality.js` referenced the 9 removed migrations' tables (session_snapshot/analysis/learning_impact/parent_summary/coaching_feedback/better_alternatives/next_plan/quality_flags/final_evaluation)
-- [x] `011_session_quality.js` now skips missing tables gracefully (ER_NO_SUCH_TABLE); session_rubric_evaluations + session_rubric_summary still seed
-- [x] All other seeders map cleanly to existing tables (verified by automated scan)
-- [x] `node --check` passes for reset-db.js / 011 seeder / index.js; reset-db smoke run exits without touching the DB
-- [ ] Heads-up: models/services still reference the removed session_* tables (models/insights/*, InstructorDashboardModel, SessionFinalEvaluationModel, SessionParentSummaryModel) - await user decision
-
-## Task: Single-AI-call policy - local spaCy summary generator (Phase 2)
-
-- [x] Replace the 120-word preview with a spaCy extractive summarizer in services/engine/services/summary_worker.py
-- [x] Summary range enforced: 150-250 words (top sentences, reading order, single paragraph)
-- [x] Header/filler filtering (platform banners, separators, Meeting/Session ID, Date) + empty/header-only fallbacks to skip message
-- [x] Fallbacks preserved: empty -> skip; under 2 content sentences -> 120-word preview; any error -> preview (pipeline never breaks)
-- [x] spaCy pipeline cached at module level (built once per process); fully offline, no LLM/API calls, no new library needed
-- [x] requirements.txt comment updated; no new dependency
-- [x] Verified: real transcript 242 words in range; synthetic 237-238 words in range; summary_task integration writes file, marks completed, sets summary_data/summary_path
-
-## Task: Single-AI-call policy — remove AI from the summary process (Phase 1)
-
-- [x] Remove AI branch from `services/engine/services/summary.py` (drop AISummaryService + ai_config wiring)
-- [x] Delete AI `SummaryService`/`generate_meeting_summary` from `services/engine/services/summary_worker.py` (+ unused sys/time imports)
-- [x] Verify: py_compile both files + repo grep shows no remaining runtime callers of the AI summary path
-- [x] Verify `SummaryService.generate()` returns non-AI preview (unit check)
-- [x] Confirm audit path / persist_results / bridge untouched (summary stays isolated)
-## Task: Video Processing - Add "AI Transcript" (Deepgram) button + rename Process to "Generate Report"
-
-- [x] Add an "AI Transcript" action button in the table right after Convert (enabled when MP3 exists)
-- [x] Reuse the Process modal for both actions with dynamic title/button + processing indicator (spinner + message)
-- [x] AI Transcript posts to /api/super_admin/content/deepgram-processing/process (Deepgram pipeline)
-- [x] Generate Report posts to /api/super_admin/content/video-processing/process (full audio pipeline)
-- [x] Rename Process/Re-process button labels to "Generate Report" / "Re-generate Report"
-- [x] Lock modal close while a Report/Transcript request is in flight; always re-call loadVideos() after response
-- [x] Fix stale JS API URLs (settings/ -> content/) after the page move
-- [x] Verify JS syntax, route loading, and live server (port 3000) serves updated static files + mounted API endpoints
-
-- [x] Add a visible processing indicator (spinner + message) to the Process Audio modal when "Process Audio" is clicked
-- [x] Lock the Process modal (no closing) while the process request is in flight
-- [x] Always re-call loadVideos() after the process response completes (success / already-exists / error)
-- [x] Verify JS syntax and behavior
-
-## Task: Video Processing - Convert to MP3 shows processing state and re-calls data
-
-- [x] Add a visible processing indicator (spinner + message) to the Convert modal when "Convert to MP3" is clicked
-- [x] Lock the Convert modal (no closing) while the conversion request is in flight
-- [x] Always re-call loadVideos() after the conversion response completes (success / already-exists / error)
-- [x] Verify JS syntax and behavior
-
-## Task: Remove unused files from services/engine
-
-- [x] Verify the 13 target files exist in `services/engine`
-- [x] Search the codebase (outside `services/engine`) for references to the target files
-  - [x] `videoProcessingController.js` — historical comments only, no imports
-  - [x] `app.py` — unrelated Flask route named `health_check()`, no import of `health_check.py`
-- [x] Search inside `services/engine` for real imports of the target files
-  - [x] `__init__.py` already only imports `transcriber` / `client` (docstring anticipates deletion)
-- [x] Delete the 13 unused files:
-  - `pipeline.py`, `python_main.py`, `assemblyai_engine.py`, `audio_preprocess.py`,
-    `storage_output.py`, `channel_transcriber.py`, `whisper_engine.py`, `whisperx_engine.py`,
-    `health_check.py`, `resemblyzer_diarizer.py`, `report_schema.py`, `report_scorer.py`, `report_storage.py`
-- [x] Verify deletion (files gone, git status clean of engine remnants, imports intact)
-
-## Task: Meeting AI Evaluation report — status shows completed/pending based on has_ai_report
-
-- [x] Investigate the summary API + report page: `has_ai_report` flag already present per record
-- [x] `renderTable()`: derive Status from `has_ai_report` (true -> "completed", false -> "pending") instead of raw `session_status`
-- [x] `exportCsv()`: export the same derived status for consistency
-- [x] Verify JS syntax and that rest of the row values are unchanged
-
-## Task: Meeting AI Session Report — table shows only Category, Indicator, Weightage, AI Outcome, Evidence Quote
-
-- [x] Investigate data: `ai_audit_results.rating` already holds Met / Not met / N/A (codes 1/2/3); actual quotes live in `ai_evidence`
-- [x] Model `getSessionAuditResults()`: add `aar.rating` to SELECT
-- [x] HTML: reduce AI Audit Results header to the 5 required columns (colspan 9 -> 5)
-- [x] JS `renderTable()`: render only the 5 columns, map Outcome (label or code 1/2/3 -> Met/Not met/N/A), show ai_evidence as Evidence Quote
-- [x] Verify JS syntax
-
-## Task: AI Outcome column shows the rating value (Met / Not met / N/A)
-
-- [x] Confirmed model `getSessionAuditResults()` returns `aar.rating` (94/94 rows verified)
-- [x] JS `renderTable()` already maps `rating` into the AI Outcome column
-- [x] Root cause: running Node server was stale (started 15:08, model edited 15:44) — restarted it so the live API now returns `rating`
-- [x] Verified server is live on port 3000 (PID 4740) and API requires auth as expected (401 without token)
-
-## Task: Meeting AI Session Report — remove duplicated/heavy data from session API response
-
-- [x] Root cause: `ai_audit_results` has NO true duplicate rows (94 distinct indicators, unique key intact); the "duplicate data" was `ai_raw_response` — the SAME full evaluation JSON (~16 KB) repeated on every row (1,472 KB total payload)
-- [x] Only the session report page JS consumes this endpoint; table renders only Category/Indicator/Weightage/AI Outcome/Evidence Quote
-- [x] Controller `getSessionReport()`: after computing stats, map each row to just the table header fields (id, category_name, indicator_name, category_weight, indicator_value, rating, ai_evidence, evidence_quote) + defensive dedupe by indicator
-- [x] Response verified: 94 rows, ~29 KB total (was ~1.5 MB), stats unchanged (indicatorCount 94, avgScorePct 95.6, oqi 97, gateFailed 0, evidenceCount 94)
-- [x] Restarted server (PIDs 4740 -> 9780) so live API serves slim response; JS page needs no change
-
-## Task: Reduce cache_llm_prompts PROMPT_*.json size (Tier 1 + Tier 2)
-
-- [x] Measured: PROMPT file 432 KB; ~240 KB is derivable duplication (messages + replayable_prompt arrays + computed.category_breakdown.rated)
-- [x] Confirmed only active writers are audit_storage.py + tutor_eval_worker.py (legacy audit_worker/ai_audit not wired); nothing reads the journal at runtime
-- [x] audit_storage.py: stop writing request.replayable_prompt (+ docstring update)
-- [x] tutor_eval_worker.py: stop writing request.messages / request.replayable_prompt / request_2.messages / request_2.replayable_prompt; add _journal_computed() that drops category_breakdown.rated from the journal copy only; _compute_percentages/_persist untouched
-- [x] Run py_compile on both edited files
-- [x] Retro-compact existing PROMPT file with one-off script (432,542 -> 158,627 bytes, 63.3% smaller)
-- [x] Verify final file size + integrity: raw responses preserved (audit 4989, tutor_eval 20302, response_2 2406 chars); redundant keys gone; _persist still receives full computed
-
-## Task: Create ai_audit_category_scores + ai_audit_overall_summary migrations
-
-- [x] Created `database/migrations/065_create_ai_audit_category_scores_table.js` (per-category rollups: count_met/not_met/not_applicable, category_score, calc_source enum submit|update, unique key (meeting_id, session_id, category_id, calc_source))
-- [x] Created `database/migrations/066_create_ai_audit_overall_summary_table.js` (final_score, total_weighted_percent, total_criteria_all, calc_source, red_flag, overall_summary, unique key (meeting_id, session_id, calc_source))
-- [x] Syntax verified (node --check) and both migrations ran successfully (`up()` OK)
-- [x] Verified created tables via SHOW CREATE TABLE (columns, enums, indexes, unique keys all correct)
-- [x] Cleaned up temp verification script
-
-## Task: Migrate to new ai_audit_results status_code schema + 065/066 rollup tables
-
-- [x] Applied updated 055 (status_code-only ai_audit_results, drops old score/name/benchmark columns) + created/ran 065 + 066
-- [x] audit_scoring.py: added compute_category_score_from_counts(met, not_met, na, calc_source) + compute_overall_from_category_rows() implementing review_calculation_logic.txt (submit Met/(Met+NA) all-NA=100; update Met/(Met+NM) all-NM=100; overall weighted by criteria count)
-- [x] audit_storage.py::store_audit_results: writes status_code schema + upserts 065 category rollups + 066 overall summary (calc_source='submit'); moved audit_scoring imports to module top; removed dead _derive_rating
-- [x] tutor_eval_worker.py::_persist: writes status_code schema + same rollups; removed dead vars
-- [x] MeetingAiEvaluationReportModel.js: getSessionAuditResults joins rubric_* tables, derives rating from status_code; getMeetingSessions subquery reads 066 final_score; added getSessionOverallSummary
-- [x] MeetingAiEvaluationReportController.js: stats from status_code + 066 final_score
-- [x] AuditReportModel.js (audit/), AIAuditResultsModel.js, controllers/auditReportController.js + controllers/reports/auditReportController.js migrated to status_code
-- [x] audit_service.py fixed to not import removed _derive_rating
-- [x] All Python compile OK; all JS syntax OK
-- [x] End-to-end test: store_audit_results wrote 3 indicators, Category A rollup 50% (1Met/1NA), Category B 0% (1NM), overall 33.33 (weighted by count) — matches doc; update-flow math (all-NM=100) unit-verified
-- [x] Report read path verified: AIAuditResultsModel.upsert + getSessionAuditResults returns correct category names + rating derivation
-- [x] Server restarted (PID 14388) so Node report changes are live
-
-## Task: Make pipeline audit-only (remove tutor_eval / analysis AI)
-
-- [x] Deleted `services/engine/services/tutor_eval_worker.py` and `services/engine/task/tutor_eval_task.py`
-- [x] `task_registry.py`: removed `run_tutor_eval_task` wrapper + the `"tutor_eval"` registry entry → registry is now media/transcription/audit/summary/persist_results
-- [x] `pipeline_context.py`: removed `enable_tutor_eval` flag, `tutor_eval_results` attr, `"tutor_eval"` status entry
-- [x] `services/engine/services/__init__.py`: removed tutor_eval imports/__all__
-- [x] Cleaned stale tutor_eval comments in audit_storage.py, llm_cache.py, audit_task.py (code refs only; audit_scoring/audit_worker comments are harmless historical notes)
-- [x] Verified: py_compile all touched files + full engine import OK; no code imports of deleted modules remain (only harmless comments)
-- [x] Registry keys confirmed: ['media','transcription','audit','summary','persist_results']
-- [x] Reviewer human-eval controller unaffected (uses its own model, only comment mentions engine service)
-## Task: Make the "waiting for host to allow" window configurable via .env (all 3 platforms)
-
-- [x] Add `BOT_HOST_WAIT_TIMEOUT_MS` to `.env` and `.env.example` (under BOT CONFIG, default 900000 = 15 min)
-- [x] Add `bot.hostWaitTimeoutMs` to `config/settings.js` (mirrors existing `humanJoinTimeoutMs` parsing pattern)
-- [x] `services/platforms/zoom/zoomJoiner.js`: derive `MAX_ATTEMPTS` from `settings.bot.hostWaitTimeoutMs / 5000`
-- [x] `services/platforms/google-meet/meetingNavigation.js`: derive `maxAttempts` from `settings.bot.hostWaitTimeoutMs / 3000`
-- [x] `services/platforms/teams/teamsJoiner.js`: derive lobby loop limit from `settings.bot.hostWaitTimeoutMs / 3000`
-- [x] Verify: syntax-check modified files + confirm settings reads the env value
-## Task: Meeting bot status flow — meetings = bot lifecycle, meeting_sessions = human conversation
-
-- [x] Add `services/platforms/joinErrors.js` (HostDeniedError / WaitingRoomTimeoutError)
-- [x] meetingSessionModel/controller: createSession always new row + initialStatus; updateStatus sets end_time on terminal
-- [x] transcriptModel.createSession delegates to meetingSessionModel
-- [x] MeetingModel.updateMeetingStatusById force option + history list includes new statuses
-- [x] Joiners (zoom/meet/teams): throw HostDeniedError / WaitingRoomTimeoutError; Zoom+Teams denial detection
-- [x] socraticbot.run(): meetings.status bot_launching→waiting_for_host→joined (+host_rejected/waiting_timeout/failed); create session only on human detection
-- [x] socraticbot.stop(): finalize session by actual outcome (completed/failed + end_time), no blanket completed
-- [x] botManager: no upfront session; meeting status bot_launching; drop 'missed'/'in_progress'/blanket-completed writes
-- [x] BotPollingController: bot_launching instead of launching/in_progress
-- [x] Adapters: stop creating sessions upfront; human-detected session for legacy teams/meet paths; ZoomAdapter uses modern flow
-- [x] Verify: syntax + module load + lifecycle sanity checks
-
-## Task: Verify Google Meet vs Zoom/Teams platform-parity analysis, then fix the two confirmed real gaps
-
-User pasted a 9-point + 3-dead-file comparison claiming Google Meet's bot code is
-significantly more mature/fixed than Zoom/Teams (media enforcement, caption
-module, transcript engine, roster capture, hasHumanJoined robustness, stage
-logging, alone-check grace/sustain, leave-persistence, adapter maturity), and
-asked to verify it against the real code before doing anything.
-
-Verified each claim against the live files in `services/platforms/{google-meet,zoom,teams}`:
-
-- Confirmed as described: #1 media enforcement (google-meet's preJoinMedia.js
-  retries 20x with DOM re-verification vs zoom/teams' single-shot click),
-  #3 transcript engine sophistication (google-meet's transcriptEngine.js has
-  3 extraction strategies + fingerprint dedup vs zoom/teams' simple
-  lastSavedText/lastTextBySpeaker dedup - though google-meet's own
-  captionMonitor.js no longer does any caption extraction itself anymore,
-  that all moved to transcriptEngine.js), #4 initial roster capture,
-  #5 hasHumanJoined's isHumanPresentFromCountInfo fallback, #6 _setStage
-  lifecycle logging, and #7 alone-check ALONE_SUSTAIN_MS/ALONE_GRACE_MS -
-  all four of these (#4-#7) exist ONLY in google-meet's monitor.js/
-  participantTracker.js, zero matches anywhere in zoom or teams.
-- Confirmed dead code: zoom/teams' `captionListener.js` and
-  `participantCapture.js`, plus `teams/reactiveJoinFlow.js` - none are
-  required anywhere (socraticbot.js only requires each platform's
-  *Joiner/monitor/audioRecorderBot/captionMonitor/participantTracker).
-  Bonus finding not in the original list: `zoom/reactiveJoinFlow.js` is
-  equally dead (same situation, just not flagged by the user's analysis).
-- Confirmed real bug (fixed below): #8 half of it - Zoom's
-  `participantTracker.reset()` only cleared its in-memory map and never
-  persisted a "left" timestamp for participants still marked "joined" when
-  the meeting ended, unlike teams/google-meet's reset() which already loop
-  over dangling "joined" entries first.
-- Refuted: #2 caption-enable sophistication - google-meet's captionManager.js
-  is a 10-attempt click loop that only confirms a click happened, never that
-  captions produced output. Zoom's LIVE path (zoomJoiner.js's
-  startTranscriptMonitor + enableLiveCaptions) is actually MORE robust than
-  google-meet here: 6 retries, each verifying sidebar visibility AND calling
-  verifyCaptionsProducingOutput() before declaring success. Teams' live
-  enableCaptionsIfPossible() genuinely was the weakest (single attempt, no
-  retry, no verification) - fixed below by porting Zoom's verify pattern.
-- Refuted: #8's other half ("Teams' reset() not properly awaited by
-  socraticbot.js") - socraticbot.js's stop() already does
-  `await this.participantTracker.reset(new Date())` for all 3 platforms
-  uniformly, with a comment confirming this was already fixed repo-wide.
-  The only real gap was Zoom's own reset() implementation (above).
-- Partially verified, not acted on: #9 adapter maturity - confirmed
-  ZoomAdapter.js is a thin SocraticBot wrapper and TeamsAdapter.js is a
-  separate, much more primitive implementation (raw puppeteer, no
-  captionMonitor/participantTracker wiring, transcript monitoring is a
-  placeholder comment) that doesn't use teamsJoiner.js at all - but couldn't
-  confirm from platform files alone whether TeamsAdapter.js is actually
-  live/routed to in production or itself dead code, since the
-  controller/routing layer that picks an adapter class wasn't in scope here.
-
-Fixes applied for the two confirmed real gaps:
-
-- [x] `services/platforms/zoom/participantTracker.js`: `reset()` now takes
-      `meetingEndTime` and loops over any participant still marked "joined",
-      calling `ParticipantModel.recordParticipantLeave()` before clearing -
-      mirrors teams/participantTracker.js's existing reset() exactly
-- [x] `services/platforms/teams/teamsJoiner.js`: `enableCaptionsIfPossible()`
-      rewritten from a single unverified click into a 6-attempt retry loop
-      that confirms real caption rows appear (via the same
-      `.fui-ChatMessageCompact` selector teams/captionMonitor.js reads from)
-      before declaring success, mirroring zoom/zoomJoiner.js's
-      verifyCaptionsProducingOutput() pattern; new
-      `verifyCaptionsProducingOutput()` method added alongside it
-- [x] Syntax-verified both files (`node --check`)
-- [x] Behavioral tests against the real, unmodified functions (only the
-      Puppeteer `page` object and DB model stubbed): confirmed zoom's
-      reset() now calls recordParticipantLeave exactly once for a dangling
-      "joined" participant and still clears the map; confirmed teams'
-      enableCaptionsIfPossible() retries past a missed caption button,
-      returns true once verifyCaptionsProducingOutput confirms output, and
-      returns false after exhausting retries with no confirmed output
-- [ ] Not done (needs user decision): anything about claim #9 (TeamsAdapter.js
-      possibly being dead code) or the 3 confirmed-dead files
-      (captionListener.js x2, participantCapture.js x2, reactiveJoinFlow.js
-      x2 counting zoom's) - left in place pending the user's call on deleting
-      orphaned files vs. leaving them
-
-## Task: Make featureConfig.js per-platform + wire up zoom/teams (media, attendanceMonitor, participantTracker, captionMonitor)
-
-User asked whether featureConfig.js is actually used by zoom/teams, and to
-add it if not, plus restructure the file so each platform gets its own
-separate config section.
-
-Finding: `audioRecorder`/`screenRecorder` already applied to all 3 platforms
-(read from `services/socraticbot.js`, which is the shared orchestrator all
-three run through for these two). But `media`, `attendanceMonitor`,
-`participantTracker`, and `captionMonitor` were only ever wired up in
-`GoogleMeetAdapter.js` (Path A) - zero references in zoomJoiner.js,
-teamsJoiner.js, or socraticbot.js for these four keys, despite the old file
-header's comment claiming they applied to "both bot paths" for google-meet.
-
-- [x] `services/featureConfig.js`: restructured into `zoom` / `teams` /
-      `google-meet` top-level sections, each an independent copy of all 6
-      toggles (media, attendanceMonitor, participantTracker, captionMonitor,
-      audioRecorder, screenRecorder) - defaults unchanged (all true except
-      screenRecorder), so this alone changes no runtime behavior
-- [x] `GoogleMeetAdapter.js` / `meetJoiner.js`: one-line require change each
-      (`require('../../featureConfig')['google-meet']`) so every existing
-      `featureConfig.xxx` reference in both files keeps working unmodified
-- [x] `services/platforms/zoom/zoomJoiner.js`: added featureConfig require;
-      `_muteMicPreJoin()` and `muteMicAfterJoin()` now independently gate
-      mic-mute vs camera-off on `featureConfig.zoom.media.*` (previously
-      always ran unconditionally)
-- [x] `services/platforms/teams/teamsJoiner.js`: added featureConfig
-      require; `muteMicAndCamera()` now independently gates mic vs camera
-      the same way on `featureConfig.teams.media.*`
-- [x] `services/socraticbot.js` (`handlePlatformFeatures()`, used by all 3
-      platforms): added `const platformFeatures = featureConfig[this.platform]`
-      and gated, for zoom/teams/google-meet alike: captionMonitor creation +
-      polling, participantTracker creation (+ google-meet's initial roster
-      capture, which needs a real tracker), and the attendanceMonitor
-      `monitorMeeting()` call - each with an else-branch log line matching
-      GoogleMeetAdapter.js's existing "disabled via featureConfig" wording.
-      Also fixed `run()`'s audioRecorder/screenRecorder lookup to read from
-      the per-platform config instead of the old flat shape.
-- [x] Syntax-verified all 6 touched files (`node --check`)
-- [x] Behavioral tests against the real, unmodified functions (fake
-      page/frame objects only): confirmed zoom/teams media gating correctly
-      skips DOM clicks when disabled and independently toggles mic vs
-      camera; confirmed featureConfig.js's per-platform sections are
-      genuinely independent objects, not shared references; re-ran the
-      previous teams caption-retry test and zoom reset test to confirm no
-      regressions
-- [x] Caught and fixed a self-inflicted regression during this task: an
-      earlier `cp` from the stale local uploads mirror (last staged before
-      the *previous* task's Teams caption-retry fix was committed) briefly
-      clobbered that fix while only the new media-gating edit was applied on
-      top of it — caught immediately by re-running the old regression test,
-      re-applied the caption-retry logic on top of the media-gating change,
-      and re-verified both coexist correctly before committing
-- [ ] Not done: full end-to-end verification with a live meeting (join a
-      real Zoom/Teams meeting with a toggle flipped off and confirm the bot
-      behaves as expected) - only unit-level/behavioral verification was
-      possible in this environment
-
-## Task: Make the queued-meeting expiry window configurable via .env
-
-User asked where a meeting's status gets set to 'expired' (read-only lookup,
-answered: `controllers/meetings/BotPollingController.js::pollQueuedMeetings()`
-— a queued meeting whose `scheduled_start_time` is more than 5 minutes in the
-past gets marked 'expired' and skipped, checked on a self-rescheduling 10s
-poll loop started from server.js; the hardcoded `-5` was the only place this
-lived). Then asked to move that 5-minute threshold into `.env` so it can be
-changed without touching code.
-
-- [x] `.env` / `.env.example`: added `BOT_QUEUED_EXPIRE_MINUTES=5` under BOT
-      CONFIG, next to the existing `BOT_HOST_WAIT_TIMEOUT_MS`/
-      `HUMAN_JOIN_TIMEOUT_MS`/`BOT_LAUNCH_LEAD_MINUTES` bot-timing vars
-- [x] `config/settings.js`: added `bot.queuedExpireMinutes` —
-      `parseInt(process.env.BOT_QUEUED_EXPIRE_MINUTES || '5', 10)` — mirrors
-      the existing `hostWaitTimeoutMs` pattern exactly
-- [x] `controllers/meetings/BotPollingController.js`: now requires
-      `config/settings` and checks `minutesUntilStart < -settings.bot.queuedExpireMinutes`
-      instead of the hardcoded `-5`
-- [x] Syntax-verified both files (`node --check`)
-- [x] Behavioral tests against the real, unmodified settings.js +
-      BotPollingController.js (only MeetingModel/botManager/logger/dotenv/
-      puppeteer stubbed as true externals, in an isolated test tree):
-      confirmed BOT_QUEUED_EXPIRE_MINUTES=30 correctly does NOT expire a
-      meeting 10 minutes overdue but DOES expire one 40 minutes overdue, and
-      confirmed the default (env var unset) still expires a 10-minute-overdue
-      meeting exactly like the old hardcoded `-5` did — no behavior change
-      for anyone who doesn't set the new var
-
-## Task: Fix Teams bot joins but can't mute mic/camera (error-2026-09-14.log)
-
-User reported the Teams bot joins fine but can't mute mic/camera, and asked
-me to check the log plus confirm whether a separate process file was running.
-
-- [x] Read `logs/error-2026-09-14.log`: confirmed via the "TeamsAdapter
-      (teamJoiner): FAILED to confirm captions after 6 attempts" line (that
-      exact retry-count message only exists in the caption-retry fix already
-      committed to teamsJoiner.js) that `teamsJoiner.js` via socraticbot.js
-      IS the live path for this run - not a separate/stale file. The other
-      `TeamsAdapter.js` file in the repo did not run for this session.
-- [x] Root cause found in the same log: a cluster of Teams-internal errors
-      right after join - "[VideoBKG] No selected camera.
-      Context=device_manager_service_init", "No start call scenario",
-      "getCallingConversationAsync is not implemented", "All promises were
-      rejected". Traced to config/settings.js's shared Puppeteer args, which
-      have `--use-fake-ui-for-media-stream` (auto-accepts the permission
-      prompt) but NOT `--use-fake-device-for-media-stream` (which actually
-      supplies a camera/mic device) - so the browser has zero video input
-      devices. Teams' own web client hard-requires a "selected camera" to
-      finish initializing its calling engine; when that fails, the call
-      never truly starts, so the mic/camera toggle buttons exist in the DOM
-      but aren't wired to a live call - clicks on them do nothing.
-- [x] User explicitly asked NOT to touch the shared Puppeteer config
-      (Zoom/Google Meet don't need this and it's out of scope), and to keep
-      any fix scoped to `services/platforms/teams/`.
-- [x] `services/platforms/teams/teamsJoiner.js`: added
-      `_injectFakeCameraShim()`, called once at the top of `joinMeeting()`
-      before `page.goto()` (via `page.evaluateOnNewDocument()`, which
-      re-injects on every navigation/frame - Teams-page-scoped only, no
-      global launch-flag change). Shims `navigator.mediaDevices
-      .enumerateDevices()` to report a synthetic videoinput device only if
-      none exists, and `getUserMedia()` to fall back to a black
-      canvas-captured video stream only when a real video request fails for
-      lack of a device - real devices/streams are always preferred and
-      passed through untouched.
-- [x] Verified against a REAL headless Chromium (the box's own
-      /opt/pw-browsers chromium via puppeteer-core), launched with the exact
-      same flags production uses minus `--use-fake-device-for-media-stream`:
-      - Baseline (no shim): `enumerateDevices()` returns 0 devices,
-        `getUserMedia({video:true})` throws
-        `NotFoundError: Requested device not found` - reproduces the log's
-        symptom exactly
-      - With the REAL, unmodified `TeamsJoiner._injectFakeCameraShim()`
-        method called exactly as `joinMeeting()` calls it:
-        `enumerateDevices()` reports a videoinput device,
-        `getUserMedia({video:true})` resolves with a stream containing a
-        real video track, and the shim persists correctly across a second
-        page navigation (confirming it'll survive Teams' own internal
-        redirects)
-      - `node --check` + re-ran the existing caption-retry and media-gating
-        regression tests on the same file - no regressions
-- [ ] Not verified: an actual live Teams meeting join with this change (only
-      a real-browser simulation of the device/getUserMedia layer was
-      possible here) - please confirm mute/camera-off actually take effect
-      on your next Teams bot run and check the logs for
-      "[VideoBKG] No selected camera" no longer appearing
-
-## Task: Chrome profile lifecycle DB tracking (chrome_profiles) + reliable cleanup
-
-- [x] database/migrations/057_create_chrome_profiles_table.js: chrome_profiles table (id, profile_name, profile_path unique, status ENUM CREATING/ACTIVE/CLOSING/CLEANUP_PENDING/CLEANED/FAILED, browser_pid, bot_instance_id, meeting_id, created_at, updated_at, cleanup_attempts, last_error, cleanup_completed_at + indexes). Preserves existing profile_<meetingId> directory naming.
-- [x] models/bot/ChromeProfileModel.js: ORM access with atomic status transitions; markCleaned only after dir verified gone; recordCleanupFailure with retry cap
-- [x] services/shared/profileManager.js: lifecycle service (register CREATING -> markActive, beginClose, onUnexpectedDisconnect, idempotent cleanupProfile with in-memory lock, startupRecovery, retryPendingCleanups, scanAndCleanOrphans; injectable browserOps)
-- [x] services/shared/browserManager.js: register row before mkdir; mark ACTIVE after launch; disconnected -> CLEANUP_PENDING unless intentional; close() -> CLOSING -> cleanup -> CLEANED
-- [x] services/socraticbot.js: pass botInstanceId + meetingId to BrowserManager.init (naming untouched)
-- [x] server.js: startup recovery after initDB + periodic CLEANUP_PENDING retry / orphan sweep
-- [x] tests/chromeProfileLifecycle.test.js: normal close, crash, locked profile, retry, max retries FAILED, server restart, orphans, concurrent cleanup
-- [x] Verify: node --check new/modified JS; run migration; run tests green
-
-## Task: Teams pre-join Speaker/Microphone device selection (VB-Audio Virtual Cable)
-
-- [x] Scope: `services/platforms/teams/teamsJoiner.js` only, per the standing
-      instruction to keep Teams fixes inside `services\platforms\teams\` and
-      not touch the shared Puppeteer config
-      (`config/settings.js`/`browserManager.js`) — this change touches
-      neither; it's page-level DOM interaction only.
-- [x] What this is NOT: `muteMicAndCamera()` (already implemented) only
-      toggles Teams' mic/camera buttons ON/OFF — it never changes which
-      *device* those buttons are pointed at. Left on the machine's default,
-      Teams can select real hardware ("Headset Earphone/Microphone
-      (Sennheiser SC60 for Lync)"), which is what was causing the
-      feedback/echo "disturbance" in the meeting.
-- [x] Added `TeamsJoiner.selectAudioDevices()` + helper `_selectOneDevice()`:
-      finds Teams' Speaker/Microphone dropdown ("combobox") controls (scans
-      every frame, same pattern as the existing
-      `readPasscodeScreen()`/`findPasscodeField()`), opens each, and clicks
-      the option whose text matches (case-insensitive substring):
-      - Speaker → "CABLE Input (VB-Audio Virtual Cable)"
-      - Microphone → "CABLE Output (VB-Audio Virtual Cable)"
-      Mirrors `config/settings.js`'s existing `audio.deviceName: "audio=CABLE
-      Output (VB-Audio Virtual Cable)"` (what the ffmpeg AudioRecorder
-      already records FROM) — Speaker→CABLE Input is what puts the
-      meeting's own audio onto that same cable in the first place.
-- [x] Wired into THREE call sites, not just one:
-      1. `handlePreJoin()`, before `muteMicAndCamera()` (original pre-join
-         screen — "teams testing bot" / device picker + Join now screen).
-      2. `waitForJoinConfirmation()`, once at the very start, before the
-         admit-wait poll loop begins — user confirmed via screenshot that
-         this SAME dropdown widget also appears on the "Someone will let you
-         in when the meeting starts" lobby screen, and asked for the
-         selection to be (re-)applied there too as a second pass.
-      3. `waitForJoinConfirmation()`'s passcode-recovery branch, alongside
-         the existing `muteMicAndCamera()` re-apply call — the
-         passcode-recovery flow re-renders the pre-join screen, which can
-         reset the device pickers back to OS defaults.
-- [x] Checked Zoom (`zoomJoiner.js`) and Google Meet
-      (`preJoinMedia.js`/`meetJoiner.js`/`GoogleMeetAdapter.js`) first for
-      an existing named-device-selection pattern to mirror — confirmed
-      neither platform does named-device dropdown selection anywhere in
-      this repo (both only click mute/camera-off toggle buttons). New code,
-      isolated to Teams.
-- [x] Best-effort by design: selection failures are logged as warnings
-      (with the actual device list Teams offered, for diagnostics) and
-      NEVER throw out of `joinMeeting()` — a failed device selection must
-      not block the bot from joining.
-- [x] Device names configurable via `.env` (`TEAMS_SPEAKER_DEVICE_NAME` /
-      `TEAMS_MIC_DEVICE_NAME`, read directly via `process.env` inside
-      `teamsJoiner.js` — deliberately NOT added to `config/settings.js`, to
-      keep this change 100% scoped to `services/platforms/teams/`).
-      Defaults match the two device names given. Empty string in `.env`
-      skips that device and leaves Teams' default in place. Not added to
-      `.env`/`.env.example` in this task for the same reason — say the word
-      if you'd like the two optional overrides documented there too.
-- [x] `node --check` passes.
-- [x] Behavioral tests against the REAL, unmodified file (only
-      logger/settings/joinErrors/featureConfig and Puppeteer's page/frame
-      objects stubbed — a fake DOM stands in for the real browser):
-      - Happy path: CABLE options present in a secondary (iframe) frame,
-        clicks the correct CABLE option for Speaker and Microphone, does
-        NOT click the headset options also present in the list.
-      - VB-Cable not installed (only real hardware listed) — warns with the
-        exact option list Teams offered, does not throw.
-      - No device-picker controls found anywhere — warns per target, does
-        not throw.
-      - `.env` overrides — empty string skips that device; a custom device
-        name is honored in place of the default.
-      - `handlePreJoin()` wiring order: passcode-modal check ->
-        selectAudioDevices() -> muteMicAndCamera(), 6s settle delay intact.
-      - `waitForJoinConfirmation()` wiring: selectAudioDevices() called
-        once before the admit-wait loop starts, and re-called (alongside
-        muteMicAndCamera()) after a successful passcode recovery, in the
-        correct order relative to dismissAudioVideoPopup()/
-        clickJoinNowButton().
-      - Re-confirmed the caption-retry and camera-shim methods from earlier
-        tasks are still intact and unmodified after this edit.
-- [x] CAUGHT AND FIXED a real bug during this task, documenting it here for
-      transparency: after adding the two new `waitForJoinConfirmation()`
-      call sites, I re-staged `teamsJoiner.js` from the device to make sure
-      I was editing the latest copy — but the device copy that came back
-      was still the PRE-device-selection version (missing
-      `selectAudioDevices()`/`_selectOneDevice()` entirely), even though an
-      earlier commit in this same task had reported success. Editing that
-      stale copy would have left `this.selectAudioDevices()` calls with no
-      matching method — a `TypeError` on every Teams join. Caught by
-      grepping for the method definitions post-edit and noticing they were
-      missing; re-verified against my last-known-good local copy (which DID
-      have the full implementation), rebuilt the two lobby-screen edits on
-      top of that correct base, re-ran the full test suite, and this time
-      verified the commit by re-staging from the device afterward and
-      diffing byte count / grepping for the methods before calling it done.
-      Will re-verify every future commit to this file the same way rather
-      than trusting a "written" response alone. Root cause of why the
-      earlier commit didn't take isn't confirmed — possibly a sync delay in
-      the device bridge, possibly a race with another session/process also
-      editing files in this repo around the same time (see the unrelated
-      "Chrome profile lifecycle" task that appeared in this same TODO.md
-      between my read and my write — this codebase is being edited
-      concurrently by more than one session right now).
-- [ ] Not verified: an actual live Teams meeting join with the CORRECTED
-      version now on the device (the version tested via screenshots in this
-      conversation was the pre-lobby-screen-fix build). Please run another
-      Teams bot join and check the logs for `"Speaker device set to \"CABLE
-      Input (VB-Audio Virtual Cable)\""` / the matching Microphone line
-      appearing up to 3 times (pre-join, lobby-wait, and passcode-recovery
-      if that path is hit) — if any instead logs a warning, paste it back.
-
-## Task: Post-Teams-audio-fix follow-ups (6 items, working one at a time per user request)
-
-User reviewed the Teams device-selection work above and asked for an honest
-punch list of what's still open, then asked to tackle these one at a time,
-starting with #1, with the rest tracked here rather than done all at once.
-
-- [ ] 1. IN PROGRESS - Confirm the "CABLE Input in both mic and speaker"
-      wording: current code sets Speaker -> "CABLE Input (VB-Audio Virtual
-      Cable)" and Microphone -> "CABLE Output (VB-Audio Virtual Cable)"
-      (different devices, matches the user's original spec and their own
-      screenshot). User's phrasing in a later message ("using cable Input
-      in both mic and speaker") could mean the same thing loosely, or could
-      mean an actual change to point BOTH at CABLE Input - which would
-      likely break the recording pipeline (ffmpeg's `audio.deviceName` in
-      config/settings.js records FROM "CABLE Output"; if nothing selects
-      CABLE Output as an input anywhere, nothing feeds that side of the
-      loopback). Asked the user to clarify; awaiting their answer before
-      touching any code for this one.
-- [ ] 2. Verify `selectAudioDevices()`/`_selectOneDevice()` selectors
-      against the REAL Teams DOM (not the simulated fake-DOM tests). Still
-      need either: the user's Inspect-Element HTML for the Speaker/
-      Microphone dropdown + its option list, OR the test meeting join link
-      so this session can open it directly in its own browser tool and
-      read the real markup.
-- [x] 3. DONE - verified on a live join (see the "FIX 9" task later in this
-      file): camera shim + device selection + mute all confirmed working
-      together, user confirmed "video/camera is off" on a real Teams
-      meeting.
-- [ ] 4. Get a fresh log from an actual Teams bot run. As of this check,
-      `logs/info-2026-09-14.log` and `logs/error-2026-09-14.log` are no
-      longer present in the logs folder (only `.gitkeep` and `image/` are
-      there now) - likely rotated/cleared by the other session active in
-      this repo, but not confirmed. Need a new log (or fresh screenshots)
-      once the user runs another test join.
-- [ ] 5. Look into the recurring "Shared(browserManager): Chrome browser
-      disconnected" / "Failed to remove Chrome profile directory ... still
-      in use after waiting" errors (seen 3x in the pre-fix info log).
-      NOTE: another session already appears to be mid-work on exactly this
-      (see "Chrome profile lifecycle DB tracking (chrome_profiles) +
-      reliable cleanup" task elsewhere in this file, which this session did
-      not write) - confirm with the user whether that's expected/someone
-      else's work before duplicating effort here.
-- [ ] 6. Carried over from earlier in this conversation:
-      - Whether `services/platforms/teams/TeamsAdapter.js` is genuinely
-        dead code - the routing/controller layer that would prove nothing
-        imports it has never actually been checked, only inferred from the
-        log prefix mismatch.
-      - The 3 confirmed-dead files (`captionListener.js` x2,
-        `participantCapture.js` x2, `reactiveJoinFlow.js` x2, one copy each
-        under zoom/ and teams/) are still undeleted in the repo, pending
-        the user's decision to remove them.
-
-## Task: Move Teams device-name config from process.env into config/settings.js
-
-User asked whether the TEAMS_SPEAKER_DEVICE_NAME/TEAMS_MIC_DEVICE_NAME config
-(added in the task above) could live in config/settings.js instead of being
-read directly via process.env inside teamsJoiner.js. Note: this is a
-separate question from item #1 in the "Post-Teams-audio-fix follow-ups" task
-below (which device name to actually use) - #1 is still open, awaiting the
-user's answer.
-
-- [x] Confirmed this is safe and consistent with the existing pattern: every
-      other configurable value in this codebase (audio.deviceName,
-      bot.hostWaitTimeoutMs, bot.queuedExpireMinutes, bot.autoJoinLeadMinutes)
-      already lives in config/settings.js as a plain, independent object
-      read from process.env at load time. Adding a new `teamsAudio: {...}`
-      block does NOT touch the shared `puppeteer` launch config/args in that
-      same file, so it does not conflict with the user's earlier "don't
-      touch my main Puppeteer config" instruction - that was specifically
-      about the browser launch flags/browserManager.js, not a blanket ban
-      on ever editing settings.js.
-- [x] `config/settings.js`: added `teamsAudio: { speakerDeviceName,
-      micDeviceName }`, positioned right after the existing `audio: {...}`
-      block (same theme - device names), reading
-      TEAMS_SPEAKER_DEVICE_NAME/TEAMS_MIC_DEVICE_NAME from process.env with
-      the same defaults as before.
-- [x] `services/platforms/teams/teamsJoiner.js`: replaced the direct
-      process.env reads with `settings.teamsAudio.speakerDeviceName` /
-      `settings.teamsAudio.micDeviceName` (settings.js was already required
-      at the top of this file for other config).
-- [x] `.env.example`: documented TEAMS_SPEAKER_DEVICE_NAME/
-      TEAMS_MIC_DEVICE_NAME with the same defaults, grouped with the other
-      bot-related env vars.
-- [x] `node --check` on both JS files. Updated the test tree's stub
-      settings.js to mirror the real teamsAudio block (env-driven, same
-      defaults) and fixed a stale require-cache bug in the test harness
-      (config/settings.js wasn't being cleared from require.cache between
-      test runs, so env-override tests were seeing a cached first-run
-      value) - re-ran the full 7-test suite (device selection x4, pre-join
-      wiring x1, lobby wiring x2), all pass.
-- [x] Committed all 3 files and this time verified by re-staging from the
-      device afterward and grepping for the actual new content (teamsAudio/
-      speakerDeviceName/micDeviceName/settings.teamsAudio) before calling it
-      done - given the earlier lesson in this file about "written" not
-      always meaning "landed."
-
-## Task: Queued meetings created at/after their start time never launch the bot
-
-Reported: meeting (teams, id=3, title "test") created 17:15:23 local with scheduled_start_time 17:15:00 local stayed "queued" forever; live page showed "[BOT] Queued - waiting to launch".
-
-Root cause: BotPollingController.pollQueuedMeetings() guard `if (minutesUntilStart > autoJoinLeadMinutes || minutesUntilStart < 1) continue;` skips any meeting that is at/after its start time; such a meeting was only ever marked "expired" after BOT_QUEUED_EXPIRE_MINUTES (50 in .env) minutes past start, so it sat in queue, never launching. This is pre-existing behavior, not a chrome-profile regression.
-
-- [x] Confirmed getQueuedMeetings() does return already-started meetings (WHERE status = 'queued' AND scheduled_start_time <= NOW()+lead), so the SQL was not the blocker
-- [x] controllers/meetings/BotPollingController.js: dropped the `minutesUntilStart < 1` skip; now launches when -BOT_QUEUED_EXPIRE_MINUTES <= minutesUntilStart <= autoJoinLeadMinutes (late joins allowed up to the expiry window; far-future still skipped, long-expired still marked expired)
-- [x] Verified: node --check passed; current meeting computes minutesUntilStart=-7 -> wouldLaunch=true
-- [ ] PENDING: restart the running server so it loads the new controller code; next 10s poll should mark the meeting bot_launching and launch the Teams bot
-
-## Task: Teams pre-join/lobby - also stop the camera (video mute), independently toggleable via featureConfig.js
-
-User confirmed the CABLE Input/Output audio-device selection is working live
-("yes it's working"), then asked for camera/video to also be stopped at the
-same point(s) as the audio-cable selection - explicitly asking this be
-SEPARATE code from the mic-mute logic, toggleable independently, reusing the
-existing `services/featureConfig.js` file rather than a new ad-hoc flag.
-
-- [x] Scope: `services/platforms/teams/teamsJoiner.js` only - no changes to
-      `config/settings.js`, `services/featureConfig.js` itself, or the
-      shared Puppeteer config.
-- [x] Refactored `muteMicAndCamera()`: mic-mute logic stays inline exactly as
-      before (still gated on `featureConfig.teams.media.muteMicOnJoin`); the
-      camera-stop click was pulled out into its own new method,
-      `stopVideoIfConfigured()`, and `muteMicAndCamera()` now just delegates
-      to it at the end. This makes camera-stop independently callable (it's
-      no longer bundled inside the mic-mute code path) and reuses the
-      EXISTING `featureConfig.teams.media.disableCameraOnJoin` flag (already
-      present in featureConfig.js from an earlier task) rather than adding a
-      new/duplicate toggle - `muteMicOnJoin` and `disableCameraOnJoin` were
-      already two separate flags in that file, just never actually wired to
-      two separate code paths before now.
-- [x] `stopVideoIfConfigured()`: checks `featureConfig.teams.media.
-      disableCameraOnJoin` first and returns immediately (logging why) if
-      false; otherwise clicks Teams' camera-off control via
-      `page.evaluate()` (selector set mirrors the existing mic-mute
-      selector style: `[aria-label="Turn camera off"]`,
-      `[data-state="call-video"]`, `[data-track-action-scenario=
-      "callStopVideo"]`, `[data-track-module-name-new="videoOff"]`), only
-      clicking if the button reports itself pressed/on. Wrapped in try/warn
-      - never throws, matching the "best-effort, must not block the join"
-      pattern used everywhere else in this file.
-- [x] Closed a real gap: `waitForJoinConfirmation()` (the lobby "Someone
-      will let you in" screen) already re-applied `selectAudioDevices()` at
-      its start but was NOT re-applying camera-off there - added
-      `await this.stopVideoIfConfigured();` right after
-      `await this.selectAudioDevices();` at that call site. The other two
-      call sites (`handlePreJoin()` and the passcode-recovery branch inside
-      `waitForJoinConfirmation()`) already get camera-stop for free since
-      both call the now-refactored `muteMicAndCamera()`.
-- [x] Test tree updated: `test_lobby_wiring.js` Tests 6a/6b now also
-      stub/assert `stopVideoIfConfigured()` (6a: called once, after
-      `selectAudioDevices()`, before the admit-wait loop; 6b: appears in the
-      full passcode-recovery call-order sequence). New `test_video_stop.js`
-      (4 tests): A - clicks the camera-off button when
-      `disableCameraOnJoin=true`; B - no-op + logs the skip reason when
-      `false`; C - `muteMicAndCamera()` delegates to `stopVideoIfConfigured()`
-      exactly once; D - proves the two toggles are truly independent
-      (`muteMicOnJoin=false` + `disableCameraOnJoin=true` -> zero mic
-      `page.evaluate()` calls, camera-stop still happens).
-- [x] Full suite re-run: `test_device_selection.js` (4) + `test_wiring.js`
-      (1) + `test_lobby_wiring.js` (2) + `test_video_stop.js` (4) = 11/11
+## Fix AI-audit final score weighting (2026-09-16)
+
+**Problem:** `review_calculation_logic.txt` documented that the tutor-evaluation
+final score is a weighted average of category scores by **criteria count**,
+never by the rubric's configured category **weight** (`cat_score`). The
+manual reviewer scoring path (`controllers/reviewer/tutorEvaluationController.js`)
+was already fixed to weight by configured category weight. The AI auto-audit
+pipeline (`services/engine/audit_service.py`, `services/engine/audit_storage.py`)
+was still using the old criteria-count formula (`compute_overall_from_category_rows`)
+even though it already fetches each category's configured weight — so the
+AI's `final_score` (shown to super admins via
+`controllers/super_admin/reports/MeetingAiEvaluationReportController.js`,
+sourced from `ai_audit_overall_summary`) disagreed with what a human reviewer
+scoring the same session would get, whenever a rubric has unequal category
+weights.
+
+- [x] Trace the discrepancy from `review_calculation_logic.txt` through
+      the actual code (`audit_scoring.py`, `audit_service.py`,
+      `audit_storage.py`) to confirm it's live, not just documentation.
+- [x] Confirm `compute_category_score_from_counts(..., calc_source="submit")`
+      (per-category score) already matches the canonical formula — only the
+      **overall/final** score aggregation was wrong.
+- [x] Confirm the `calc_source="update"` swap-bug branch is never actually
+      invoked anywhere in the current codebase (no caller passes
+      `calc_source="update"`) — it's unused/reserved for a future
+      reviewer-override flow, not a currently-live bug.
+- [x] Update `services/engine/audit_service.py` (`_score_categories`) to
+      build `category_rows` as `(category_score, category_weight)` pairs
+      (weight falls back to 1 when unconfigured) and call
+      `compute_weighted_overall()` instead of
+      `compute_overall_from_category_rows()`.
+- [x] Update `services/engine/audit_storage.py` (`store_audit_results`) the
+      same way for the persisted `ai_audit_overall_summary.final_score`.
+      Kept `total_weighted_percent` / `total_criteria_all` columns computed
+      from criteria count (unchanged, informational only) so existing
+      readers of those two columns aren't affected.
+- [x] Syntax-check both files (`python3 -c "import ast; ast.parse(...)"`).
+- [x] Sanity-test the math change with a standalone script confirming the
+      new formula respects configured weight (3:1 weighted example: old
+      formula gave 50%, new formula gives 75% as expected).
+- [ ] Decided with the project owner: **fix forward only** — existing rows
+      in `ai_audit_overall_summary` / `ai_audit_category_scores` are left
+      as-is; only newly-run AI audits get the corrected weighting. No
+      backfill script was requested or written.
+- [ ] Recommended follow-up (not done, needs a decision): the same
+      criteria-count-vs-weight inconsistency may be worth double-checking
+      in any other place that reads `category_rows`-shaped data before
+      considering this fully closed project-wide.
+
+## Dead-code cleanup pass 2 (2026-09-16)
+
+**Context:** `unused_files_pythonBridge_flow.txt` (repo root) traced the
+pythonBridge.js -> engine_main.py call graph and flagged orphaned modules.
+Re-checked its findings against the current codebase before touching
+anything, since parts of it were already stale (Group A's
+`services/engine/{transcriber,client,config,pipeline,resemblyzer_diarizer,
+main,python_main}.py` etc. have already been deleted — confirmed by
+`services/engine/__init__.py`'s own docstring describing that earlier
+cleanup — and `task/tutor_eval_task.py` no longer exists either, so the doc's
+task-DAG description is partly out of date).
+
+- [x] Confirmed `services/engine/services/ai_audit.py` (`AuditService` — name
+      collision with, but NOT the same class as, the canonical
+      `services.engine.audit_service.AuditService`) and
+      `services/engine/services/audit_worker.py` (`AiAuditService`) are still
+      present and still eagerly imported by
+      `services/engine/services/__init__.py`, even though
+      `services/engine/task/audit_task.py` has an explicit comment saying not
+      to import them because they're legacy duplicates with different
+      scoring math, no longer wired into the pipeline.
+- [x] Grepped everything staged so far (task/, orchestrator/, tools/,
+      engine_main.py, test_ai_evaluation.py) for any reference to
+      `AiAuditService` / `ai_audit` / `audit_worker` outside that one
+      `__init__.py` — found none.
+- [x] Removed the two eager imports (`AiAuditService`, `ai_audit.AuditService`)
+      and their `__all__` entries from
+      `services/engine/services/__init__.py`, with a comment explaining why.
+      Left `ai_audit.py` and `audit_worker.py` themselves in place (not
+      deleted) — this only stops them from being loaded into memory on every
+      engine run; either can still be imported directly by module path if
+      ever needed.
+- [x] Syntax-checked the edited `__init__.py`.
+- [ ] Not done: a full runtime smoke test of the engine (`node test-engine.js
+      <id>` / `python engine_main.py`) — this sandbox doesn't have the
+      project's DB/env configured. **Recommend running one real session
+      through the pipeline on your machine** to confirm nothing implicitly
+      relied on `services.engine.services.AiAuditService` /
+      `.AuditService` being importable from the package root before
+      considering this fully verified.
+- [x] Deleted (by project owner, in File Explorer, 2026-09-16), after
+      re-verifying each one specifically (not just trusting
+      `unused_files_pythonBridge_flow.txt`, which was partly stale — see
+      correction below):
+        - `audit_bridge.py` (repo root) — its own header comment already
+          said "Nothing in the current codebase invokes this script
+          (confirmed via a repo-wide search)"; standalone CLI only.
+        - `services/engine/services/ai_audit.py` — its only documented
+          caller was `audit_bridge.py` (`# RUN AUDIT (called by
+          audit_bridge.py)`).
+        - `services/engine/services/audit_worker.py` — the implementation
+          underneath `ai_audit.py`; `services/engine/task/audit_task.py`
+          explicitly warns not to import it ("legacy duplicate
+          implementations with different scoring math ... no longer wired
+          into the pipeline"). Confirmed via grep that nothing else in
+          controllers/, routes/, task/, orchestrator/, tools/, app.py,
+          engine_main.py, or test_ai_evaluation.py references any of the
+          three.
+      Their stale `__pycache__/*.pyc` are harmless leftovers, not cleaned up
+      (Python just won't regenerate them until it needs to).
+
+- [x] **Correction, left here so the mistake doesn't get repeated:**
+      `services/python_deepgram/*` (also flagged as dead in
+      `unused_files_pythonBridge_flow.txt`) was checked with the same
+      rigor and turned out to be the opposite of dead — it's an actively
+      developed Deepgram-based transcription + name-detection feature
+      (`requirements.txt` documents `name_detector.py` as live, and the
+      folder gained `name_detector.py`/`participants_repo.py` well after
+      that doc was written). **Do not delete `services/python_deepgram/`**
+      based on that doc's claim — it does not hold up.
+
+## Microsoft Calendar integration (2026-09-16)
+
+**Goal:** Add a Microsoft (Outlook/Teams) Calendar integration that mirrors
+the existing Google Calendar integration end-to-end — same layered pattern
+(HTML -> JS -> Routes -> Controllers -> Models -> DB), same instructor
+self-connect + admin-triggered-connect + background-sync flows. Built by
+reading every layer of the Google implementation first
+(`controllers/instructor/instructorCalendarController.js`,
+`controllers/calendar/CalendarEventController.js`,
+`models/calendar/CalendarUsersModel.js`, `models/calendar/CalendarAuthModel.js`,
+`models/calendar/GoogleOAuthCredentialsModel.js`, the `google-credentials`/
+`calendar`/`instructor/calendar` routes, `public/js/admin/people/users.js`,
+`public/instructor/index.html` + its JS) before writing anything new.
+Schema-wise this reuses the already-provider-agnostic `calendar_connections`
+table and the `'teams'` provider row already seeded by
+`database/seeders/016_calendar_providers.js` — no new connections table
+needed. No new npm dependency: Microsoft Graph is called with `axios`
+(already a dependency), unlike Google which uses the `googleapis` SDK.
+
+- [x] Read every layer of the Google integration (routes, controllers,
+      models, migrations, seeders, public HTML/JS) to confirm the pattern
+      to mirror, and confirmed `calendar_connections` / `calendar_providers`
+      are already provider-agnostic (the `'teams'` row already has
+      Microsoft OAuth URLs/scopes in its `config_json`).
+- [x] `database/migrations/058_create_microsoft_oauth_credentials_table.js`
+      — mirrors migration 021 (Google OAuth credentials table).
+- [x] `models/calendar/MicrosoftOAuthCredentialsModel.js` +
+      `models/super_admin/calendar/MicrosoftOAuthCredentialsModel.js` —
+      env-var-only credential config (`MICROSOFT_CLIENT_ID`/`_SECRET`),
+      same pattern as the Google credentials models.
+- [x] `models/calendar/MicrosoftCalendarAuthModel.js` — `PROVIDER_NAME =
+      'teams'`, token get/save/delete against `calendar_connections`.
+- [x] `models/calendar/CalendarUsersModel.js` — added
+      `getUserByProviderName`, `getUserByEmailAndProviderName`,
+      `deleteUserProvider` (provider-scoped, so Microsoft disconnect never
+      touches a user's Google row or vice versa). Also fixed a latent bug
+      in `getConnectedUsers()`: it deduped background-sync candidates by
+      `user_id` alone, which would have silently dropped one of a user's
+      two simultaneous connections (Google + Microsoft) — changed the
+      dedup key to `user_id + ':' + provider_id`.
+- [x] `controllers/calendar/MicrosoftCalendarEventController.js` — axios
+      mirror of `CalendarEventController.js` against Microsoft Graph
+      (`getAuthUrl`, `ensureValidToken`, `getEvents`, `createEvent`,
+      `authorize`, `processAndStoreEvents`). Normalizes Graph event shape
+      (`subject`/`body`/`onlineMeeting.joinUrl`/...) into the same
+      `{summary, description, location, start, end, hangoutLink}` shape
+      Google events use, so the existing `utils/calendarHelper.js` meeting
+      extraction works unchanged for both providers.
+- [x] `controllers/microsoft/microsoftCredentialsController.js` +
+      `controllers/super_admin/microsoft/microsoftCredentialsController.js`
+      — mirrors the Google credentials CRUD controllers (skipped masking
+      a `project_id` field since that column doesn't actually exist on
+      the Google side either — not replicating that pre-existing dead
+      reference).
+- [x] `controllers/instructor/instructorMicrosoftCalendarController.js` —
+      full mirror of `instructorCalendarController.js`: `listConnections`,
+      `sendVerification`, `selfRequest`, `verifyToken`, `handleCallback`,
+      `disconnect`, `getStatus`, `syncCalendar`. Uses its own JWT purpose
+      (`instructor-calendar-verify-microsoft`) so a Microsoft verify link
+      can't be replayed against the Google flow or vice versa. Route uses
+      `/status/:emailOrUserId` matching what the controller actually
+      reads — deliberately NOT replicating a pre-existing Google route/
+      controller param-name mismatch (`routes/instructor/calendar.js`
+      defines `/status/:email` but the Google controller reads
+      `req.params.emailOrUserId`, always undefined there).
+- [x] `controllers/calendar/CalendarSyncController.js` — added provider
+      branching (`syncUserCalendar` now picks
+      `MicrosoftCalendarEventController` vs `CalendarEventController`
+      based on `user.provider_name`/`user.provider`, defaulting to Google
+      for backward compatibility with existing callers).
+- [x] `controllers/instructor/instructorCalendarController.js` — one-line
+      change so the admin single-user "Calendar Sync" button passes
+      `provider_name` through to `CalendarSyncController.syncUserCalendar`,
+      so it routes correctly for Microsoft-connected instructors too.
+- [x] `services/calendarSyncService.js` — added `syncMicrosoftCalendar()`,
+      mirroring `syncGoogleCalendar()`'s 6-step structure (get tokens ->
+      refresh if expired -> fetch events -> loop -> skip invalid/all-day
+      -> upsert into `meetings` with `platform: 'Microsoft Calendar'`).
+- [x] `routes/microsoft-credentials.js` — mirrors `google-credentials.js`
+      (super-admin-only CRUD), registered in `routes/registry.js`.
+- [x] `routes/instructor/microsoft-calendar.js` — mirrors
+      `instructor/calendar.js`; owns `/verify` and `/callback` directly
+      (no legacy-shim constraint, since this is a brand-new Azure AD app
+      registration with its own redirect URI). Mounted in
+      `routes/instructor/index.js`.
+- [x] `routes/meetings-calendar.js` — added
+      `POST /send-verification-microsoft` (admin-triggered connect,
+      mirrors the existing Google endpoint) calling
+      `instructorMicrosoftCalendarController.sendVerification`.
+- [x] `config/settings.js` — added a `microsoft: { CLIENT_ID, CLIENT_SECRET,
+      TENANT_ID }` block reading new env vars.
+- [x] `.env.example` — documented the new `MICROSOFT_CLIENT_ID`,
+      `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`,
+      `MICROSOFT_REDIRECT_URIS`, `MICROSOFT_SCOPES`, and optional
+      `MICROSOFT_AUTH_URI`/`MICROSOFT_TOKEN_URI`/`MICROSOFT_GRAPH_BASE_URL`/
+      `MICROSOFT_OAUTH_BASE_URL` overrides.
+- [x] `public/js/admin/people/users.js` — added a second "Connect
+      Microsoft" button next to the existing "Connect Google" button in
+      the instructor Actions column, posting to
+      `/api/admin/meetings/calendar/send-verification-microsoft`.
+      Confirmed `public/admin/settings/integrations.html`/`.js` and
+      `public/js/admin/meetings/calendar.js` needed **no changes** — both
+      are already fully provider-agnostic (the calendar page even already
+      has `teams`/`microsoft` color theming built in) and will pick up
+      real Microsoft connections automatically once they exist in
+      `calendar_connections`.
+- [x] `public/instructor/index.html` — added a second, independent
+      `msCalendarBanner` block (own OAuth connection, same structure as
+      the Google banner, `ms`-prefixed IDs) directly below the existing
+      Google calendar banner.
+- [x] `public/js/instructor/index.js` — added a second IIFE wiring the
+      `msCalendarBanner` elements to `/api/instructor/microsoft-calendar/*`
+      (connections/self-request/disconnect), mirroring the existing
+      Google block's `setState()`/`checkStatus()` pattern exactly.
+- [x] Syntax-checked every new/modified `.js` file (`node --check`) — all
       pass.
-- [x] `node --check` passes.
-- [x] Commit needed one retry (the now-familiar concurrent-write issue in
-      this repo - see the earlier note under "Teams pre-join Speaker/
-      Microphone device selection"): first `device_commit_files` call
-      reported success, but re-staging afterward showed the OLD
-      pre-refactor file still on disk (1072 lines, no
-      `stopVideoIfConfigured` match). Retried the identical commit
-      immediately - this time verified genuinely landed: re-staged again,
-      `grep -c` for `stopVideoIfConfigured` = 3, `wc -l` = 1112,
-      `node --check` = OK.
-- [ ] Not verified: an actual live Teams meeting join with this change -
-      please run another test join and confirm the camera turns off (or
-      never turns on) on all three passes (pre-join, lobby-wait, and
-      passcode-recovery if hit), and check the logs for no camera-related
-      warnings from `stopVideoIfConfigured()`.
+- [ ] **Requires the project owner:** register a real Azure AD (Microsoft
+      Entra ID) app — needs `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`,
+      `MICROSOFT_TENANT_ID` (or leave `common` for multi-tenant/personal
+      accounts), and a redirect URI of
+      `http://localhost:3000/api/instructor/microsoft-calendar/callback`
+      (or the deployed host's equivalent) registered on the app. I cannot
+      create this app registration — it requires the owner's Azure/Microsoft
+      365 admin access.
+- [ ] Run migration 058 (`microsoft_oauth_credentials` table) as a
+      **standalone one-off**, not via `npm run db:reset`/`db:migrate` —
+      those wipe the entire database and must never be run on a live DB.
+- [ ] Run `.\generate_structure.ps1` (or `npm run structure:update`) after
+      the new files land, per project rules.
+- [ ] Not done, out of scope unless requested: a super-admin HTML settings
+      page for Microsoft OAuth credentials. Deferred to match parity with
+      Google, which also has no such page (`google-credentials.js` on the
+      super-admin side is orphaned — no HTML references it either).
+- [ ] End-to-end smoke test on the real machine once the Azure app and env
+      vars are in place: connect flow, callback, token refresh, background
+      sync, disconnect.
 
-## Task: Bot launches again and again (late-join + calendar re-queue loop)
+## Super Admin: enable/disable toggle for Google/Microsoft Calendar (2026-09-16)
 
-Reported after the late-join change: the bots for meeting 3 (test, teams) kept launching repeatedly (3+ sessions in ~5 min). Root cause was a 3-step loop:
-(1) Bot ends -> socraticbot.stop() sets meetings.status = "stopped";
-(2) the 1-minute global calendar sync (CalendarSyncController -> MeetingModel.getMeetingByIdOrCreate) re-queued any failed/stopped meeting back to "queued" (past or future, unconditionally);
-(3) the poller (with the late-join window from the previous task) then launched it again immediately. Before the late-join change, step 3 skipped anything already started, so the re-queue was harmless.
+**Goal:** Replace the hardcoded JS "hide Microsoft" approach above with a
+proper super-admin control that can enable/disable each calendar OAuth
+provider platform-wide, enforced on the backend (not just hidden in the
+UI). Confirmed `calendar_providers.is_active` already exists and is already
+the field `CalendarVerificationModel`/`CalendarAuthModel` resolve against
+(`'google-meet'` = Google Calendar, `'teams'` = Microsoft Calendar) — no
+schema change needed, `CalendarProvidersModel` already supports reading/
+updating it. Deliberately NOT the existing "Platform Integrations" super
+admin page (`settings/platforms`) — that page manages a separate,
+unrelated feature (meeting-bot join platforms via a generic settings
+table), confirmed by reading its controller/model before touching anything.
 
-- [x] models/meetings/MeetingModel.js (getMeetingByIdOrCreate): only re-queue a failed/stopped/cancelled/host_rejected/waiting_timeout meeting when the synced event occurrence is UPCOMING (scheduled_start_time in the future / unknown); past occurrences stay terminal so the poller cannot Launched them in a loop. Future/recurring occurrences still get re-queued as before.
-- [x] controllers/meetings/BotPollingController.js: defense-in-depth - before marking bot_launching, skip when botManager already reports a live instance for that meeting (getActiveSessionForMeeting by external_meeting_id or id), so duplicate bots can never stack on one meeting.
-- [x] Verified: node --check on both files; botManager.getActiveSessionForMeeting exists; meeting 3 marked "expired" (terminal) so it stops cycling; diff stat clean (MeetingModel +37/-13 incl. re-indent, BotPollingController +27/-3).
-- [ ] PENDING: restart the running server so the poller + calendar sync load the new guards; after restart the stale "expired" meeting stays terminal and new meetings launch at most once.
+- [x] `controllers/instructor/instructorCalendarController.js` —
+      `sendVerification` and `selfRequest` now check `calendar_providers`
+      (`'google-meet'`) `is_active` and return 403 "Google Calendar
+      integration is currently disabled by the administrator" if off.
+- [x] `controllers/instructor/instructorMicrosoftCalendarController.js` —
+      same check against `PROVIDER_NAME` (`'teams'`) in both endpoints.
+- [x] `controllers/calendar/calendarIntegrationController.js` — added
+      `getProviderFlags` (any authenticated role, not admin-only) returning
+      `{ google, microsoft }` booleans — the single source of truth the
+      instructor/admin frontend JS reads to decide whether to show Connect
+      buttons. Routed at `GET /api/calendar-integrations/provider-flags`
+      (`routes/calendar-integrations.js`).
+- [x] New `controllers/super_admin/settings/calendar-integrations/calendarIntegrationsController.js`
+      — `getSettings` (list both managed providers + their `is_active`) and
+      `toggleProvider` (flip one, hard-scoped to only the `'google-meet'`/
+      `'teams'` rows — cannot be used to touch the `'zoom'` row owned by
+      the Platform Integrations page). No new model — reuses
+      `CalendarProvidersModel` directly (already had everything needed).
+- [x] New `routes/super_admin/settings/calendar-integrations.js`, mounted
+      in `routes/super_admin/index.js` at
+      `/api/super_admin/settings/calendar-integrations` (super_admin-only).
+- [x] New `public/super_admin/settings/calendar-integrations.html` +
+      `public/js/super_admin/settings/calendar-integrations.js` — two
+      cards (Google Calendar / Microsoft Calendar), each with a single
+      Enabled toggle that saves immediately on change (simpler than the
+      Platform Integrations page's batch "Save Changes", since there's
+      only one field per card here).
+- [x] `public/js/instructor/index.js` — replaced the hardcoded
+      `MICROSOFT_CALENDAR_ENABLED = false` flag (and the previously
+      always-on Google banner) with a shared `getCalendarProviderFlags()`
+      fetch consulted by both the Google and Microsoft banner blocks.
+      Fails open for Google, closed for Microsoft, on a network error.
+- [x] `public/instructor/index.html` — `#msCalendarBanner` starts with a
+      `hidden` class as the pre-JS default (Google's banner does not,
+      since it fails open) — both are then shown/hidden for real by the
+      fetched flags once JS runs.
+- [x] `public/js/admin/people/users.js` — added `loadCalendarProviderFlags()`
+      alongside the existing `loadCalendarConnections()` call in
+      `loadUsers()`; both "Connect Google" and "Connect Microsoft" buttons
+      in the instructor Actions column now only render when their
+      provider's flag is on.
+- [x] `database/seeders/017_menu_items.js` / `018_role_menu_permissions.js`
+      — added the `sa-calendar-integrations` sidebar entry (for fresh
+      installs only — these are seed-once scripts).
+- [ ] **Requires the project owner:** these two seeders won't touch an
+      already-seeded database. Run the new standalone, idempotent script
+      once to add the sidebar entry to the live DB:
+      `node database/one-off/insert_calendar_integrations_menu_item.js`
+      (safe to re-run — it checks for the menu item first and no-ops if
+      already present). Do NOT run `npm run db:reset`/`db:migrate`.
+- [x] Syntax-checked every new/modified `.js` file (`node --check`) — all
+      pass.
+- [ ] Run `.\generate_structure.ps1` (or `npm run structure:update`) after
+      the new files land, per project rules.
+- [ ] Not yet manually tested end-to-end (toggling off actually blocks
+      connect on both UI and API, toggling back on restores it) — needs a
+      real run once the one-off script above has been applied.
+- [x] **Bug found + fixed (2026-09-16):** owner ran the one-off script and
+      `generate_structure.ps1` — sidebar link appeared, but clicking it
+      just showed the dashboard instead of the new page. Root cause:
+      `models/super_admin/SuperAdminPageModel.js` has an explicit allowlist
+      (`getPages().nested.settings`) of which `public/super_admin/*.html`
+      files `routes/super_admin/pages.js` is allowed to serve — a security
+      measure against arbitrary path requests. `calendar-integrations` was
+      never added to that list, so `resolveNestedFile()` returned null and
+      `superAdminPageController.serveOrFallback()` silently fell back to
+      the dashboard instead of erroring. Fixed by adding
+      `'calendar-integrations'` to that array. **Owner needs to restart the
+      Node server** (not just refresh the browser) for this to take effect,
+      since the allowlist is loaded into memory once at startup.
 
-## Task: Camera (and mic) still showing ON at the lobby-wait screen - frame-scan + broad-match fix
+**Note:** this whole TODO.md entry was re-written on 2026-09-16 after the
+first attempt to save it silently didn't stick on disk (re-staging showed
+the file back at its pre-edit byte count despite the commit reporting
+success) — same unexplained-revert pattern seen earlier with
+`public/js/instructor/index.js` etc. If entries below this note ever look
+like they've gone missing again, that's the likely cause — not an
+intentional revert.
 
-User sent two screenshots of the real "Hi, Reviewer Bot. Someone will let you
-in shortly." lobby screen: CABLE Input/Output were correctly selected as the
-Speaker/Microphone devices (confirming selectAudioDevices() really does
-work), but BOTH the microphone toggle and the camera toggle were still shown
-ON (blue), despite stopVideoIfConfigured() already running at that exact
-screen. Asked to re-check the code.
+## Super Admin: make the Platform Integrations toggle (Zoom/Google Meet/Teams)
+actually enforce bot behavior (2026-09-16)
 
-Root cause: the mic-mute and camera-stop selectors
-(`[data-track-action-scenario="callMuteAudio"]`, `[aria-label="Turn camera
-off"]`, etc.) were guesses from the start - never confirmed against the real
-Teams DOM (item #2 on the still-open 6-item follow-up list) - AND, unlike
-selectAudioDevices()/_selectOneDevice() (which scans EVERY frame via
-`this.page.frames()`, since Teams' pre-join UI can live inside an iframe on
-some tenants), both mic-mute and stopVideoIfConfigured() only ever queried
-`this.page.evaluate()` - the MAIN frame only. If the mic/camera toggles live
-in the same iframe as the (working) device dropdowns, a main-frame-only
-query would silently find nothing every time - fully consistent with what
-the screenshots showed (device selection worked, mute/camera-off did not).
+**Finding: it did nothing.** `super_admin/settings/platforms` writes
+`system_settings` rows (`platforms.<zoom|teams|google-meet>.enabled`, string
+`'true'`/`'false'`) via `PlatformsModel.saveSettings()`, but nothing ever
+read them back before this task. Verified by reading, in full:
+- `controllers/meetings/BotPollingController.js` — the 10s auto-join poll
+  loop (`pollQueuedMeetings()`) had no check of any kind against
+  `system_settings` before calling `botManager.launchFromDb(meeting)`.
+- `services/featureConfig.js` — a separate, hardcoded, non-DB, non-UI
+  per-platform config (mic/camera/recording toggles). Confirmed this is NOT
+  what the Platforms settings page controls and left it untouched.
+- `services/platforms/platformFactory.js` — confirmed the canonical
+  lowercase platform keys (`'zoom'`, `'teams'`, `'google-meet'`) match both
+  `meeting.platform` (DB) and the `platforms.<key>.enabled` setting-key
+  format exactly, so no key translation was needed.
 
-- [x] Added a new shared helper, `_toggleMediaControl(keyword)`, used by
-      BOTH the mic-mute branch of `muteMicAndCamera()` and by
-      `stopVideoIfConfigured()` (camera) - each stays its own call/gate as
-      before (`muteMicOnJoin` / `disableCameraOnJoin` still independent), it
-      is not merged into one function:
-      - Scans every frame (`this.page.frames()`, same pattern as
-        `_selectOneDevice()`), not just the main page.
-      - Matches broadly: any `button`, `[role="switch"]`,
-        `[role="checkbox"]`, or `[role="menuitemcheckbox"]` whose
-        aria-label/title/visible text contains "mic" or "camera"
-        (case-insensitive) - instead of one guessed selector string.
-      - Checks BOTH `aria-checked="true"` (Fluent Switch) and
-        `aria-pressed="true"` (toggle button) for the "currently on" state,
-        since Teams' actual markup for these controls was still unconfirmed
-        and could be either.
-      - Clicks the first matching control that reports itself ON, and logs
-        every candidate it found (label + aria-checked/aria-pressed) whether
-        or not it clicked one - so if this STILL doesn't work on the next
-        live run, the log will show the real label/attributes Teams is using
-        instead of another guess.
-      - Never throws; callers already wrap it in try/catch and treat "not
-        found" as a warning only.
-- [x] Lobby-wait call site (`waitForJoinConfirmation()`'s pre-loop re-apply,
-      right after `selectAudioDevices()`): changed from calling
-      `stopVideoIfConfigured()` alone to calling the combined
-      `muteMicAndCamera()` - since the screenshot showed the MIC toggle also
-      still on at this screen, not just the camera, so mic now gets
-      re-applied there too, matching the passcode-recovery branch which
-      already did this.
-- [x] Test tree rewritten to match: `test_video_stop.js` now builds a fake
-      `document.querySelectorAll()` (7 tests: on-state via aria-checked,
-      on-state via aria-pressed, disabled-flag no-op, mic/camera
-      independence x2, camera-stop delegation, a multi-frame scan proving a
-      control in a LATER frame is still found, and a same-page CABLE
-      device-picker row with no on/off state correctly left un-clicked).
-      `test_lobby_wiring.js` Tests 6a/6b updated for the lobby site now
-      calling `muteMicAndCamera()` instead of `stopVideoIfConfigured()`
-      directly. Full suite: 13/13 pass (4 device-selection + 1 pre-join
-      wiring + 2 lobby wiring + 7 media-toggle... note: device-selection(4)+
-      wiring(1)+lobby(2)+video-stop(6 numbered + 1 "A2")=13 total).
-- [x] `node --check` passes.
-- [x] Commit needed one retry (same recurring concurrent-write issue as
-      every other change to this file this session) - first
-      `device_commit_files` call reported success but re-staging showed the
-      OLD pre-fix file (1112 lines, 0 matches for `_toggleMediaControl`).
-      Retried the identical commit immediately - re-staged again and
-      confirmed genuinely landed: 1213 lines, 4 matches for
-      `_toggleMediaControl`, `muteMicAndCamera()` now called at all 3 sites
-      (pre-join/lobby-start/passcode-recovery), `node --check` OK.
-- [ ] Not verified: an actual live Teams meeting join with this fix. Please
-      run another test join and check both the visual lobby screen (mic +
-      camera toggles should now be OFF) and the logs. If either control
-      still doesn't toggle, the new diagnostic logging
-      (`TeamsAdapter(teamJoiner): Mic/Camera control(s) matched "..." but
-      none reported ON - candidates: [...]`) will show the real
-      label/aria-checked/aria-pressed values Teams is using on your
-      machine - paste that log line back and the selector can be corrected
-      with certainty instead of another guess.
+**Bug found along the way:** `models/settings/SystemSettingsModel.js`'s
+existing `getSetting(companyId, key)` binds `company_id = ?`. Every
+Platforms setting is saved with `company_id = null`
+(`PlatformsModel.saveSettings` → `upsertSetting(null, ...)`), and in SQL
+`company_id = NULL` never matches — not even NULL rows. So
+`getSetting(null, key)` would have silently returned nothing for every
+platform setting. Did not call it; added a key-only lookup instead (below).
 
-## Task: Add a genuine "camera confirmed OFF" (and "mic confirmed muted") log line
+**Implemented (no SQL added to any controller — all reads go through
+Models):**
+- [x] `models/settings/SystemSettingsModel.js` — added
+      `getSettingByKey(key)`, a key-only lookup (`WHERE setting_key = ?`,
+      no `company_id` comparison), avoiding the NULL-match bug above.
+- [x] `models/super_admin/settings/platforms/PlatformsModel.js` — added
+      `isPlatformEnabled(platformKey)` (single-platform check, used by the
+      manual join endpoint) and `getEnabledPlatformsMap()` (one query
+      returning all three platforms' enabled state, used by the poll loop
+      so it isn't one query per queued meeting). Both default a platform to
+      **enabled** when no setting row exists yet, so nothing breaks for an
+      admin who has never touched the page.
+- [x] `controllers/meetings/BotPollingController.js` — `pollQueuedMeetings()`
+      now fetches `getEnabledPlatformsMap()` once per poll cycle (only when
+      there's something queued) and skips launching any meeting whose
+      `platform` is explicitly disabled. The skip leaves the meeting's
+      status as `'queued'` (no DB write) rather than failing/expiring it, so
+      it launches automatically the instant the platform is re-enabled —
+      but it still ages into `'expired'` via the existing timeout check if
+      it's never re-enabled, so nothing queues forever.
+- [x] `controllers/meetings/meetingsController.js` — the manual
+      `POST /join` endpoint (`join()`, used for on-demand/dashboard bot
+      launches outside the calendar-sync queue) now checks
+      `PlatformsModel.isPlatformEnabled()` and returns `403` with a clear
+      message if the platform is disabled, before calling
+      `PlatformFactory.startBot()`.
+- [x] Syntax-checked all four changed files (`node --check`) — all pass.
+- [ ] Not yet manually tested end-to-end (toggle a platform off in
+      Super Admin > Settings > Platform Integrations, confirm a queued
+      meeting for that platform is skipped by the poller and the manual
+      join API returns 403; toggle back on and confirm it launches).
+- [ ] No new/removed/renamed files this task, so `generate_structure.ps1`
+      was not run (nothing for it to pick up).
 
-User asked for a log specifically confirming camera-off happened, so a future
-run's log can be trusted as proof rather than just inferring it from "no
-error was thrown."
+## Platform Integrations page: stop hardcoding the platform list in JS
+(2026-09-16)
 
-- [x] `_toggleMediaControl()` no longer just logs "clicked" and calls it
-      done. After a successful click it now waits ~400ms for Teams to
-      re-render, then RE-SCANS the same frame for controls matching the same
-      keyword and compares how many report ON before vs. after:
-      - ON-count dropped -> `TeamsAdapter(teamJoiner): Camera confirmed
-        turned OFF - re-checked the DOM after clicking, ON-count went 1 ->
-        0.` (mic: "Mic confirmed muted - ...").
-      - ON-count did NOT drop (click landed on the wrong element, or Teams
-        ignored it) -> a WARNING instead: `... control was clicked but
-        still reports ON afterward (before=1, after=1) - the click may have
-        hit the wrong element. Candidates: [...]`.
-      - Frame couldn't be re-checked afterward (navigated away/detached) ->
-        a distinct info line saying so, so that case is never confused with
-        a real confirmation either.
-      This means the resulting log line is based on a second, independent
-      DOM read after the click, not just "a click event was sent" - it's an
-      actual confirmation, not an assumption.
-- [x] Test tree: `makeFakeDocument()` in `test_video_stop.js` now makes a
-      clicked fake element actually flip its own aria-checked/aria-pressed
-      to false (mirroring a real toggle really changing state), plus a
-      `stuck: true` flag on a def to simulate a click that does NOT change
-      state. New Test G (confirms the "confirmed turned OFF" line appears,
-      with the exact before/after ON-count in the message) and Test H
-      (confirms a "still reports ON" WARNING - never a false "confirmed"
-      claim - when the click doesn't actually change anything). Full suite:
-      15/15 pass (4 device-selection + 1 pre-join wiring + 2 lobby wiring +
-      8 media-toggle).
-- [x] `node --check` passes.
-- [x] Commit needed a retry (same recurring concurrent-write issue as every
-      other change to this file/repo this session) - re-verified by
-      re-staging afterward: 1290 lines, `cfg.confirmedVerb`/`scanFn`/
-      `onCountBefore` all present, `node --check` OK.
-- [ ] Not verified: an actual live Teams meeting join. Please run one and
-      check for `Camera confirmed turned OFF` / `Mic confirmed muted` in the
-      logs - if you instead see the "still reports ON/unmuted" warning, that
-      means the click IS landing on the right control but Teams isn't
-      actually toggling from it (different problem), whereas the earlier
-      "control(s) matched but none reported ON" warning means the control
-      wasn't found at all - the two warnings now point at two different
-      root causes instead of one generic failure.
+**Ask:** the page already read real toggle/field values from
+`system_settings` (verified in the task above), but which platforms exist
+and their display labels were hardcoded in
+`public/js/super_admin/settings/platforms.js` (`PLATFORM_DEFS`). Owner
+pointed out `calendar_providers` already has this data (it seeds exactly
+`zoom` / `google-meet` / `teams` with `name` + `display_name` — see
+`database/seeders/016_calendar_providers.js`) and asked for it to be read
+from there instead.
 
-## Task: FIX 9 (from a real live-run log) - mic/camera toggles use NEITHER aria-checked NOR aria-pressed on this Teams build
+**Important distinction preserved:** `calendar_providers.is_active` is the
+separate Calendar OAuth integration on/off switch (built earlier this
+session) — unrelated to this bot-launch Platforms page. Only read
+`name`/`display_name` from that table here; never touched `is_active`, and
+fetch with `includeInactive: true` so a platform still shows on this page
+even if its Calendar OAuth connector happens to be off.
 
-User pasted the actual server console output from a live test join. It
-confirmed the new diagnostic logging worked exactly as intended and pointed
-straight at the real bug, instead of another guess.
+- [x] `controllers/super_admin/settings/platforms/platformsController.js`
+      — `getSettings` now also calls `CalendarProvidersModel.getAll({
+      includeInactive: true })` and returns `providers: [{name,
+      display_name}]` alongside the existing `system_settings` rows.
+- [x] `public/js/super_admin/settings/platforms.js` — removed the
+      `PLATFORM_DEFS` object entirely. The platform list + label now come
+      from `providers`; the set of configurable fields per platform, their
+      current values, and editability now come entirely from whichever
+      `system_settings` rows exist for that platform (previously a fixed
+      per-platform `fields` array). Field type (toggle vs text) is inferred
+      generically from the stored value (`'true'`/`'false'` ⇒ toggle);
+      field labels are humanized from the setting key (e.g.
+      `auto_enable_captions` → "Auto Enable Captions") instead of
+      hand-written per-field text. Icon glyph/color are now generic
+      (first letter of the label + a rotating color palette) since no DB
+      column represents those — pure presentation, not data.
+  - Kept one narrow carve-out from the old behavior: `base_url` is still
+    forced non-editable (`LOCKED_FIELD_KEYS`), same as before, since it's
+    wired into the platform adapters elsewhere and wasn't part of what was
+    asked to change.
+  - `saveAllPlatforms()` reworked to collect every `[data-setting-key]`
+    element in the DOM instead of iterating a hardcoded per-platform field
+    list, so it stays correct no matter which fields a platform actually
+    has in the DB.
+  - The Recording Settings card was changed the same way for consistency
+    (labels humanized from `recording.*` keys instead of a hardcoded
+    `RECORDING_DEFS.fields` array); its outer card title ("Recording
+    Settings") stayed static since it's a section heading, not per-item
+    data.
+- [x] Checked `public/super_admin/settings/platforms.html` — it only
+      contains an empty `#platformsGrid` container filled by the JS, no
+      hardcoded platform markup to update.
+- [x] Syntax-checked both changed files (`node --check`) — pass.
+- [ ] Not yet manually tested in the browser (load the page, confirm all
+      three platforms + their real field values render, toggle+save a
+      value, confirm a newly-added `calendar_providers` row would appear
+      automatically without a code change).
+- [ ] No new/removed/renamed files this task, so `generate_structure.ps1`
+      was not run.
 
-Also visible in that same log, unrelated to this session's work: `warn:
-(ServerJS File): Setup failed: ProfileManager.runStartupRecovery is not a
-function` at `server.js:159` - a startup-time error (non-fatal, server keeps
-running) coming from the "Chrome profile lifecycle DB tracking" feature the
-OTHER concurrent session added to this repo (see that task earlier in this
-file) - `server.js` calls `ProfileManager.runStartupRecovery()` but the
-`profileManager.js` module doesn't actually export a function by that name.
-Flagging it here since it showed up while checking these logs, but it's that
-other session's code, not touched by this task.
 
-Root cause of the actual mic/camera bug: the live log's diagnostic
-candidates (added by the previous fix) showed BOTH `aria-checked` and
-`aria-pressed` as `null` on every real matching element:
-`{"label":"Mute mic","ariaChecked":null,"ariaPressed":null,"tag":"BUTTON"}`
-and `{"label":"Turn camera off","ariaChecked":null,"ariaPressed":null,
-"tag":"BUTTON"}`. This build of Teams doesn't expose either ARIA state
-attribute on these controls at all, so the previous fix's "is it ON" check
-could never match anything, even though `_toggleMediaControl()` was
-correctly finding the real elements (frame-scanning + broad label matching
-both proved out) - devices selected fine, the SAME run, right alongside this.
+## Wire AI Providers settings (DB) into the real bot/AI engine (2026-09-16)
 
-The log also showed the elements themselves are duplicated: the real
-`<button aria-label="Mute mic">` plus a same-labelled `<input aria-label=
-"Mute mic (Ctrl+Shift+M)">` (a keyboard-shortcut-hint duplicate, same idea
-for camera's `(Ctrl+Shift+O)`).
+**Problem:** Super Admin > Settings > AI Providers page reads/writes the
+`ai_providers` table, but `services/engine/ai_client.py` (the actual
+Python code that calls the LLM during the AI audit) read provider, model,
+API keys, and max-tokens entirely from `.env` and never queried the
+`ai_providers` table — so toggling "Enabled", changing "Model", or editing
+"Temperature"/"Max Tokens" on the settings page had zero effect on the bot.
+Also, `default_temperature` was stored in the DB but was never passed to
+any provider's API call at all (anthropic/gemini/openai/ollama), DB-driven
+or not.
 
-- [x] `_toggleMediaControl()`: "is this control ON" now also checks a
-      label-phrase heuristic, since the label itself already encodes state
-      on this build - a button reading "Mute mic" is the ACTION you'd take,
-      which only makes sense while the mic is live (if already muted, Teams
-      renders "Unmute mic" instead); same for "Turn camera off" (camera
-      currently on) vs. "Turn camera on" (off). `isOn = isOnByAria ||
-      isOnByLabel` - kept the aria check too, in case a different Teams
-      build (or a future update) DOES set it.
-- [x] Click now prefers a BUTTON-tag match over any other tag among the ON
-      candidates, so it hits the real interactive `<button>` rather than the
-      hidden keyboard-shortcut-hint `<input>` duplicate sitting right next
-      to it with the same label.
-- [x] Test tree: `makeFakeDocument()` gained a `toggleLabel` option (flips
-      the fake element's aria-label on click, mirroring the real "Mute mic"
-      -> "Unmute mic" label swap - not just an aria attribute flip as
-      before). Two new regression tests built directly from the real log's
-      exact candidate shapes: Test I (mic: "Mute mic" BUTTON + device-picker
-      BUTTON + "(Ctrl+Shift+M)" INPUT, aria-checked/pressed all null) and
-      Test J (camera: same pattern) - both confirm the real BUTTON gets
-      found and clicked, the device-picker/duplicate INPUT are left alone,
-      and a genuine "confirmed muted"/"confirmed turned OFF" log line
-      appears. Full suite: 17/17 pass (4 device-selection + 1 pre-join
-      wiring + 2 lobby wiring + 10 media-toggle).
-- [x] `node --check` passes.
-- [x] Commit needed a retry (same recurring concurrent-write issue as every
-      other change to this file/repo this session) - re-verified by
-      re-staging afterward: 1316 lines, `onPhrase`/`offPhrase`/
-      `isOnByLabel` all present, `node --check` OK.
-- [x] VERIFIED LIVE by the user: "yes now great work, now video/camera is
-      off" - confirmed on a real Teams meeting join. This closes out the
-      original "make sure mic/camera really turn off" request end-to-end:
-      the diagnostic-logging fix caught the real root cause (no aria-checked/
-      aria-pressed on this Teams build) from an actual log, the label-phrase
-      fix built from that real data worked on the very next live run. Camera
-      (and, per the same code path, mic) mute is confirmed working on the
-      pre-join/lobby screens.
+- [x] Confirm `database/python_db.py` (`fetch_all`, via `from database.python_db
+      import fetch_all`) is usable from `services/engine/*.py` — verified via
+      existing convention in `services/engine/audit_storage.py` and the
+      `PYTHONPATH=PROJECT_ROOT` env set in `python_runner.js`.
+- [x] Add `_load_enabled_provider_from_db()` to `ai_client.py`: queries
+      `ai_providers` for `enabled = 1` rows. Only returns a row when
+      **exactly one** is enabled (unambiguous). Zero enabled rows, more than
+      one enabled row, or any DB error all return `None` and are logged —
+      never raised.
+- [x] `AiClient.__init__` now uses the DB row's `provider_key`/`default_model`
+      when available, else falls back to the original `.env` (`AI_PROVIDER`,
+      `<PROVIDER>_MODEL`) behavior, completely unchanged.
+- [x] Added `self.temperature` / `self.max_tokens` resolution from the DB
+      row's `default_temperature`/`default_max_tokens` (only set when the DB
+      override applies; `None` otherwise, preserving old per-provider
+      defaults).
+- [x] `_ask_anthropic`: passes `temperature` when resolved; `max_tokens` now
+      prefers the resolved value over `ANTHROPIC_MAX_TOKENS` env var.
+- [x] `_ask_gemini_with_key`: passes `temperature` in `config_kwargs`;
+      `max_output_tokens` now prefers the resolved value over
+      `GEMINI_MAX_OUTPUT_TOKENS` env var.
+- [x] `_ask_openai_like` / `_ask_ollama`: now pass `temperature`/`max_tokens`
+      to `chat.completions.create(...)` when resolved (previously passed
+      neither, ever).
+- [x] Syntax-checked (`python3 -c "import ast; ast.parse(...)"`).
+- [x] Fixed `database/seeders/019_seed_ai_providers.js` so only `openai`
+      seeds `enabled: 1` (matches `ai_client.py`'s own `.env` fallback
+      default) — fresh installs now have an unambiguous single active
+      provider from the start instead of all four enabled at once.
+- [x] User pointed out this project uses seeders, not a `database/one-off/`
+      folder, for this kind of fix — merged both fixes (icon values +
+      enabled ambiguity) directly into `database/seeders/019_seed_ai_providers.js`
+      as a `normalizeExistingRows()` step that runs on every execution (not
+      just the insert-if-missing loop), so re-running the seeder fixes an
+      already-seeded database too. Re-apply with:
+      `node database/seeders/019_seed_ai_providers.js`
+      The two `database/one-off/fix_ai_provider_*.js` scripts are now
+      superseded by this. User deleted `database/one-off/` themselves
+      (this session has no delete access on their machine).
+- [x] User ran `npm run structure:update` — `project_structure_only.txt`
+      regenerated to reflect the `database/one-off/` folder deletion.
+- [x] Committed all files to device and verified each write actually landed
+      (re-staged + grepped/checked byte counts — device_commit_files has been
+      silently reverting some writes this session; retried with `force:
+      true` where needed).
 
-## Zoom: participant tracker parity with google-meet/teams (services/platforms/zoom/) - 2026-09-14
+**How to apply this on your live DB (run once):**
+```
+node database/seeders/019_seed_ai_providers.js
+```
+This fixes the icon values AND disables every `ai_providers` row except
+`openai`, so the table ends up with exactly one enabled row and
+`ai_client.py` starts honoring it immediately (no restart needed — the DB
+is read fresh on every audit run). After that, go to Super Admin > Settings
+> AI Providers if you want a *different* provider active — toggling one on
+there already unchecks the others and saves back to this same table.
 
-Request: bring Zoom to parity with Teams/Google Meet for mute mic/camera,
-participant tracking into `participants` + `participant_attendance_sessions`,
-and `featureConfig.js` setup.
+## Bot Configuration page: check DB-dynamic + real bot usage, remove dead sections (2026-09-16)
 
-- [x] Mic/camera mute: user confirmed live ("wait i saw that in zoom
-      everything is working fine") that Zoom's existing mute/camera code
-      already works correctly. A shared-helper refactor (mirroring Teams'
-      `_toggleMediaControl()` confirmation-logging pattern) was drafted
-      locally but explicitly NOT applied/committed per the user's choice -
-      `zoomJoiner.js` on the device is untouched.
-- [x] `featureConfig.js`: zoom's section already fully populated
-      (media/attendanceMonitor/participantTracker/captionMonitor/
-      audioRecorder/screenRecorder), structurally identical to teams/
-      google-meet. No changes needed.
-- [x] `participantTracker.js`: already a mature implementation writing to
-      `participants` + `participant_attendance_sessions` via
-      `ParticipantModel` (`recordParticipantJoin`/`recordParticipantLeave`/
-      `recordParticipantRejoin`/`recordRejoinLeave`), with auto-recovery on
-      orphaned leave events and a `reset()` that closes out dangling
-      "joined" rows. No changes needed here either.
-- [x] FIX: `monitor.js`'s `trackAttendanceChanges()` crashed
-      (`Cannot read properties of null`) whenever `participantTracker` was
-      null (i.e. `featureConfig.zoom.participantTracker.enabled: false`)
-      while `attendanceMonitor.enabled` stayed true - it called
-      `participantTracker.handleParticipantJoin/Leave()` with no guard.
-      Now returns the current roster and skips the DB-writing calls when
-      `participantTracker` is null (silent no-op, matching the
-      "participantTracker disabled - skipping" log elsewhere).
-- [x] NEW: `captureInitialParticipants(page, botName, tracker, snapshotTime)`
-      added to `zoom/monitor.js` - parity with google-meet/teams' own
-      initial-roster capture, so anyone already in the call when the bot
-      joins gets recorded immediately instead of waiting for the first 5s
-      poll. Deliberately self-contained: locates the zoom.us frame itself,
-      reuses the existing `getCurrentParticipantNames()`, retries once if
-      the DOM is still settling, and records each name via the tracker's
-      existing `handleParticipantJoin(name, snapshotTime)` - NOT a new
-      `handleInitialRoster()`-style method (teams/participantTracker.js is
-      being actively developed toward that richer API elsewhere this
-      session; zoom's tracker doesn't need to chase it for the same DB-
-      writing outcome).
-- [x] `monitorMeeting()` signature extended with `initialParticipants = []`
-      (6th, optional param - fully backward compatible) to seed
-      `previousParticipants`, so the first poll doesn't log the initially-
-      captured names again as "new" joins.
-- [x] `socraticbot.js`'s zoom block wired to call
-      `ZoomMonitor.captureInitialParticipants(...)` (only when
-      `participantTracker` exists) right before the `attendanceMonitor`
-      block, and passes the result through to `monitorMeeting(...)` as the
-      6th arg - same call shape as the existing google-meet/teams blocks.
-- [x] Tests: `zoom_participant_test/test_monitor.js` (13/13 pass) - null
-      tracker -> `[]` with no crash, initial capture records all names with
-      the passed snapshot time, missing zoom.us frame handled without
-      throwing, one-retry-on-empty-DOM behavior, and `monitorMeeting()`
-      accepting a null tracker + seeded `initialParticipants` without
-      throwing.
-- [x] `node --check` passes on both files. Committed to device
-      (`services/platforms/zoom/monitor.js`, `services/socraticbot.js`) -
-      re-staged and verified afterward (grep for the new identifiers,
-      `node --check` on the device copies) - landed clean on the first
-      attempt this time, no retry needed.
+**Investigation:** Super Admin > Settings > Bot Configuration
+(`/super_admin/settings/bot-configuration`) is genuinely DB-dynamic —
+HTML -> JS -> `routes/super_admin/settings/bot-configuration.js` ->
+`controllers/.../botConfigController.js` -> `BotConfigModel.js` ->
+`SystemSettingsModel.js` -> `system_settings` table, all real, no
+hardcoding. BUT the actual bot process (`services/shared/botManager.js`,
+`browserManager.js`, `services/socraticbot.js`, `services/platforms/
+audioRecorder.js`, `screenRecorder.js`) reads exclusively from
+`config/settings.js` (hardcoded literals + `process.env`), never from
+`system_settings`/`SystemSettingsModel`/`BotConfigModel` — so none of the
+Puppeteer/Audio/Screen fields on this page had any effect on bot behavior.
+The Bot Engine / Error Handling / Advanced sections have no backing
+implementation anywhere in the bot code either.
 
-## Chrome profile cleanup: storage/chrome-profiles/ accumulating stale dirs - 2026-09-14
+- [x] Traced all 5 layers to confirm the page itself is genuinely
+      DB-dynamic (not hardcoded).
+- [x] Traced the real bot process's config source (`config/settings.js`)
+      and confirmed zero references to `system_settings`/
+      `SystemSettingsModel` anywhere in the files that actually launch/run
+      bots.
+- [x] User asked to remove the Puppeteer Configuration, Audio
+      Configuration, and Screen Configuration sections (the ones that
+      looked most obviously tied to real bot internals but were fully
+      cosmetic).
+- [x] `public/super_admin/settings/bot-configuration.html` — removed all
+      three `<div>` sections (Puppeteer, Audio, Screen) and their inputs
+      (`defaultViewport`, `protocolTimeout`, `slowMo`,
+      `ignoreDefaultArgs`, `userDataDir`, `headlessMode`, `chromeArgs`,
+      `audioDeviceName`, `audioBitrate`, `audioSampleRate`,
+      `audioChannels`, `audioFormat`, `audioEnhancement`, `audioFilters`,
+      `screenFramerate`, `screenCrf`). Bot Engine Settings, Error Handling
+      & Retries, and Advanced Settings sections kept unchanged.
+- [x] `public/js/super_admin/settings/bot-configuration.js` — removed the
+      corresponding entries from `saveAllSettings()`'s `settings` array and
+      from `resetToDefaults()`. `loadBotSettings()` needed no change — it
+      already looks up DOM elements generically by `setting_key` and
+      silently skips any row with no matching element on the page.
+- [x] Checked `controllers/.../botConfigController.js` — no hardcoded
+      field list there, purely pass-through to the model, so no
+      controller/model change needed.
+- [x] Syntax-checked the JS (`node --check`).
+- [x] Committed both files and verified each landed (re-staged + checked
+      byte counts; JS needed one forced retry due to this session's
+      recurring flaky-write issue).
 
-User-reported: too many folders piling up under `storage/chrome-profiles/`.
-Their proposed approach (check the `chrome_profiles` DB table, check status,
-act accordingly) turned out to already be fully implemented in
-`services/shared/profileManager.js` + `models/bot/ChromeProfileModel.js` +
-migration `057_create_chrome_profiles_table.js` (CREATING -> ACTIVE ->
-CLOSING -> CLEANED lifecycle, `startupRecovery()`, `runPeriodicSweep()` /
-`retryPendingCleanups()` / `scanAndCleanOrphans()` for dirs with no DB row) -
-this was the other concurrent session's in-progress work, and it's correct
-and complete.
+**Note:** the underlying `bot.default_viewport`, `bot.audio_bitrate`, etc.
+rows still exist in `system_settings` (not deleted) — they're just no
+longer shown or saved from this page. Not touched since removing DB rows
+wasn't asked for and this project's rules require an explicit, separate
+decision before bulk-modifying data.
 
-- [x] ROOT CAUSE FOUND: `server.js` called
-      `ProfileManager.runStartupRecovery()` - that method does not exist;
-      the class only exports `startupRecovery()`. Calling a missing method
-      throws SYNCHRONOUSLY inside the `initDB().then(...)` callback, which
-      was swallowed by the `.catch(err => logger.warn('(ServerJS File):
-      Setup failed:', err))` a few lines down (this is the exact
-      `ProfileManager.runStartupRecovery is not a function` warning seen
-      earlier this session in the Teams work, at the time flagged as
-      unrelated/out of scope). Because the throw happened partway through
-      that `.then()` block, `scheduleChromeProfileSweep()` (a few lines
-      later in the SAME block) never ran either - so on every server start,
-      BOTH startup recovery AND the periodic sweep were silently skipped,
-      every time, which is why profile directories were never being cleaned
-      up at all.
-- [x] FIX: `server.js` now calls `ProfileManager.startupRecovery()` (the
-      real method name). One-line fix, `node --check` passes, committed to
-      device and re-staged/verified.
-- [ ] ACTION NEEDED: this only takes effect on the next server restart (and
-      then every `CHROME_PROFILE_SWEEP_INTERVAL_MIN`, default 10 min, after
-      that) - the currently-running server process still has the old
-      broken code loaded in memory. Restart the Node server for the
-      existing `profile_3`/`profile_4`/`profile_5` dirs (and any future
-      ones) to actually get swept.
+- [ ] Not yet decided: whether to also wire the *real* bot config
+      (`config/settings.js` -> `botManager.js`/`browserManager.js`/etc.)
+      into the DB the way `ai_client.py` was wired to `ai_providers`, for
+      the Bot Engine / Error Handling / Advanced sections that remain on
+      the page (their fields currently have no backing implementation in
+      the bot code at all) — not asked for yet.
 
-## Chrome profile cleanup, part 2: lock-detection false positive in browserManager.js - 2026-09-14
+## Wire real bot timing (config/settings.js) into Bot Configuration DB settings (2026-09-16)
 
-After the `startupRecovery` typo fix (above) shipped and the server was
-restarted, startup recovery ran for the first time ever and correctly found
-the 3 stale profiles - but cleanup then failed for all 3 with "Chrome
-profile directory still in use after waiting", even though every stored
-`browser_pid` for them was already confirmed dead (`taskkill` reported
-"The process ... not found" for each one).
+**Request:** the 4 timing env vars (`BOT_HOST_WAIT_TIMEOUT_MS`,
+`HUMAN_JOIN_TIMEOUT_MS`, `BOT_LAUNCH_LEAD_MINUTES`,
+`BOT_QUEUED_EXPIRE_MINUTES`) that `config/settings.js`'s `bot` block reads
+should become configurable from Super Admin > Settings > Bot Configuration,
+backed by the DB — same pattern as the earlier AI Providers -> ai_client.py
+wiring.
 
-- [x] ROOT CAUSE: `services/shared/browserManager.js`'s
-      `isChromeUsingProfile()`/`forceTerminateChromeProcesses()` built a WQL
-      `LIKE` clause with the profile path embedded directly in it, after
-      normalizing the path to forward slashes. Two compounding bugs: (1)
-      Puppeteer launches Chrome with the OS-native (backslash) path on
-      Windows, so a forward-slash search could never reliably match a truly
-      live process's real command line; (2) WQL's `LIKE` treats backslash as
-      its own escape character, and the old "in use?" check was
-      `/\d+/.test(line)` - ANY line containing a digit - so a malformed/
-      erroring wmic call's error text (HRESULT/error codes contain digits)
-      could be misread as "a PID was found", i.e. a false "still in use".
-      That false positive is exactly what surfaced once cleanup started
-      actually running.
-- [x] FIX (scoped - only these two methods touched, `settings.puppeteer`
-      launch config untouched): query ALL `chrome.exe` processes with a
-      trivial, always-valid WQL clause (`Name='chrome.exe'`, nothing
-      interpolated), parse PID+CommandLine out of `/VALUE` output (a
-      `parseWmicValueOutput()` helper - far more reliable than table/CSV
-      parsing since a Chrome command line can itself contain commas), then
-      match the target profile dir against each process's CommandLine in
-      plain JS via `commandLineUsesProfile()`, normalizing both sides
-      (backslash -> forward slash, lowercased) before comparing. A PID is
-      only ever read from an actual `ProcessId=<digits>` line, never "any
-      digit anywhere".
-- [x] Tests: `zoom_participant_test/test_browsermanager_lock.js` (11/11
-      pass) - realistic multi-process `/VALUE` parsing, empty/"No
-      Instance(s) Available." output, the exact false-positive scenario
-      (error text containing digits no longer counts as a match),
-      backslash-vs-forward-slash path matching, no over-broad substring
-      match (`profile_3` doesn't match `profile_30`), and the actual
-      production regression scenario end-to-end (a dead profile_3 with only
-      an unrelated profile_9 running is now correctly "not in use"; a
-      genuinely-active profile_3 is still correctly "in use").
-- [x] `node --check` passes. Committed to device and re-staged/verified -
-      landed clean on the first attempt.
-- [ ] ACTION NEEDED: `profile_3`/`profile_4`/`profile_5`'s DB rows are
-      already `FAILED` (cleanup_attempts exceeded maxRetries against the
-      OLD buggy check, before this fix). `runPeriodicSweep()` only retries
-      `CLEANUP_PENDING` rows, not `FAILED` ones, so these three won't be
-      swept by the periodic timer - only `startupRecovery()` re-inspects
-      `FAILED` rows too (via `getNonCleaned()`). **Needs one more server
-      restart** to actually clear `profile_3`/`4`/`5` off disk now that the
-      lock-detection bug behind their failure is fixed.
+**Investigation first** (via subagent, read-only):
+- `services/featureConfig.js` is unrelated (per-platform mute/camera/
+  monitor toggles, not timing) — ruled out as a target.
+- `config/settings.js` lines 250-275 were confirmed as the single real
+  source: `bot.hostWaitTimeoutMs` (`BOT_HOST_WAIT_TIMEOUT_MS`, default
+  900000ms), `bot.humanJoinTimeoutMs` (`HUMAN_JOIN_TIMEOUT_MS` falling back
+  to `BOT_HOST_WAIT_TIMEOUT_MS` falling back to 60000ms),
+  `bot.autoJoinLeadMinutes` (`BOT_LAUNCH_LEAD_MINUTES`, default 3, floor of
+  1), `bot.queuedExpireMinutes` (`BOT_QUEUED_EXPIRE_MINUTES`, default 5).
+- Real consumers, all reading the `settings.bot.*` property (not raw
+  `process.env`): `services/platforms/zoom/zoomJoiner.js`,
+  `services/platforms/teams/teamsJoiner.js`,
+  `services/platforms/google-meet/meetingNavigation.js` (hostWaitTimeoutMs);
+  `services/socraticbot.js` (humanJoinTimeoutMs);
+  `controllers/meetings/BotPollingController.js` +
+  `models/meetings/MeetingModel.js` (autoJoinLeadMinutes,
+  queuedExpireMinutes).
+- Existing Bot Configuration page fields (`bot.launch_window`,
+  `bot.timeout`) look similar but are pre-existing, unconnected,
+  different-unit keys (minutes vs ms mismatch for `bot.timeout` vs
+  `BOT_HOST_WAIT_TIMEOUT_MS`) — deliberately NOT repurposed; 4 new
+  `bot.*` keys were added instead to avoid a silent unit/semantics bug.
+- Flagged (not fixed, out of scope): `loadBotSettings()` in the page's JS
+  has a pre-existing bug where it expects DOM element ids to literally
+  equal the un-prefixed `setting_key` (e.g. `auto_launch`), but the
+  existing 11 fields use camelCase ids (`botAutoLaunch` etc.) that never
+  match, so those 11 fields silently never populate from the DB on page
+  load (they still save correctly, just don't re-load). The 4 new fields
+  below were deliberately given ids that DO match their un-prefixed keys
+  so they don't have this problem.
+
+**Implementation:**
+- [x] `config/settings.js` — added a `_botDbCache` object + lazy
+      `_refreshBotDbCache()` (requires `models/settings/SystemSettingsModel`
+      only inside the function, wrapped in try/catch) that reads
+      `bot.host_wait_timeout_ms` / `bot.human_join_timeout_ms` /
+      `bot.launch_lead_minutes` / `bot.queued_expire_minutes` from
+      `system_settings` every 60s (timer `.unref()`'d so it never holds a
+      short-lived script open). Converted `hostWaitTimeoutMs`,
+      `humanJoinTimeoutMs`, `autoJoinLeadMinutes`, `queuedExpireMinutes` in
+      the `bot` block from plain values to `get` accessors that check the
+      cache first and fall back to the exact original `.env`/hardcoded
+      chain otherwise. Zero changes needed in any consumer file (they all
+      just read `settings.bot.xxx` as a property, unchanged) — same
+      conservative "DB is an enhancement, never load-bearing" design as
+      `ai_client.py`'s `_load_enabled_provider_from_db()`.
+- [x] `public/super_admin/settings/bot-configuration.html` — added a new
+      "Bot Timing" section (indigo) with 4 fields: Host Wait Timeout (ms),
+      Human Join Timeout (ms), Launch Lead Time (minutes), Queued Expiry
+      (minutes). Field ids (`host_wait_timeout_ms`, `human_join_timeout_ms`,
+      `launch_lead_minutes`, `queued_expire_minutes`) intentionally equal
+      their un-prefixed `setting_key` so `loadBotSettings()`'s existing
+      lookup actually populates them (unlike the pre-existing 11 fields —
+      see note above). Default input values match the user's current
+      `.env` (900000 / 600000 / 3 / 50).
+- [x] `public/js/super_admin/settings/bot-configuration.js` — added the 4
+      new keys (`bot.host_wait_timeout_ms` etc.) to `saveAllSettings()`'s
+      `settings` array and to `resetToDefaults()`.
+- [x] Checked `controllers/.../botConfigController.js` and
+      `models/super_admin/settings/bot-configuration/BotConfigModel.js` —
+      both generic pass-throughs (`LIKE 'bot%'` / per-item upsert), no
+      changes needed for new keys under the existing `bot.` prefix.
+- [x] Syntax-checked `config/settings.js` and the JS file (`node --check`).
+- [x] Committed all 3 files and verified each landed (re-staged + checked
+      byte counts — all landed cleanly this time, no forced retries
+      needed).
+
+**How this behaves:** until an admin saves this page at least once, the
+new DB rows don't exist yet, so `_botDbCache` stays all-`null` and the bot
+keeps using exactly the same `.env` values as before — zero behavior
+change out of the box. The first time Bot Timing is saved on this page,
+those 4 values start overriding `.env` within 60 seconds (the cache
+refresh interval), no restart required.
+
+## Remove Access Control page + sidebar entry (2026-09-16)
+
+**Request:** fully remove `/super_admin/people/access-control` (a user
+account list/edit/deactivate/reset-password page, NOT the same thing as
+the `access_control` settings-group keys in `007_settings.js` — those are
+a separate, unrelated, already-inert set of settings; confirmed via repo-
+wide grep that nothing reads them anywhere, including this page's own
+controller/model, so deleting this page has zero effect on them), plus its
+side-menu entry.
+
+**Investigation first** (via subagent, read-only) confirmed the full
+inventory: HTML/JS/route/controller/model are access-control-specific and
+safe to delete; the underlying shared models (RolesModel, CompaniesModel,
+UsersModel) it calls into are used extensively elsewhere and must NOT be
+touched. Sidebar entry exists in 3 places (canonical `017_menu_items.js`,
+`018_role_menu_permissions.js`, and the already-deprecated
+`009_header_menu_items.js`), plus a page-header metadata entry in
+`010_header_page_configs.js`. Critically: the sidebar is rendered live from
+the `menu_items`/`role_menu_permissions` DB tables (via `MenuModel`), and
+`010`'s page metadata is served live from `header_page_configs` — editing
+the seeder source files alone would NOT remove anything from an
+already-seeded live database (same "seeder edit isn't enough" pattern
+as the earlier `ai_providers` icon fix).
+
+- [x] `database/seeders/017_menu_items.js` — removed the `sa-access-control`
+      entry from `MENU_ITEMS`. Added `removeStaleMenuItems()` (deletes
+      `role_menu_permissions` rows for the item first, then the
+      `menu_items` row itself) that runs on every execution of this
+      seeder (not gated by its usual "skip if already seeded" check), so
+      re-running it also cleans up an already-seeded install. Re-apply
+      with: `node database/seeders/017_menu_items.js`
+- [x] `database/seeders/018_role_menu_permissions.js` — removed the
+      `['sa-access-control', 'sa-people']` hierarchy entry. No live-DB
+      action needed here since `017`'s cleanup above already deletes the
+      corresponding `role_menu_permissions` row.
+- [x] `database/seeders/010_header_page_configs.js` — removed the
+      `accessControl` page-metadata entry from `DEFAULT_PAGES`. Added
+      `removeStalePageConfigs()` (deletes `header_page_configs` rows by
+      `page_key`) that runs on every execution (this seeder uses
+      `INSERT IGNORE` and has no skip gate, but never removed rows either).
+      Re-apply with: `node database/seeders/010_header_page_configs.js`
+- [x] `database/seeders/009_header_menu_items.js` — removed the matching
+      entry too, for consistency, even though this file is already marked
+      DEPRECATED/reference-only and needs no live-DB action.
+- [x] `routes/super_admin/index.js` — removed the `accessControl` require
+      and its `router.use('/people/access-control', ...)` mount.
+- [x] `models/super_admin/SuperAdminPageModel.js` — removed `'access-control'`
+      from the `people` nested-pages array (so `/super_admin/people/
+      access-control` correctly 404s/falls through instead of resolving to
+      a file once that file is gone).
+- [x] Syntax-checked all 6 edited files (`node --check`).
+- [x] Committed all 6 and verified each landed (re-staged + checked byte
+      counts — all landed cleanly, no forced retries needed this time).
+
+**Still needed (cannot do from this session — no delete access on the
+user's machine):**
+- [ ] Delete these files/directories:
+      - `public/super_admin/people/access-control.html`
+      - `public/js/super_admin/people/access-control.js`
+      - `routes/super_admin/people/access-control.js`
+      - `controllers/super_admin/people/access-control/` (whole directory)
+      - `models/super_admin/people/access-control/` (whole directory)
+- [ ] Run `database/seeders/017_menu_items.js` and
+      `database/seeders/010_header_page_configs.js` directly (or
+      `npm run db:seed`, which runs all seeders) to actually remove the
+      live `menu_items`/`role_menu_permissions`/`header_page_configs` rows
+      — the seeder file edits above only affect a fresh install/reseed
+      until these are run.
+- [ ] After that DB cleanup runs, the sidebar won't reflect it until
+      `MenuModel`'s in-memory per-role cache is cleared (`MenuModel.
+      clearAllCache()`) or the app process is restarted — a plain
+      page-refresh won't be enough on its own.
+- [ ] Run `npm run structure:update` (or `.\generate_structure.ps1`) after
+      the file deletions above, per project convention.
+
+## Fix Manage Rubrics page (broken ID naming + missing fields) (2026-09-16)
+
+**Request:** update `/super_admin/people/manage-rubrics` "according to what
+we currently have in logic and in table" — investigated first via
+subagent to compare the page's HTML/JS/controller/model against the real
+`rubric_categories`/`rubric_indicators` DB schema and the canonical
+weight-based scoring path (`services/engine/audit_scoring.py`'s
+`compute_weighted_overall`, confirmed already fixed in an earlier TODO
+entry this session).
+
+**Findings:**
+- The category "Weight" field IS correctly wired to the real canonical
+  column (`rubric_categories.weight`, the same column
+  `compute_weighted_overall` consumes) — no scoring-logic bug here.
+- **Real bug found**: the page's own "ID" concept was broken end-to-end.
+  The DB columns are `category_code`/`indicator_code`, but the page's
+  HTML/JS read/wrote a property called `category_id`/`indicator_id` that
+  never existed on the returned rows (`MasterRubricModel.getCategories()`/
+  `getIndicators()` never aliased it). Effects: the "ID" column always
+  showed blank, the category dropdown in the Indicator modal always had
+  `value=""` for every option (making it impossible to actually assign a
+  category to a new/edited indicator through the UI), and Edit/Delete on
+  every row silently no-op'd (`.find()` against `undefined` always failed).
+- `ManageRubricsModel.updateCategory()`/`updateIndicator()` also silently
+  dropped several real, already-supported columns on update (only
+  `create` forwarded most of them) — `category_code`/`indicator_code`
+  itself, plus `subgroup_name`, `benchmark`, `requires_video`,
+  `requires_calculation`, `calculation_config` for indicators.
+- The Indicator modal never exposed `subgroup_name`, `benchmark`,
+  `requires_video`, `requires_calculation`, or `calculation_config` at
+  all — all real, actively-used columns (the last two specifically drive
+  the Python engine's config-driven scoring in `rubric_loader.py`/
+  `audit_scoring.py`).
+- Seeders (`006_rubric.js`, `020_admin_rubric.js`) already match the live
+  schema correctly — no seeder mismatch. Noted (cosmetic, not a bug):
+  seeded category weights are fractional (0–1, summing to 1.0), but the
+  page's Weight input had no `max` and a `%` suffix on display, which
+  could mislead an admin into entering e.g. "22" instead of "0.22".
+
+**Fixes:**
+- [x] `public/super_admin/people/manage-rubrics.html` — renamed the
+      Category/Indicator "ID" input fields to `category_code`/
+      `indicator_code` (matching the real columns); added Subgroup,
+      Benchmark, Requires Video, Requires Calculation, and a
+      Calculation Config (JSON) field (shown only when Requires
+      Calculation is checked) to the Indicator modal; clarified the
+      Weight field's scale (0–1, step 0.01, max 1) to match the seeded
+      convention.
+- [x] `public/js/super_admin/people/manage-rubrics.js` — fixed every
+      reference from the non-existent `category_id`/`indicator_id` to
+      the real `category_code`/`indicator_code` (table columns, Actions
+      buttons, `editCategory`/`editIndicator` lookups, the category
+      dropdown's value/selected-matching in `openIndicatorModal`/
+      `editIndicator`); removed the misleading `%` from the Weight
+      column display; wired the 5 new indicator fields into
+      `editIndicator()` (populate) and the submit handler (payload),
+      including JSON-parsing/validating `calculation_config` before
+      submit and a show/hide toggle for that field.
+- [x] `models/super_admin/people/manage-rubrics/ManageRubricsModel.js` —
+      `updateCategory()` now forwards `category_code` (with a
+      `category_id` fallback for compatibility); `updateIndicator()` now
+      forwards `indicator_code` plus `subgroup_name`/`benchmark`/
+      `requires_video`/`requires_calculation`/`calculation_config`, all
+      previously silently dropped; `createIndicator()` now also forwards
+      `requires_calculation`/`calculation_config` (previously missing
+      even from create).
+- [x] `controllers/super_admin/people/manage-rubrics/manageRubricsController.js`
+      — `createCategory`/`createIndicator` now destructure and forward
+      `category_code`/`indicator_code` and the new indicator fields from
+      the request body (still no SQL/business logic in the controller).
+      `updateCategory`/`updateIndicator` already passed the full
+      `req.body` through, so no change needed there.
+- [x] Confirmed no changes needed to `models/super_admin/rubrics/
+      MasterRubricModel.js` — it already fully supports every real
+      column and already accepts either the numeric `id` or the
+      `category_code`/`indicator_code` string as an identifier
+      (`_categoryByIdentifier`/`_indicatorByIdentifier`), so routing the
+      page's Edit/Delete/dropdown values through the code strings works
+      correctly with zero backend changes there.
+- [x] Syntax-checked all 4 changed files; grepped for leftover stale
+      `category_id`/`indicator_id` references in the HTML/JS to confirm
+      no strays.
+- [x] Committed all 4 files and verified each landed (re-staged +
+      checked byte counts — all landed cleanly, no forced retries
+      needed).
+
+**Not touched / out of scope:** `routes/rubrics.js` +
+`controllers/rubrics/masterRubricController.js` +
+`models/rubrics/MasterRubricModel.js` are a separate, near-duplicate
+legacy path (`/api/rubrics/*`, unrelated to this Super Admin page) —
+flagged by the investigation as a standing "duplicate canonical
+implementation" issue, but left alone since it wasn't part of what was
+asked and touching it is a separate, larger decision.
+
+## Fix slow PUT /api/super_admin/sidebar-menu-management/permissions (2026-09-16)
+
+**Problem:** Saving role menu permissions from
+http://www.localretentionlab.com/super_admin/settings/sidebar-menu-management
+was reported as taking too much time.
+
+**Root cause:** `models/menu/MenuModel.js#saveRoleMenuPermissions(roleId, permissions)`
+did a single efficient bulk `DELETE FROM role_menu_permissions WHERE role_id = ?`,
+but then inserted the new rows with a `for...of` loop doing one `await runAsync(...)`
+per menu item — i.e. one sequential network round trip to MySQL per row (typically
+30-80 items per role) instead of a single bulk statement. Verified indexes on
+`role_menu_permissions` (`idx_role`, `idx_menu_item`, `idx_parent`, unique
+`(role_id, menu_item_id)`) were already correct and not the bottleneck.
+
+- [x] Confirm the actual route/controller/model chain for this endpoint
+      (`routes/super_admin/sidebar-menu-management.js` -> `PUT /permissions`
+      -> `controllers/super_admin/menu/menuController.js#updateMenuPermissions`
+      -> `MenuModel.saveRoleMenuPermissions`).
+- [x] Confirm indexes on `role_menu_permissions` (migration
+      `028_create_role_menu_permissions_table.js`) are correct and not the cause.
+- [x] Replace the per-row `INSERT` loop in `saveRoleMenuPermissions` with a
+      single bulk multi-row `INSERT ... VALUES (?,?,?,?,?), (?,?,?,?,?), ...`
+      built from one flattened params array, passed through the existing
+      `runAsync` helper unchanged. Guarded for the empty-`permissions` case
+      (skip the insert entirely rather than issuing an invalid empty-VALUES
+      statement). Left the existing bulk `DELETE` and `invalidateCache(roleId)`
+      call unchanged.
+- [x] `node --check` on the edited file.
+- [x] Commit to `C:\xampp\htdocs\RetentionLab\models\menu\MenuModel.js` and
+      verify the write landed (re-staged, byte count matched, grep confirmed
+      the new bulk-insert code) — no revert this time, single commit succeeded.
+- [ ] User to verify in-browser that saving permissions on the Sidebar Menu
+      Management page is now fast, and that permissions still save/apply
+      correctly (visibility, sort order, nesting) for at least one role.
+
+## Sidebar Menu Management page: fix broken Parent Item / data-integrity bug (2026-09-16)
+
+**Problem (found while reviewing the page for a data-correctness pass):** The
+Edit modal on
+http://www.localretentionlab.com/super_admin/settings/sidebar-menu-management
+has a full "Parent Item" `<select>` (`#modalParentId`) that was never wired
+up — `public/js/super_admin/settings/sidebar-menu-management.js` never
+populated its options, never read its selected value, and never sent it to
+the save endpoint. Worse, every save (single-item hide/edit, and the
+"Reset to defaults" reseed) sent a `permissions` array with **no `parent_id`
+field at all**, so `MenuModel.saveRoleMenuPermissions` (via `perm.parent_id
+|| null`) wrote `NULL` into `role_menu_permissions.parent_id` for every row
+on every save — silently discarding any role-specific menu hierarchy on each
+save (currently masked in the UI because `buildMenuTree()` falls back to the
+global `menu_items.parent_id` default when the per-role value is null, so it
+wasn't visibly broken, but the per-role override column was effectively
+dead).
+
+- [x] Wire up `#modalParentId`: `editMenuItem()` now populates it with every
+      other menu item for the role (excluding the item itself and its
+      descendants, to prevent hierarchy cycles) and preselects the item's
+      current parent.
+- [x] `saveModalForm()` now reads the selected parent and includes
+      `parent_id` for **every** item in the saved `permissions` array
+      (preserving each item's existing parent, changing only the edited
+      item's), instead of omitting the field entirely.
+- [x] `deleteMenuItemById()` (the "Hide" action) now also includes each
+      item's current `parent_id` in its save payload, for the same reason.
+- [x] `controllers/super_admin/menu/menuController.js#reseedRoleMenuPermissions`
+      now includes `parent_id: item.parent_id` (the default from
+      `menu_items`) in the permissions it reseeds, so "Reset to defaults"
+      explicitly restores the default hierarchy instead of omitting the
+      field.
+- [x] Made the Menu ID / Label / Icon / Link URL fields in the Edit modal
+      read-only with a visual disabled style — these come from the shared
+      `menu_items` table (used by every role) and were never actually saved
+      by this page (only visibility, sort order, and now parent, which are
+      per-role `role_menu_permissions` columns, are saved); the fields were
+      previously editable-looking but any typed change was silently
+      discarded, which is misleading.
+- [x] `node --check` on both edited files.
+- [x] Committed both files, verified with re-stage + byte-count match (no
+      revert).
+- [ ] User to verify in-browser: editing a role's menu item, changing its
+      Parent Item, and saving actually re-parents it in the Tree View; and
+      that Menu ID/Label/Icon/Href now show as read-only in the modal.
+
+## Speed up GET-side POST /api/super_admin/sidebar-menu-management/permissions (2026-09-16)
+
+**Problem:** After the bulk-insert fix to the PUT (save) side, the page's
+read/list call — `POST /api/super_admin/sidebar-menu-management/permissions`
+(`controllers/super_admin/menu/menuController.js#getMenuPermissions`) — was
+still reported as slow. This endpoint only reads data (no writes), so the
+fix here is read-path only.
+
+**Root cause:** in both branches of `getMenuPermissions` (`user_id` and
+`role_id`), the two required queries — `MenuModel.getAllMenuItems(roleId)`
+and `MenuModel.getRoleMenuPermissions(roleId)` — were awaited **sequentially**
+(one full DB round trip, then another), even though they don't depend on
+each other. `MenuModel.getResolvedMenuForUser` (used by the real sidebar
+render path) already runs the same two queries with `Promise.all`, so this
+controller wasn't following that existing pattern.
+
+- [x] Confirmed `middleware/auth.js` (`requireAuth`/`requireRole`) does no
+      DB work — pure JWT verification — so it isn't part of the slowness.
+- [x] Confirmed `menu_items` (migration `026_create_menu_items_table.js`)
+      already has indexes on `is_active`, `role_id`, and `parent_id`, and
+      `database/db.js`'s MySQL pool config (`connectionLimit: 10`,
+      `waitForConnections: true`) is unremarkable — not the bottleneck.
+- [x] Changed both branches of `getMenuPermissions` (`role_id`, the one this
+      page actually calls, and `user_id`) to fetch `menuItems` and
+      `rolePermissions` with `Promise.all` instead of two sequential
+      `await`s — one DB round trip's worth of latency removed per call.
+      Did not touch `updateMenuPermissions` (PUT/save) or
+      `saveRoleMenuPermissions` — out of scope per this request (read-only).
+- [x] `node --check` passed; committed and verified byte-for-byte (landed
+      on the first commit, no revert).
+- [ ] User to verify in-browser that switching roles / loading the
+      permissions list on the Sidebar Menu Management page is now
+      noticeably faster.
+
+## Collapse permissions read to a single joined DB query (2026-09-16)
+
+**Follow-up to the previous entry.** User asked how many DB hits the read
+endpoint made and what the better approach would be. Answer: 2 (menu items,
+role permissions), already running in parallel via `Promise.all`. Better
+approach: don't fetch them separately at all — do the merge in SQL with a
+`LEFT JOIN` so it's 1 round trip instead of 2, and MySQL (not a JS
+`Array.map` + object lookup) does the matching.
+
+- [x] Added `MenuModel.getMenuItemsWithPermissions(roleId)` —
+      `SELECT ... FROM menu_items mi LEFT JOIN role_menu_permissions rmp
+      ON rmp.menu_item_id = mi.id AND rmp.role_id = ? WHERE mi.is_active = 1
+      AND mi.role_id = ?` — one query, one round trip. Preserved the exact
+      same `parent_id` resolution rule `getRoleMenuPermissions` had (a
+      `role_menu_permissions.parent_id` can reference another
+      `role_menu_permissions.id` instead of a `menu_item_id` directly; the
+      row-id -> menu_item_id map is now built from this same joined result
+      set instead of a separate query).
+- [x] Updated both branches (`role_id`, `user_id`) of
+      `getMenuPermissions` in `controllers/super_admin/menu/menuController.js`
+      to call the new single-query method instead of
+      `Promise.all([getAllMenuItems, getRoleMenuPermissions])`, and confirmed
+      the shape/values returned to the frontend are unchanged (same
+      `is_visible`/`sort_order`/`parent_id` fallback behavior when a role has
+      no explicit permission row for an item yet).
+- [x] Left `getAllMenuItems` and `getRoleMenuPermissions` themselves
+      untouched — they're still used by `getResolvedMenuForUser` (the real
+      sidebar render path) and `reseedRoleMenuPermissions`, which weren't
+      part of this request.
+- [x] `node --check` on both files; committed and verified byte-for-byte
+      (both landed on the first try, no revert).
+- [ ] User to verify in-browser that the Sidebar Menu Management page still
+      loads the correct permissions per role after this change (visibility,
+      sort order, parent nesting all still correct) and is faster/equal.
+
+## Rebuild Sidebar Menu Management page: one display, one action (2026-09-16)
+
+**Request:** user reported the page was still "loading" slow/confusing, and
+asked for a full rebuild (HTML -> JS -> Routes -> Controller -> Model) with
+a single display of the role's menu items and exactly one action:
+enable/disable (show/hide) visibility — freeing me to redesign it.
+
+**Approach taken:** the backend (routes, controller, model) from the
+previous two entries was already correct and already down to a single
+joined DB query for reads and a single bulk statement for writes, so no
+backend changes were needed here — the actual problem was the frontend UX:
+the old page rendered the SAME data twice (a Tree View AND a duplicate Flat
+Table below it) and offered a modal with 5 fields (Menu ID, Label, Parent,
+Icon, Link URL) that mostly did nothing when saved (only visibility/order/
+parent were ever persisted — see the entry above about the unwired Parent
+dropdown). That duplication and the misleading modal were very likely what
+read as "still not working right."
+
+- [x] Removed the duplicate Flat Table view entirely — one Tree View is now
+      the only display of the role's menu items.
+- [x] Removed the Edit modal entirely (Menu ID / Label / Parent / Icon /
+      Link URL / Display Order fields) — none of those are meant to be
+      edited from this page (they're seeder-owned, shared across roles).
+- [x] Replaced the old "Edit" + "Hide" per-row buttons with ONE action per
+      row: a visibility toggle switch. This is the single approach the user
+      asked for.
+- [x] Toggling is local/in-memory (no request per click); an explicit "Save
+      Changes" button commits the whole role's permission set once, and an
+      "Unsaved changes" indicator plus a beforeunload warning protect
+      against losing untoggled changes. "Reset to Defaults" replaces the old
+      per-page reseed button, unchanged in behavior.
+- [x] Kept `parent_id` and `sort_order` exactly as loaded (per-item, not
+      user-editable in this simplified view) when building the save
+      payload, so the parent-hierarchy fix from two entries up is preserved.
+- [x] Routes (`routes/super_admin/sidebar-menu-management.js`), controller
+      (`getMenuPermissions`, `updateMenuPermissions`,
+      `reseedRoleMenuPermissions`) and model
+      (`MenuModel.getMenuItemsWithPermissions`,
+      `saveRoleMenuPermissions`) were reviewed and left unchanged — already
+      correct and already optimized (1 query to read, 1 bulk statement to
+      write) from the prior two fixes.
+- [x] `node --check` on the rewritten JS; committed both files, verified
+      byte-for-byte (landed on the first try, no revert).
+- [ ] User to load the page in-browser, pick a role, confirm the tree
+      renders once (no duplicate table), toggle a couple of items, Save,
+      reload and confirm the change persisted, then try Reset to Defaults.
+
+## Sidebar Menu Management: change the actual data-fetching approach, not just the UI (2026-09-16)
+
+**Request:** user pointed out the previous rebuild only touched the
+frontend — routes, controller and model were still the same POST-with-body
+endpoint returning a flat list, with the frontend re-deriving the tree
+itself. Asked for a real change to "how to get data," across every layer.
+
+**New approach (routes -> controller -> model, HTML/JS updated to match):**
+
+- [x] `routes/super_admin/sidebar-menu-management.js`: the read endpoint is
+      now `GET /permissions?role_id=` instead of `POST /permissions` with
+      `{ role_id }` in the body — it never writes anything, so the HTTP
+      verb should say so.
+- [x] `models/menu/MenuModel.js`:
+      - Added `getRoleMenuTree(roleId)` — calls the existing single joined
+        query (`getMenuItemsWithPermissions`) and returns the role's FULL
+        menu already nested into a tree, INCLUDING hidden items (each node
+        carries its own `is_visible`), unlike `buildMenuTree`/
+        `getResolvedMenuForUser` which only build the sidebar's
+        visible-only tree.
+      - Extracted the nest-by-parent-id + sort-by-order logic that
+        `buildMenuTree` already had into a shared `_nestByParentId(nodes)`
+        helper, and had `buildMenuTree` call it — so `getRoleMenuTree`
+        reuses the exact same nesting rule instead of a second, duplicate
+        implementation (per this project's "extend the canonical function"
+        rule).
+- [x] `controllers/super_admin/menu/menuController.js`: `getMenuPermissions`
+      now reads `role_id`/`user_id` from `req.query` (not `req.body`) and
+      returns `MenuModel.getRoleMenuTree(...)` directly — the response
+      `data` is now a nested tree, not a flat array the frontend has to
+      re-nest.
+- [x] `public/js/super_admin/settings/sidebar-menu-management.js`:
+      - Fetches with `GET .../permissions?role_id=X` instead of `POST`
+        with a JSON body.
+      - Renders the tree the server returns directly — no more scanning
+        the full flat item list for every node's children
+        (`currentFlatItems.filter(...)` per row, which was effectively
+        O(n²) for a role with many items).
+      - Builds a flat `nodeById` map once per load so toggling a switch is
+        an O(1) lookup instead of an `Array.find()` over every item.
+      - Added `flattenTree()` to turn the tree back into the flat
+        `{ menu_item_id, is_visible, sort_order, parent_id }[]` shape the
+        PUT /permissions save endpoint expects (that endpoint's shape was
+        left unchanged, as saving wasn't part of this "get data" request).
+- [x] `node --check` on all 4 changed files; committed and verified
+      byte-for-byte — all four landed on the first try, no revert.
+- [ ] User to verify in-browser: role dropdown loads the tree via the new
+      GET endpoint (check Network tab shows GET, not POST, for
+      `.../permissions`), toggles still work, Save still persists
+      correctly, and Reset to Defaults still works.

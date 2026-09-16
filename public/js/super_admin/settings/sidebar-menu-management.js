@@ -1,17 +1,33 @@
 /**
  * public/js/super_admin/settings/sidebar-menu-management.js
+ *
+ * One display, one action, and the data-fetching approach matches the
+ * backend rebuild:
+ *  - Reads the role's menu with a GET (?role_id=), not a POST-with-body —
+ *    this call never writes anything.
+ *  - The server already returns the menu as a NESTED TREE (including
+ *    hidden items, each with its own is_visible), built in one DB round
+ *    trip. This page no longer re-derives parent/child relationships by
+ *    scanning a flat list for every node — it just renders the tree it's
+ *    given.
+ *  - A flat nodeById map (built once per load) gives O(1) toggle lookups
+ *    instead of Array.find()/filter() on every click.
+ *  - The one action per item is a visibility toggle; toggling is
+ *    local/in-memory until "Save Changes" flattens the tree back into the
+ *    PUT /permissions payload and commits it in one request.
  */
 
 let currentRoleId = null;
-let allRoles = [];
-let currentFlatItems = [];
+let currentTree = [];      // nested tree as returned by the API
+let nodeById = {};         // flat id -> node, for O(1) toggle lookups
+let isDirty = false;
 
 async function loadRoles() {
   try {
     const response = await fetch('/api/roles');
     if (!response.ok) throw new Error('Failed to fetch roles');
     const result = await response.json();
-    allRoles = result.data || result.roles || [];
+    const allRoles = result.data || result.roles || [];
     const select = document.getElementById('roleSelector');
     select.innerHTML = '<option value="">Select a role</option>';
     allRoles.forEach(role => {
@@ -25,224 +41,146 @@ async function loadRoles() {
   }
 }
 
+/** Walk the tree once, indexing every node by id (for O(1) toggle lookups). */
+function indexTree(tree) {
+  const map = {};
+  const walk = (nodes) => {
+    nodes.forEach(node => {
+      map[node.id] = node;
+      if (node.children && node.children.length) walk(node.children);
+    });
+  };
+  walk(tree);
+  return map;
+}
+
+/** Flatten the tree back into the { menu_item_id, is_visible, sort_order, parent_id } shape PUT /permissions expects. */
+function flattenTree(tree, parentId, out) {
+  tree.forEach(node => {
+    out.push({
+      menu_item_id: node.id,
+      is_visible: !!node.is_visible,
+      sort_order: node.sort_order || 0,
+      parent_id: parentId
+    });
+    if (node.children && node.children.length) {
+      flattenTree(node.children, node.id, out);
+    }
+  });
+  return out;
+}
+
 async function loadMenuItems() {
   const container = document.getElementById('treeContainer');
   if (!currentRoleId) {
     container.innerHTML = '<p class="text-violet-800">Select a role to view its menu items.</p>';
+    setButtonsEnabled(false);
     return;
   }
 
-  try {
-    let result;
+  container.innerHTML = '<p class="text-violet-800">Loading…</p>';
 
-    const response = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role_id: parseInt(currentRoleId) })
-    });
+  try {
+    const url = '/api/super_admin/sidebar-menu-management/permissions?role_id=' + encodeURIComponent(currentRoleId);
+    const response = await fetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to fetch menu items');
-    result = await response.json();
+    const result = await response.json();
 
     if (!result.success || !result.data) {
       throw new Error('Invalid response format');
     }
 
-    currentFlatItems = result.data.map(perm => ({
-      id: perm.menu_item_id,
-      menu_id: perm.menu_key,
-      label: perm.label,
-      icon: perm.icon || '',
-      href: perm.route_path || '',
-      is_active: perm.is_visible,
-      display_order: perm.sort_order,
-      parent_id: perm.parent_id,
-      // For resolved view - track override status
-      is_overridden: perm.is_overridden || false,
-      role_default_visible: perm.role_default_visible
-    }));
-    
-    renderMenuTree();
-    renderFlatTable();
-    
-    if (currentFlatItems.length === 0) {
-      container.innerHTML = '<p class="text-violet-800">No menu items found. Click "Reset" to load default menu items.</p>';
+    currentTree = result.data;
+    nodeById = indexTree(currentTree);
+
+    setDirty(false);
+    renderTree();
+
+    if (currentTree.length === 0) {
+      container.innerHTML = '<p class="text-violet-800">No menu items found. Click "Reset to Defaults" to load default menu items.</p>';
     }
   } catch (err) {
     console.error('Error loading menu items:', err);
     container.innerHTML = '<p class="text-rose-700">Failed to load menu items: ' + err.message + '</p>';
+    setButtonsEnabled(false);
   }
 }
 
-function renderMenuTree() {
+function renderTree() {
   const container = document.getElementById('treeContainer');
-  if (currentFlatItems.length === 0) {
+  setButtonsEnabled(true);
+
+  if (currentTree.length === 0) {
     container.innerHTML = '<p class="text-violet-800">No menu items found for this role.</p>';
     return;
   }
-  const roots = currentFlatItems.filter(item => !item.parent_id);
-  let html = '<div class="space-y-1">';
-  roots.forEach(root => {
-    html += renderMenuItem(root, 0);
+
+  let html = '<div class="space-y-0.5">';
+  currentTree.forEach(node => {
+    html += renderMenuRow(node, 0);
   });
   html += '</div>';
   container.innerHTML = html;
 }
 
-function renderMenuItem(item, depth) {
-  const children = currentFlatItems.filter(i => parseInt(i.parent_id) === parseInt(item.id));
-  const hasChildren = children.length > 0;
+function renderMenuRow(node, depth) {
+  const hasChildren = node.children && node.children.length > 0;
   const indent = depth * 20;
-  let html = '<div class="flex items-center gap-2 py-1.5 px-2 hover:bg-violet-100 rounded">';
-  html += '<div style="margin-left: ' + indent + 'px" class="flex-1 flex items-center gap-2">';
+
+  let html = '<div class="flex items-center justify-between gap-2 py-1.5 px-2 hover:bg-violet-100 rounded">';
+  html += '<div style="margin-left: ' + indent + 'px" class="flex items-center gap-2 min-w-0">';
   if (hasChildren) {
-    html += '<svg class="w-3 h-3 text-violet-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
+    html += '<svg class="w-3 h-3 text-violet-800 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
   } else {
-    html += '<span class="w-3"></span>';
+    html += '<span class="w-3 flex-shrink-0"></span>';
   }
-  html += '<span class="text-xs font-medium">' + item.label + '</span>';
-  html += '<span class="text-[10px] text-violet-700">(' + item.menu_id + ')</span>';
+  html += '<span class="text-xs font-medium truncate">' + escapeHtml(node.label) + '</span>';
+  html += '<span class="text-[10px] text-violet-700 flex-shrink-0">(' + escapeHtml(node.menu_key) + ')</span>';
   html += '</div>';
-  html += '<div class="flex gap-1">';
-  html += '<button class="text-[10px] text-violet-700 hover:text-violet-900" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-  html += '<button class="text-[10px] text-rose-700 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
-  html += '</div></div>';
-  
+
+  // The one action this page supports: show/hide this item for the role.
+  html += '<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">';
+  html += '<input type="checkbox" class="sr-only peer" ' + (node.is_visible ? 'checked' : '') + ' onchange="toggleVisibility(' + node.id + ', this.checked)" />';
+  html += '<div class="w-9 h-5 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-400 rounded-full peer peer-checked:after:translate-x-full after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>';
+  html += '</label>';
+  html += '</div>';
+
   if (hasChildren) {
-    children.forEach(child => {
-      html += renderMenuItem(child, depth + 1);
+    node.children.forEach(child => {
+      html += renderMenuRow(child, depth + 1);
     });
   }
   return html;
 }
 
-function showAddForm() {
-  showToast('To add new menu items, use the database seeder. This page manages visibility and ordering.');
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function editMenuItem(menuId) {
-  const item = currentFlatItems.find(i => i.menu_id === menuId);
-  if (!item) return;
-  document.getElementById('modalTitle').textContent = 'Edit Menu Item Visibility';
-  document.getElementById('modalEditId').value = item.id;
-  document.getElementById('modalMenuId').value = item.menu_id;
-  document.getElementById('modalLabel').value = item.label;
-  document.getElementById('modalIcon').value = item.icon || '';
-  document.getElementById('modalHref').value = item.href || '';
-  document.getElementById('modalDisplayOrder').value = item.display_order || 0;
-  document.getElementById('modalIsActive').checked = item.is_active !== 0;
-  document.getElementById('modalOverlay').classList.remove('hidden');
+function toggleVisibility(id, isVisible) {
+  const node = nodeById[id]; // O(1) — no scanning a flat array for every click
+  if (!node) return;
+  node.is_visible = isVisible;
+  setDirty(true);
 }
 
-function deleteMenuItem(menuId) {
-  const item = currentFlatItems.find(i => i.menu_id === menuId);
-  if (item) deleteMenuItemById(item.id);
+function setDirty(dirty) {
+  isDirty = dirty;
+  document.getElementById('dirtyIndicator').classList.toggle('hidden', !dirty);
 }
 
-async function deleteMenuItemById(id) {
-  if (!confirm('Hide this menu item?')) return;
-  try {
-    const permissions = currentFlatItems.map(item => ({
-      menu_item_id: item.id,
-      is_visible: item.id === id ? false : item.is_active !== 0,
-      sort_order: item.display_order || 0
-    }));
-
-    const resp = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role_id: parseInt(currentRoleId), permissions })
-    });
-
-    if (!resp.ok) throw new Error('Update failed');
-    showToast('Menu item hidden');
-    loadMenuItems();
-  } catch (err) {
-    showToast('Error: ' + err.message);
-  }
+function setButtonsEnabled(enabled) {
+  document.getElementById('saveBtn').disabled = !enabled;
+  document.getElementById('resetBtn').disabled = !enabled;
 }
 
-async function reseedMenu() {
-  if (!currentRoleId) { showToast('Select a role first.'); return; }
-  if (!confirm('This will reset all menu permissions for this role to defaults. Continue?')) return;
-  
-  try {
-    const resp = await fetch('/api/super_admin/sidebar-menu-management/reseed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role_id: parseInt(currentRoleId) })
-    });
-    
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error || 'Reseed failed');
-    }
-    
-    showToast('Menu reset to defaults!');
-    loadMenuItems();
-  } catch (err) {
-    showToast('Error: ' + err.message);
-  }
-}
+async function saveChanges() {
+  if (!currentRoleId) return;
 
-function renderFlatTable() {
-  const container = document.getElementById('flatTableContainer');
-  if (currentFlatItems.length === 0) {
-    container.innerHTML = '<p class="text-violet-800 text-xs">No menu items found for this role.</p>';
-    return;
-  }
-  
-  let html = '<div class="overflow-x-auto"><table class="min-w-full text-xs">';
-  html += '<thead class="bg-violet-200"><tr>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Menu ID</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Label</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Parent</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Icon</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Order</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Status</th>';
-  html += '<th class="px-3 py-2 text-left font-bold text-violet-950 uppercase">Actions</th>';
-  html += '</tr></thead><tbody class="divide-y divide-violet-300">';
-  
-  currentFlatItems.forEach(item => {
-    const parent = currentFlatItems.find(i => parseInt(i.id) === parseInt(item.parent_id));
-    const parentLabel = parent ? parent.label : 'None';
-    const status = item.is_active !== 0 ? '<span class="text-emerald-700">Active</span>' : '<span class="text-rose-700">Inactive</span>';
-    
-    html += '<tr class="hover:bg-violet-100 transition-colors">';
-    html += '<td class="px-3 py-2 text-violet-900">' + item.menu_id + '</td>';
-    html += '<td class="px-3 py-2 text-violet-950">' + item.label + '</td>';
-    html += '<td class="px-3 py-2 text-violet-800">' + parentLabel + '</td>';
-    html += '<td class="px-3 py-2 text-violet-800">' + (item.icon || '-') + '</td>';
-    html += '<td class="px-3 py-2 text-violet-800">' + (item.display_order || 0) + '</td>';
-    html += '<td class="px-3 py-2">' + status + '</td>';
-    html += '<td class="px-3 py-2">';
-    html += '<button class="text-violet-700 hover:text-violet-900 mr-2" onclick="editMenuItem(\'' + item.menu_id + '\')">Edit</button>';
-    html += '<button class="text-rose-700 hover:text-red-600" onclick="deleteMenuItem(\'' + item.menu_id + '\')">Hide</button>';
-    html += '</td></tr>';
-  });
-  
-  html += '</tbody></table></div>';
-  container.innerHTML = html;
-}
+  const permissions = flattenTree(currentTree, null, []);
 
-function closeModal() {
-  document.getElementById('modalOverlay').classList.add('hidden');
-}
-
-function saveModalForm() {
-  const editId = document.getElementById('modalEditId').value;
-  const displayOrder = parseInt(document.getElementById('modalDisplayOrder').value) || 0;
-  const isActive = document.getElementById('modalIsActive').checked;
-
-  const permissions = currentFlatItems.map(item => ({
-    menu_item_id: item.id,
-    is_visible: item.id === parseInt(editId) ? isActive : item.is_active !== 0,
-    sort_order: item.id === parseInt(editId) ? displayOrder : (item.display_order || 0)
-  }));
-
-  savePermissions(permissions);
-}
-
-async function savePermissions(permissions) {
   try {
     const resp = await fetch('/api/super_admin/sidebar-menu-management/permissions', {
       method: 'PUT',
@@ -255,8 +193,30 @@ async function savePermissions(permissions) {
       throw new Error(err.error || 'Save failed');
     }
 
+    setDirty(false);
     showToast('Menu permissions saved!');
-    closeModal();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
+async function resetToDefaults() {
+  if (!currentRoleId) { showToast('Select a role first.'); return; }
+  if (!confirm('This will reset all menu visibility for this role to defaults. Continue?')) return;
+
+  try {
+    const resp = await fetch('/api/super_admin/sidebar-menu-management/reseed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_id: parseInt(currentRoleId) })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Reset failed');
+    }
+
+    showToast('Menu reset to defaults!');
     loadMenuItems();
   } catch (err) {
     showToast('Error: ' + err.message);
@@ -270,19 +230,30 @@ function init() {
 
 function attachEventListeners() {
   document.getElementById('roleSelector').addEventListener('change', async (e) => {
+    if (isDirty && !confirm('You have unsaved changes. Switch role anyway and discard them?')) {
+      e.target.value = currentRoleId || '';
+      return;
+    }
     currentRoleId = e.target.value || null;
     if (currentRoleId) {
       await loadMenuItems();
     } else {
-      currentFlatItems = [];
-      renderMenuTree();
-      renderFlatTable();
+      currentTree = [];
+      nodeById = {};
+      setDirty(false);
+      document.getElementById('treeContainer').innerHTML = '<p class="text-violet-800">Select a role to view its menu items.</p>';
+      setButtonsEnabled(false);
     }
   });
 
-  document.getElementById('modalForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    saveModalForm();
+  document.getElementById('saveBtn').addEventListener('click', saveChanges);
+  document.getElementById('resetBtn').addEventListener('click', resetToDefaults);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   });
 }
 

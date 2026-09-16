@@ -4,6 +4,78 @@
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 
+// ─── DB-backed override cache for the `bot` timing block below ────────────
+// Super Admin > Settings > Bot Configuration writes bot.host_wait_timeout_ms
+// / bot.human_join_timeout_ms / bot.launch_lead_minutes /
+// bot.queued_expire_minutes into the system_settings table. This cache lets
+// the getters in the `bot` block below use those DB values transparently,
+// with ZERO changes needed in the many files that read
+// settings.bot.hostWaitTimeoutMs etc. as a plain property
+// (zoomJoiner.js, teamsJoiner.js, meetingNavigation.js, socraticbot.js,
+// BotPollingController.js).
+//
+// Deliberately conservative, same design as services/engine/ai_client.py's
+// ai_providers lookup: a cache entry only overrides its .env-derived default
+// when the DB actually has a parseable value for that exact key. Missing
+// row, unparseable value, or any DB/connectivity error all leave that entry
+// `null`, which the getters treat as "use the existing .env/hardcoded
+// default" - so a DB hiccup can never break an already-working install, and
+// nothing here executes synchronously at require-time (the very first
+// requests after a process start simply see .env values until the first
+// refresh completes).
+const _botDbCache = {
+  host_wait_timeout_ms: null,
+  human_join_timeout_ms: null,
+  launch_lead_minutes: null,
+  queued_expire_minutes: null,
+};
+
+async function _refreshBotDbCache() {
+  let SystemSettingsModel;
+  try {
+    // Lazy require: avoids loading the DB pool at module-parse time for
+    // any script that only needs the non-DB parts of this config file.
+    SystemSettingsModel = require('../models/settings/SystemSettingsModel');
+  } catch (e) {
+    return; // model not resolvable (e.g. run outside the app) - keep env defaults
+  }
+
+  const keys = {
+    host_wait_timeout_ms: 'bot.host_wait_timeout_ms',
+    human_join_timeout_ms: 'bot.human_join_timeout_ms',
+    launch_lead_minutes: 'bot.launch_lead_minutes',
+    queued_expire_minutes: 'bot.queued_expire_minutes',
+  };
+
+  await Promise.all(
+    Object.entries(keys).map(async ([cacheField, settingKey]) => {
+      try {
+        const row = await SystemSettingsModel.getSettingByKey(settingKey);
+        if (!row || row.setting_value === null || row.setting_value === undefined || row.setting_value === '') {
+          return; // no row saved yet - leave as null (use .env default)
+        }
+        const parsed = parseInt(row.setting_value, 10);
+        if (Number.isFinite(parsed)) {
+          _botDbCache[cacheField] = parsed;
+        }
+      } catch (e) {
+        // DB unreachable/table missing/etc - leave this field as-is (null on
+        // first failure, or the last good value on a later transient one)
+        // and never throw; this cache is an enhancement, never load-bearing.
+      }
+    })
+  );
+}
+
+// Kick off an initial refresh and keep it current every 60s. .unref() so a
+// short-lived script (a seeder, a one-off, a test) that merely requires
+// this file doesn't get held open by this timer.
+_refreshBotDbCache().catch(() => {});
+if (typeof setInterval === 'function') {
+  const _botDbCacheTimer = setInterval(() => { _refreshBotDbCache().catch(() => {}); }, 60000);
+  if (typeof _botDbCacheTimer.unref === 'function') _botDbCacheTimer.unref();
+}
+
 function getActivePlatform() {
   const envPlatform =
     process.env.PLATFORM ||
@@ -188,6 +260,18 @@ module.exports = {
     CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET
   },
 
+  // Microsoft (Azure AD / Microsoft Graph) OAuth app — same "everything from
+  // .env, nothing in the database" security model as google above. Used by
+  // models/calendar/MicrosoftOAuthCredentialsModel.js.
+  microsoft: {
+    CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+    CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+    // Azure AD tenant to authenticate against: 'common' (default) allows
+    // both personal Microsoft accounts and any work/school account;
+    // set to a specific tenant ID/domain to restrict to one organization.
+    TENANT_ID: process.env.MICROSOFT_TENANT_ID || 'common'
+  },
+
   webhookUrl: process.env.WEBHOOK_URL,
 
   HF_TOKEN: process.env.HF_TOKEN,
@@ -236,29 +320,49 @@ module.exports = {
   // real participants to actually join after the bot did, causing bots to
   // give up and close even though people did show up a bit later.
   bot: {
-    humanJoinTimeoutMs: parseInt(
-      process.env.HUMAN_JOIN_TIMEOUT_MS || process.env.BOT_HOST_WAIT_TIMEOUT_MS || '60000',
-      10
-    ),
+    // Each getter below prefers the live value from Super Admin > Settings
+    // > Bot Configuration (via _botDbCache, refreshed every 60s - see
+    // above) and falls back to the original .env/hardcoded chain whenever
+    // the DB hasn't got a value yet. This keeps every existing consumer
+    // (settings.bot.hostWaitTimeoutMs etc., read as a plain property in
+    // zoomJoiner.js / teamsJoiner.js / meetingNavigation.js /
+    // socraticbot.js / BotPollingController.js) working completely
+    // unchanged.
+    get humanJoinTimeoutMs() {
+      if (_botDbCache.human_join_timeout_ms !== null) return _botDbCache.human_join_timeout_ms;
+      return parseInt(
+        process.env.HUMAN_JOIN_TIMEOUT_MS || process.env.BOT_HOST_WAIT_TIMEOUT_MS || '60000',
+        10
+      );
+    },
 
     // How long the bot waits for the host to allow/admit it into the meeting
     // (lobby / waiting room) before giving up. This is the single knob that
     // drives ALL platform joiners (zoom / google-meet / teams) — see
     // BOT_HOST_WAIT_TIMEOUT_MS in .env / .env.example.
     // Default 900000 ms = 15 minutes.
-    hostWaitTimeoutMs: parseInt(process.env.BOT_HOST_WAIT_TIMEOUT_MS || '900000', 10),
+    get hostWaitTimeoutMs() {
+      if (_botDbCache.host_wait_timeout_ms !== null) return _botDbCache.host_wait_timeout_ms;
+      return parseInt(process.env.BOT_HOST_WAIT_TIMEOUT_MS || '900000', 10);
+    },
 
     // How many minutes BEFORE the meeting start time the bot auto-launches /
     // auto-joins. Single knob for the queued-meeting launch window and the
     // "Bot will join meeting within MM:SS" countdown on Admin > Meetings >
     // Live. See BOT_LAUNCH_LEAD_MINUTES in .env / .env.example.
     // Default 3 minutes (launch window = 1-3 minutes before start).
-    autoJoinLeadMinutes: Math.max(1, parseInt(process.env.BOT_LAUNCH_LEAD_MINUTES || '3', 10)),
+    get autoJoinLeadMinutes() {
+      if (_botDbCache.launch_lead_minutes !== null) return Math.max(1, _botDbCache.launch_lead_minutes);
+      return Math.max(1, parseInt(process.env.BOT_LAUNCH_LEAD_MINUTES || '3', 10));
+    },
 
     // How long (minutes) past a QUEUED meeting's scheduled_start_time
     // BotPollingController.pollQueuedMeetings() will keep retrying before
     // giving up and marking it 'expired' instead of launching a bot. See
     // BOT_QUEUED_EXPIRE_MINUTES in .env / .env.example. Default 5.
-    queuedExpireMinutes: parseInt(process.env.BOT_QUEUED_EXPIRE_MINUTES || '5', 10)
+    get queuedExpireMinutes() {
+      if (_botDbCache.queued_expire_minutes !== null) return _botDbCache.queued_expire_minutes;
+      return parseInt(process.env.BOT_QUEUED_EXPIRE_MINUTES || '5', 10);
+    }
   }
 };

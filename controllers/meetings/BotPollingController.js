@@ -7,6 +7,7 @@ const MeetingModel = require('../../models/meetings/MeetingModel');
 const botManager = require('../../services/shared/botManager');
 const { logger } = require('../../utils/logger');
 const settings = require('../../config/settings');
+const PlatformsModel = require('../../models/super_admin/settings/platforms/PlatformsModel');
 
 class BotPollingController {
   /**
@@ -19,6 +20,11 @@ class BotPollingController {
       if (queued.length > 0) {
         logger.info(`Polling found ${queued.length} queued meetings`);
       }
+
+      // One lookup per poll cycle (not per meeting) of which platforms are
+      // enabled/disabled via Super Admin > Settings > Platform Integrations.
+      // A platform with no explicit setting row defaults to enabled.
+      const enabledPlatforms = queued.length ? await PlatformsModel.getEnabledPlatformsMap() : {};
 
       for (const meeting of queued) {
         
@@ -52,6 +58,17 @@ class BotPollingController {
         // Validate ID
         if (!meeting.external_meeting_id || meeting.external_meeting_id === 'null') {
           logger.warn('Skipping: no valid external_meeting_id');
+          continue;
+        }
+
+        // Platform Integrations toggle (Super Admin > Settings). Leave the
+        // meeting 'queued' (no status write) so it launches automatically the
+        // moment the platform is re-enabled, rather than failing/expiring it
+        // outright — it will still age into 'expired' via the timeout check
+        // above if it's never re-enabled.
+        const platformKey = String(meeting.platform || '').toLowerCase();
+        if (enabledPlatforms[platformKey] === false) {
+          logger.warn(`Skipping ${meeting.external_meeting_id}: platform '${platformKey}' is disabled in Platform Integrations settings`);
           continue;
         }
 
