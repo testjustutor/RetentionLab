@@ -1,3 +1,15 @@
+## Add step-by-step flow logging for GET /api/super_admin/sidebar-menu-management/permissions?role_id= (2026-09-17)
+
+**Request:** log the entire request flow of side-menu perms GET ... -- every function call, inside functions, and DB query start/stop -- using existing utils/logger.js (writes to logs/info-*.log).
+
+- [x] TODO entry created
+- [x] Query layer: logs in database/seedHelpers.js (allAsync/getAsync/runAsync start+stop+duration+rows)
+- [x] Route layer: API-hit + finish log on sidebar-menu-management mount in routes/super_admin/index.js
+- [x] Route layer: dispatch log for GET /permissions in routes/super_admin/sidebar-menu-management.js (+ fixed the pre-existing missing `handle()` wiring that left this endpoint hanging without a response — confirmed via live test; previously computed results were never sent)
+- [x] Controller layer: getMenuPermissions() entry/branches/model-call/result logs
+- [x] Model layer: getRoleMenuTree(), getMenuItemsWithPermissions(), _nestByParentId() logs
+- [x] node --check on all edited files
+- [x] Live API hit verification (200 OK + full flow trail in logs/info-2026-09-17.log starting `[Route:SuperAdmin] API hit` and ending `[Route:SuperAdmin] API finished ... -> status 200`)
 # TODO
 
 ## Fix AI-audit final score weighting (2026-09-16)

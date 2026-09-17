@@ -4,6 +4,9 @@
  */
 
 const MenuModel = require('../../../models/super_admin/menu/MenuModel');
+const UsersModel = require('../../../models/users/UsersModel');
+const RolesModel = require('../../../models/roles/RolesModel');
+const { logger } = require('../../../utils/logger');
 
 function ok(data, message) {
   return { success: true, message: message || null, ...(data || {}) };
@@ -40,8 +43,7 @@ const menuController = {
       const { user_id } = req.body;
       if (!user_id) return err('user_id is required', 400);
 
-      const { getAsync } = require('../../../database/seedHelpers');
-      const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
+      const user = await UsersModel.getRoleIdById(user_id);
       if (!user) return err('User not found', 404);
 
       const [menuItems, rolePermissions] = await Promise.all([
@@ -95,25 +97,36 @@ const menuController = {
    * every item, not just the currently-visible ones.
    */
   async getMenuPermissions(req, res) {
+    logger.info('[Controller:Menu] getMenuPermissions() invoked — request reached the controller layer');
+    const controllerStart = Date.now();
     try {
       const role_id = req.query.role_id ? Number(req.query.role_id) : null;
       const user_id = req.query.user_id ? Number(req.query.user_id) : null;
+      logger.info(`[Controller:Menu] getMenuPermissions() parsed query args — role_id=${role_id} user_id=${user_id}`);
 
       if (user_id) {
-        const { getAsync } = require('../../../database/seedHelpers');
-        const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
-        if (!user) return err('User not found', 404);
-
+        logger.info(`[Controller:Menu] getMenuPermissions() branch: user_id=${user_id} present — resolving that user's role_id from DB first`);
+        const user = await UsersModel.getRoleIdById(user_id);
+        if (!user) {
+          logger.info(`[Controller:Menu] getMenuPermissions() — user_id=${user_id} NOT found in DB, returning 404`);
+          return err('User not found', 404);
+        }
+        logger.info(`[Controller:Menu] getMenuPermissions() — user found (role_id=${user.role_id}); calling MenuModel.getRoleMenuTree`);
         const tree = await MenuModel.getRoleMenuTree(user.role_id);
+        logger.info(`[Controller:Menu] getMenuPermissions() — tree ready (${Array.isArray(tree) ? tree.length : '?'} top-level nodes), sending ok() response (${Date.now() - controllerStart}ms)`);
         return ok({ data: tree });
       } else if (role_id) {
         // This is the path the Sidebar Menu Management page actually calls.
+        logger.info(`[Controller:Menu] getMenuPermissions() branch: role_id=${role_id} — calling MenuModel.getRoleMenuTree(role_id)`);
         const tree = await MenuModel.getRoleMenuTree(role_id);
+        logger.info(`[Controller:Menu] getMenuPermissions() — role_id=${role_id} tree ready (${Array.isArray(tree) ? tree.length : '?'} top-level nodes), sending ok() response (${Date.now() - controllerStart}ms)`);
         return ok({ data: tree });
       } else {
+        logger.info(`[Controller:Menu] getMenuPermissions() — neither role_id nor user_id supplied, returning 400 error`);
         return err('Either role_id or user_id is required', 400);
       }
     } catch (e) {
+      logger.error(`[Controller:Menu] getMenuPermissions() FAILED after ${Date.now() - controllerStart}ms — ${e.message}`, e);
       return err(e.message);
     }
   },
@@ -152,8 +165,7 @@ const menuController = {
       if (!role_id) return err('role_id is required', 400);
 
       // Get role name
-      const { getAsync } = require('../../../database/seedHelpers');
-      const role = await getAsync('SELECT role_name FROM roles WHERE id = ?', [role_id]);
+      const role = await RolesModel.getRoleById(role_id);
 
       if (!role) {
         return err('Role not found', 404);

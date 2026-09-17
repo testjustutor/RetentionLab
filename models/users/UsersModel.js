@@ -161,6 +161,20 @@ class UsersModel {
     });
   }
 
+  /**
+   * Lightweight lookup used by internal flows (e.g. menu resolution) that
+   * only need a user's role_id and don't carry an acting-user context to
+   * authorize against. No permission checks — callers must be trusted
+   * internal code, not request handlers exposing this directly.
+   * @param {number} id
+   * @returns {Promise<{role_id: number}|null>}
+   */
+  static getRoleIdById(id) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT role_id FROM users WHERE id = ?', [id], (err, row) => err ? reject(err) : resolve(row || null));
+    });
+  }
+
   static async getUserByUuid(userUuid) {
     return new Promise((resolve, reject) => {
       db.get(

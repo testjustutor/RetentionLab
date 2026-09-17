@@ -4,6 +4,91 @@
 const { db } = require('../../database/db');
 
 class SystemSettingsModel {
+  /**
+   * List system settings, optionally filtered by category (setting_key
+   * prefix) and/or a search term matched against key or value.
+   * @param {{category?: string, search?: string}} [filters]
+   * @returns {Promise<Array>}
+   */
+  static listSettings({ category, search } = {}) {
+    return new Promise((resolve, reject) => {
+      let sql = 'SELECT *, (is_static = 1) as is_editable FROM system_settings WHERE 1=1';
+      const params = [];
+
+      if (category) {
+        sql += ' AND setting_key LIKE ?';
+        params.push(`${category}%`);
+      }
+
+      if (search) {
+        sql += ' AND (setting_key LIKE ? OR setting_value LIKE ?)';
+        params.push(`%${search}%`, `%${search}%`);
+      }
+
+      sql += ' ORDER BY setting_key ASC';
+
+      db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+  }
+
+  /**
+   * All system settings, unfiltered (used for export/backup).
+   * @returns {Promise<Array>}
+   */
+  static getAllSettings() {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM system_settings', [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+  }
+
+  /**
+   * Distinct setting categories (the first `.`-segment of setting_key) with counts.
+   * @returns {Promise<Array<{category: string, count: number}>>}
+   */
+  static getCategories() {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT DISTINCT
+          SUBSTRING_INDEX(setting_key, '.', 1) as category,
+          COUNT(*) as count
+        FROM system_settings
+        GROUP BY category
+        ORDER BY category ASC
+      `;
+      db.all(sql, [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+  }
+
+  /**
+   * Delete a system setting by company_id + key.
+   * @param {number|null} companyId
+   * @param {string} key
+   * @returns {Promise<{deleted: boolean}>}
+   */
+  static deleteSetting(companyId, key) {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM system_settings WHERE company_id = ? AND setting_key = ?', [companyId, key], function (err) {
+        if (err) return reject(err);
+        resolve({ deleted: this.changes > 0 });
+      });
+    });
+  }
+
+  /**
+   * Setting rows whose key starts with `prefix` (e.g. the `table_controls.` namespace).
+   * @param {string} prefix
+   * @returns {Promise<Array<{setting_key: string, setting_value: string}>>}
+   */
+  static getByKeyPrefix(prefix) {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE ?',
+        [`${prefix}%`],
+        (err, rows) => err ? reject(err) : resolve(rows || [])
+      );
+    });
+  }
+
   static getSetting(companyId, key) {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM system_settings WHERE company_id = ? AND setting_key = ? LIMIT 1', [companyId, key], (err, row) => err ? reject(err) : resolve(row || null));

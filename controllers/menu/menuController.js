@@ -4,6 +4,8 @@
  */
 
 const MenuModel = require('../../models/menu/MenuModel');
+const UsersModel = require('../../models/users/UsersModel');
+const RolesModel = require('../../models/roles/RolesModel');
 
 function ok(data, message) {
   return { success: true, message: message || null, ...(data || {}) };
@@ -40,8 +42,7 @@ const menuController = {
       const { user_id } = req.body;
       if (!user_id) return err('user_id is required', 400);
 
-      const { getAsync } = require('../../database/seedHelpers');
-      const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
+      const user = await UsersModel.getRoleIdById(user_id);
       if (!user) return err('User not found', 404);
 
       const [menuItems, rolePermissions] = await Promise.all([
@@ -89,8 +90,7 @@ const menuController = {
       
       if (user_id) {
         // Get role defaults for the user's role
-        const { getAsync } = require('../../database/seedHelpers');
-        const user = await getAsync('SELECT role_id FROM users WHERE id = ?', [user_id]);
+        const user = await UsersModel.getRoleIdById(user_id);
         if (!user) return err('User not found', 404);
 
         const menuItems = await MenuModel.getAllMenuItems(user.role_id);
@@ -200,9 +200,8 @@ const menuController = {
       if (!role_id) return err('role_id is required', 400);
       
       // Get role name
-      const { getAsync } = require('../../database/seedHelpers');
-      const role = await getAsync('SELECT role_name FROM roles WHERE id = ?', [role_id]);
-      
+      const role = await RolesModel.getRoleById(role_id);
+
       if (!role) {
         return err('Role not found', 404);
       }

@@ -15,21 +15,6 @@ const controller = {
     try {
       const reviewerId = req.user.id;
 
-      // Only return instructors that have meetings assigned to this reviewer
-      // Meetings are linked to instructors via calendar_account (email)
-      let sql = `
-        SELECT DISTINCT u.id, u.first_name, u.last_name, u.email,
-               r.role_name
-        FROM users u
-        LEFT JOIN roles r ON r.id = u.role_id
-        INNER JOIN meetings m ON LOWER(m.calendar_account) = LOWER(u.email)
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
-        WHERE u.deleted_at IS NULL
-        AND u.is_active = 1
-        AND r.role_name IN ('solo_instructor', 'instructor')
-        ORDER BY u.first_name, u.last_name`;
-      const params = [reviewerId];
-
       const rows = await ReviewerReviewsModel.getInstructorsForReviewer(reviewerId);
 
       return ok({ instructors: rows });
@@ -45,56 +30,6 @@ const controller = {
       const search = req.query.search || '';
 
       if (!instructorId) return err('instructor_id is required', 400);
-
-      let sql = `
-        SELECT m.external_meeting_id,
-               m.title as meeting_title,
-               m.scheduled_start_time,
-               m.scheduled_end_time,
-               m.platform,
-               m.meeting_link,
-               m.status as meeting_status,
-               m.calendar_account,
-               ma.audio_path,
-               ma.transcript_path,
-               ma.summary_path,
-               ma.oqi_score,
-               ma.review_status as asset_review_status,
-               (SELECT COUNT(*) FROM meeting_session_scores ms WHERE ms.meeting_id = m.id) as score_count,
-               (SELECT AVG(ms.score) FROM meeting_session_scores ms WHERE ms.meeting_id = m.id) as avg_score,
-               mr.id as review_id,
-               mr.review_status,
-               mr.assigned_at,
-               mr.reviewed_at,
-               mr.comments,
-               CONCAT(u.first_name, ' ', u.last_name) as assigned_by_name
-        FROM meetings m
-        INNER JOIN meeting_reviewers mr ON mr.meeting_id = m.external_meeting_id AND mr.reviewer_id = ?
-        LEFT JOIN meeting_assets ma ON ma.meeting_id = m.external_meeting_id
-        LEFT JOIN users u ON u.id = mr.assigned_by
-        WHERE LOWER(m.calendar_account) = (SELECT LOWER(email) FROM users WHERE id = ?)`;
-      const params = [reviewerId, instructorId];
-
-      if (status) {
-        if (status === 'all') {
-          // no filter
-        } else if (status === 'pending') {
-          sql += ` AND (mr.review_status = 'pending' OR mr.review_status IS NULL)`;
-        } else if (status === 'in_progress') {
-          sql += ` AND mr.review_status IN ('in_progress', 'in-progress')`;
-        } else if (status === 'completed') {
-          sql += ` AND mr.review_status = 'completed'`;
-        } else if (status === 'unassigned') {
-          sql += ` AND mr.review_status IS NULL`;
-        }
-      }
-
-      if (search) {
-        sql += ` AND (m.title LIKE ? OR m.platform LIKE ? OR m.calendar_account LIKE ?)`;
-        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-      }
-
-      sql += ` ORDER BY m.scheduled_start_time DESC LIMIT 100`;
 
       const rows = await ReviewerReviewsModel.getInstructorSessions(reviewerId, instructorId, status, search);
 

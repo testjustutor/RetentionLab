@@ -105,32 +105,12 @@ const settingsController = {
   async getSystemSettings(req) {
     try {
       const { category, search } = req.query;
-      
-      let sql = 'SELECT *, (is_static = 1) as is_editable FROM system_settings WHERE 1=1';
-      const params = [];
-      
-      if (category) {
-        sql += ' AND setting_key LIKE ?';
-        params.push(`${category}%`);
-      }
-      
-      if (search) {
-        sql += ' AND (setting_key LIKE ? OR setting_value LIKE ?)';
-        params.push(`%${search}%`, `%${search}%`);
-      }
-      
-      sql += ' ORDER BY setting_key ASC';
-      
-      const settings = await new Promise((resolve, reject) => {
-        req.app.locals.db.all(sql, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        });
-      });
-      
+
+      const settings = await SystemSettingsModel.listSettings({ category, search });
+
       // Remove all sensitive values - secrets must only come from .env file
       const sanitizedSettings = settings.map(sanitizeSettingValue);
-      
+
       return ok({ data: sanitizedSettings });
     } catch (e) {
       return err(e.message);
@@ -201,16 +181,9 @@ const settingsController = {
     try {
       const { key } = req.params;
       const companyId = req.user?.company_id || null;
-      
-      const sql = 'DELETE FROM system_settings WHERE company_id = ? AND setting_key = ?';
-      
-      const result = await new Promise((resolve, reject) => {
-        req.app.locals.db.run(sql, [companyId, key], function(err) {
-          if (err) return reject(err);
-          resolve({ deleted: this.changes > 0 });
-        });
-      });
-      
+
+      const result = await SystemSettingsModel.deleteSetting(companyId, key);
+
       if (!result.deleted) return err('Setting not found', 404);
       return ok({ data: result }, 'Setting deleted successfully');
     } catch (e) {
@@ -226,32 +199,12 @@ const settingsController = {
   async getSystemSettingsByFilter(req) {
     try {
       const { category, search } = req.body;
-      
-      let sql = 'SELECT *, (is_static = 1) as is_editable FROM system_settings WHERE 1=1';
-      const params = [];
-      
-      if (category) {
-        sql += ' AND setting_key LIKE ?';
-        params.push(`${category}%`);
-      }
-      
-      if (search) {
-        sql += ' AND (setting_key LIKE ? OR setting_value LIKE ?)';
-        params.push(`%${search}%`, `%${search}%`);
-      }
-      
-      sql += ' ORDER BY setting_key ASC';
-      
-      const settings = await new Promise((resolve, reject) => {
-        req.app.locals.db.all(sql, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        });
-      });
-      
+
+      const settings = await SystemSettingsModel.listSettings({ category, search });
+
       // Remove all sensitive values - secrets must only come from .env file
       const sanitizedSettings = settings.map(sanitizeSettingValue);
-      
+
       return ok({ data: sanitizedSettings });
     } catch (e) {
       return err(e.message);
@@ -264,22 +217,8 @@ const settingsController = {
    */
   async getCategories(req) {
     try {
-      const sql = `
-        SELECT DISTINCT 
-          SUBSTRING_INDEX(setting_key, '.', 1) as category,
-          COUNT(*) as count
-        FROM system_settings
-        GROUP BY category
-        ORDER BY category ASC
-      `;
-      
-      const categories = await new Promise((resolve, reject) => {
-        req.app.locals.db.all(sql, [], (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        });
-      });
-      
+      const categories = await SystemSettingsModel.getCategories();
+
       return ok({ data: categories });
     } catch (e) {
       return err(e.message);
@@ -348,24 +287,9 @@ const settingsController = {
       
       const userId = requestedUserId || req.user.id;
       const { category } = req.query;
-      
-      let sql = 'SELECT * FROM user_settings WHERE user_id = ?';
-      const params = [userId];
-      
-      if (category) {
-        sql += ' AND setting_key LIKE ?';
-        params.push(`${category}%`);
-      }
-      
-      sql += ' ORDER BY setting_key ASC';
-      
-      const settings = await new Promise((resolve, reject) => {
-        req.app.locals.db.all(sql, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        });
-      });
-      
+
+      const settings = await UserSettingsModel.listSettings(userId, category);
+
       return ok({ data: settings });
     } catch (e) {
       return err(e.message);
@@ -446,13 +370,8 @@ const settingsController = {
    */
   async exportSettings(req) {
     try {
-      const systemSettings = await new Promise((resolve, reject) => {
-        req.app.locals.db.all('SELECT * FROM system_settings', [], (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        });
-      });
-      
+      const systemSettings = await SystemSettingsModel.getAllSettings();
+
       // Remove all sensitive values in exported data
       const sanitizedSettings = systemSettings.map(sanitizeSettingValue);
       

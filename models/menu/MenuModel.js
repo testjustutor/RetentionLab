@@ -5,6 +5,8 @@
  * No direct user-menu assignment exists
  */
 
+const { logger } = require('../../utils/logger');
+
 class MenuModel {
   /**
    * Use seedHelpers which wraps db with proper promise-based async/await helpers
@@ -98,6 +100,9 @@ class MenuModel {
    */
   static async getMenuItemsWithPermissions(roleId) {
     const { allAsync } = this.getHelpers();
+    const methodStart = Date.now();
+    logger.info(`[Model:MenuModel] getMenuItemsWithPermissions(roleId=${roleId}) — entered; building the single joined DB query`);
+
     const rows = await allAsync(
       `SELECT
          mi.id AS menu_item_id, mi.menu_key, mi.label, mi.icon, mi.route_path,
@@ -114,14 +119,19 @@ class MenuModel {
       [roleId, roleId]
     );
 
+    logger.info(`[Model:MenuModel] getMenuItemsWithPermissions — query returned ${rows.length} raw joined row(s) for role_id=${roleId} (${Date.now() - methodStart}ms)`);
+
     const permissionRowIdToMenuItemId = {};
+    let permissionRowsSeen = 0;
     for (const row of rows) {
       if (row.permission_id != null) {
+        permissionRowsSeen++;
         permissionRowIdToMenuItemId[row.permission_id] = row.menu_item_id;
       }
     }
+    logger.debug(`[Model:MenuModel] getMenuItemsWithPermissions — built permissionRowIdToMenuItemId lookup from ${permissionRowsSeen} permission row(s)`);
 
-    return rows.map(row => {
+    const result = rows.map(row => {
       const hasPermission = row.permission_id != null;
 
       let parentId = hasPermission ? row.permission_parent_id : null;
@@ -131,6 +141,8 @@ class MenuModel {
       if (parentId === null || parentId === undefined) {
         parentId = row.default_parent_id;
       }
+
+      logger.debug(`[Model:MenuModel] getMenuItemsWithPermissions — mapped item id=${row.menu_item_id} (menu_key="${row.menu_key}") has_permission=${hasPermission} parent_id=${parentId}`);
 
       return {
         id: row.menu_item_id,
@@ -144,6 +156,9 @@ class MenuModel {
         has_permission: hasPermission
       };
     });
+
+    logger.info(`[Model:MenuModel] getMenuItemsWithPermissions — returning ${result.length} role menu nodes (${result.filter(r => r.has_permission).length} with a saved permission; total ${Date.now() - methodStart}ms)`);
+    return result;
   }
 
   /**
@@ -198,19 +213,25 @@ class MenuModel {
    * @returns {Array} top-level nodes, each with nested `children`
    */
   static _nestByParentId(nodes) {
+    const methodStart = Date.now();
+    logger.info(`[Model:MenuModel] _nestByParentId() — entered with ${nodes.length} flat node(s) to nest/sort`);
+
     const nodeById = {};
     for (const node of nodes) {
       nodeById[node.id] = node;
     }
 
     const tree = [];
+    let orphanedParents = 0;
     for (const node of nodes) {
       if (node.parent_id && nodeById[node.parent_id]) {
         nodeById[node.parent_id].children.push(node);
       } else {
+        if (node.parent_id) orphanedParents++;
         tree.push(node);
       }
     }
+    logger.debug(`[Model:MenuModel] _nestByParentId — grouped ${nodes.length} node(s): ${tree.length} top-level, ${orphanedParents} with unresolvable parent_id`);
 
     const sortByOrder = (list) => {
       list.sort((a, b) => a.sort_order - b.sort_order);
@@ -218,6 +239,7 @@ class MenuModel {
     };
     sortByOrder(tree);
 
+    logger.info(`[Model:MenuModel] _nestByParentId — tree built: ${tree.length} top-level node(s), children sorted by sort_order (${Date.now() - methodStart}ms)`);
     return tree;
   }
 
@@ -240,7 +262,12 @@ class MenuModel {
    *   { id, menu_key, label, icon, route_path, parent_id, sort_order, is_visible, children }
    */
   static async getRoleMenuTree(roleId) {
+    const methodStart = Date.now();
+    logger.info(`[Model:MenuModel] getRoleMenuTree(roleId=${roleId}) — entered; fetching role menu items via getMenuItemsWithPermissions`);
+
     const items = await this.getMenuItemsWithPermissions(roleId);
+
+    logger.info(`[Model:MenuModel] getRoleMenuTree — received ${items.length} item(s); converting to tree nodes`);
 
     const nodes = items.map(item => ({
       id: item.id,
@@ -254,7 +281,12 @@ class MenuModel {
       children: []
     }));
 
-    return this._nestByParentId(nodes);
+    logger.info(`[Model:MenuModel] getRoleMenuTree — converted ${nodes.length} item(s) to nodes; nesting via _nestByParentId`);
+
+    const tree = this._nestByParentId(nodes);
+
+    logger.info(`[Model:MenuModel] getRoleMenuTree — returning nested tree: ${tree.length} top-level node(s) (total ${Date.now() - methodStart}ms)`);
+    return tree;
   }
 
   /**

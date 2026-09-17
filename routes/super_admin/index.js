@@ -8,6 +8,7 @@
  */
 const express = require('express');
 const router = express.Router();
+const { logger } = require('../../utils/logger');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 const requireSuperAdmin = requireRole('super_admin');
 
@@ -59,6 +60,19 @@ function handle(fn) {
     const status = r.statusCode || (r.success === false ? 400 : 200);
     res.status(status).json(r);
   });
+}
+
+// Request-entry/finish logging for the Sidebar Menu Management API so every
+// hit to .../sidebar-menu-management/permissions?role_id= etc. is traceable
+// from the moment it reaches this router until its response is sent.
+function logSidebarMenuEntry(req, res, next) {
+  const startedAt = Date.now();
+  const who = (req.user && req.user.id) ? `user_id=${req.user.id}` : 'unauthenticated';
+  logger.info(`[Route:SuperAdmin] API hit — ${req.method} ${req.originalUrl} | ${who} | query=${JSON.stringify(req.query)}`);
+  res.on('finish', () => {
+    logger.info(`[Route:SuperAdmin] API finished — ${req.method} ${req.originalUrl} -> status ${res.statusCode} in ${Date.now() - startedAt}ms`);
+  });
+  next();
 }
 
 // ── Scaffold / Super Admin core ─────────────────────────────────────────
@@ -176,7 +190,7 @@ router.use('/monitoring/audit', requireAuth, requireSuperAdmin, monitoringaudit)
 
 // ── Sidebar / Menu Management ─────────────────────────────────────────────────
 // POST /resolved, POST/GET /permissions, POST /reseed
-router.use('/sidebar-menu-management', requireAuth, requireSuperAdmin, menumanagement);
+router.use('/sidebar-menu-management', logSidebarMenuEntry, requireAuth, requireSuperAdmin, menumanagement);
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 // GET /me, POST /change-password, PUT /:id

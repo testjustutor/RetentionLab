@@ -40,10 +40,7 @@ const tableControlsController = {
   /** GET /api/tables/controls - all stored table controls (any authenticated user) */
   async list(req) {
     try {
-      const db = req.app.locals.db;
-      const rows = await new Promise((resolve, reject) => {
-        db.all("SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE '" + PREFIX + "%'", [], (e, r) => e ? reject(e) : resolve(r || []));
-      });
+      const rows = await SystemSettingsModel.getByKeyPrefix(PREFIX);
       const items = (rows || []).map(r => ({
         tableId: r.setting_key.slice(PREFIX.length),
         controls: parseControls(r)
